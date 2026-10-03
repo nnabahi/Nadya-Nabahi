@@ -15,7 +15,7 @@
 // Report a broken invariant at the top of the page.
 function invariantFailed(where, problem) {
   const line = byId("invariant-status");
-  line.className = "fail";
+  line.className = "check-fail";
   line.textContent = "Invariant broken in " + where + ": " + problem;
 }
 
@@ -146,7 +146,7 @@ function runVersion(test, versionName, moves, every, results, whenDone) {
     line.innerHTML = "<b>" + version.label + "</b>: " + keys.length + " packings, " +
       done.toLocaleString() + " moves, chi&sup2;/df = " + (df > 0 ? chi / df : 0).toFixed(2) +
       ", p = " + p.toPrecision(2) + " &rarr; " +
-      (finished ? "<span class='" + (uniform ? "pass'>looks uniform" : "fail'>NOT uniform") + "</span>"
+      (finished ? "<span class='" + (uniform ? "check-pass'>looks uniform" : "check-fail'>NOT uniform") + "</span>"
                 : "running...");
     drawBars(canvas, seen, expected);
     if (!finished) setTimeout(chunk, 0);
@@ -261,7 +261,7 @@ function searchCount(m, n, maxWork) {
 }
 
 byId("count-small").addEventListener("click", function () {
-  let html = "<table><tr><th>box</th><th>search</th><th>Kasteleyn</th><th></th></tr>";
+  let html = "<table class='check-table'><tr><th>box</th><th>search</th><th>Kasteleyn</th><th></th></tr>";
   const sizes = [];
   for (let n = 1; n <= 12; n++) sizes.push([2, n]);
   for (let m = 3; m <= 6; m++) for (let n = m; n <= 6; n++) sizes.push([m, n]);
@@ -269,7 +269,7 @@ byId("count-small").addEventListener("click", function () {
     const exact = kasteleyn(m, n);
     const found = searchCount(m, n, 1e8);
     html += "<tr><td>" + m + " &times; " + n + "</td><td>" + found.toLocaleString() + "</td><td>" +
-      exact.toLocaleString() + "</td><td class='" + (found === exact ? "pass'>same" : "fail'>DIFFERENT") +
+      exact.toLocaleString() + "</td><td class='" + (found === exact ? "check-pass'>same" : "check-fail'>DIFFERENT") +
       "</td></tr>";
   }
   byId("count-results").innerHTML = html + "</table>";
@@ -282,7 +282,7 @@ byId("count-8").addEventListener("click", function () {
     const exact = kasteleyn(8, 8);
     byId("count-results").innerHTML = "8 &times; 8: search " + found.toLocaleString() +
       ", Kasteleyn " + exact.toLocaleString() + " &rarr; <span class='" +
-      (found === exact ? "pass'>same" : "fail'>DIFFERENT") + "</span>";
+      (found === exact ? "check-pass'>same" : "check-fail'>DIFFERENT") + "</span>";
   }, 50);
 });
 

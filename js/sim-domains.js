@@ -19,12 +19,14 @@
      ids[v]     for a drawn domain, the graph tool's name "x,y" of cell v
 
    Contents:
-     wrap(v, lo, hi)          wrap a number around, for tori
+     wrap(v, lo, hi)          wrap a whole number around, for tori
+     wrapNumber(v, size)      the same for any number
      boxDomain(...)           a box or torus of cells
      drawnDomain(...)         a region drawn in the graph tool
      cellAt(d, x, y)          which cell is at (x, y)
      stepsFrom(d, starts)     distances through the domain
      defaultColor(c, count)   the old site's colors
+     hexToRGB(hex)            "#rrggbb" as three numbers
    ===================================================================== */
 
 
@@ -33,6 +35,10 @@ function wrap(v, lo, hi) {
   const n = hi - lo + 1;
   return lo + (((v - lo) % n) + n) % n;
 }
+
+// Wrap a number into 0 .. size (not including size). Like wrap(), but
+// for any number, not just whole ones. E.g. size = 10: 12.5 -> 2.5.
+function wrapNumber(v, size) { return ((v % size) + size) % size; }
 
 // A width x height box of cells, with 4 or 8 neighbors. If "torus" is
 // true, the right edge is glued to the left and the top to the bottom.
@@ -157,4 +163,10 @@ function hsvToHex(hue, saturation, value) {
   return "#" + [r, g, b].map(function (t) {
     return Math.round((t + m) * 255).toString(16).padStart(2, "0");
   }).join("");
+}
+
+// "#rrggbb" -> [red, green, blue], each 0 .. 255 (for pictures drawn
+// pixel by pixel).
+function hexToRGB(hex) {
+  return [1, 3, 5].map(function (k) { return parseInt(hex.slice(k, k + 2), 16); });
 }

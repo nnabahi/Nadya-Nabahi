@@ -33,9 +33,9 @@
       <section class="quad quad-sim">
         <h2>Simulation</h2>
 
-        <!-- The picture. random-walk-coloring.js sets its height so the
-             cells come out square. On a torus, the zoom buttons sit in
-             its top right corner. -->
+        <!-- The picture. Its height is set so the cells come out square
+             (js/sim-view.js). On a torus, the zoom buttons sit in its top
+             right corner. -->
         <div class="sim-picture">
           <canvas id="sim-canvas"></canvas>
           <div class="zoom-buttons" id="zoom-buttons" hidden>
@@ -305,11 +305,12 @@
   <script src="../js/about-tabs.js"></script>
 
   <!-- Helpers shared by every sim page (they also typeset the formulas,
-       so they come after KaTeX), and domains and colors shared by the
-       sims. Then the walkers (they run in a second thread), then this
-       page's code. -->
+       so they come after KaTeX), the domains and colors shared by the
+       sims, and the picture's view (moving and zooming the torus). Then
+       the walkers (they run in a second thread), then this page's code. -->
   <script src="../js/sim-page.js"></script>
   <script src="../js/sim-domains.js"></script>
+  <script src="../js/sim-view.js"></script>
   <script src="random-walk-coloring-walk.js"></script>
   <script src="random-walk-coloring.js"></script>
 

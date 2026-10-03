@@ -6,12 +6,9 @@
   <title>Random sine function — check page</title>
   <link rel="stylesheet" href="../css/style.css">
   <style>
-    /* Only for this page: a plain results table and two small pictures. */
-    table.checks { border-collapse: collapse; margin: 1em 0; }
-    table.checks td, table.checks th { border: 1px solid #ccc; padding: 4px 8px; text-align: left; }
-    .pass { color: #1a7f37; font-weight: bold; }
-    .fail { color: #c62828; font-weight: bold; }
-    canvas { width: 100%; max-width: 800px; height: 300px; border: 1px solid #ccc; display: block; }
+    /* Only for this page: its two pictures. (The table's look is in
+       css/style.css, shared by the check pages.) */
+    canvas { width: 100%; max-width: 800px; height: 300px; border: 1px solid var(--color-border); display: block; }
   </style>
 </head>
 <body>
@@ -36,7 +33,7 @@
     <canvas id="plot"></canvas>
 
     <h2>2. Checks</h2>
-    <table class="checks">
+    <table class="check-table">
       <thead><tr><th>Check</th><th>Should be</th><th>Got</th><th></th></tr></thead>
       <tbody id="results"></tbody>
     </table>
@@ -66,7 +63,7 @@
   function check(what, shouldBe, got, passed) {
     const row = document.createElement("tr");
     row.innerHTML = "<td>" + what + "</td><td>" + shouldBe + "</td><td>" + got + "</td>" +
-      (passed ? '<td class="pass">pass</td>' : '<td class="fail">FAIL</td>');
+      (passed ? '<td class="check-pass">pass</td>' : '<td class="check-fail">FAIL</td>');
     document.getElementById("results").appendChild(row);
   }
 

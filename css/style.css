@@ -598,7 +598,8 @@ a.card:hover {
 .step-status.problem { color: var(--color-problem); }
 
 /* A torus picture can be dragged: show the "hand" cursor, and on phones
-   let a finger drag it instead of scrolling the page. */
+   let a finger drag it instead of scrolling the page. (js/sim-view.js
+   adds the classes "scrollable" on a torus, "dragging" while dragged.) */
 #sim-canvas.scrollable {
   cursor: grab;
   touch-action: none;
@@ -737,16 +738,30 @@ body.embedded .graph-wrap {
 }
 
 
-/* Check pages (like sims/random-mountain-check.html): the table of
-   tests, each marked pass (green) or FAIL (red). */
-.check-table td {
-  padding: 3px 12px 3px 0;
+/* Check pages (like sims/random-mountain-check.html), which test a
+   sim's math and aren't linked from the site: their tables, and each
+   test marked pass (green) or FAIL (red). */
+.check-table {
+  border-collapse: collapse;   /* one line between cells, not two */
+  margin: 0.5em 0;
+}
+
+.check-table td,
+.check-table th {
+  border: 1px solid var(--color-border);
+  padding: 3px 8px;
   vertical-align: top;
+  text-align: left;
   font-size: 0.9em;
 }
 
-.check-pass { color: var(--color-ok); white-space: nowrap; }
-.check-fail { color: var(--color-problem); font-weight: bold; white-space: nowrap; }
+.check-pass { color: var(--color-ok); font-weight: bold; }
+.check-fail { color: var(--color-problem); font-weight: bold; }
+
+.check-table .check-pass,
+.check-table .check-fail {
+  white-space: nowrap;         /* in a table, "✓ pass" stays on one line */
+}
 
 
 /* =====================================================================
