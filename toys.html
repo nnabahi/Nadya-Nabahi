@@ -25,17 +25,120 @@
 
   <main class="page">
     <h1>Toys n' Sims</h1>
-    <p>Interactive math simulations.</p>
+    <p>Interactive math simulations. Pick a genre to narrow the list.</p>
 
-    <!-- One card per simulation. Each card links to that sim's own page
-         inside the sims/ folder. Copy a card to add a new sim. -->
+    <!-- GENRE FILTER BUTTONS
+         This box starts empty on purpose. The script at the bottom of the
+         page (js/genre-filter.js) reads the genre tags on the cards below
+         and makes one button per genre here, so there is no second list
+         of genres to keep in sync. -->
+    <div class="filter-bar" id="genre-filters"></div>
+
+    <!-- SIM CARDS
+         One card per simulation. To add a sim, copy a card and change:
+           - href:      the sim's page inside the sims/ folder
+           - <h3>:      its name
+           - <p>:       one sentence about it
+           - <ul class="tags">: one <li> per genre. A sim can have as many
+                        genres as it needs. Spell a genre the same way on
+                        every card, because "Growth" and "growth" would
+                        become two different buttons.
+
+         The eight cards after the example are PLACEHOLDERS for the sims
+         from the old site. They are <div>s, not links, because their pages
+         don't exist yet. When a sim gets built, change its <div class="card">
+         into <a class="card" href="sims/....html"> (and </div> into </a>). -->
     <div class="card-grid">
+
       <a class="card" href="sims/example.html">
         <h3>Example sim</h3>
         <p class="muted">A blank page showing the four-quadrant layout.</p>
+        <ul class="tags">
+          <li>Template</li>
+        </ul>
       </a>
+
+      <div class="card">
+        <h3>1D Cellular Automata</h3>
+        <p class="muted">A row of cells updates by a fixed local rule; time runs down the page.</p>
+        <ul class="tags">
+          <li>Cellular automata</li>
+          <li>Fractals</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h3>Abelian Sandpile</h3>
+        <p class="muted">Drop grains on a grid; any site with too many topples onto its neighbors.</p>
+        <ul class="tags">
+          <li>Cellular automata</li>
+          <li>Fractals</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h3>Random Block Growth</h3>
+        <p class="muted">Blocks of a chosen shape fall and stack into a growing random surface.</p>
+        <ul class="tags">
+          <li>Growth</li>
+          <li>Interfaces</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h3>Random Walk Coloring</h3>
+        <p class="muted">Walkers on a torus color each site by whoever reaches it first.</p>
+        <ul class="tags">
+          <li>Random walks</li>
+          <li>Colorings</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h3>Random Connected Coloring</h3>
+        <p class="muted">Uniformly random grid colorings where every color forms one connected piece.</p>
+        <ul class="tags">
+          <li>Colorings</li>
+          <li>Markov chains</li>
+          <li>Graphs &amp; trees</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h3>Gradient Percolation</h3>
+        <p class="muted">Sites open with a probability that changes across the grid; trace the edge of the big cluster.</p>
+        <ul class="tags">
+          <li>Percolation</li>
+          <li>Interfaces</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h3>Lattice Path Counting</h3>
+        <p class="muted">Count paths through a grid where each step's weight is a formula you type.</p>
+        <ul class="tags">
+          <li>Combinatorics</li>
+          <li>Random environments</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h3>Random Sequential Tile Packing</h3>
+        <p class="muted">Tiles appear at random points and grow until they touch the region's edge or another tile.</p>
+        <ul class="tags">
+          <li>Packings &amp; tilings</li>
+          <li>Growth</li>
+          <li>Geometry</li>
+        </ul>
+      </div>
+
     </div>
   </main>
+
+  <!-- The small script that builds the genre buttons and hides/shows cards.
+       If it's ever missing or broken, the page still works: every card
+       just stays visible and there are no buttons. -->
+  <script src="js/genre-filter.js"></script>
 
 </body>
 </html>
