@@ -92,9 +92,7 @@ const CELL_OPACITY = 0.85;        // painted cells are slightly see-through, lik
 const UNIT = 20;            // size of one cell, in Cytoscape units
 const MAX_CELLS = 10000;    // biggest grid allowed (e.g. 100 x 100)
 
-// A new slider in the formula box, and the smallest step it can have.
-const NEW_SLIDER = { value: 1, min: -10, max: 10, step: 0.1 };
-const SMALLEST_STEP = 0.001;
+// (A new slider's settings, NEW_SLIDER, are in js/formulas.js.)
 
 
 /* =====================================================================
@@ -913,48 +911,9 @@ function loadEdgeList(text) {
    in section 2.)
    ===================================================================== */
 
-// Turn the typed text into a math.js expression "tree", made more
-// Desmos-like in two ways:
-//   - "=" means "equals". math.js reads a single "=" as "set y to ...",
-//     and refuses  x^2 + y^2 = 4  outright, so before reading, every
-//     single "=" (not part of <=, >=, == or !=) becomes "==".
-//   - every variable is one letter, so "xy" means x times y (math.js
-//     would read it as one variable called "xy"). Names math.js knows,
-//     like sin, sqrt or pi, are left alone.
-// (math.js runs the function given to "transform" or "filter" once for
-// every piece of the tree; "path" says where that piece sits inside its
-// "parent".)
-function readTree(text) {
-  const equalsFixed = text.replace(/(^|[^<>=!])=(?!=)/g, "$1==");
-  return math.parse(equalsFixed).transform(function (node, path, parent) {
-    const isWord = node.isSymbolNode && /^[a-zA-Z]{2,}$/.test(node.name);
-    if (!isWord || isFunctionName(path, parent) || math[node.name] !== undefined) return node;
-    // Split e.g. "xyr" into x * y * r. The "true" means the product is
-    // written without a multiplication sign, so the preview shows "xyr".
-    const letters = node.name.split("").map(function (ch) { return new math.SymbolNode(ch); });
-    return letters.reduce(function (product, letter) {
-      return new math.OperatorNode("*", "multiply", [product, letter], true);
-    });
-  });
-}
-
-// The letters in the formula that need a slider: everything except x, y
-// and names math.js already knows (pi, e, sqrt, ...).
-function sliderLetters(tree) {
-  const names = tree
-    .filter(function (node, path, parent) {
-      return node.isSymbolNode && !isFunctionName(path, parent);
-    })
-    .map(function (node) { return node.name; });
-  return [...new Set(names)].filter(function (name) {
-    return name !== "x" && name !== "y" && math[name] === undefined;
-  });
-}
-
-// True for the "sin" in sin(x): a name used as a function, not a variable.
-function isFunctionName(path, parent) {
-  return Boolean(parent && parent.isFunctionNode && path === "fn");
-}
+// Reading the formula (readTree), finding its slider letters
+// (sliderLetters) and the slider rows (makeSlider) are shared with the
+// sims, so they are in js/formulas.js.
 
 // Runs on every keystroke in the formula box.
 function readFormula() {
@@ -1057,73 +1016,8 @@ function showSliders(names) {
   holder.innerHTML = "";
   for (const name of names) {
     if (!sliders[name]) sliders[name] = Object.assign({}, NEW_SLIDER);   // a fresh copy
-    holder.appendChild(makeSlider(name, sliders[name]));
+    holder.appendChild(makeSlider(name, sliders[name], applyFormula));
   }
-}
-
-function makeSlider(name, s) {
-  const row = document.createElement("div");
-  row.className = "slider-row";
-  row.innerHTML =
-    '<span class="slider-name"></span>' +
-    '<input type="number" class="slider-value" title="Value">' +
-    '<input type="range" class="slider-range">' +
-    '<span class="slider-limits">' +
-      'min <input type="number" class="slider-min"> ' +
-      'max <input type="number" class="slider-max"> ' +
-      'step <input type="number" class="slider-step" min="' + SMALLEST_STEP + '">' +
-    '</span>';
-  row.querySelector(".slider-name").textContent = name + " =";
-
-  const value = row.querySelector(".slider-value");
-  const range = row.querySelector(".slider-range");
-  const min = row.querySelector(".slider-min");
-  const max = row.querySelector(".slider-max");
-  const step = row.querySelector(".slider-step");
-
-  // Copy the slider's numbers into its boxes.
-  function show() {
-    range.min = s.min; range.max = s.max; range.step = s.step; range.value = s.value;
-    value.value = s.value; value.step = s.step;
-    min.value = s.min; max.value = s.max; step.value = s.step;
-  }
-
-  // Dragging the slider.
-  range.addEventListener("input", function () {
-    s.value = Number(range.value);
-    value.value = s.value;
-    applyFormula();
-  });
-  // Typing a value. Like Desmos, a value past min or max stretches the range.
-  value.addEventListener("input", function () {
-    const v = Number(value.value);
-    if (value.value === "" || !isFinite(v)) return;   // half-typed, e.g. "-"
-    s.value = v;
-    if (v < s.min) s.min = v;
-    if (v > s.max) s.max = v;
-    range.min = s.min; range.max = s.max; range.value = v;
-    min.value = s.min; max.value = s.max;
-    applyFormula();
-  });
-  // Changing min, max or step (checked when you finish typing).
-  min.addEventListener("change", function () {
-    const v = Number(min.value);
-    if (min.value !== "" && v < s.max) { s.min = v; s.value = Math.max(s.value, v); }
-    show(); applyFormula();
-  });
-  max.addEventListener("change", function () {
-    const v = Number(max.value);
-    if (max.value !== "" && v > s.min) { s.max = v; s.value = Math.min(s.value, v); }
-    show(); applyFormula();
-  });
-  step.addEventListener("change", function () {
-    const v = Number(step.value);
-    if (step.value !== "" && v > 0) s.step = Math.max(v, SMALLEST_STEP);
-    show();
-  });
-
-  show();
-  return row;
 }
 
 byId("formula").addEventListener("input", readFormula);

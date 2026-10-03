@@ -29,6 +29,7 @@ repeat for the same seed) and, on a check page,
 | `js/sim-page.js` | Small helpers every sim page uses (chart drawing, the second thread, typesetting the formulas) |
 | `js/sim-view.js` | Where a sim's picture of cells goes, and moving and zooming it on a torus, shared by the sims |
 | `js/sim-domains.js` | Domains (box, torus, drawn region) and the old site's colors, shared by the sims |
+| `js/formulas.js` | Typed formulas and their sliders, like Desmos (the graph tool and the sims that take formulas) |
 | `sims/graph-tool.html` | Graph & domain tool: paint a domain on a grid (pinned first on `toys.html`) |
 | `sims/graph-tool.js` | The graph tool's code (painting, torus, formula box, undo, save/load) |
 | `sims/connected-coloring.html` | Random connected coloring sim (box, torus, or a domain drawn in the graph tool) |
@@ -37,9 +38,17 @@ repeat for the same seed) and, on a check page,
 | `sims/random-walk-coloring.html` | Random walk coloring sim (N walkers color cells by first arrival, in discrete or continuous time) |
 | `sims/random-walk-coloring.js` | That sim's page: the default start, dragging walkers, drawing, statistics, the custom domain |
 | `sims/random-walk-coloring-walk.js` | That sim's walkers (both models), run in a Web Worker |
-| `sims/random-mountain-growth.js` | Random mountain (block growth): the growth rule only, no page yet |
+| `sims/random-mountain.html` | Random mountain sim (blocks pile up on a line or grid; any tile, any domain) |
+| `sims/random-mountain.js` | That sim's page: the clickable tile grid and presets, domains, drawing, statistics, the custom domain |
+| `sims/random-mountain-growth.js` | That sim's growth rule, and the code that runs it in a Web Worker |
 | `sims/random-mountain-check.html`, `.js` | Tests of that growth rule (against nadya's Python, exact odds, invariants); not linked from the site |
-| `sims/tile-packing-chain.js` | Random tile packing: its Markov chain (not on the site yet) |
+| `sims/sequential-packing.html` | Random sequential packing sim (continuous space): random points grow tiles until they touch the edge of S or an earlier tile, with any typed domain, tile and density |
+| `sims/sequential-packing.js` | That sim's page: the typed formulas and their sliders, play, drawing, statistics |
+| `sims/sequential-packing-growth.js` | That sim's math (growing each tile until it meets the edge of S or an earlier tile), run in a Web Worker |
+| `sims/sequential-packing-check.html`, `.js` | Tests of that math (against nadya's gasket formula, known answers, invariants); not linked from the site |
+| `sims/tile-packing.html` | Random tile packing sim (rectangles pack a box, torus or drawn domain, with or without gaps; every packing equally likely) |
+| `sims/tile-packing.js` | That sim's page: domains, the tiles and presets, drawing, statistics, the custom domain |
+| `sims/tile-packing-chain.js` | That sim's Markov chain (uniform over all packings), run in a Web Worker |
 | `sims/tile-packing-check.html`, `.js` | Tests of that chain (every packing equally likely, counting tilings, the arctic circle); not linked from the site |
 | `sims/random-sine-roots.js` | Random sine function: its math (placing the roots, f, peaks and lobes; not on the site yet) |
 | `sims/random-sine-check.html` | Tests of that math (Euler's sine product, stationarity, a picture to compare with nadya's Python); not linked from the site |
