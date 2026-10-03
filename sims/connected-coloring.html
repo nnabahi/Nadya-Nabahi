@@ -33,9 +33,9 @@
       <section class="quad quad-sim">
         <h2>Simulation</h2>
 
-        <!-- The picture. connected-coloring.js sets its height so the
-             cells come out square. On the torus, the zoom buttons sit in
-             its top right corner. -->
+        <!-- The picture. Its height is set so the cells come out square
+             (js/sim-view.js). On the torus, the zoom buttons sit in its top
+             right corner. -->
         <div class="sim-picture">
           <canvas id="sim-canvas"></canvas>
           <div class="zoom-buttons" id="zoom-buttons" hidden>
@@ -168,8 +168,8 @@
         <p>
           <strong>Things to try:</strong> press Play (or Step, for one move at a
           time); change N; switch to the torus (drag it and it wraps around; zoom
-          with the mouse wheel, a pinch, or the + and &minus; buttons); or pick Custom to draw your own region and even your own
-          starting colors.
+          with the mouse wheel, a pinch, or the + and &minus; buttons); or pick
+          Custom to draw your own region and even your own starting colors.
         </p>
         </div>
 
@@ -238,13 +238,13 @@
           neighbors, or your own region drawn in the graph tool. The torus can
           be moved by dragging it and zoomed with the mouse wheel, a pinch or
           the buttons in its corner; zoomed out, it shows several times side
-          by side. The automatic start cuts the
-          domain into a grid of N rectangles; a drawn region that can't be cut
-          that way with each color in one piece starts from N compact blocks
-          around spread-out cells instead. Compact pieces matter: from thin
-          stripes, almost every move would be refused at first. With a custom
-          domain you can also paint your own start. The seed fixes the random
-          numbers, so a run can be repeated exactly.
+          by side. The automatic start cuts the domain into a grid of N
+          rectangles; a drawn region that can't be cut that way with each
+          color in one piece starts from N compact blocks around spread-out
+          cells instead. Compact pieces matter: from thin stripes, almost
+          every move would be refused at first. With a custom domain you can
+          also paint your own start. The seed fixes the random numbers, so a
+          run can be repeated exactly.
         </p>
         <p><strong>References</strong></p>
         <ol class="references">
@@ -285,11 +285,12 @@
   <script src="../js/about-tabs.js"></script>
 
   <!-- Helpers shared by every sim page (they also typeset the formulas,
-       so they come after KaTeX), and domains and colors shared by the
-       sims. Then the chain (it runs in a second thread), then this
-       page's code. -->
+       so they come after KaTeX), the domains and colors shared by the
+       sims, and the picture's view (moving and zooming the torus). Then
+       the chain (it runs in a second thread), then this page's code. -->
   <script src="../js/sim-page.js"></script>
   <script src="../js/sim-domains.js"></script>
+  <script src="../js/sim-view.js"></script>
   <script src="connected-coloring-chain.js"></script>
   <script src="connected-coloring.js"></script>
 

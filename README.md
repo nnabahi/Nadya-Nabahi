@@ -5,9 +5,10 @@ browser and it works. Everything runs in the visitor's browser; there is no
 server. Outside libraries, all loaded from a CDN:
 [Cytoscape.js](https://js.cytoscape.org) (graph drawing and graph
 algorithms), [math.js](https://mathjs.org) (reads typed formulas),
-[KaTeX](https://katex.org) (shows them as typeset maths) and
+[KaTeX](https://katex.org) (shows them as typeset math),
 [seedrandom](https://github.com/davidbau/seedrandom) (random numbers that
-repeat for the same seed).
+repeat for the same seed) and, on a check page,
+[jStat](https://jstat.github.io) (statistics).
 
 ## What's where
 
@@ -26,6 +27,7 @@ repeat for the same seed).
 | `js/genre-filter.js` | Builds the genre buttons on `toys.html` and hides/shows cards |
 | `js/about-tabs.js` | The Simple / All the details tabs in a sim's About box |
 | `js/sim-page.js` | Small helpers every sim page uses (chart drawing, the second thread, typesetting the formulas) |
+| `js/sim-view.js` | Where a sim's picture of cells goes, and moving and zooming it on a torus, shared by the sims |
 | `js/sim-domains.js` | Domains (box, torus, drawn region) and the old site's colors, shared by the sims |
 | `sims/graph-tool.html` | Graph & domain tool: paint a domain on a grid (pinned first on `toys.html`) |
 | `sims/graph-tool.js` | The graph tool's code (painting, torus, formula box, undo, save/load) |
@@ -37,6 +39,10 @@ repeat for the same seed).
 | `sims/random-walk-coloring-walk.js` | That sim's walkers (both models), run in a Web Worker |
 | `sims/random-mountain-growth.js` | Random mountain (block growth): the growth rule only, no page yet |
 | `sims/random-mountain-check.html`, `.js` | Tests of that growth rule (against nadya's Python, exact odds, invariants); not linked from the site |
+| `sims/tile-packing-chain.js` | Random tile packing: its Markov chain (not on the site yet) |
+| `sims/tile-packing-check.html`, `.js` | Tests of that chain (every packing equally likely, counting tilings, the arctic circle); not linked from the site |
+| `sims/random-sine-roots.js` | Random sine function: its math (placing the roots, f, peaks and lobes; not on the site yet) |
+| `sims/random-sine-check.html` | Tests of that math (Euler's sine product, stationarity, a picture to compare with nadya's Python); not linked from the site |
 
 ## Common changes
 
@@ -47,7 +53,8 @@ repeat for the same seed).
   fill in the four boxes, and add a card for it on `toys.html` with its
   genre labels (`<li>` items in the card's `<ul class="tags">`). New genres
   get a filter button automatically. The copied page already loads the
-  shared files `js/sim-page.js` and `js/sim-domains.js`.
+  shared files `js/sim-page.js`, `js/sim-domains.js` and `js/sim-view.js`
+  (the last one gives any torus its moving and zooming).
 - **Move the sim quadrants around:** edit `grid-template-areas` in section 6
   of `css/style.css`.
 

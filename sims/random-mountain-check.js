@@ -110,22 +110,26 @@ function describe(heights) {
   return Array.from(heights.keys()).sort().map(function (k) { return k + ":" + heights.get(k); }).join(" ");
 }
 
+// The site (x, y) of domain d as text "x,y", after wrapping around on
+// a torus; null if it is outside the domain. Written straight from the
+// definition of the domains, without the sim's code, for the two tests
+// below.
+function siteKey(d, x, y) {
+  if (d.kind === "box" && d.torus) {
+    const w = d.xmax - d.xmin + 1, h = d.ymax - d.ymin + 1;
+    x = d.xmin + (((x - d.xmin) % w) + w) % w;
+    y = d.ymin + (((y - d.ymin) % h) + h) % h;
+  }
+  if (d.kind === "box" && (x < d.xmin || x > d.xmax || y < d.ymin || y > d.ymax)) return null;
+  if (d.kind === "cells" && !d.cells.some(function (p) { return p[0] === x && p[1] === y; })) return null;
+  return x + "," + y;
+}
+
 // The exact odds, straight from the definition: every run of "steps"
 // steps, as a Map from describe(final mountain) to its probability.
 // Written on its own, without newMountain, so the two can be compared.
 function exactOdds(c) {
-  // A site as text "x,y", after wrapping on a torus; null if outside.
-  function site(x, y) {
-    const d = c.domain;
-    if (d.kind === "box" && d.torus) {
-      const w = d.xmax - d.xmin + 1, h = d.ymax - d.ymin + 1;
-      x = d.xmin + (((x - d.xmin) % w) + w) % w;
-      y = d.ymin + (((y - d.ymin) % h) + h) % h;
-    }
-    if (d.kind === "box" && (x < d.xmin || x > d.xmax || y < d.ymin || y > d.ymax)) return null;
-    if (d.kind === "cells" && !d.cells.some(function (p) { return p[0] === x && p[1] === y; })) return null;
-    return x + "," + y;
-  }
+  function site(x, y) { return siteKey(c.domain, x, y); }
   // The available sites for a mountain: the start, and base + T.
   function availableSites(heights) {
     const s = new Set([site(c.start[0], c.start[1] || 0)]);
@@ -231,15 +235,8 @@ function checkInvariants(c, steps) {
       for (let i = 0; i < m.height.length; i++) {
         if (m.height[i] === 0) continue;
         for (const t of c.tile) {
-          let x = m.siteX[i] + t[0], y = m.siteY[i] + (t[1] || 0);
-          if (d.kind === "box" && d.torus) {
-            const w = d.xmax - d.xmin + 1, h = d.ymax - d.ymin + 1;
-            x = d.xmin + (((x - d.xmin) % w) + w) % w;
-            y = d.ymin + (((y - d.ymin) % h) + h) % h;
-          }
-          if (d.kind === "box" && (x < d.xmin || x > d.xmax || y < d.ymin || y > d.ymax)) continue;
-          if (d.kind === "cells" && !d.cells.some(function (p) { return p[0] === x && p[1] === y; })) continue;
-          should.add(x + "," + y);
+          const key = siteKey(d, m.siteX[i] + t[0], m.siteY[i] + (t[1] || 0));
+          if (key !== null) should.add(key);
         }
       }
       const actual = new Set(m.available.map(function (i) { return m.siteX[i] + "," + m.siteY[i]; }));
