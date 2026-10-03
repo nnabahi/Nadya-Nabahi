@@ -319,8 +319,11 @@ a.card:hover {
 .quad-stats    { grid-area: stats; }
 .quad-about    { grid-area: about; }
 
-/* The drawing surface for a simulation fills its quadrant's width. */
-.quad-sim canvas {
+/* The drawing surface for a simulation fills its quadrant's width.
+   The ">" means "a canvas directly inside the quadrant" only, so this
+   rule leaves alone canvases that libraries (like Cytoscape) create
+   deeper inside the page. */
+.quad-sim > canvas {
   display: block;
   width: 100%;
   height: auto;
@@ -341,11 +344,6 @@ a.card:hover {
   .topbar nav {
     justify-content: flex-start;
     overflow-x: auto;
-  }
-
-  /* A shorter drawing area on phones (section 8). */
-  .graph-area {
-    height: 380px;
   }
 
   /* Stack the four quadrants in one column, in this order. */
@@ -376,6 +374,10 @@ a.card:hover {
   margin-bottom: 10px;
 }
 
+#current-colour {
+  margin: 6px 0 8px;
+}
+
 /* A small rounded button, same look as the genre buttons. */
 .tool-button {
   font: inherit;
@@ -399,38 +401,82 @@ a.card:hover {
   color: var(--color-surface);
 }
 
-/* The colour palette: a row of round buttons. */
-.palette {
+/* The palette: a grid of colour squares 7 across (like OneNote or
+   Word), with the Eraser / Swap / Add buttons beside it. */
+.palette-area {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
-  margin-bottom: 10px;
+  gap: 8px 16px;
+  align-items: flex-start;
+}
+
+.palette {
+  display: grid;
+  grid-template-columns: repeat(7, 24px);   /* 7 columns, each 24px wide */
+  gap: 4px;
 }
 
 .swatch {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;                  /* 50% = a circle */
-  border: 2px solid var(--color-border);
-  background: var(--color-surface);    /* the eraser stays white */
-  color: var(--color-text-muted);
-  font-size: 16px;
-  line-height: 1;
+  width: 24px;
+  height: 24px;
+  border: 1px solid rgba(0, 0, 0, 0.25);
+  border-radius: 3px;
   padding: 0;
   cursor: pointer;
 }
 
-/* The colour you're painting with gets a thick dark ring. */
+/* The colour you're painting with gets a dark ring around it. */
 .swatch.selected {
-  border: 3px solid var(--color-text);
+  outline: 2px solid var(--color-text);
+  outline-offset: 1px;
 }
 
-/* The box Cytoscape draws in. It needs a fixed height to draw into. */
-.graph-area {
-  height: 520px;
+.palette-buttons {
+  position: relative;       /* the invisible colour chooser sits in here */
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-width: 280px;
+}
+
+.tool-button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* Present on the page (so the browser can open it) but not visible. */
+.invisible-input {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+}
+
+/* The drawing: a box holding two layers stacked exactly on top of each
+   other. The grid-lines canvas is underneath; Cytoscape's box is on top
+   (it comes later in the HTML, so it's drawn over the canvas). */
+.graph-wrap {
+  position: relative;
+  height: 520px;            /* Cytoscape needs a fixed height to draw into */
   border: 1px solid var(--color-border);
   border-radius: calc(var(--corner-radius) / 2);
-  background: var(--color-placeholder);
+  overflow: hidden;
+}
+
+.grid-lines,
+.graph-area {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.graph-area {
   cursor: crosshair;     /* painting */
   touch-action: none;    /* on phones, a finger draws instead of scrolling the page */
 }
@@ -496,4 +542,12 @@ a.card:hover {
   border-radius: 3px;
   margin-right: 8px;
   vertical-align: middle;
+}
+
+/* A shorter drawing area on phones. (This has to come after the
+   .graph-wrap rule above, otherwise that rule would win.) */
+@media (max-width: 760px) {
+  .graph-wrap {
+    height: 380px;
+  }
 }

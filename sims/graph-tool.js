@@ -31,10 +31,11 @@
      2. What the tool remembers (the "state")
      3. How things look (the style rules)
      4. Building the grid
-     5. Painting, undo and redo
-     6. The graph: statistics and getGraph()
-     7. Saving, loading, copying and pasting
-     8. Connecting the buttons on the page
+     5. The background grid lines (like Desmos)
+     6. Painting, undo and redo
+     7. The graph: statistics and getGraph()
+     8. Saving, loading, copying and pasting
+     9. Connecting the buttons on the page
    ===================================================================== */
 
 
@@ -42,27 +43,44 @@
    1. SETTINGS YOU MIGHT WANT TO CHANGE
    ===================================================================== */
 
-// The palette. Position 0 is "off" (the eraser). Every other position is
-// a colour you can paint with; its number (1, 2, ...) is what a sim gets.
-// Placeholder colours: change them freely, or add more lines.
-const PALETTE = [
+// The starting palette: 14 colours, shown as a grid 7 across and 2 high.
+// Position 0 is "off" (the eraser). Every other position is a colour you
+// can paint with; its number (1, 2, ...) is what a sim gets. On the page
+// you can swap any colour or add more, and Save keeps them.
+let palette = [
   null,        // 0 = off
-  "#3a5a7a",   // 1 blue
-  "#c0504d",   // 2 red
-  "#e8a33d",   // 3 orange
-  "#5b9b57",   // 4 green
-  "#8064a2",   // 5 purple
-  "#3fa7a3",   // 6 teal
-  "#d16fa8",   // 7 pink
-  "#6b4f3a",   // 8 brown
+  // first row
+  "#c74440",   // 1 red
+  "#fa7e19",   // 2 orange
+  "#e0b000",   // 3 yellow
+  "#388c46",   // 4 green
+  "#1fa3a3",   // 5 teal
+  "#2d70b3",   // 6 blue
+  "#6042a6",   // 7 purple
+  // second row
+  "#d64ca0",   // 8 pink
+  "#7a5230",   // 9 brown
+  "#9ad13b",   // 10 lime
+  "#5bb3e6",   // 11 sky blue
+  "#a58fd6",   // 12 lavender
+  "#8a8a8a",   // 13 grey
+  "#000000",   // 14 black
 ];
 
-const OFF_COLOUR  = "#ffffff";   // an unpainted cell
-const GRID_LINES  = "#dedbd4";   // thin lines between cells, faint edges
-const AXIS_COLOUR = "#22252b";   // the x and y axes, and painted edges
+// The background grid, like Desmos: black axes, grey lines every
+// MAJOR_EVERY cells, light grey lines every cell.
+const BACKGROUND   = "#ffffff";   // inside the grid's x/y limits
+const OUTSIDE_GRID = "#f0f0f0";   // outside them (no cells there)
+const MINOR_LINE   = "#e4e4e4";   // every cell
+const MAJOR_LINE   = "#b4b4b4";   // every MAJOR_EVERY cells
+const AXIS_LINE    = "#000000";   // the lines x = 0 and y = 0
+const LABEL_COLOUR = "#333333";   // the numbers along the axes
+const MAJOR_EVERY  = 5;
+
+const OFF_DOT     = "#bdbdbd";   // an unpainted dot (dots view)
+const EDGE_COLOUR = "#333333";   // an edge between two painted dots
 
 const UNIT = 20;            // size of one cell, in Cytoscape units
-const TICK_EVERY = 5;       // a number on the axes every 5 cells
 const MAX_CELLS = 10000;    // biggest grid allowed (e.g. 100 x 100)
 
 
@@ -138,52 +156,42 @@ function makeStyle() {
     { selector: "node", style: { "z-index-compare": "manual", "z-index": 2 } },
     { selector: "edge", style: { "z-index-compare": "manual", "z-index": 1, "curve-style": "straight" } },
 
-    // An unpainted cell: a white square with a thin border (cells view),
-    // or a small faint dot (dots view).
+    // An unpainted cell is see-through, so the background grid lines
+    // (section 4) show. An unpainted dot is a small grey dot.
     {
       selector: "node.cell, node.copy",
       style: dots
-        ? { shape: "ellipse", width: 0.2 * UNIT, height: 0.2 * UNIT, "background-color": GRID_LINES }
-        : { shape: "rectangle", width: UNIT, height: UNIT, "background-color": OFF_COLOUR,
-            "border-width": 1, "border-color": GRID_LINES },
+        ? { shape: "ellipse", width: 0.2 * UNIT, height: 0.2 * UNIT, "background-color": OFF_DOT }
+        : { shape: "rectangle", width: UNIT, height: UNIT, "background-opacity": 0 },
     },
     // Torus copies are faded, so the real grid stands out.
     { selector: "node.copy", style: { opacity: 0.4 } },
   ];
 
-  // One rule per palette colour. Painted dots are drawn bigger.
-  for (let c = 1; c < PALETTE.length; c++) {
-    const look = { "background-color": PALETTE[c] };
+  // One rule per palette colour. Painted cells are slightly see-through,
+  // like Desmos shading, so the grid lines still show; painted dots are
+  // drawn bigger.
+  for (let c = 1; c < palette.length; c++) {
+    const look = { "background-color": palette[c], "background-opacity": dots ? 1 : 0.85 };
     if (dots) { look.width = 0.45 * UNIT; look.height = 0.45 * UNIT; }
     rules.push({ selector: "node[colour = " + c + "]", style: look });
   }
 
-  // Edges are only drawn in dots view: faint grid lines, and thick lines
-  // between two painted dots (class "on"). Faint diagonals (8 neighbours)
-  // and the long wrap-around edges of a torus are never drawn.
+  // Edges are drawn only in dots view, and only between two painted dots
+  // (class "on"); the background grid already shows the rest of the
+  // lattice. The long wrap-around edges of a torus are never drawn.
   rules.push(
-    { selector: "edge.lattice",          style: { display: dots ? "element" : "none", width: 1, "line-color": GRID_LINES } },
-    { selector: "edge.lattice.diagonal", style: { display: "none" } },
-    { selector: "edge.lattice.on",       style: { display: dots ? "element" : "none", width: 3, "line-color": AXIS_COLOUR } },
-    { selector: "edge.wrap",             style: { display: "none" } },
-  );
-
-  // The axes, and the numbers along them. "events: no" means you can't
-  // click them; clicks go straight through to the grid.
-  rules.push(
-    { selector: "node.axis-end", style: { width: 1, height: 1, opacity: 0, events: "no" } },
-    { selector: "edge.axis", style: { width: 2, "line-color": AXIS_COLOUR, opacity: 0.6, "z-index": 5, events: "no" } },
-    {
-      selector: "node.tick",
-      style: {
-        label: "data(label)", "font-size": 9, color: AXIS_COLOUR,
-        "text-valign": "bottom", "text-halign": "right",
-        width: 1, height: 1, "background-opacity": 0, "z-index": 6, events: "no",
-      },
-    },
+    { selector: "edge.lattice",    style: { display: "none" } },
+    { selector: "edge.lattice.on", style: { display: dots ? "element" : "none", width: 3, "line-color": EDGE_COLOUR } },
+    { selector: "edge.wrap",       style: { display: "none" } },
   );
 
   return rules;
+}
+
+// Apply the style rules again (after changing the view or a colour).
+function restyle() {
+  cy.style().fromJson(makeStyle()).update();
 }
 
 
@@ -274,7 +282,6 @@ function buildGrid() {
     }
   }
 
-  elements.push(...makeAxes());
 
   // Swap the old drawing for the new one. "batch" makes Cytoscape redraw
   // once at the end instead of after every single change.
@@ -284,6 +291,7 @@ function buildGrid() {
     cy.edges(".lattice").forEach(updateEdge);
   });
   cy.fit(cy.nodes(".cell"), 30);
+  drawGridLines();
 
   // Undo can't go back across a grid change, so start a fresh history.
   undoStack = [];
@@ -297,38 +305,106 @@ function buildGrid() {
 }
 
 
-// The x and y axes: two long lines, each drawn between two invisible
-// end points, plus a number every TICK_EVERY cells.
-function makeAxes() {
-  const pad = grid.torus ? Math.max(width(), height()) : 2;   // reach past the grid
-  const left = grid.xmin - pad, right = grid.xmax + pad;
-  const bottom = grid.ymin - pad, top = grid.ymax + pad;
+/* =====================================================================
+   5. THE BACKGROUND GRID LINES (like Desmos)
+   ---------------------------------------------------------------------
+   Cytoscape doesn't draw grid lines, so this draws them on a second
+   <canvas id="grid-lines"> that sits underneath Cytoscape's drawing.
+   Whenever the view moves or zooms, Cytoscape sends a "viewport" event
+   and the lines are drawn again.
 
-  const parts = [
-    { group: "nodes", classes: "axis-end", data: { id: "x-axis-left" },   position: drawAt(left, 0) },
-    { group: "nodes", classes: "axis-end", data: { id: "x-axis-right" },  position: drawAt(right, 0) },
-    { group: "nodes", classes: "axis-end", data: { id: "y-axis-bottom" }, position: drawAt(0, bottom) },
-    { group: "nodes", classes: "axis-end", data: { id: "y-axis-top" },    position: drawAt(0, top) },
-    { group: "edges", classes: "axis", data: { source: "x-axis-left",   target: "x-axis-right" } },
-    { group: "edges", classes: "axis", data: { source: "y-axis-bottom", target: "y-axis-top" } },
-  ];
+     - light grey lines every cell: in cells view they are the cell
+       borders (at x = ..., -0.5, 0.5, 1.5, ...); in dots view they go
+       through the dots (at whole numbers)
+     - grey lines every MAJOR_EVERY cells, at x = 0, 5, 10, ...
+     - black axes at x = 0 and y = 0, with numbers along them
+   ===================================================================== */
+const linesCanvas = document.getElementById("grid-lines");
 
-  // First multiple of TICK_EVERY at or after "from".
-  function firstTick(from) { return Math.ceil(from / TICK_EVERY) * TICK_EVERY; }
+function drawGridLines() {
+  // Make the canvas's pixels match its size on screen. "ratio" is 2 on
+  // high-resolution screens; drawing at that density keeps lines sharp.
+  const ratio = window.devicePixelRatio || 1;
+  const w = linesCanvas.clientWidth, h = linesCanvas.clientHeight;
+  linesCanvas.width = w * ratio;
+  linesCanvas.height = h * ratio;
+  const pen = linesCanvas.getContext("2d");
+  pen.setTransform(ratio, 0, 0, ratio, 0, 0);   // from now on, draw in screen pixels
 
-  for (let t = firstTick(left); t <= right; t += TICK_EVERY) {
-    parts.push({ group: "nodes", classes: "tick", data: { id: "tick-x " + t, label: String(t) }, position: drawAt(t, 0) });
+  // Where the point (x, y) is on screen right now, and back again.
+  const scale = UNIT * cy.zoom();               // screen pixels per cell
+  const pan = cy.pan();
+  function screenX(x) { return x * scale + pan.x; }
+  function screenY(y) { return -y * scale + pan.y; }
+  const left = -pan.x / scale, right = (w - pan.x) / scale;     // x at the screen's edges
+  const top = pan.y / scale, bottom = (pan.y - h) / scale;      // y at the screen's edges
+
+  // Lines are 1 pixel wide; the +0.5 puts them exactly on a pixel, so
+  // they look crisp instead of blurry.
+  function verticalLine(x, colour, thickness) {
+    const sx = Math.round(screenX(x)) + 0.5;
+    pen.strokeStyle = colour; pen.lineWidth = thickness;
+    pen.beginPath(); pen.moveTo(sx, 0); pen.lineTo(sx, h); pen.stroke();
   }
-  for (let t = firstTick(bottom); t <= top; t += TICK_EVERY) {
-    if (t === 0) continue;   // "0" is already written at the origin
-    parts.push({ group: "nodes", classes: "tick", data: { id: "tick-y " + t, label: String(t) }, position: drawAt(0, t) });
+  function horizontalLine(y, colour, thickness) {
+    const sy = Math.round(screenY(y)) + 0.5;
+    pen.strokeStyle = colour; pen.lineWidth = thickness;
+    pen.beginPath(); pen.moveTo(0, sy); pen.lineTo(w, sy); pen.stroke();
   }
-  return parts;
+
+  // 1. Grey everywhere, white inside the grid's limits.
+  pen.fillStyle = OUTSIDE_GRID;
+  pen.fillRect(0, 0, w, h);
+  pen.fillStyle = BACKGROUND;
+  pen.fillRect(screenX(grid.xmin - 0.5), screenY(grid.ymax + 0.5), width() * scale, height() * scale);
+
+  // 2. Light lines every cell (skipped when zoomed so far out that
+  //    they would be closer than 4 pixels and just look grey).
+  if (scale >= 4) {
+    const offset = (view === "cells") ? 0.5 : 0;
+    for (let x = Math.ceil(left - offset) + offset; x <= right; x++) verticalLine(x, MINOR_LINE, 1);
+    for (let y = Math.ceil(bottom - offset) + offset; y <= top; y++) horizontalLine(y, MINOR_LINE, 1);
+  }
+
+  // 3. Grey lines every MAJOR_EVERY cells.
+  const major = MAJOR_EVERY * scale;   // pixels between grey lines
+  if (major >= 4) {
+    for (let x = Math.ceil(left / MAJOR_EVERY) * MAJOR_EVERY; x <= right; x += MAJOR_EVERY) verticalLine(x, MAJOR_LINE, 1);
+    for (let y = Math.ceil(bottom / MAJOR_EVERY) * MAJOR_EVERY; y <= top; y += MAJOR_EVERY) horizontalLine(y, MAJOR_LINE, 1);
+  }
+
+  // 4. The axes.
+  verticalLine(0, AXIS_LINE, 1.5);
+  horizontalLine(0, AXIS_LINE, 1.5);
+
+  // 5. Numbers at the grey lines, next to the axes. When an axis is off
+  //    screen, its numbers stay along the nearest edge (as in Desmos).
+  if (major >= 28) {
+    pen.fillStyle = LABEL_COLOUR;
+    pen.font = "11px sans-serif";
+    const xAxisAt = Math.min(Math.max(screenY(0), 0), h - 14);   // height of the x-axis numbers
+    const yAxisAt = Math.min(Math.max(screenX(0), 24), w);       // the y-axis numbers end here
+    pen.textAlign = "center";
+    pen.textBaseline = "top";
+    for (let x = Math.ceil(left / MAJOR_EVERY) * MAJOR_EVERY; x <= right; x += MAJOR_EVERY) {
+      if (x !== 0) pen.fillText(String(x), screenX(x), xAxisAt + 3);
+    }
+    pen.textAlign = "right";
+    pen.textBaseline = "middle";
+    for (let y = Math.ceil(bottom / MAJOR_EVERY) * MAJOR_EVERY; y <= top; y += MAJOR_EVERY) {
+      if (y !== 0) pen.fillText(String(y), yAxisAt - 4, screenY(y));
+    }
+    pen.fillText("0", yAxisAt - 4, xAxisAt + 9);
+  }
 }
+
+// Redraw the lines whenever the view moves or zooms, or the window resizes.
+cy.on("viewport", drawGridLines);
+window.addEventListener("resize", drawGridLines);
 
 
 /* =====================================================================
-   5. PAINTING, UNDO AND REDO
+   6. PAINTING, UNDO AND REDO
    ===================================================================== */
 
 // Give cell (x, y) colour c, and remember it for undo if a stroke is going.
@@ -454,7 +530,7 @@ function replay(from, to, which) {
 
 
 /* =====================================================================
-   6. THE GRAPH: STATISTICS AND getGraph()
+   7. THE GRAPH: STATISTICS AND getGraph()
    ---------------------------------------------------------------------
    The domain graph = the painted cells, plus the edges whose two ends
    are both painted (the edges with class "on").
@@ -487,11 +563,11 @@ function updateStats() {
   // How many cells of each colour, as a list with a colour swatch.
   const list = document.getElementById("stat-colours");
   list.innerHTML = "";
-  for (let c = 1; c < PALETTE.length; c++) {
+  for (let c = 1; c < palette.length; c++) {
     const count = cy.nodes(".cell[colour = " + c + "]").length;
     if (count === 0) continue;
     const item = document.createElement("li");
-    item.innerHTML = '<span class="swatch-small" style="background:' + PALETTE[c] + '"></span>' +
+    item.innerHTML = '<span class="swatch-small" style="background:' + palette[c] + '"></span>' +
                      "colour " + c + ": " + count;
     list.appendChild(item);
   }
@@ -499,13 +575,13 @@ function updateStats() {
 
 
 /* =====================================================================
-   7. SAVING, LOADING, COPYING AND PASTING
+   8. SAVING, LOADING, COPYING AND PASTING
    ---------------------------------------------------------------------
    Two text formats:
-     - JSON: keeps everything (grid settings, positions, colours). Used
-       for Save / Load. Looks like:
+     - JSON: keeps everything (grid settings, palette, positions,
+       colours). Used for Save / Load. Looks like:
          { "format": "graph-tool", "mode": "grid", "grid": {...},
-           "vertices": [...], "edges": [...] }
+           "palette": [...], "vertices": [...], "edges": [...] }
      - Edge list: one edge per line, "3,-2 4,-2". Easy to use in other
        programs (networkx: nx.read_edgelist), but it forgets colours
        and any painted cell with no painted neighbour.
@@ -518,6 +594,7 @@ function toJSONText() {
     version: 1,
     mode: "grid",
     grid: grid,
+    palette: palette.slice(1),   // the colours, without the "off" at position 0
     vertices: graph.vertices,
     edges: graph.edges,
   };
@@ -586,14 +663,24 @@ function loadJSON(text) {
   if (problem) return showMessage("Nothing was loaded: " + problem);
 
   Object.assign(grid, settings);
+
+  // The palette, if the file has one made of "#rrggbb" colours.
+  const isColour = function (text) { return /^#[0-9a-fA-F]{6}$/.test(text); };
+  if (Array.isArray(data.palette) && data.palette.length > 0 && data.palette.every(isColour)) {
+    palette = [null].concat(data.palette);
+    if (currentColour >= palette.length) currentColour = 1;
+  }
+
   colourOf = {};
   for (const v of data.vertices) {
     const c = Number(v.colour);
-    if (Number.isInteger(v.x) && Number.isInteger(v.y) && c > 0 && c < PALETTE.length) {
+    if (Number.isInteger(v.x) && Number.isInteger(v.y) && c > 0 && c < palette.length) {
       colourOf[cellName(v.x, v.y)] = c;
     }
   }
   showSettings();
+  buildPalette();
+  restyle();
   buildGrid();
   showMessage("Loaded. (Undo history starts fresh after loading.)");
 }
@@ -634,7 +721,7 @@ function loadEdgeList(text) {
 
 
 /* =====================================================================
-   8. CONNECTING THE BUTTONS ON THE PAGE
+   9. CONNECTING THE BUTTONS ON THE PAGE
    ===================================================================== */
 
 function byId(id) { return document.getElementById(id); }
@@ -665,25 +752,64 @@ document.addEventListener("keydown", function (event) {
   else if (key === "y" || (key === "z" && event.shiftKey)) { event.preventDefault(); redo(); }
 });
 
-// --- The palette: one round button per colour -----------------------
+// --- The palette: a grid of colour squares, 7 across --------------------
+// Click a square to paint with it. "Swap colour" changes the chosen
+// square's colour and "+ Add colour" adds a new square; both open the
+// browser's own colour chooser, an invisible <input type="color">.
 function buildPalette() {
   const holder = byId("palette");
-  for (let c = 0; c < PALETTE.length; c++) {
-    const button = document.createElement("button");
-    button.className = "swatch";
-    button.title = c === 0 ? "Off (eraser)" : "Colour " + c;
-    if (c === 0) button.textContent = "×";       // the × sign
-    else button.style.background = PALETTE[c];
-    button.addEventListener("click", function () {
-      currentColour = c;
-      for (const other of holder.children) other.classList.remove("selected");
-      button.classList.add("selected");
-      chooseTool("paint");
-    });
-    if (c === currentColour) button.classList.add("selected");
-    holder.appendChild(button);
+  holder.innerHTML = "";                         // empty it, then add one square per colour
+  for (let c = 1; c < palette.length; c++) {
+    const square = document.createElement("button");
+    square.className = "swatch";
+    square.title = "Colour " + c;
+    square.style.background = palette[c];
+    square.classList.toggle("selected", c === currentColour);
+    square.addEventListener("click", function () { chooseColour(c); });
+    holder.appendChild(square);
   }
+  byId("eraser").classList.toggle("selected", currentColour === 0);
+  byId("swap-colour").disabled = (currentColour === 0);   // the eraser has no colour to swap
+  byId("current-colour").textContent =
+    currentColour === 0 ? "Erasing." : "Painting with colour " + currentColour + ".";
 }
+
+function chooseColour(c) {
+  currentColour = c;
+  buildPalette();
+  chooseTool("paint");
+}
+byId("eraser").addEventListener("click", function () { chooseColour(0); });
+
+// Open the colour chooser. "adding" remembers which button opened it.
+const chooser = byId("colour-chooser");
+let adding = false;
+function openChooser(startColour) {
+  chooser.value = startColour;
+  if (chooser.showPicker) chooser.showPicker();   // newer browsers
+  else chooser.click();                           // older ones
+}
+byId("swap-colour").addEventListener("click", function () {
+  adding = false;
+  openChooser(palette[currentColour]);
+});
+byId("add-colour").addEventListener("click", function () {
+  adding = true;
+  openChooser("#888888");
+});
+
+// "change" happens once a colour has been picked.
+chooser.addEventListener("change", function () {
+  if (adding) {
+    palette.push(chooser.value);           // a new square at the end
+    currentColour = palette.length - 1;
+  } else {
+    palette[currentColour] = chooser.value;
+  }
+  buildPalette();
+  restyle();        // repaint cells of that colour
+  updateStats();    // the colour list shows the swatches too
+});
 
 // --- Grid settings ----------------------------------------------------
 // Returns a sentence describing what's wrong, or "" if all is fine.
@@ -731,7 +857,8 @@ for (const id of ["set-xmin", "set-xmax", "set-ymin", "set-ymax", "set-neighbour
 for (const radio of document.querySelectorAll('input[name="view"]')) {
   radio.addEventListener("change", function () {
     view = radio.value;
-    cy.style().fromJson(makeStyle()).update();
+    restyle();
+    drawGridLines();   // the light lines move between cell borders and dots
   });
 }
 

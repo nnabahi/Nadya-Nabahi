@@ -40,11 +40,29 @@
           <button class="tool-button" id="tool-redo" title="Redo (Ctrl+Shift+Z)">Redo</button>
         </div>
 
-        <!-- The palette: graph-tool.js makes one round button per colour. -->
-        <div class="palette" id="palette"></div>
+        <!-- The palette: graph-tool.js fills id="palette" with one square
+             per colour, 7 across. The buttons next to it pick the eraser,
+             swap the chosen colour, or add a new one. -->
+        <div class="palette-area">
+          <div class="palette" id="palette"></div>
+          <div class="palette-buttons">
+            <button class="tool-button" id="eraser" title="Turn cells off">Eraser</button>
+            <button class="tool-button" id="swap-colour" title="Change the chosen colour">Swap colour</button>
+            <button class="tool-button" id="add-colour" title="Add a new colour to the palette">+ Add colour</button>
+            <!-- The browser's colour chooser. It's invisible; the two
+                 buttons above open it. -->
+            <input type="color" id="colour-chooser" class="invisible-input" tabindex="-1">
+          </div>
+        </div>
+        <p class="muted" id="current-colour"></p>
 
-        <!-- Cytoscape draws the grid inside this box. -->
-        <div class="graph-area" id="graph-area"></div>
+        <!-- The drawing: two layers on top of each other. Underneath, a
+             canvas with the Desmos-style grid lines; on top, the box
+             Cytoscape draws the cells into. -->
+        <div class="graph-wrap">
+          <canvas class="grid-lines" id="grid-lines"></canvas>
+          <div class="graph-area" id="graph-area"></div>
+        </div>
 
         <!-- Short messages from the tool ("Copied.", "Grid not changed: ..."). -->
         <p class="muted" id="tool-message"></p>
@@ -124,15 +142,19 @@
         <p>
           <strong>Painting.</strong> With <em>Paint</em> chosen, drag to paint in
           the current colour. Starting a drag on a cell that already has that
-          colour erases instead, so a click turns a cell on or off. The &times;
-          swatch always erases. <em>Move</em> drags the view; the mouse wheel or a
+          colour erases instead, so a click turns a cell on or off. The
+          <em>Eraser</em> always erases. <em>Swap colour</em> changes the chosen
+          square's colour (cells already painted with it change too), and
+          <em>+ Add colour</em> adds a new one. <em>Move</em> drags the view; the mouse wheel or a
           pinch zooms at any time.
         </p>
         <p>
           <strong>Coordinates.</strong> Cell (x, y) is the unit square centred at
           the point (x, y): it covers [x&minus;&frac12;, x+&frac12;] &times;
           [y&minus;&frac12;, y+&frac12;]. In the dots view, the same vertex is the
-          dot at (x, y).
+          dot at (x, y). As in Desmos, the black lines are the axes and the grey
+          lines are every 5 units. The light grey lines are every unit: the cell
+          borders in the cells view, and through the dots in the dots view.
         </p>
         <p>
           <strong>Neighbours.</strong> With 4, two cells are joined when they share
