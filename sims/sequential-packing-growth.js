@@ -86,8 +86,10 @@
        placeAt(x, y)    the same with a given center (for the checks)
        tiles            the placed tiles (see section 6)
      It uses no library itself; the page passes in its formulas as
-     plain functions and the random-number maker. The page runs it in a
-     Web Worker, and the check page runs it directly.
+     plain functions and the random-number maker. The check page runs
+     it directly. The sim page runs it in a Web Worker, through
+     packingWorker() at the end of this file (section 8), which reads
+     the typed formulas with math.js.
 
    The code is in numbered sections, all inside packingCore():
      1. The tile shape T: its polygon and its ruler g
@@ -97,6 +99,8 @@
      5. The distance from a center to each kind of obstacle
      6. The tiles, and one attempt
      7. setup
+   and, outside packingCore():
+     8. packingWorker(): runs it in a second thread for the sim page
    ===================================================================== */
 
 function packingCore() {
@@ -781,5 +785,129 @@ function packingCore() {
     get areaT() { return areaT; },
     get exactTiles() { return exactTiles; },
     get shape() { return { px, py, rhoMax }; },
+  };
+}
+
+
+/* =====================================================================
+   8. THE WORKER: RUNNING THE PACKING IN A SECOND THREAD
+   ---------------------------------------------------------------------
+   The sim page (sequential-packing.js) turns this function into a "Web
+   Worker", together with packingCore() above, so the work never freezes
+   the page. They talk by messages:
+
+   page -> worker
+     { type: "setup", run, S, T, f, values, window, seed, target }
+         S, T, f: the typed formulas, already tidied by readTree (in
+         js/formulas.js) and written out with every "*" shown; values:
+         the sliders, e.g. { s: 0.5 }. Starts again from no tiles, and
+         works until "target" attempts are done.
+     { type: "target", target }       work until this many attempts
+   worker -> page
+     { type: "ready", run, info, segments, shapeX, shapeY }
+         after a setup: facts about S and T, the edge of S (4 numbers
+         per segment) and T's polygon (128 corners), for drawing.
+     { type: "tiles", run, attempts, ceilingMisses, cx, cy, r, parent, generation, attempt }
+         the tiles placed since the last message (all tiles of one run
+         arrive in order), and how many attempts are done.
+     { type: "error", run, message }  the formulas couldn't be used
+   "run" numbers each setup, so the page can ignore messages from an
+   older one.
+   ===================================================================== */
+
+function packingWorker() {
+  // math.js reads the formulas; seedrandom's alea gives each attempt its
+  // own repeatable random numbers. Version numbers are fixed so an
+  // update can never change the sim by surprise.
+  importScripts("https://cdn.jsdelivr.net/npm/mathjs@15.2.0/lib/browser/math.js");
+  importScripts("https://cdn.jsdelivr.net/npm/seedrandom@3.0.5/lib/alea.min.js");
+
+  let core = null, run = 0, target = 0, sent = 0, working = false;
+
+  // A typed condition (S or T) as a function of (x, y) that gives
+  // true or false. A point where the formula can't be worked out (say
+  // sqrt of a negative number) counts as outside.
+  function condition(text, values, name) {
+    const formula = math.compile(text);
+    const scope = Object.assign({}, values);
+    function test(x, y) {
+      scope.x = x; scope.y = y;
+      try { return formula.evaluate(scope) === true; } catch (error) { return false; }
+    }
+    scope.x = 0; scope.y = 0;
+    const sample = formula.evaluate(scope);
+    if (sample !== true && sample !== false) {
+      throw new Error(name + " should be a condition (true or false), like x^2 + y^2 <= 1.");
+    }
+    return test;
+  }
+
+  // The density f as a function of (x, y) that gives a number (NaN where
+  // it can't be worked out, which then counts as 0).
+  function number(text, values) {
+    const formula = math.compile(text);
+    const scope = Object.assign({}, values);
+    return function (x, y) {
+      scope.x = x; scope.y = y;
+      try {
+        const v = formula.evaluate(scope);
+        return typeof v === "number" ? v : NaN;
+      } catch (error) { return NaN; }
+    };
+  }
+
+  // Do attempts for about 40 milliseconds, send the new tiles, and come
+  // back (through setTimeout, so new messages from the page get in).
+  function work() {
+    if (!core) { working = false; return; }
+    const start = performance.now();
+    while (core.attempts < target && performance.now() - start < 40) core.attempt();
+    const t = core.tiles, count = t.count;
+    if (count > sent || core.attempts >= target) {
+      postMessage({
+        type: "tiles", run: run, attempts: core.attempts, ceilingMisses: core.ceilingMisses,
+        cx: t.cx.slice(sent, count), cy: t.cy.slice(sent, count), r: t.r.slice(sent, count),
+        parent: t.parent.slice(sent, count), generation: t.generation.slice(sent, count),
+        attempt: t.attempt.slice(sent, count),
+      });
+      sent = count;
+    }
+    if (core.attempts < target) setTimeout(work, 0);
+    else working = false;
+  }
+  function startWorking() {
+    if (!working) { working = true; setTimeout(work, 0); }
+  }
+
+  onmessage = function (event) {
+    const m = event.data;
+    if (m.type === "setup") {
+      run = m.run;
+      target = m.target;
+      sent = 0;
+      core = null;
+      try {
+        const packing = packingCore();
+        const info = packing.setup({
+          inS: condition(m.S, m.values, "S"),
+          inT: condition(m.T, m.values, "T"),
+          density: number(m.f, m.values),
+          window: m.window,
+          seed: m.seed,
+          makeRandom: alea,
+        });
+        core = packing;
+        // T's polygon, 128 of its corners, for drawing.
+        const shape = packing.shape, shapeX = [], shapeY = [];
+        for (let k = 0; k < shape.px.length; k += shape.px.length / 128) { shapeX.push(shape.px[k]); shapeY.push(shape.py[k]); }
+        postMessage({ type: "ready", run: run, info: info, segments: packing.segments.flat(), shapeX: shapeX, shapeY: shapeY });
+        startWorking();
+      } catch (error) {
+        postMessage({ type: "error", run: run, message: error.message });
+      }
+    } else if (m.type === "target") {
+      target = m.target;
+      startWorking();
+    }
   };
 }
