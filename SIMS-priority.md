@@ -44,3 +44,23 @@ nadya's Python, so treat this as a starting point.
 | Coin-toss convergence | | A teaching toy for the law of large numbers. | |
 | Random billiards / clipping | | Unclear from the names. A toy unless the Python shows more. | |
 | Partitions, graph explorations, digit-rewriting rules | | Thin as they stand. Keep them as ideas. | |
+
+## Suggestions: models not on the list (Claude's suggestions)
+
+These are Claude's ideas, not nadya's. They are only suggestions in this file:
+nothing here goes into `SIMS.md` or onto the site unless nadya picks it. Each one was
+chosen because it fits the grid, domain tool or Markov chain code the site already has
+or will have.
+
+| Model | Why it fits | Reference |
+| --- | --- | --- |
+| Bernoulli percolation with cluster colouring | The basic model behind gradient and fractal percolation. A p slider shows the giant cluster appear. | Kesten, *Commun. Math. Phys.* 74 (1980) 41 (bond p_c = 1/2 on Z²) |
+| Ising model (Glauber or Swendsen–Wang) | The standard MCMC on a grid, reusing the colouring sim's chain machinery. A temperature slider shows the phase transition. | Onsager, *Phys. Rev.* 65 (1944) 117; Swendsen & Wang, *Phys. Rev. Lett.* 58 (1987) 86 |
+| Diffusion-limited aggregation | Growth by random walkers, a natural partner to the growth-models page. | Witten & Sander, *Phys. Rev. Lett.* 47 (1981) 1400 |
+| Internal DLA and rotor-router aggregation | Sits right beside the sandpile: random walkers grow a near-perfect disk, and the rotor version does it deterministically. | Lawler, Bramson & Griffeath, *Ann. Probab.* 20 (1992) 2117; Levine & Peres, *Potential Anal.* 30 (2009) 1 |
+| Loop-erased random walk | The building block of Wilson's algorithm, already in the colouring sim, so it's cheap to show on its own. | Lawler, *Duke Math. J.* 47 (1980) 655; Wilson, *STOC* 1996 |
+| Bootstrap percolation | A simple rule with a famous, surprisingly slow threshold. Also cheap on the grid. | Holroyd, *Probab. Th. Rel. Fields* 125 (2003) 195 (sharp threshold π²/18) |
+| Random Young diagrams (Plancherel) | A natural sim for the "Partitions" idea, with a curved limit shape to compare against. | Vershik & Kerov, *Soviet Math. Dokl.* 18 (1977) 527; Logan & Shepp, *Adv. Math.* 26 (1977) 206 |
+| Bernoulli convolutions | Fits the random digit measures page: random digits in a base below 2, with famous open questions about smoothness. | Erdős, *Amer. J. Math.* 61 (1939) 974; Solomyak, *Ann. of Math.* 142 (1995) 611 |
+| TASEP / corner growth | Links the lattice-path counting and growth pages, with an exact parabola-shaped limit. | Rost, *Z. Wahrsch. Verw. Gebiete* 58 (1981) 41 |
+| Voter model | A colouring that evolves by copying neighbours, a dynamic cousin of the connected colouring sim. | Clifford & Sudbury, *Biometrika* 60 (1973) 581; Holley & Liggett, *Ann. Probab.* 3 (1975) 643 |
