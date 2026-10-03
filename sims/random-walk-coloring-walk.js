@@ -1,26 +1,26 @@
 /* =====================================================================
-   random-walk-colouring-walk.js  —  the walkers behind the "Random walk
-   colouring" sim
+   random-walk-coloring-walk.js  —  the walkers behind the "Random walk
+   coloring" sim
    ---------------------------------------------------------------------
    What it does, in plain words:
      N random walkers move on the domain (a graph: the cells, joined to
-     their neighbours). Walker i carries colour i. Every cell keeps the
-     colour of the first walker to land on it, and keeps it for good.
-     The run ends when every cell is coloured (the "cover time").
+     their neighbors). Walker i carries color i. Every cell keeps the
+     color of the first walker to land on it, and keeps it for good.
+     The run ends when every cell is colored (the "cover time").
 
-   Each step of a walker goes to a uniformly chosen neighbour of its
-   cell (so a cell on the edge of a box, with 3 neighbours, picks each
+   Each step of a walker goes to a uniformly chosen neighbor of its
+   cell (so a cell on the edge of a box, with 3 neighbors, picks each
    with probability 1/3). This is the simple random walk on the graph.
 
    Two models:
 
    1. DISCRETE TIME. At each step n = 1, 2, 3, ... every walker moves
-      once, all at the same moment. Then each uncoloured cell that is
-      now occupied takes the colour of one of the walkers on it, chosen
+      once, all at the same moment. Then each uncolored cell that is
+      now occupied takes the color of one of the walkers on it, chosen
       uniformly. This is done as in nadya's Python
       (RandomColoredWalkOnLTaurus): put the walkers in a uniformly random
       order, and let them claim their cells in that order; the first one
-      to reach an uncoloured cell gets it. Every walker on a cell is
+      to reach an uncolored cell gets it. Every walker on a cell is
       equally likely to come first in a random order, so the choice is
       uniform. The random order is the Fisher-Yates shuffle (D. E. Knuth,
       "The Art of Computer Programming", Vol. 2, 3rd ed., 1997,
@@ -41,7 +41,7 @@
       (RandomColoredWalk.py, RandomColoredWalkFinal.py).
 
    The start, in both models: every cell with walkers on it takes the
-   colour of one of them, chosen uniformly (the same random order).
+   color of one of them, chosen uniformly (the same random order).
 
    Random numbers. The library seedrandom
    (https://github.com/davidbau/seedrandom) gives random numbers that
@@ -53,7 +53,7 @@
 
    HOW IT RUNS
    The whole thing is one function, walkWorker(). The sim page
-   (random-walk-colouring.js) turns it into a "Web Worker": a second
+   (random-walk-coloring.js) turns it into a "Web Worker": a second
    thread, so the page never freezes. The page and the worker talk by
    sending each other messages (section 4).
 
@@ -74,21 +74,21 @@ function walkWorker() {
   /* ===================================================================
      1. THE STATE OF THE WALKERS
      -------------------------------------------------------------------
-     The domain has n cells numbered 0 .. n-1. The neighbours of cell v
+     The domain has n cells numbered 0 .. n-1. The neighbors of cell v
      are nbr[first[v]], ..., nbr[first[v + 1] - 1].
      =================================================================== */
   let n = 0, first = null, nbr = null;
   let N = 0;               // number of walkers
   let model = "discrete";  // "discrete" or "continuous"
   let position = null;     // position[i] = the cell walker i is on
-  let colour = null;       // colour[v] = colour of cell v, or -1 if not coloured yet
-  let sizes = null;        // sizes[i] = number of cells of colour i
-  let coloured = 0;        // number of coloured cells
-  let interfaceEdges = 0;  // edges joining two cells of different colours
+  let color = null;       // color[v] = color of cell v, or -1 if not colored yet
+  let sizes = null;        // sizes[i] = number of cells of color i
+  let colored = 0;        // number of colored cells
+  let interfaceEdges = 0;  // edges joining two cells of different colors
   let time = 0;            // discrete: steps so far; continuous: the time t
   let moves = 0;           // single walker steps so far
   let nextRing = 0;        // continuous time: when the next clock rings
-  let coverTime = null;    // when the last cell was coloured
+  let coverTime = null;    // when the last cell was colored
   let walkerRandom = [];   // walkerRandom[i] = walker i's own random numbers
   let orderRandom = null;  // random numbers for the random orders
   let clockRandom = null;  // random numbers for the clocks
@@ -110,10 +110,10 @@ function walkWorker() {
     clockRandom = new Math.seedrandom(seed + " clock");
 
     position = Int32Array.from(message.starts);
-    colour = new Int32Array(n).fill(-1);
+    color = new Int32Array(n).fill(-1);
     sizes = new Int32Array(N);
     order = new Int32Array(N);
-    coloured = 0;
+    colored = 0;
     interfaceEdges = 0;
     time = 0;
     moves = 0;
@@ -121,7 +121,7 @@ function walkWorker() {
 
     // The start: the walkers claim their own cells, in a random order.
     claimInRandomOrder();
-    if (coloured === n) coverTime = 0;
+    if (colored === n) coverTime = 0;
     if (model === "continuous") nextRing = waitingTime();
 
     traceTimes = []; traceInterface = []; traceSizes = [];
@@ -135,15 +135,15 @@ function walkWorker() {
      2. CLAIMING CELLS
      =================================================================== */
 
-  // Cell v gets colour i. The interface is kept up to date as we go: an
-  // edge starts joining two colours exactly when its second cell gets
-  // coloured, so we look at v's neighbours that are already coloured.
+  // Cell v gets color i. The interface is kept up to date as we go: an
+  // edge starts joining two colors exactly when its second cell gets
+  // colored, so we look at v's neighbors that are already colored.
   function claim(v, i) {
-    colour[v] = i;
+    color[v] = i;
     sizes[i]++;
-    coloured++;
+    colored++;
     for (let e = first[v]; e < first[v + 1]; e++) {
-      const c = colour[nbr[e]];
+      const c = color[nbr[e]];
       if (c !== -1 && c !== i) interfaceEdges++;
     }
   }
@@ -151,7 +151,7 @@ function walkWorker() {
   // Put the walkers in a uniformly random order (Fisher-Yates: for
   // k = N-1 down to 1, swap place k with a uniformly chosen place
   // 0 .. k), then let each claim its cell if nobody has. So among the
-  // walkers on an uncoloured cell, each is equally likely to get it.
+  // walkers on an uncolored cell, each is equally likely to get it.
   function claimInRandomOrder() {
     for (let k = 0; k < N; k++) order[k] = k;
     for (let k = N - 1; k > 0; k--) {
@@ -160,11 +160,11 @@ function walkWorker() {
     }
     for (let k = 0; k < N; k++) {
       const i = order[k];
-      if (colour[position[i]] === -1) claim(position[i], i);
+      if (color[position[i]] === -1) claim(position[i], i);
     }
   }
 
-  // Walker i steps to a uniformly chosen neighbour of its cell, using
+  // Walker i steps to a uniformly chosen neighbor of its cell, using
   // its own random numbers.
   function stepWalker(i) {
     const v = position[i];
@@ -189,7 +189,7 @@ function walkWorker() {
      unit of time, in which each walker moves once on average.
      =================================================================== */
   function oneStep() {
-    if (coloured === n) return;            // finished
+    if (colored === n) return;            // finished
     moveOn();
     takeSample();
   }
@@ -200,16 +200,16 @@ function walkWorker() {
       for (let i = 0; i < N; i++) stepWalker(i);
       claimInRandomOrder();
       time++;
-      if (coloured === n) coverTime = time;
+      if (colored === n) coverTime = time;
     } else {
       const until = Math.floor(time) + 1;
       while (nextRing <= until) {
         time = nextRing;
         const i = Math.floor(clockRandom() * N);   // which clock rang
         stepWalker(i);
-        if (colour[position[i]] === -1) {
+        if (color[position[i]] === -1) {
           claim(position[i], i);
-          if (coloured === n) { coverTime = time; return; }
+          if (colored === n) { coverTime = time; return; }
         }
         nextRing = time + waitingTime();
       }
@@ -221,7 +221,7 @@ function walkWorker() {
   /* ===================================================================
      4. THE RUN SO FAR, FOR THE PLOTS OVER TIME
      -------------------------------------------------------------------
-     A "sample" is the time, the interface and the size of each colour.
+     A "sample" is the time, the interface and the size of each color.
      One is taken every traceGap steps. When there are more than
      MAX_SAMPLES, every other one is dropped and traceGap doubles, so a
      long run keeps evenly spaced samples from start to end.
@@ -232,7 +232,7 @@ function walkWorker() {
   let nextSample = 0;
 
   function takeSample() {
-    if (time < nextSample && coloured < n) return;
+    if (time < nextSample && colored < n) return;
     traceTimes.push(time);
     traceInterface.push(interfaceEdges);
     for (let i = 0; i < N; i++) traceSizes.push(sizes[i]);
@@ -255,10 +255,10 @@ function walkWorker() {
                                   (Infinity = as fast as possible)
        { type: "pause" }
        { type: "step" }           one step
-     The worker answers with "state" messages: the colours, where the
+     The worker answers with "state" messages: the colors, where the
      walkers are, and the numbers for the Statistics quadrant. Each one
      carries its run number, so the page can ignore leftovers from an
-     older run. It stops by itself when every cell is coloured.
+     older run. It stops by itself when every cell is colored.
      =================================================================== */
   let playing = false;
   let speed = 5;
@@ -275,7 +275,7 @@ function walkWorker() {
       report();
     } else if (message.type === "play") {
       speed = message.speed;
-      if (!playing && coloured < n) {
+      if (!playing && colored < n) {
         playing = true;
         owed = 0;
         lastTick = performance.now();
@@ -300,13 +300,13 @@ function walkWorker() {
     const now = performance.now();
     const until = now + TICK_BUDGET;
     if (speed === Infinity) {
-      do oneStep(); while (coloured < n && performance.now() < until);
+      do oneStep(); while (colored < n && performance.now() < until);
     } else {
       owed = Math.min(owed + speed * (now - lastTick) / 1000, speed);   // at most 1 second behind
-      while (owed >= 1 && coloured < n && performance.now() < until) { oneStep(); owed--; }
+      while (owed >= 1 && colored < n && performance.now() < until) { oneStep(); owed--; }
     }
     lastTick = now;
-    if (coloured === n) stop();
+    if (colored === n) stop();
     report();
     if (playing) timer = setTimeout(tick, 10);
   }
@@ -315,22 +315,22 @@ function walkWorker() {
   function report() {
     if (time === lastReported && time > 0) return;   // nothing new to show
     lastReported = time;
-    const colourCopy = colour.slice(), positionCopy = position.slice();
+    const colorCopy = color.slice(), positionCopy = position.slice();
     self.postMessage({
       type: "state",
       run: run,
-      colours: colourCopy,
+      colors: colorCopy,
       positions: positionCopy,
       sizes: sizes.slice(),
-      coloured: coloured,
+      colored: colored,
       interfaceEdges: interfaceEdges,
       time: time,
       moves: moves,
-      done: coloured === n,
+      done: colored === n,
       coverTime: coverTime,
       traceTimes: Float64Array.from(traceTimes),
       traceInterface: Int32Array.from(traceInterface),
       traceSizes: Int32Array.from(traceSizes),
-    }, [colourCopy.buffer, positionCopy.buffer]);   // hand the copies over instead of copying again
+    }, [colorCopy.buffer, positionCopy.buffer]);   // hand the copies over instead of copying again
   }
 }

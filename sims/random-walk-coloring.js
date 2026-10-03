@@ -1,5 +1,5 @@
 /* =====================================================================
-   random-walk-colouring.js  —  the page of the "Random walk colouring"
+   random-walk-coloring.js  —  the page of the "Random walk coloring"
    sim
    ---------------------------------------------------------------------
    What it does, in plain words:
@@ -8,16 +8,16 @@
        shared with the other sims, in js/sim-domains.js.
      - Places the N walkers: spread out evenly to begin with, and you can
        drag them to other cells before the run starts.
-     - Hands everything to the walkers (random-walk-colouring-walk.js),
+     - Hands everything to the walkers (random-walk-coloring-walk.js),
        which run in a second thread (a "Web Worker"), and draws every
-       colouring they send back, with the statistics.
+       coloring they send back, with the statistics.
 
    The file is split into numbered sections:
      1. Settings you might want to change
      2. What the page remembers (the "state")
      3. The default start
      4. Running the walkers
-     5. Drawing the colouring and the walkers
+     5. Drawing the coloring and the walkers
      6. Dragging: walkers before the start, and the torus
      7. Statistics
      8. Custom domains: the graph tool inside this page
@@ -30,13 +30,13 @@
    ===================================================================== */
 
 // The default domain (a 64 x 64 torus), number of walkers and seed.
-const DEFAULTS = { width: 64, height: 64, neighbours: 4, walkers: 2, seed: "1" };
+const DEFAULTS = { width: 64, height: 64, neighbors: 4, walkers: 2, seed: "1" };
 
 const MAX_WALKERS = 30;           // the most walkers allowed
 const MAX_SIDE = 300;             // the biggest box or torus is 300 x 300
 const MAX_PICTURE_HEIGHT = 600;   // in screen pixels
-const BORDER = "#1e1e1e";         // the lines between colours
-const UNCOLOURED = "#ffffff";     // cells no walker has reached yet
+const BORDER = "#1e1e1e";         // the lines between colors
+const UNCOLORED = "#ffffff";     // cells no walker has reached yet
 const OUTSIDE = "#ecebe7";        // around a custom domain (cells not in it)
 const SMALLEST_BORDERED_CELL = 4; // cells smaller than this (in pixels) get no border lines
 const PAD = 8;                    // room above and below the picture, so walkers at the edge show
@@ -58,8 +58,8 @@ let domain = null;          // the domain graph (js/sim-domains.js)
 let customDomain = null;    // the last custom domain drawn, if any
 let N = DEFAULTS.walkers;   // number of walkers
 let starts = [];            // starts[i] = the cell walker i starts on
-let colourNames = [];       // colourNames[i] = how colour i is drawn, e.g. "#f2735a"
-let colourRGB = [];         // the same colours as [red, green, blue], 0..255
+let colorNames = [];       // colorNames[i] = how color i is drawn, e.g. "#f2735a"
+let colorRGB = [];         // the same colors as [red, green, blue], 0..255
 let scroll = { x: 0, y: 0 };   // torus only: how far the picture is scrolled, in cells
 let showWalkers = true;
 
@@ -67,8 +67,8 @@ let playing = false;        // it starts paused; Play sets it going
 let speedIndex = DEFAULT_SPEED;
 let run = 0;                // counts restarts, so leftovers from an older run are ignored
 
-// The latest message from the walkers: the colours, where the walkers
-// are, and the numbers (see section 4 of random-walk-colouring-walk.js).
+// The latest message from the walkers: the colors, where the walkers
+// are, and the numbers (see section 5 of random-walk-coloring-walk.js).
 // It also carries the run so far ("trace..."), for the plots over time.
 let latest = null;
 
@@ -169,11 +169,11 @@ function spreadThroughRegion(d, count) {
    4. RUNNING THE WALKERS
    ---------------------------------------------------------------------
    The walkers are the function walkWorker() in
-   random-walk-colouring-walk.js. A Web Worker is normally made from a
+   random-walk-coloring-walk.js. A Web Worker is normally made from a
    file's address, which browsers refuse for pages opened straight from
    the computer (file://). So the function's own text is wrapped in a
    "Blob" (a file made in memory) and the worker is made from that; it
-   works both ways. (Same as in the connected colouring sim.)
+   works both ways. (Same as in the connected coloring sim.)
    ===================================================================== */
 const workerCode = new Blob(["(" + walkWorker.toString() + ")();"], { type: "text/javascript" });
 const worker = new Worker(URL.createObjectURL(workerCode));
@@ -214,21 +214,21 @@ function setPlaying(on) {
 
 
 /* =====================================================================
-   5. DRAWING THE COLOURING AND THE WALKERS
+   5. DRAWING THE COLORING AND THE WALKERS
    ---------------------------------------------------------------------
-   The colouring is first drawn one pixel per cell (an "image" whose
+   The coloring is first drawn one pixel per cell (an "image" whose
    pixels we set one by one: fast even for 300 x 300 cells), then blown
    up onto a hidden canvas, "picture", with smoothing off so the cells
    stay crisp squares. When cells are big enough to see, a dark line
-   goes along every side where two cells of different colours meet (an
-   uncoloured cell counts as a colour here), or where the domain ends.
+   goes along every side where two cells of different colors meet (an
+   uncolored cell counts as a color here), or where the domain ends.
    Then the picture is copied onto the canvas on the page, and the
    walkers are drawn on top as round markers.
 
    On a torus the sides at the edge of the picture are joined to the
    opposite edge, and the picture can be scrolled: it is copied four
    times, shifted, and whatever falls outside the picture's box is cut
-   off. (As in the connected colouring sim.)
+   off. (As in the connected coloring sim.)
    ===================================================================== */
 let drawPending = false;
 const tiny = document.createElement("canvas");      // one pixel per cell
@@ -243,7 +243,7 @@ function drawSoon() {
   drawPending = true;
   requestAnimationFrame(function () {
     drawPending = false;
-    drawColouring();
+    drawColoring();
     showStats();
   });
 }
@@ -251,9 +251,9 @@ function drawSoon() {
 // True when the picture can be scrolled: the Torus domain.
 function scrollable() { return domainKind === "torus"; }
 
-function drawColouring() {
+function drawColoring() {
   if (!domain || !latest || simCanvas.hidden) return;
-  const d = domain, colours = latest.colours;
+  const d = domain, colors = latest.colors;
 
   // The size of a cell on screen: as big as fits the width (and at most
   // MAX_PICTURE_HEIGHT tall). Cells with border lines get a whole number
@@ -274,14 +274,14 @@ function drawColouring() {
   const tinyPen = tiny.getContext("2d");
   const image = tinyPen.createImageData(across, down);
   const pixels = image.data;                  // 4 numbers per pixel: red, green, blue, opacity
-  const outside = hexToRGB(OUTSIDE), blank = hexToRGB(UNCOLOURED);
+  const outside = hexToRGB(OUTSIDE), blank = hexToRGB(UNCOLORED);
   for (let p = 0; p < across * down; p++) {
     pixels[4 * p] = outside[0]; pixels[4 * p + 1] = outside[1]; pixels[4 * p + 2] = outside[2];
     pixels[4 * p + 3] = 255;
   }
   for (let v = 0; v < d.n; v++) {
     const p = (d.ymax - d.y[v]) * across + (d.x[v] - d.xmin);
-    const rgb = colours[v] === -1 ? blank : colourRGB[colours[v]];
+    const rgb = colors[v] === -1 ? blank : colorRGB[colors[v]];
     pixels[4 * p] = rgb[0]; pixels[4 * p + 1] = rgb[1]; pixels[4 * p + 2] = rgb[2];
   }
   tinyPen.putImageData(image, 0, 0);
@@ -301,7 +301,7 @@ function drawColouring() {
     // Does a border go between cell v and the place (x, y) next to it?
     function differs(v, x, y) {
       const w = cellAt(d, x, y);
-      return w === -1 || colours[w] !== colours[v];
+      return w === -1 || colors[w] !== colors[v];
     }
     pen.beginPath();
     for (let v = 0; v < d.n; v++) {
@@ -360,8 +360,8 @@ function walkerSpot(i) {
   return { x: view.left + x, y: y };   // y counts from the top of the picture, PAD below the canvas top
 }
 
-// Each walker is a disc in its colour, with a white ring and a thin dark
-// edge so it shows up even on its own colour, and its number when there
+// Each walker is a disc in its color, with a white ring and a thin dark
+// edge so it shows up even on its own color, and its number when there
 // is room for it.
 function drawWalkers(screen) {
   const r = walkerRadius();
@@ -372,7 +372,7 @@ function drawWalkers(screen) {
     const spot = walkerSpot(i);
     screen.beginPath();
     screen.arc(spot.x, spot.y, r, 0, 2 * Math.PI);
-    screen.fillStyle = colourNames[i];
+    screen.fillStyle = colorNames[i];
     screen.fill();
     screen.lineWidth = 2;
     screen.strokeStyle = "#ffffff";
@@ -488,24 +488,24 @@ simCanvas.addEventListener("wheel", function (event) {
 /* =====================================================================
    7. STATISTICS
    ---------------------------------------------------------------------
-   The interface and the number of cells of each colour come from the
-   walkers (they keep them up to date as cells get coloured). The
+   The interface and the number of cells of each color come from the
+   walkers (they keep them up to date as cells get colored). The
    regions are found here, each time the picture is drawn: a region is
-   a connected piece of one colour, found by a search from each cell
-   through its neighbours of the same colour (as nadya's Python does
+   a connected piece of one color, found by a search from each cell
+   through its neighbors of the same color (as nadya's Python does
    with connected_components). For each region:
      area       its number of cells
-     perimeter  the number of edges from it to a cell of another colour
-                (uncoloured cells don't count), so the perimeters of all
+     perimeter  the number of edges from it to a cell of another color
+                (uncolored cells don't count), so the perimeters of all
                 regions add up to twice the interface.
    ===================================================================== */
 function findRegions() {
-  const d = domain, colours = latest.colours;
+  const d = domain, colors = latest.colors;
   const region = new Int32Array(d.n).fill(-1);   // region[v] = which region cell v is in
-  const areas = [], perimeters = [], regionColour = [];
+  const areas = [], perimeters = [], regionColor = [];
   const stack = [];
   for (let s = 0; s < d.n; s++) {
-    if (colours[s] === -1 || region[s] !== -1) continue;
+    if (colors[s] === -1 || region[s] !== -1) continue;
     const r = areas.length;
     let area = 0, perimeter = 0;
     region[s] = r;
@@ -515,18 +515,18 @@ function findRegions() {
       area++;
       for (let e = d.first[v]; e < d.first[v + 1]; e++) {
         const w = d.nbr[e];
-        if (colours[w] === colours[v]) {
+        if (colors[w] === colors[v]) {
           if (region[w] === -1) { region[w] = r; stack.push(w); }
-        } else if (colours[w] !== -1) {
+        } else if (colors[w] !== -1) {
           perimeter++;
         }
       }
     }
     areas.push(area);
     perimeters.push(perimeter);
-    regionColour.push(colours[s]);
+    regionColor.push(colors[s]);
   }
-  return { areas: areas, perimeters: perimeters, colour: regionColour };
+  return { areas: areas, perimeters: perimeters, color: regionColor };
 }
 
 function showStats() {
@@ -538,40 +538,40 @@ function showStats() {
   byId("stat-time-name").textContent = model === "discrete" ? "Steps n" : "Time t";
   byId("stat-time").textContent = showTime(s.time);
   byId("stat-moves").textContent = s.moves.toLocaleString();
-  byId("stat-coloured").textContent = s.coloured.toLocaleString() + " of " + domain.n.toLocaleString() +
-    " (" + (100 * s.coloured / domain.n).toFixed(1) + "%)";
+  byId("stat-colored").textContent = s.colored.toLocaleString() + " of " + domain.n.toLocaleString() +
+    " (" + (100 * s.colored / domain.n).toFixed(1) + "%)";
   byId("stat-interface").textContent = s.interfaceEdges.toLocaleString();
   byId("stat-regions").textContent = regions.areas.length.toLocaleString();
   byId("stat-cover").textContent = s.coverTime === null ? "not yet" : showTime(s.coverTime);
 
-  if (s.done) showMessage("Every cell is coloured. Cover time: " + showTime(s.coverTime) + ".");
+  if (s.done) showMessage("Every cell is colored. Cover time: " + showTime(s.coverTime) + ".");
   byId("play").disabled = byId("step").disabled = s.done;
   byId("start-info").textContent = started()
     ? "The run has started. Press Restart to go back to the start and move the walkers again."
     : "Drag a walker to choose where it starts. Changing N or the domain puts the walkers " +
       "back in the default start.";
 
-  showColourRows(regions);
+  showColorRows(regions);
   drawSizesChart();
   drawInterfaceChart();
   drawAreasChart(regions);
   drawPerimeterChart(regions);
 }
 
-// One row per colour: cells, number of regions, largest region.
-function showColourRows(regions) {
+// One row per color: cells, number of regions, largest region.
+function showColorRows(regions) {
   const count = new Array(N).fill(0), largest = new Array(N).fill(0);
   regions.areas.forEach(function (area, r) {
-    const c = regions.colour[r];
+    const c = regions.color[r];
     count[c]++;
     largest[c] = Math.max(largest[c], area);
   });
   let rows = "";
   for (let c = 0; c < N; c++) {
-    rows += '<tr><td><span class="swatch-small" style="background:' + colourNames[c] + '"></span>' +
+    rows += '<tr><td><span class="swatch-small" style="background:' + colorNames[c] + '"></span>' +
       (c + 1) + '</td><td>' + latest.sizes[c] + '</td><td>' + count[c] + '</td><td>' + largest[c] + '</td></tr>';
   }
-  byId("colour-rows").innerHTML = rows;
+  byId("color-rows").innerHTML = rows;
 }
 
 // Make a chart canvas sharp at its size on screen; returns its pen.
@@ -587,7 +587,7 @@ function chartPen(canvas) {
   return pen;
 }
 
-// Lines over time. "lines" is a list of { colour, values }, one value
+// Lines over time. "lines" is a list of { color, values }, one value
 // per time in "times". The y axis runs from 0 to the largest value.
 function plotOverTime(canvas, times, lines) {
   const pen = chartPen(canvas);
@@ -612,20 +612,20 @@ function plotOverTime(canvas, times, lines) {
       const sy = bottom - (bottom - up) * value / top;
       if (k === 0) pen.moveTo(sx, sy); else pen.lineTo(sx, sy);
     });
-    pen.strokeStyle = line.colour;
+    pen.strokeStyle = line.color;
     pen.lineWidth = 1.5;
     pen.stroke();
   }
 }
 
-// The number of cells of each colour, over time. The walkers send these
-// as one long list: N numbers (one per colour) for each time.
+// The number of cells of each color, over time. The walkers send these
+// as one long list: N numbers (one per color) for each time.
 function drawSizesChart() {
   const lines = [];
   for (let c = 0; c < N; c++) {
     const values = [];
     for (let k = 0; k < latest.traceTimes.length; k++) values.push(latest.traceSizes[k * N + c]);
-    lines.push({ colour: colourNames[c], values: values });
+    lines.push({ color: colorNames[c], values: values });
   }
   plotOverTime(byId("sizes-chart"), latest.traceTimes, lines);
 }
@@ -633,12 +633,12 @@ function drawSizesChart() {
 // The interface, over time.
 function drawInterfaceChart() {
   plotOverTime(byId("interface-chart"), latest.traceTimes,
-    [{ colour: "#3a5a7a", values: Array.from(latest.traceInterface) }]);
+    [{ color: "#3a5a7a", values: Array.from(latest.traceInterface) }]);
 }
 
 // How many regions there are of each size. Sizes go from 1 cell to
 // thousands, so they are grouped by powers of 2: 1, 2-3, 4-7, 8-15, ...
-// (each bar is labelled by the smallest size in it).
+// (each bar is labeled by the smallest size in it).
 function drawAreasChart(regions) {
   const canvas = byId("areas-chart");
   const pen = chartPen(canvas);
@@ -665,8 +665,8 @@ function drawAreasChart(regions) {
 }
 
 // Each region as a dot: area across, perimeter up, both on logarithmic
-// scales (so 1, 10, 100, ... are evenly spaced), coloured by its colour.
-// Regions with no other colour next to them (perimeter 0) are left out.
+// scales (so 1, 10, 100, ... are evenly spaced), colored by its color.
+// Regions with no other color next to them (perimeter 0) are left out.
 function drawPerimeterChart(regions) {
   const canvas = byId("perimeter-chart");
   const pen = chartPen(canvas);
@@ -700,7 +700,7 @@ function drawPerimeterChart(regions) {
     if (perimeter === 0) return;
     pen.beginPath();
     pen.arc(sx(area), sy(perimeter), 2.5, 0, 2 * Math.PI);
-    pen.fillStyle = colourNames[regions.colour[r]];
+    pen.fillStyle = colorNames[regions.color[r]];
     pen.fill();
     pen.lineWidth = 0.5;
     pen.strokeStyle = BORDER;
@@ -716,7 +716,7 @@ function drawPerimeterChart(regions) {
    <iframe> (a page inside this page) as graph-tool.html?embed. The tool
    sends a message every time the drawing changes, and this page checks
    it live: the region must be one connected piece (otherwise the cells
-   cut off from every walker could never be coloured). Done uses it.
+   cut off from every walker could never be colored). Done uses it.
    ===================================================================== */
 const frame = byId("tool-frame");
 let toolOpen = false;
@@ -803,9 +803,9 @@ function useBox() {
   if (toolOpen) closeTool();
   const width = readWhole("set-width", 2, MAX_SIDE, DEFAULTS.width);
   const height = readWhole("set-height", 2, MAX_SIDE, DEFAULTS.height);
-  const neighbours = Number(byId("set-neighbours").value);
+  const neighbors = Number(byId("set-neighbors").value);
   const torus = (domainChoice() === "torus");
-  useDomain(torus ? "torus" : "box", boxDomain(width, height, neighbours, torus));
+  useDomain(torus ? "torus" : "box", boxDomain(width, height, neighbors, torus));
 }
 
 // A whole number from a box, kept between lo and hi (else "fallback").
@@ -825,7 +825,7 @@ function domainChoice() {
 function showDomainChoice() {
   document.querySelector('input[name="domain"][value="' + domainKind + '"]').checked = true;
   const custom = (domainKind === "custom");
-  byId("size-row").hidden = byId("neighbours-row").hidden = custom;
+  byId("size-row").hidden = byId("neighbors-row").hidden = custom;
   byId("custom-row").hidden = !custom;
   if (custom && customDomain) {
     byId("custom-info").textContent = "Your region: " + customDomain.n + " cells" +
@@ -833,14 +833,14 @@ function showDomainChoice() {
   }
 }
 
-// N walkers, in the default start, with their colours. Restarts.
+// N walkers, in the default start, with their colors. Restarts.
 function setWalkerCount(value) {
   N = Math.min(Math.max(Math.round(value) || 1, 1), MAX_WALKERS);
   byId("set-walkers").value = byId("walkers-slider").value = N;
   starts = defaultStarts(domain, N);
-  colourNames = [];
-  for (let c = 0; c < N; c++) colourNames.push(defaultColour(c, N));
-  colourRGB = colourNames.map(hexToRGB);
+  colorNames = [];
+  for (let c = 0; c < N; c++) colorNames.push(defaultColor(c, N));
+  colorRGB = colorNames.map(hexToRGB);
   restart();
 }
 
@@ -859,7 +859,7 @@ for (const radio of document.querySelectorAll('input[name="domain"]')) {
     else useBox();
   });
 }
-for (const id of ["set-width", "set-height", "set-neighbours"]) {
+for (const id of ["set-width", "set-height", "set-neighbors"]) {
   byId(id).addEventListener("change", useBox);
 }
 byId("edit-custom").addEventListener("click", openTool);
@@ -912,7 +912,7 @@ for (const element of document.querySelectorAll(".tex")) {
 byId("set-width").value = DEFAULTS.width;
 byId("set-height").value = DEFAULTS.height;
 byId("set-width").max = byId("set-height").max = MAX_SIDE;
-byId("set-neighbours").value = String(DEFAULTS.neighbours);
+byId("set-neighbors").value = String(DEFAULTS.neighbors);
 byId("set-walkers").max = byId("walkers-slider").max = MAX_WALKERS;
 byId("seed").value = DEFAULTS.seed;
 byId("speed").max = SPEEDS.length - 1;
