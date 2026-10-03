@@ -153,6 +153,7 @@ function tilePacking() {
   let skipped = 0;            // moves skipped by the limits
   let regionTotal = 0;        // sum of the region sizes
   let choicesTotal = 0;       // sum of the list lengths (moves not skipped)
+  let lastDisk = null;        // the last move's disk { x, y, r }, for drawing
 
   // The heat map (section 5): for every cell, how long it has spent in
   // each "class": 2*o + parity for a tile of orientation o (parity = which
@@ -205,6 +206,7 @@ function tilePacking() {
     tileCount = orientW.map(function () { return 0; });
     emptyCount = n;
     moves = changed = skipped = regionTotal = choicesTotal = 0;
+    lastDisk = null;
     classes = 2 * orientW.length + 1;
     heatTime = new Float64Array(n * classes);
     heatSince = new Float64Array(n);
@@ -244,10 +246,13 @@ function tilePacking() {
           }
         }
         if (these.length !== orientW[o] * orientH[o]) continue;
-        const key = these.slice().sort(function (a, b) { return a - b; }).join(",");
-        if (sameCells.has(key)) { plByAnchor.set(o * n + v, sameCells.get(key)); continue; }
+        // Repeats can only happen for a tile as wide or as tall as the torus.
         const p = orients.length;
-        sameCells.set(key, p);
+        if (wrapW && (orientW[o] >= wrapW || orientH[o] >= wrapH)) {
+          const key = these.slice().sort(function (a, b) { return a - b; }).join(",");
+          if (sameCells.has(key)) { plByAnchor.set(o * n + v, sameCells.get(key)); continue; }
+          sameCells.set(key, p);
+        }
         plByAnchor.set(o * n + v, p);
         for (const c of these) cells.push(c);
         starts.push(cells.length);
@@ -343,6 +348,7 @@ function tilePacking() {
     const v0 = Math.floor(random() * n);
     const cx = X[v0] - 0.5 + random(), cy = Y[v0] - 0.5 + random();
     const r = -meanRadius * Math.log(1 - random());
+    lastDisk = { x: cx, y: cy, r: r };
 
     // Step 2: the tiles to delete and the region.
     stamp++;
@@ -755,14 +761,14 @@ function tilePacking() {
     return {
       moves: moves, changed: changed, skipped: skipped,
       regionTotal: regionTotal, choicesTotal: choicesTotal,
-      tileCount: tileCount.slice(), emptyCount: emptyCount,
+      tileCount: tileCount.slice(), emptyCount: emptyCount, lastDisk: lastDisk,
     };
   }
 
 
   /* ===================================================================
      6. MESSAGES FROM THE PAGE, AND THE RUN LOOP
-     (only inside the Web Worker; the sim page is built in a later step)
+     (only inside the Web Worker, which the sim page tile-packing.js starts)
      =================================================================== */
   const api = {
     setup: setup, oneMove: oneMove, checkPacking: checkPacking, packingKey: packingKey,
@@ -777,14 +783,25 @@ function tilePacking() {
   if (!inWorker) return api;
 
   let playing = false, speed = 5, owed = 0, lastTick = 0, timer = null;
-  const TICK_BUDGET = 25;   // milliseconds of work between two reports
+  let run = 0;               // which run this is (the page numbers them)
+  let sendHeat = false;      // does the page want the heat map?
+  const TICK_BUDGET = 25;    // milliseconds of work between two reports
 
+  // The messages the page sends:
+  //   setup      start a new run (all of setup()'s settings, plus "run")
+  //   play       run at "speed" moves per second (Infinity: flat out)
+  //   pause, step
+  //   settings   a new meanRadius and sizeLimit, without restarting (they
+  //              change how fast the chain mixes, not where it ends up)
+  //   heat       on: true or false, whether to send the heat map
+  //   resetHeat  start the heat map's averages again
   self.onmessage = function (event) {
     const message = event.data;
     if (message.type === "setup") {
       stop();
+      run = message.run;
       const error = setup(message);
-      self.postMessage({ type: "ready", error: error, placements: api.placements() });
+      self.postMessage({ type: "ready", run: run, error: error, placements: api.placements() });
       report();
     } else if (message.type === "play") {
       speed = message.speed;
@@ -798,6 +815,15 @@ function tilePacking() {
       stop();
     } else if (message.type === "step") {
       oneMove();
+      report();
+    } else if (message.type === "settings") {
+      meanRadius = message.meanRadius;
+      sizeLimit = message.sizeLimit;
+    } else if (message.type === "heat") {
+      sendHeat = message.on;
+      report();
+    } else if (message.type === "resetHeat") {
+      resetHeat();
       report();
     }
   };
@@ -823,8 +849,13 @@ function tilePacking() {
     if (playing) timer = setTimeout(tick, 10);
   }
 
+  // Send the packing (who covers each cell) and the numbers to the page.
   function report() {
+    if (!owner) return;
     const copy = owner.slice();
-    self.postMessage({ type: "state", owner: copy, stats: stats() }, [copy.buffer]);
+    const message = { type: "state", run: run, owner: copy, stats: stats() };
+    const handOver = [copy.buffer];   // handed over instead of copied again
+    if (sendHeat) { message.heat = heat(); handOver.push(message.heat.buffer); }
+    self.postMessage(message, handOver);
   }
 }
