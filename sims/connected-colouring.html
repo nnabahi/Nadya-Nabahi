@@ -129,10 +129,42 @@
         <canvas class="chart" id="trace-chart"></canvas>
       </section>
 
-      <!-- LOWER RIGHT: the maths. Text in class="tex" is typeset by KaTeX
-           (<div> on its own line, <span> inside a sentence). -->
+      <!-- LOWER RIGHT: about the model, in two tabs (js/about-tabs.js
+           switches them): a simple version, and all the details. Text in
+           class="tex" is typeset by KaTeX (<div> on its own line, <span>
+           inside a sentence). -->
       <section class="quad quad-about">
         <h2>About the model</h2>
+        <nav class="about-tabs">
+          <button class="about-tab selected" data-tab="simple">Simple</button>
+          <button class="about-tab" data-tab="details">All the details</button>
+        </nav>
+
+        <div data-panel="simple">
+        <p>
+          The domain is split into N colours, and each colour is <strong>one
+          connected piece</strong>: you can walk between any two of its cells
+          without leaving the colour.
+        </p>
+        <p>
+          <strong>Each move</strong> merges two neighbouring colours into one
+          region and splits it again at random: a random tree is drawn through
+          the region, visiting every cell, and one of its links is cut. The tree
+          falls into two connected pieces, and those are the two new colours.
+        </p>
+        <p>
+          Some moves are refused, with just the right probability that, in the
+          long run, <strong>every such colouring is equally likely</strong>. The
+          other tab explains why, with references.
+        </p>
+        <p>
+          <strong>Things to try:</strong> change N; switch to the torus (drag it,
+          or scroll over it, and it wraps around); or pick Custom to draw your own
+          region and even your own starting colours.
+        </p>
+        </div>
+
+        <div data-panel="details" hidden>
         <p>
           A <strong>connected N-colouring</strong> of the domain gives every cell
           one of N colours so that each colour is used and forms one connected
@@ -194,10 +226,14 @@
         </p>
         <p>
           <strong>Domains and starts.</strong> A box or torus of cells, with 4 or 8
-          neighbours, or your own region drawn in the graph tool. The automatic
-          start splits the domain into N compact blocks around spread-out cells;
-          with a custom domain you can also paint your own start. The seed fixes
-          the random numbers, so a run can be repeated exactly.
+          neighbours, or your own region drawn in the graph tool. The torus can
+          be scrolled: drag it, or scroll over it. The automatic start cuts the
+          domain into a grid of N rectangles; a drawn region that can't be cut
+          that way with each colour in one piece starts from N compact blocks
+          around spread-out cells instead. Compact pieces matter: from thin
+          stripes, almost every move would be refused at first. With a custom
+          domain you can also paint your own start. The seed fixes the random
+          numbers, so a run can be repeated exactly.
         </p>
         <p><strong>References</strong></p>
         <ol class="references">
@@ -224,6 +260,7 @@
           <li>G. H. Golub, C. F. Van Loan, <em>Matrix Computations</em>, 4th ed.,
             Johns Hopkins University Press, 2013, Sections 4.2&ndash;4.3.</li>
         </ol>
+        </div>
       </section>
 
     </div>
@@ -232,6 +269,9 @@
   <!-- KaTeX (https://katex.org) typesets the formulas. The version number
        is fixed so an update can never change the site by surprise. -->
   <script src="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/katex.min.js"></script>
+
+  <!-- The Simple / All the details tabs in the About box. -->
+  <script src="../js/about-tabs.js"></script>
 
   <!-- The chain (it runs in a second thread), then this page's code. -->
   <script src="connected-colouring-chain.js"></script>

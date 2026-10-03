@@ -594,6 +594,17 @@ a.card:hover {
 .step-status.ok      { color: #2f7d3a; }
 .step-status.problem { color: #b3402f; }
 
+/* A torus picture can be dragged: show the "hand" cursor, and on phones
+   let a finger drag it instead of scrolling the page. */
+#sim-canvas.scrollable {
+  cursor: grab;
+  touch-action: none;
+}
+
+#sim-canvas.scrollable.dragging {
+  cursor: grabbing;
+}
+
 /* The graph tool inside the sim. The sim sets its height to fit. */
 .tool-frame {
   display: block;
@@ -611,6 +622,37 @@ a.card:hover {
 
 .chart-heading {
   margin-top: 16px;
+}
+
+/* The tabs at the top of the About box (js/about-tabs.js), drawn like
+   the top bar: plain words, the chosen one underlined. */
+.about-tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--color-border);
+  margin-bottom: 12px;
+}
+
+.about-tab {
+  font: inherit;
+  font-size: 0.9em;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;          /* sit on the bar's bottom line */
+  padding: 4px 12px;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.about-tab:hover {
+  color: var(--color-text);
+}
+
+.about-tab.selected {
+  color: var(--color-accent);
+  font-weight: bold;
+  border-bottom-color: var(--color-accent);
 }
 
 /* The numbered steps and the references in the About quadrant. */

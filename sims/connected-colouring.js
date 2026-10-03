@@ -31,13 +31,6 @@
 // The default domain and number of colours.
 const DEFAULTS = { width: 24, height: 24, neighbours: 4, colours: 6, seed: "1" };
 
-// The colours, in order: the same 14 as the graph tool's palette. More
-// colours than that are made up by turning around the colour wheel.
-const PALETTE = [
-  "#c74440", "#fa7e19", "#e0b000", "#388c46", "#1fa3a3", "#2d70b3", "#6042a6",
-  "#d64ca0", "#7a5230", "#9ad13b", "#5bb3e6", "#a58fd6", "#8a8a8a", "#000000",
-];
-
 const MAX_COLOURS = 100;      // the most colours allowed
 const MAX_SIDE = 100;         // the biggest box or torus is 100 x 100
 const MAX_PICTURE_HEIGHT = 600;   // in screen pixels
@@ -46,9 +39,10 @@ const OUTSIDE = "#ecebe7";    // around a custom domain (cells not in it)
 const TRACE_LENGTH = 400;     // how many points the "boundary edges" plot keeps
 
 // The speeds on the Speed slider, in moves per second.
-// Infinity means "as fast as the computer can".
+// Infinity means "as fast as the computer can". The default, 50 a
+// second, is about the old site's 1 move per screen refresh.
 const SPEEDS = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, Infinity];
-const DEFAULT_SPEED = SPEEDS.length - 1;
+const DEFAULT_SPEED = SPEEDS.indexOf(50);
 
 
 /* =====================================================================
@@ -61,6 +55,8 @@ let customDomain = null;   // the last custom domain drawn, if any
 let N = DEFAULTS.colours;  // number of colours
 let colourNames = [];      // colourNames[c] = how colour c is drawn, e.g. "#c74440"
 let drawnStart = null;     // your own starting colouring, or null for the automatic one
+let startShape = "";       // what the start was: "rectangles", "blocks" or "yours"
+let scroll = { x: 0, y: 0 };   // torus only: how far the picture is scrolled, in cells
 
 let playing = true;        // like Desmos, it starts moving at once
 let speedIndex = DEFAULT_SPEED;
@@ -81,10 +77,27 @@ function wrap(v, lo, hi) {
   return lo + (((v - lo) % n) + n) % n;
 }
 
-// How colour c is drawn: from PALETTE, then evenly around the colour wheel.
-function defaultColour(c) {
-  if (c < PALETTE.length) return PALETTE[c];
-  return "hsl(" + Math.round((c * 137.508) % 360) + ", 55%, 55%)";
+// How colour c (of "count" colours) is drawn: the old site's colours.
+// Hues are spread evenly from red (0 degrees) round to magenta (300; going
+// all the way to 360 would come back to red), each colour a little more
+// saturated than the last, all bright. Hue, saturation and brightness
+// ("HSV") are turned into the usual "#rrggbb".
+function defaultColour(c, count) {
+  const hue = c / Math.max(count, 1) * 300;
+  const saturation = count <= 1 ? 0.85 : 0.55 + 0.30 * c / (count - 1);
+  return hsvToHex(hue, saturation, 0.95);
+}
+
+function hsvToHex(hue, saturation, value) {
+  const chroma = value * saturation;
+  const x = chroma * (1 - Math.abs((hue / 60) % 2 - 1));
+  const m = value - chroma;
+  const [r, g, b] =
+    hue < 60  ? [chroma, x, 0] : hue < 120 ? [x, chroma, 0] : hue < 180 ? [0, chroma, x] :
+    hue < 240 ? [0, x, chroma] : hue < 300 ? [x, 0, chroma] : [chroma, 0, x];
+  return "#" + [r, g, b].map(function (t) {
+    return Math.round((t + m) * 255).toString(16).padStart(2, "0");
+  }).join("");
 }
 
 
@@ -210,15 +223,65 @@ function countPieces(d, colourOf, count) {
 /* =====================================================================
    4. THE AUTOMATIC START
    ---------------------------------------------------------------------
-   N seed cells spread out over the domain: the first is the cell
-   farthest from cell 0, and each next one is the cell farthest from all
-   seeds so far ("farthest" = most steps through the graph). Then every
-   cell takes the colour of its nearest seed, found by a breadth-first
-   search from all the seeds at once. Each cell is reached through a
-   neighbour of its own colour, so every colour is one connected piece,
-   and the pieces are compact blocks, which the chain likes as a start.
+   Like the old site: the domain is cut into a grid of N rectangles,
+   in rows, with about the same number in each row, and as many rows as
+   makes the rectangles roughly square. (E.g. N = 6 on 24 x 24: 2 rows
+   of 3, each rectangle 8 wide and 12 high.) Compact pieces like these
+   are a good start: thin stripes would make the chain reject almost
+   every move at first.
+
+   A drawn region may not cut into rectangles with each colour in one
+   piece (think of a ring). Then the start is N compact "blocks" instead
+   (blockStart below).
    ===================================================================== */
-function autoStart(d, count) {
+function automaticStart(d, count) {
+  const rectangles = rectangleStart(d, count);
+  startShape = rectangles ? "rectangles" : "blocks";
+  return rectangles || blockStart(d, count);
+}
+
+// The grid of rectangles over the smallest box around the domain, or
+// null if some colour would be missing or in more than one piece.
+function rectangleStart(d, count) {
+  const across = d.xmax - d.xmin + 1, down = d.ymax - d.ymin + 1;
+  const rows = Math.min(count, down, Math.max(1, Math.round(Math.sqrt(count * down / across))));
+  const rowOf = bands(down, rows);              // row of each line of cells, counted from the top
+  const columnsOf = [], firstColourOf = [];     // for each row of rectangles
+  let colour = 0;
+  for (let r = 0; r < rows; r++) {
+    const inRow = Math.floor(count / rows) + (r < count % rows ? 1 : 0);
+    if (inRow > across) return null;            // narrower than the rectangles it needs
+    columnsOf.push(bands(across, inRow));
+    firstColourOf.push(colour);
+    colour += inRow;
+  }
+  const colourOf = new Int32Array(d.n);
+  for (let v = 0; v < d.n; v++) {
+    const r = rowOf[d.ymax - d.y[v]];
+    colourOf[v] = firstColourOf[r] + columnsOf[r][d.x[v] - d.xmin];
+  }
+  const pieces = countPieces(d, colourOf, count);
+  return pieces.every(function (p) { return p === 1; }) ? colourOf : null;
+}
+
+// Cut 0 .. total-1 into "parts" runs of (almost) equal length:
+// band[t] = which run t is in.
+function bands(total, parts) {
+  const band = new Int32Array(total);
+  for (let k = 0; k < parts; k++) {
+    for (let t = Math.floor(k * total / parts); t < Math.floor((k + 1) * total / parts); t++) band[t] = k;
+  }
+  return band;
+}
+
+// N compact blocks, for any connected domain. N seed cells are spread
+// out: the first is the cell farthest from cell 0, and each next one is
+// the cell farthest from all seeds so far ("farthest" = most steps
+// through the graph). Then every cell takes the colour of its nearest
+// seed, found by a breadth-first search from all the seeds at once.
+// Each cell is reached through a neighbour of its own colour, so every
+// colour is one connected piece.
+function blockStart(d, count) {
   const seeds = [];
   let distance = stepsFrom(d, [0]);
   for (let k = 0; k < count; k++) {
@@ -288,7 +351,8 @@ worker.onerror = function () {
 // domain, N and seed.
 function restart() {
   run++;
-  colours = drawnStart ? drawnStart.slice() : autoStart(domain, N);
+  if (drawnStart) startShape = "yours";
+  colours = drawnStart ? drawnStart.slice() : automaticStart(domain, N);
   trace = [];
   latest = null;
   worker.postMessage({
@@ -312,13 +376,20 @@ function setPlaying(on) {
 /* =====================================================================
    6. DRAWING THE COLOURING
    ---------------------------------------------------------------------
-   One <canvas>: each cell is a square in its colour, and a dark line is
-   drawn along every side where two cells of different colours meet, or
-   where the domain ends. On a torus the sides at the edge of the picture
-   are joined to the opposite edge, so a line is drawn there only if the
-   colours across the wrap differ.
+   The colouring is drawn on a hidden canvas, "picture": each cell a
+   square in its colour, and a dark line along every side where two
+   cells of different colours meet, or where the domain ends. Then the
+   picture is copied onto the canvas on the page.
+
+   On a torus the sides at the edge of the picture are joined to the
+   opposite edge, so a line is drawn there only if the colours across
+   the wrap differ. And a torus can be scrolled: drag it, or use the
+   mouse wheel or two fingers on a trackpad. It wraps around, so the
+   picture is copied four times, shifted, and whatever falls outside
+   the picture's box is cut off.
    ===================================================================== */
 let drawPending = false;
+const picture = document.createElement("canvas");
 
 // Draw at the browser's next screen refresh (at most once per refresh,
 // however many colourings arrive in between).
@@ -332,6 +403,11 @@ function drawSoon() {
   });
 }
 
+// True when the picture can be scrolled: the Torus domain. (A drawn
+// region on a torus usually doesn't fill the whole torus, so it isn't
+// scrolled.)
+function scrollable() { return domainKind === "torus"; }
+
 function drawColouring() {
   const canvas = byId("sim-canvas");
   if (!domain || !colours || canvas.hidden) return;
@@ -341,22 +417,20 @@ function drawColouring() {
   const across = d.xmax - d.xmin + 1, down = d.ymax - d.ymin + 1;
   const cssWidth = canvas.clientWidth;
   const size = Math.min(cssWidth / across, MAX_PICTURE_HEIGHT / down);
-  const cssHeight = Math.round(size * down);
-  canvas.style.height = cssHeight + "px";
+  const width = Math.round(size * across), height = Math.round(size * down);
   const ratio = window.devicePixelRatio || 1;   // 2 on sharp screens
-  canvas.width = Math.round(cssWidth * ratio);
-  canvas.height = Math.round(cssHeight * ratio);
-  const pen = canvas.getContext("2d");
-  pen.setTransform(ratio, 0, 0, ratio, 0, 0);   // draw in screen pixels from here on
 
-  // Where cell edges are on screen. Rounding to whole pixels avoids thin
-  // gaps between cells. Rows go up the screen, as y goes up.
-  const left = (cssWidth - size * across) / 2;
-  function edgeX(x) { return Math.round(left + (x - d.xmin) * size); }        // left side of column x
-  function edgeY(y) { return Math.round((d.ymax - y + 1) * size); }           // bottom side of row y
+  // 1. The picture. Where cell edges are: rounding to whole pixels avoids
+  //    thin gaps between cells. Rows go up the screen, as y goes up.
+  picture.width = Math.round(width * ratio);
+  picture.height = Math.round(height * ratio);
+  const pen = picture.getContext("2d");
+  pen.setTransform(ratio, 0, 0, ratio, 0, 0);   // draw in screen pixels from here on
+  function edgeX(x) { return Math.round((x - d.xmin) * size); }        // left side of column x
+  function edgeY(y) { return Math.round((d.ymax - y + 1) * size); }    // bottom side of row y
 
   pen.fillStyle = OUTSIDE;
-  pen.fillRect(0, 0, cssWidth, cssHeight);
+  pen.fillRect(0, 0, width, height);
   for (let v = 0; v < d.n; v++) {
     const x0 = edgeX(d.x[v]), x1 = edgeX(d.x[v] + 1);
     const y0 = edgeY(d.y[v] + 1), y1 = edgeY(d.y[v]);
@@ -384,7 +458,72 @@ function drawColouring() {
     const w = cellAt(d, x, y);
     return w === -1 || colours[w] !== colours[v];
   }
+
+  // 2. Copy it onto the page, in the middle.
+  canvas.style.height = height + "px";
+  canvas.width = Math.round(cssWidth * ratio);
+  canvas.height = Math.round(height * ratio);
+  const screen = canvas.getContext("2d");
+  screen.setTransform(ratio, 0, 0, ratio, 0, 0);
+  const left = Math.round((cssWidth - width) / 2);
+  if (!scrollable()) {
+    screen.drawImage(picture, left, 0, width, height);
+    return;
+  }
+  // The torus: the scroll, in pixels, wrapped into one picture's size.
+  const shiftX = wrap(Math.round(scroll.x * size), 0, width - 1);
+  const shiftY = wrap(Math.round(scroll.y * size), 0, height - 1);
+  screen.save();
+  screen.beginPath();
+  screen.rect(left, 0, width, height);
+  screen.clip();                                 // nothing outside the picture's box
+  for (const dx of [shiftX - width, shiftX]) {
+    for (const dy of [shiftY - height, shiftY]) screen.drawImage(picture, left + dx, dy, width, height);
+  }
+  screen.restore();
 }
+
+// Scrolling the torus. "Pointer" events cover the mouse, a pen and
+// fingers alike. The scroll is kept in cells, so it stays put when the
+// window is resized.
+const simCanvas = byId("sim-canvas");
+let dragFrom = null;   // where the pointer was a moment ago, while dragging
+
+function cellSizeOnScreen() {
+  return simCanvas.clientHeight / (domain.ymax - domain.ymin + 1);
+}
+
+simCanvas.addEventListener("pointerdown", function (event) {
+  if (!scrollable()) return;
+  dragFrom = { x: event.clientX, y: event.clientY };
+  simCanvas.setPointerCapture(event.pointerId);   // keep getting moves even off the canvas
+  simCanvas.classList.add("dragging");
+});
+simCanvas.addEventListener("pointermove", function (event) {
+  if (!dragFrom) return;
+  const size = cellSizeOnScreen();
+  scroll.x += (event.clientX - dragFrom.x) / size;
+  scroll.y += (event.clientY - dragFrom.y) / size;
+  dragFrom = { x: event.clientX, y: event.clientY };
+  drawSoon();
+});
+function stopDragging() {
+  dragFrom = null;
+  simCanvas.classList.remove("dragging");
+}
+simCanvas.addEventListener("pointerup", stopDragging);
+simCanvas.addEventListener("pointercancel", stopDragging);
+
+// The mouse wheel, or two fingers on a trackpad, scroll the torus like
+// a page (instead of scrolling the page) while the pointer is over it.
+simCanvas.addEventListener("wheel", function (event) {
+  if (!scrollable()) return;
+  event.preventDefault();
+  const size = cellSizeOnScreen();
+  scroll.x -= event.deltaX / size;
+  scroll.y -= event.deltaY / size;
+  drawSoon();
+}, { passive: false });   // "passive: false" lets preventDefault stop the page scrolling
 
 window.addEventListener("resize", drawSoon);
 
@@ -635,7 +774,9 @@ function useDomain(kind, d, start, names) {
   const most = Math.min(MAX_COLOURS, domain.n);
   N = start ? names.length : Math.min(Math.max(N, 2), most);
   colourNames = start ? names : [];
-  for (let c = colourNames.length; c < N; c++) colourNames.push(defaultColour(c));
+  for (let c = colourNames.length; c < N; c++) colourNames.push(defaultColour(c, N));
+  scroll = { x: 0, y: 0 };
+  simCanvas.classList.toggle("scrollable", scrollable());
   byId("set-colours").max = byId("colours-slider").max = most;
   byId("set-colours").value = byId("colours-slider").value = N;
   showDomainChoice();
@@ -681,9 +822,11 @@ function showDomainChoice() {
 }
 
 function showStartInfo() {
-  byId("start-info").textContent = drawnStart
-    ? "Starting from your own colouring. Changing N switches to the automatic start."
-    : "Starting from " + N + " compact blocks (the automatic start).";
+  byId("start-info").textContent =
+    startShape === "yours" ? "Starting from your own colouring. Changing N switches to the automatic start." :
+    startShape === "rectangles" ? "Starting from a grid of " + N + " rectangles." :
+    "Starting from " + N + " compact blocks (this region can't be cut into a grid of rectangles " +
+    "with each colour in one piece).";
 }
 
 // Domain: Box / Torus / Custom.

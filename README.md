@@ -23,6 +23,7 @@ repeat for the same seed).
 | `sims/example.html` | Blank sim showing the four-quadrant layout; copy it to start a new sim |
 | `css/style.css` | The single stylesheet for every page |
 | `js/genre-filter.js` | Builds the genre buttons on `toys.html` and hides/shows cards |
+| `js/about-tabs.js` | The Simple / All the details tabs in a sim's About box |
 | `sims/graph-tool.html` | Graph & domain tool: paint a domain on a grid (pinned first on `toys.html`) |
 | `sims/graph-tool.js` | The graph tool's code (painting, torus, formula box, undo, save/load) |
 | `sims/connected-colouring.html` | Random connected colouring sim (box, torus, or a domain drawn in the graph tool) |
