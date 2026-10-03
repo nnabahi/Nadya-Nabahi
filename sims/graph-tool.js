@@ -68,15 +68,15 @@ let palette = [
   "#000000",   // 14 black
 ];
 
-// The background grid, like Desmos: black axes, grey lines every
-// MAJOR_EVERY cells, light grey lines every cell.
+// The background grid, like Desmos: black axes, light grey lines every
+// cell, and (dots view only) grey lines every MAJOR_EVERY cells.
 const BACKGROUND   = "#ffffff";   // inside the grid's x/y limits
 const OUTSIDE_GRID = "#f0f0f0";   // outside them (no cells there)
 const MINOR_LINE   = "#e4e4e4";   // every cell
-const MAJOR_LINE   = "#b4b4b4";   // every MAJOR_EVERY cells
+const MAJOR_LINE   = "#b4b4b4";   // every MAJOR_EVERY cells (dots view)
 const AXIS_LINE    = "#000000";   // the lines x = 0 and y = 0
 const LABEL_COLOUR = "#333333";   // the numbers along the axes
-const MAJOR_EVERY  = 5;
+const MAJOR_EVERY  = 5;           // also how often the axes get a number
 
 const OFF_DOT     = "#bdbdbd";   // an unpainted dot (dots view)
 const EDGE_COLOUR = "#333333";   // an edge between two painted dots
@@ -296,8 +296,11 @@ function buildGrid() {
      - light grey lines every cell: in cells view they are the cell
        borders (at x = ..., -0.5, 0.5, 1.5, ...); in dots view they go
        through the dots (at whole numbers)
-     - grey lines every MAJOR_EVERY cells, at x = 0, 5, 10, ...
-     - black axes at x = 0 and y = 0, with numbers along them
+     - in dots view only, grey lines every MAJOR_EVERY cells, at
+       x = 0, 5, 10, ... (in cells view they would run through the
+       middle of the cells, which is too busy)
+     - black axes at x = 0 and y = 0, with numbers every MAJOR_EVERY
+       cells along them
      - on a torus: copies of the drawing, and of the lines, axes and
        numbers, in every direction
    ===================================================================== */
@@ -359,9 +362,10 @@ function drawBackground() {
   const axisX = placesOf(0, left, right, grid.xmin, grid.xmax, W);     // the y-axis (x = 0)
   const axisY = placesOf(0, bottom, top, grid.ymin, grid.ymax, H);     // the x-axis (y = 0)
 
-  // 3. Grey lines every MAJOR_EVERY cells.
+  // 3. Grey lines every MAJOR_EVERY cells, in dots view only. In cells
+  //    view they would cut through the middle of a row of cells.
   const major = MAJOR_EVERY * scale;   // pixels between grey lines
-  if (major >= 4) {
+  if (view === "dots" && major >= 4) {
     for (const line of majorX) for (const at of line.places) verticalLine(at, MAJOR_LINE, 1);
     for (const line of majorY) for (const at of line.places) horizontalLine(at, MAJOR_LINE, 1);
   }
@@ -370,8 +374,9 @@ function drawBackground() {
   for (const at of axisX) verticalLine(at, AXIS_LINE, 1.5);
   for (const at of axisY) horizontalLine(at, AXIS_LINE, 1.5);
 
-  // 5. Numbers at the grey lines, next to each axis. When no axis is on
-  //    screen, the numbers stay along the nearest edge (as in Desmos).
+  // 5. Numbers every MAJOR_EVERY cells, next to each axis. When no axis
+  //    is on screen, the numbers stay along the nearest edge (as in
+  //    Desmos).
   if (major >= 28) {
     pen.fillStyle = LABEL_COLOUR;
     pen.font = "11px sans-serif";
@@ -420,12 +425,19 @@ function placesOf(v, from, to, lo, hi, period) {
   return places;
 }
 
-// The grey lines, as a list of { value, places }: one for each multiple
-// of MAJOR_EVERY on screen (or, on a torus, inside the real grid).
+// The grey lines (and numbers), as a list of { value, places }: one for
+// each multiple of MAJOR_EVERY on screen (or, on a torus, inside the
+// real grid).
 function majorLines(from, to, lo, hi, period) {
   const a = grid.torus ? lo : from, b = grid.torus ? hi : to;
+  let first = Math.ceil(a / MAJOR_EVERY) * MAJOR_EVERY;
+  const last = Math.floor(b / MAJOR_EVERY) * MAJOR_EVERY;
+  // On a torus, the last line of one copy (say 10) and the first line of
+  // the next copy (-10) can be a single cell apart. Then the first line
+  // is left out, so lines and numbers are never closer than MAJOR_EVERY.
+  if (grid.torus && first + period - last < MAJOR_EVERY) first += MAJOR_EVERY;
   const lines = [];
-  for (let v = Math.ceil(a / MAJOR_EVERY) * MAJOR_EVERY; v <= b; v += MAJOR_EVERY) {
+  for (let v = first; v <= last; v += MAJOR_EVERY) {
     lines.push({ value: v, places: placesOf(v, from, to, lo, hi, period) });
   }
   return lines;
@@ -482,13 +494,6 @@ function drawTorusCopies(pen, scale, screenX, screenY, left, right, bottom, top)
     }
   }
   pen.globalAlpha = 1;
-
-  // A dashed outline around the real grid, so you can tell which copy it is.
-  pen.strokeStyle = MAJOR_LINE;
-  pen.lineWidth = 1.5;
-  pen.setLineDash([6, 4]);
-  pen.strokeRect(screenX(grid.xmin - 0.5), screenY(grid.ymax + 0.5), W * scale, H * scale);
-  pen.setLineDash([]);
 }
 
 // A filled circle of radius r centred at (sx, sy) on screen.
