@@ -913,9 +913,30 @@ function loadEdgeList(text) {
    in section 2.)
    ===================================================================== */
 
-// readTree(text) turns the typed text into a math.js expression "tree"
-// ("=" means "equals", and "xy" means x times y). It is shared with
-// the sims' formula boxes, so it lives in js/sim-formulas.js.
+// Turn the typed text into a math.js expression "tree", made more
+// Desmos-like in two ways:
+//   - "=" means "equals". math.js reads a single "=" as "set y to ...",
+//     and refuses  x^2 + y^2 = 4  outright, so before reading, every
+//     single "=" (not part of <=, >=, == or !=) becomes "==".
+//   - every variable is one letter, so "xy" means x times y (math.js
+//     would read it as one variable called "xy"). Names math.js knows,
+//     like sin, sqrt or pi, are left alone.
+// (math.js runs the function given to "transform" or "filter" once for
+// every piece of the tree; "path" says where that piece sits inside its
+// "parent".)
+function readTree(text) {
+  const equalsFixed = text.replace(/(^|[^<>=!])=(?!=)/g, "$1==");
+  return math.parse(equalsFixed).transform(function (node, path, parent) {
+    const isWord = node.isSymbolNode && /^[a-zA-Z]{2,}$/.test(node.name);
+    if (!isWord || isFunctionName(path, parent) || math[node.name] !== undefined) return node;
+    // Split e.g. "xyr" into x * y * r. The "true" means the product is
+    // written without a multiplication sign, so the preview shows "xyr".
+    const letters = node.name.split("").map(function (ch) { return new math.SymbolNode(ch); });
+    return letters.reduce(function (product, letter) {
+      return new math.OperatorNode("*", "multiply", [product, letter], true);
+    });
+  });
+}
 
 // The letters in the formula that need a slider: everything except x, y
 // and names math.js already knows (pi, e, sqrt, ...).
@@ -928,6 +949,11 @@ function sliderLetters(tree) {
   return [...new Set(names)].filter(function (name) {
     return name !== "x" && name !== "y" && math[name] === undefined;
   });
+}
+
+// True for the "sin" in sin(x): a name used as a function, not a variable.
+function isFunctionName(path, parent) {
+  return Boolean(parent && parent.isFunctionNode && path === "fn");
 }
 
 // Runs on every keystroke in the formula box.

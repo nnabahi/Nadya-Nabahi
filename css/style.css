@@ -737,6 +737,41 @@ body.embedded .graph-wrap {
 }
 
 
+/* A clickable grid of small square cells, for picking a tile (the
+   random mountain's Tile T): a lit cell is in the tile, the dark one in
+   the middle is the site itself. In 1D it is a single row. */
+.tile-grid {
+  display: grid;
+  gap: 2px;
+  max-width: 260px;
+  margin-bottom: 10px;
+}
+
+.tile-grid.one-row {
+  max-width: 100%;
+}
+
+.tile-cell {
+  aspect-ratio: 1;
+  min-width: 0;
+  padding: 0;
+  border: 1px solid var(--color-border);
+  border-radius: 2px;
+  background: var(--color-surface);
+  cursor: pointer;
+}
+
+.tile-cell.on {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+}
+
+.tile-cell.center {
+  background: var(--color-text);
+  cursor: default;
+}
+
+
 /* Check pages (like sims/random-mountain-check.html): the table of
    tests, each marked pass (green) or FAIL (red). */
 .check-table td {

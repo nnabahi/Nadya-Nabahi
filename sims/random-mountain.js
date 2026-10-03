@@ -2,20 +2,20 @@
    random-mountain.js  —  the page of the "Random mountain" sim
    ---------------------------------------------------------------------
    What it does, in plain words:
-     - Reads the tile T from the formula box (the preset buttons just
-       fill in a formula), and the domain from the Domain options (a
-       custom domain is drawn in the graph tool, shown inside this page).
+     - Reads the tile T from the clickable grid of cells (as on the old
+       site; the preset and Make buttons fill the grid in), and the
+       domain from the Domain options (a custom domain is drawn in the
+       graph tool, shown inside this page).
      - Hands them to the growth rule (random-mountain-growth.js), which
        runs in a second thread (a "Web Worker"), and draws every
        mountain it sends back, with the statistics.
    Small helpers used by every sim page (byId, chartPen, ...) are in
-   js/sim-page.js, and the formula reader (readTree) in
-   js/sim-formulas.js.
+   js/sim-page.js.
 
    The file is split into numbered sections:
      1. Settings you might want to change
      2. What the page remembers (the "state")
-     3. The tile: presets and the formula box
+     3. The tile: the clickable grid and presets
      4. The domain
      5. Running the mountain
      6. Drawing the mountain
@@ -30,26 +30,28 @@
    1. SETTINGS YOU MIGHT WANT TO CHANGE
    ===================================================================== */
 
-// The tile presets. Each one is just a formula for the formula box: the
-// tile is every offset x (or (x, y)) that makes the formula true, except
-// 0. The first one of each list is the default.
+// The tile presets. Each one is a list of offsets: numbers [x] in 1D,
+// pairs [x, y] in 2D. The first one of each list is the default.
 const PRESETS = {
   1: [
-    { name: "{−1, +1}", formula: "abs(x) = 1" },          // two-sided (randmountain.py)
-    { name: "{+1}", formula: "x = 1" },                    // one-sided (randonesidedmountain.py)
-    { name: "{−2, +1}", formula: "x = -2 or x = 1" },
-    { name: "{±1, ±2}", formula: "abs(x) <= 2" },
+    { name: "{−1, +1}", tile: [[-1], [1]] },               // two-sided (randmountain.py)
+    { name: "{+1}", tile: [[1]] },                          // one-sided (randonesidedmountain.py)
+    { name: "{−2, +1}", tile: [[-2], [1]] },
+    { name: "{±1, ±2}", tile: [[-2], [-1], [1], [2]] },
   ],
   2: [
-    { name: "4 neighbors", formula: "abs(x) + abs(y) = 1" },
-    { name: "8 neighbors", formula: "max(abs(x), abs(y)) = 1" },
-    { name: "Diagonals", formula: "abs(x) = 1 and abs(y) = 1" },
-    { name: "Disk, radius 2", formula: "x^2 + y^2 <= 4" },
+    { name: "4 neighbors", tile: [[1, 0], [-1, 0], [0, 1], [0, -1]] },
+    { name: "8 neighbors", tile: [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]] },
+    { name: "Diagonals", tile: [[1, 1], [1, -1], [-1, 1], [-1, -1]] },
   ],
 };
 
-// The formula is tried on offsets up to this far from 0.
-const TILE_REACH = { 1: 50, 2: 20 };
+// The clickable grid shows the offsets up to this far from the site
+// itself: -10 .. 10 in 1D, an 11 x 11 square in 2D (as on the old
+// site). The Make buttons can build bigger tiles; the grid then shows
+// only the part that fits.
+const GRID_REACH = { 1: 10, 2: 5 };
+const MAX_RADIUS = 30;
 
 // The domains for each dimension, and the default size of a bounded one.
 const DOMAINS = {
@@ -60,8 +62,10 @@ const DEFAULT_SIZE = { 1: 101, 2: 41 };
 const MAX_SIZE = { 1: 2001, 2: 301 };
 
 const DEFAULT_SEED = "1";
-const PICTURE_HEIGHT_1D = 320;    // in screen pixels
-const MAX_PICTURE_HEIGHT = 600;   // 2D, in screen pixels
+// The picture always has the same size (the quadrant's width, and this
+// height in screen pixels), in 1D and 2D; the mountain shrinks to fit
+// inside it as it grows.
+const PICTURE_HEIGHT = 480;
 const EMPTY = "#c9c6bf";          // available sites with no block yet
 const OUTSIDE = "#ffffff";        // everything else
 
@@ -99,17 +103,35 @@ let latest = null;
 
 
 /* =====================================================================
-   3. THE TILE: PRESETS AND THE FORMULA BOX
+   3. THE TILE: THE CLICKABLE GRID AND PRESETS
    ---------------------------------------------------------------------
-   The formula is a condition in x (1D) or x and y (2D), read by
-   math.js the same way as in the graph tool: "=" means "equals", and
-   "and", "or", "not", abs, max, ... all work. Every offset within
-   TILE_REACH of 0 that makes it true is in the tile, except 0 itself.
-   It works live, like Desmos: each keystroke that gives a readable
-   formula changes the tile at once.
+   As on the old site: a grid of cells around the site itself (the dark
+   one in the middle). Clicking a cell puts that offset in the tile, or
+   takes it out. The preset buttons and the Make buttons (a disk, or a
+   ring) fill the grid in. Every change takes effect at once, keeping
+   the seed and the step, like a Desmos slider.
    ===================================================================== */
 
-// Show the preset buttons for this dimension.
+// An offset's name, "x" in 1D or "x,y" in 2D, for the set below.
+function offsetKey(t) { return dim === 1 ? String(t[0]) : t[0] + "," + t[1]; }
+
+// Use these offsets as the tile (0 is left out: it changes nothing),
+// show them, and restart at the same step.
+function setTile(offsets) {
+  const seen = new Set();
+  tile = [];
+  for (const t of offsets) {
+    const key = offsetKey(t);
+    if (seen.has(key) || key === "0" || key === "0,0") continue;
+    seen.add(key);
+    tile.push(dim === 1 ? [t[0]] : [t[0], t[1]]);
+  }
+  showTileGrid();
+  byId("tile-info").textContent = describeTile();
+  restart(true);
+}
+
+// Show the preset buttons and the Make rows for this dimension.
 function showPresets() {
   const row = byId("tile-presets");
   row.innerHTML = "";
@@ -117,64 +139,78 @@ function showPresets() {
     const button = document.createElement("button");
     button.className = "tool-button";
     button.textContent = preset.name;
-    button.addEventListener("click", function () {
-      byId("tile-formula").value = preset.formula;
-      readTile();
-    });
+    button.addEventListener("click", function () { setTile(preset.tile); });
     row.appendChild(button);
   }
-  const reach = TILE_REACH[dim];
-  byId("tile-help").textContent = dim === 1
-    ? "Or type a condition in x. T is every whole number x ≠ 0 with |x| ≤ " + reach + " that makes it true."
-    : "Or type a condition in x and y. T is every (x, y) ≠ (0, 0) with |x|, |y| ≤ " + reach + " that makes it true.";
+  byId("disk-label").textContent = dim === 1 ? "Every offset out to" : "Disk, radius";
+  byId("ring-label").textContent = dim === 1 ? "Only the offsets from" : "Ring, radius";
 }
 
-// Read the formula box. If the formula is readable, use it as the tile
-// and restart (same seed, same step); if not, say why and keep the old tile.
-function readTile() {
-  const text = byId("tile-formula").value.trim();
-  const letters = dim === 1 ? ["x"] : ["x", "y"];
-  let tree, offsets = [];
-  try {
-    if (text === "") throw new Error("Type a condition, like " + PRESETS[dim][0].formula);
-    tree = readTree(text);
-    const unknown = tree.filter(function (node, path, parent) {
-      return node.isSymbolNode && !isFunctionName(path, parent) &&
-             !letters.includes(node.name) && math[node.name] === undefined;
-    });
-    if (unknown.length > 0) {
-      throw new Error("Only " + letters.join(" and ") + " can be used here, not " + unknown[0].name + ".");
-    }
-    const formula = tree.compile();
-    const reach = TILE_REACH[dim];
+// Draw the clickable grid: one small button per offset, lit up when the
+// offset is in the tile.
+function showTileGrid() {
+  const grid = byId("tile-grid");
+  const reach = GRID_REACH[dim];
+  const inTile = new Set(tile.map(offsetKey));
+  grid.innerHTML = "";
+  grid.style.gridTemplateColumns = "repeat(" + (2 * reach + 1) + ", 1fr)";
+  grid.classList.toggle("one-row", dim === 1);
+  const rowsY = dim === 1 ? [0] : [];
+  if (dim === 2) for (let y = reach; y >= -reach; y--) rowsY.push(y);   // top row first: y goes up
+  for (const y of rowsY) {
     for (let x = -reach; x <= reach; x++) {
-      for (let y = (dim === 2 ? -reach : 0); y <= (dim === 2 ? reach : 0); y++) {
-        if (x === 0 && y === 0) continue;
-        const answer = formula.evaluate({ x: x, y: y });
-        if (typeof answer !== "boolean") throw new Error("The formula should be true or false, like " + PRESETS[dim][0].formula);
-        if (answer) offsets.push(dim === 1 ? [x] : [x, y]);
+      const t = dim === 1 ? [x] : [x, y];
+      const cell = document.createElement("button");
+      cell.className = "tile-cell";
+      if (x === 0 && y === 0) {
+        cell.classList.add("center");
+        cell.title = "the site itself";
+        cell.disabled = true;
+      } else {
+        cell.title = dim === 1 ? String(x) : "(" + x + ", " + y + ")";
+        if (inTile.has(offsetKey(t))) cell.classList.add("on");
+        cell.addEventListener("click", function () {
+          const key = offsetKey(t);
+          setTile(inTile.has(key) ? tile.filter(function (u) { return offsetKey(u) !== key; })
+                                  : tile.concat([t]));
+        });
       }
+      grid.appendChild(cell);
     }
-  } catch (problem) {
-    // Usually just a half-typed formula; keep the last good tile.
-    byId("tile-info").textContent = "Can't use that yet: " + problem.message;
-    return;
   }
-
-  katex.render("T = \\{\\, " + (dim === 1 ? "x" : "(x, y)") + " : " +
-               tree.toTex({ parenthesis: "keep", implicit: "hide" }) + " \\,\\}",
-               byId("tile-preview"), { throwOnError: false });
-  tile = offsets;
-  byId("tile-info").textContent = describeTile();
-  restart(true);
 }
+
+// The Make buttons. In 2D: every (x, y) with r1 <= its distance from 0
+// <= r2 (a disk is r1 = 0); in 1D: every x with r1 <= |x| <= r2.
+function ringTile(r1, r2) {
+  const offsets = [];
+  for (let x = -r2; x <= r2; x++) {
+    if (dim === 1) {
+      if (Math.abs(x) >= r1) offsets.push([x]);
+      continue;
+    }
+    for (let y = -r2; y <= r2; y++) {
+      const d2 = x * x + y * y;
+      if (d2 >= r1 * r1 && d2 <= r2 * r2) offsets.push([x, y]);
+    }
+  }
+  return offsets;
+}
+byId("make-disk").addEventListener("click", function () {
+  setTile(ringTile(0, readWhole("disk-radius", 1, MAX_RADIUS, 2)));
+});
+byId("make-ring").addEventListener("click", function () {
+  let r1 = readWhole("ring-inner", 0, MAX_RADIUS, 3), r2 = readWhole("ring-outer", 0, MAX_RADIUS, 3);
+  if (r1 > r2) { const t = r1; r1 = r2; r2 = t; }
+  setTile(ringTile(r1, r2));
+});
 
 // "4 offsets: (1, 0), (0, 1), ..." (the first few).
 function describeTile() {
   if (tile.length === 0) return "T is empty: every block lands on the start site.";
   const shown = tile.slice(0, 12).map(function (t) { return dim === 1 ? String(t[0]) : "(" + t[0] + ", " + t[1] + ")"; });
-  return tile.length + (tile.length === 1 ? " offset: " : " offsets: ") + shown.join(", ") +
-         (tile.length > 12 ? ", ..." : "");
+  return "T has " + tile.length + (tile.length === 1 ? " offset: " : " offsets: ") + shown.join(", ") +
+         (tile.length > 12 ? ", ..." : "") + ".";
 }
 
 
@@ -385,7 +421,7 @@ function drawMountain() {
 // 1D: bars.
 function drawLine() {
   const s = latest, range = pictureRange();
-  const width = simCanvas.clientWidth, height = PICTURE_HEIGHT_1D;
+  const width = simCanvas.clientWidth, height = PICTURE_HEIGHT;
   const ratio = window.devicePixelRatio || 1;   // 2 on sharp screens
   simCanvas.style.height = height + "px";
   simCanvas.width = Math.round(width * ratio);
@@ -436,9 +472,9 @@ function drawLine() {
 // picture can be moved and zoomed (section 6b).
 
 // Where the picture sits on the canvas, from the last drawing, in screen
-// pixels: "left", "width" and "height" of its box, and "size", the size
-// of a cell when the whole picture fits (zoom 1).
-let view = { left: 0, width: 0, height: 0, size: 1 };
+// pixels: "left", "top", "width" and "height" of its box, and "size",
+// the size of a cell when the whole picture fits (zoom 1).
+let view = { left: 0, top: 0, width: 0, height: 0, size: 1 };
 
 // The torus that the 2D picture wraps around, or null.
 function torusRange() {
@@ -455,15 +491,18 @@ function drawGrid() {
   const s = latest, range = pictureRange(), wrapRange = torusRange();
   const across = range.xmax - range.xmin + 1, down = range.ymax - range.ymin + 1;
   const cssWidth = simCanvas.clientWidth;
-  view.size = Math.min(cssWidth / across, MAX_PICTURE_HEIGHT / down);   // a cell at zoom 1
+  // The picture's box: square cells, as big as fit in the canvas (which
+  // always has the same size), in the middle of it.
+  view.size = Math.min(cssWidth / across, PICTURE_HEIGHT / down);   // a cell at zoom 1
   view.width = Math.round(view.size * across);
   view.height = Math.round(view.size * down);
   view.left = Math.round((cssWidth - view.width) / 2);
+  view.top = Math.round((PICTURE_HEIGHT - view.height) / 2);
 
   const ratio = window.devicePixelRatio || 1;   // 2 on sharp screens
-  simCanvas.style.height = view.height + "px";
+  simCanvas.style.height = PICTURE_HEIGHT + "px";
   simCanvas.width = Math.round(cssWidth * ratio);
-  simCanvas.height = Math.round(view.height * ratio);
+  simCanvas.height = Math.round(PICTURE_HEIGHT * ratio);
   const pen = simCanvas.getContext("2d");
   pen.setTransform(ratio, 0, 0, ratio, 0, 0);   // draw in screen pixels from here on
 
@@ -508,14 +547,14 @@ function drawGrid() {
   // stay sharp squares, and a thin frame around the box.
   pen.save();
   pen.beginPath();
-  pen.rect(view.left, 0, view.width, view.height);
+  pen.rect(view.left, view.top, view.width, view.height);
   pen.clip();                                     // nothing outside the picture's box
   pen.imageSmoothingEnabled = false;
-  pen.drawImage(tiny, view.left + Math.round((firstI + scroll.x) * size), Math.round((firstK + scroll.y) * size),
+  pen.drawImage(tiny, view.left + Math.round((firstI + scroll.x) * size), view.top + Math.round((firstK + scroll.y) * size),
                 cols * size, rows * size);
   pen.restore();
   pen.strokeStyle = EMPTY;
-  pen.strokeRect(view.left + 0.5, 0.5, view.width - 1, view.height - 1);
+  pen.strokeRect(view.left + 0.5, view.top + 0.5, view.width - 1, view.height - 1);
 }
 
 
@@ -600,7 +639,7 @@ simCanvas.addEventListener("pointermove", function (event) {
   scroll.y += (after.y - before.y) / size;
   if (pointers.size >= 2 && before.apart > 0) {
     const box = simCanvas.getBoundingClientRect();
-    zoomBy(after.apart / before.apart, after.x - box.left - view.left, after.y - box.top);
+    zoomBy(after.apart / before.apart, after.x - box.left - view.left, after.y - box.top - view.top);
   }
   drawSoon();
 });
@@ -621,7 +660,7 @@ simCanvas.addEventListener("wheel", function (event) {
   const pixels = event.deltaY * (event.deltaMode === 1 ? 16 : 1);   // some mice count lines
   const box = simCanvas.getBoundingClientRect();
   zoomBy(Math.exp(-pixels * (event.ctrlKey ? 0.01 : 0.002)),
-         event.clientX - box.left - view.left, event.clientY - box.top);
+         event.clientX - box.left - view.left, event.clientY - box.top - view.top);
 }, { passive: false });   // "passive: false" lets preventDefault stop the page scrolling
 
 
@@ -770,15 +809,11 @@ function setDimension(value) {
   byId("set-width").max = byId("set-height").max = MAX_SIZE[dim];
   showPresets();
   showDomainChoice();
-  byId("tile-formula").value = PRESETS[dim][0].formula;
-  readTile();
+  setTile(PRESETS[dim][0].tile);
 }
 for (const radio of document.querySelectorAll('input[name="dimension"]')) {
   radio.addEventListener("change", function () { setDimension(Number(radio.value)); });
 }
-
-// The formula box, live while typing.
-byId("tile-formula").addEventListener("input", readTile);
 
 // The size of a segment, cycle, box or torus.
 for (const id of ["set-width", "set-height"]) {
