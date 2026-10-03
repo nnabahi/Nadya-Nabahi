@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Example sim — Toys n' Sims</title>
+  <!-- This page is inside the sims/ folder, so "../" means
+       "go up one folder" to reach css/style.css. -->
+  <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+
+  <!-- TOP BAR: same as every other page, but with "../" in front of each
+       link because this page lives one folder down. -->
+  <header class="topbar">
+    <nav>
+      <a href="../about.html">About Me</a>
+      <a href="../resume.html">Resume</a>
+      <a href="../index.html">Home</a>
+      <a href="../publications.html">Publications</a>
+      <a href="../toys.html" class="active">Toys n' Sims</a>
+    </nav>
+  </header>
+
+  <main class="page">
+    <p><a href="../toys.html">&larr; All sims</a></p>
+    <h1>Example sim</h1>
+
+    <!-- THE FOUR QUADRANTS.
+         Where each box appears on screen is decided in css/style.css
+         (section 6), not by the order here:
+           upper left  = quad-sim        upper right = quad-controls
+           lower left  = quad-stats      lower right = quad-about
+         To make a new sim, copy this whole file and fill in the boxes. -->
+    <div class="quadrants">
+
+      <!-- UPPER LEFT: the simulation itself. A <canvas> is a blank
+           rectangle that JavaScript can draw on. width/height set its
+           drawing resolution; CSS stretches it to fit the box. -->
+      <section class="quad quad-sim">
+        <h2>Simulation</h2>
+        <canvas id="sim-canvas" width="600" height="400"></canvas>
+      </section>
+
+      <!-- UPPER RIGHT: sliders, buttons, inputs. -->
+      <section class="quad quad-controls">
+        <h2>Options</h2>
+        <p class="muted">Controls go here (sliders, buttons, inputs).</p>
+      </section>
+
+      <!-- LOWER LEFT: numbers or plots computed from the simulation. -->
+      <section class="quad quad-stats">
+        <h2>Statistics</h2>
+        <p class="muted">Live numbers and plots from the simulation go here.</p>
+      </section>
+
+      <!-- LOWER RIGHT: explanation of the math behind the model. -->
+      <section class="quad quad-about">
+        <h2>About the model</h2>
+        <p class="muted">Explanation of the model, equations, and references go here.</p>
+      </section>
+
+    </div>
+  </main>
+
+  <!-- When a real sim is built, its JavaScript gets linked here, e.g.
+       <script src="example.js"></script> -->
+
+</body>
+</html>

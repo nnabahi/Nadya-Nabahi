@@ -1,0 +1,284 @@
+/* =====================================================================
+   style.css  —  the one stylesheet for the whole site
+   ---------------------------------------------------------------------
+   Every page links to this file, so a change here changes every page.
+
+   How CSS reads:   selector { property: value; }
+     - "selector" picks which HTML elements the rule applies to
+       (e.g. "body", ".card" = anything with class="card", "#x" = id="x").
+     - Everything between { } is the styling for those elements.
+
+   The file is split into numbered sections:
+     1. COLORS & FONTS  <-- change these to restyle the whole site
+     2. Page basics
+     3. Top bar (the navigation)
+     4. Ordinary page content (cards, headings, lists)
+     5. Home page image area
+     6. Toys n' Sims: the four-quadrant layout
+     7. Phones and narrow screens
+   ===================================================================== */
+
+
+/* =====================================================================
+   1. COLORS & FONTS
+   ---------------------------------------------------------------------
+   These are "CSS variables". Each line gives a name (starting with --)
+   to a value. The rest of the file uses var(--name) instead of typing
+   the color directly, so changing ONE line here recolors every place
+   that uses it.
+
+   All colors are placeholders for now — swap them for your own.
+   Colors are written as hex codes: #rrggbb (red, green, blue, 00–ff).
+   ===================================================================== */
+:root {
+  --color-background:   #f6f5f2;  /* the page behind everything        */
+  --color-surface:      #ffffff;  /* cards and quadrant panels         */
+  --color-text:         #22252b;  /* normal writing                    */
+  --color-text-muted:   #6b6f78;  /* captions, dates, small notes      */
+  --color-border:       #dedbd4;  /* thin lines around cards           */
+  --color-accent:       #3a5a7a;  /* links, active tab, highlights     */
+  --color-topbar:       #ffffff;  /* background of the top bar         */
+  --color-placeholder:  #ecebe7;  /* grey boxes where content will go  */
+
+  /* Fonts: the browser uses the first one it has, else the next. */
+  --font-body:     "Helvetica Neue", Arial, sans-serif;
+  --font-heading:  Georgia, "Times New Roman", serif;
+
+  /* How rounded the corners of cards are. 0px = sharp corners. */
+  --corner-radius: 10px;
+
+  /* The widest the page content gets on big screens. */
+  --page-width: 1100px;
+}
+
+
+/* =====================================================================
+   2. Page basics
+   ===================================================================== */
+
+/* Make widths include padding and borders. Avoids a lot of surprises. */
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;                              /* browsers add a margin by default; remove it */
+  background: var(--color-background);
+  color: var(--color-text);
+  font-family: var(--font-body);
+  font-size: 17px;
+  line-height: 1.6;                       /* space between lines of text */
+}
+
+h1, h2, h3 {
+  font-family: var(--font-heading);
+  font-weight: normal;
+  line-height: 1.25;
+}
+
+a {
+  color: var(--color-accent);
+}
+
+
+/* =====================================================================
+   3. Top bar (the navigation)
+   ---------------------------------------------------------------------
+   HTML shape (same on every page):
+     <header class="topbar">
+       <nav>
+         <a href="about.html">About Me</a>
+         ...
+       </nav>
+     </header>
+   The link for the page you're on gets class="active" so it stands out.
+   ===================================================================== */
+.topbar {
+  background: var(--color-topbar);
+  border-bottom: 1px solid var(--color-border);
+  position: sticky;        /* stays at the top while you scroll */
+  top: 0;
+  z-index: 10;             /* draws it above the page content when scrolling */
+}
+
+.topbar nav {
+  /* "flex" lines the links up in a row. */
+  display: flex;
+  justify-content: center;   /* center the row of links */
+  gap: 8px;                  /* space between links */
+  max-width: var(--page-width);
+  margin: 0 auto;            /* "auto" left/right margins center the bar */
+  padding: 12px 16px;
+}
+
+.topbar a {
+  color: var(--color-text);
+  text-decoration: none;     /* no underline */
+  padding: 6px 14px;
+  border-radius: var(--corner-radius);
+  white-space: nowrap;       /* keep "About Me" on one line */
+}
+
+/* ":hover" = while the mouse is over the link. */
+.topbar a:hover {
+  background: var(--color-placeholder);
+}
+
+/* The current page's link. */
+.topbar a.active {
+  color: var(--color-accent);
+  font-weight: bold;
+  border-bottom: 2px solid var(--color-accent);
+  border-radius: 0;
+}
+
+
+/* =====================================================================
+   4. Ordinary page content
+   ---------------------------------------------------------------------
+   Every page puts its content inside <main class="page">.
+   ===================================================================== */
+.page {
+  max-width: var(--page-width);
+  margin: 0 auto;
+  padding: 32px 16px 64px;
+}
+
+/* A white box with a thin border. Use <div class="card"> ... </div>. */
+.card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--corner-radius);
+  padding: 20px 24px;
+  margin-bottom: 20px;
+}
+
+/* Small grey text, e.g. dates or "coming soon" notes. */
+.muted {
+  color: var(--color-text-muted);
+  font-size: 0.9em;
+}
+
+/* A grid of cards that wraps onto new rows as needed.
+   Used for the list of sims on toys.html. */
+.card-grid {
+  display: grid;
+  /* "fill as many 260px-or-wider columns as fit" */
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 20px;
+}
+
+/* Make a whole card clickable without the text turning blue/underlined. */
+a.card {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+}
+
+a.card:hover {
+  border-color: var(--color-accent);
+}
+
+
+/* =====================================================================
+   5. Home page image area
+   ---------------------------------------------------------------------
+   A wide box on index.html where a picture (or a rotating set of
+   pictures) will go later. For now it's an empty grey box.
+   ===================================================================== */
+.hero {
+  background: var(--color-placeholder);
+  border-radius: var(--corner-radius);
+  aspect-ratio: 16 / 7;      /* keeps the box this shape at any width */
+  display: flex;             /* these three lines center the text inside */
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-muted);
+  margin-bottom: 32px;
+}
+
+
+/* =====================================================================
+   6. Toys n' Sims: the four-quadrant layout
+   ---------------------------------------------------------------------
+   HTML shape (see sims/example.html):
+     <div class="quadrants">
+       <section class="quad quad-sim">      main simulation     </section>
+       <section class="quad quad-controls"> options / controls  </section>
+       <section class="quad quad-stats">    statistics          </section>
+       <section class="quad quad-about">    about the model     </section>
+     </div>
+
+   Where each one sits on the screen is set by "grid-template-areas"
+   below — it's literally a little picture of the layout:
+       "sim    controls"     <- top row
+       "stats  about"        <- bottom row
+   So the order of the <section>s in the HTML doesn't matter; to move
+   a box, just change this picture.
+   ===================================================================== */
+.quadrants {
+  display: grid;
+  /* Two columns: left is 3 parts wide, right is 2 parts wide,
+     so the simulation gets more room. Change to "1fr 1fr" for equal. */
+  grid-template-columns: 3fr 2fr;
+  grid-template-areas:
+    "sim    controls"
+    "stats  about";
+  gap: 20px;
+}
+
+/* Each quadrant is a card. */
+.quad {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--corner-radius);
+  padding: 16px 20px;
+  min-width: 0;   /* lets wide things (like a canvas) shrink instead of overflowing */
+}
+
+.quad h2 {
+  font-size: 1.1em;
+  margin: 0 0 12px;
+  color: var(--color-text-muted);
+}
+
+/* Tell each section which named area of the picture it belongs in. */
+.quad-sim      { grid-area: sim; }
+.quad-controls { grid-area: controls; }
+.quad-stats    { grid-area: stats; }
+.quad-about    { grid-area: about; }
+
+/* The drawing surface for a simulation fills its quadrant's width. */
+.quad-sim canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  background: var(--color-placeholder);
+  border-radius: calc(var(--corner-radius) / 2);
+}
+
+
+/* =====================================================================
+   7. Phones and narrow screens
+   ---------------------------------------------------------------------
+   Everything inside "@media (max-width: 760px) { ... }" only applies
+   when the window is 760px wide or less. It overrides the rules above.
+   ===================================================================== */
+@media (max-width: 760px) {
+
+  /* Let the top bar links scroll sideways instead of squashing. */
+  .topbar nav {
+    justify-content: flex-start;
+    overflow-x: auto;
+  }
+
+  /* Stack the four quadrants in one column, in this order. */
+  .quadrants {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "sim"
+      "controls"
+      "stats"
+      "about";
+  }
+}

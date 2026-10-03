@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <!-- Makes the page fit phone screens instead of showing a zoomed-out desktop view. -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Toys n' Sims — Nadya Nabahi</title>
+  <!-- All the styling lives in this one file. -->
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- TOP BAR: this same block is copied onto every page.
+       If you add or rename a page, update it on every page.
+       class="active" marks the page you're currently on. -->
+  <header class="topbar">
+    <nav>
+      <a href="about.html">About Me</a>
+      <a href="resume.html">Resume</a>
+      <a href="index.html">Home</a>
+      <a href="publications.html">Publications</a>
+      <a href="toys.html" class="active">Toys n' Sims</a>
+    </nav>
+  </header>
+
+  <main class="page">
+    <h1>Toys n' Sims</h1>
+    <p>Interactive math simulations.</p>
+
+    <!-- One card per simulation. Each card links to that sim's own page
+         inside the sims/ folder. Copy a card to add a new sim. -->
+    <div class="card-grid">
+      <a class="card" href="sims/example.html">
+        <h3>Example sim</h3>
+        <p class="muted">A blank page showing the four-quadrant layout.</p>
+      </a>
+    </div>
+  </main>
+
+</body>
+</html>
