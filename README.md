@@ -35,6 +35,9 @@ repeat for the same seed).
 | `sims/random-walk-coloring.html` | Random walk coloring sim (N walkers color cells by first arrival, in discrete or continuous time) |
 | `sims/random-walk-coloring.js` | That sim's page: the default start, dragging walkers, drawing, statistics, the custom domain |
 | `sims/random-walk-coloring-walk.js` | That sim's walkers (both models), run in a Web Worker |
+| `sims/sequential-packing-growth.js` | Random sequential packing (continuous space): the math only. Grows each tile until it meets the edge of S or an earlier tile |
+| `sims/sequential-packing-check.html` | Check page for that math (not linked from the site): compares it with nadya's formula and known answers |
+| `sims/sequential-packing-check.js` | The checks that page runs |
 
 ## Common changes
 
