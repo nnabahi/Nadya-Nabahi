@@ -13,7 +13,8 @@
      6. Statistics
      7. Connecting the buttons
    It uses the shared helpers in js/sim-page.js (byId, showMessage,
-   chartPen, ...) and the formula reading and sliders in js/formulas.js.
+   histogram, niceNumber, ...) and the formula reading and sliders in
+   js/formulas.js.
 
    Everything runs right here, in the page's own thread. A step of 2000
    runs takes well under a thousandth of a second for fixed matrices,
@@ -61,10 +62,10 @@ let tMax = START_TMAX;
 let cloud = null;         // the N runs (newCloud)
 let wantedT = 0;          // the t the picture should show
 
-// The run shown in the "One run" view, and its whole history: one
-// copy of its product (e^logSize * Q) for every t = 0, 1, ..., t.
+// The run shown in the "One run" view, and its trajectory: one copy of
+// its product (e^logSize * Q) for every t = 0, 1, ..., t.
 let shownRun = 1;
-let history = [];
+let trajectory = [];
 
 let viewKind = "cloud";   // "cloud", "histogram" or "trajectory"
 let playing = false;
@@ -199,7 +200,7 @@ function stepOnce() {
 
 function remember() {
   const n = shownRun - 1;
-  history.push({ q: [cloud.q0[n], cloud.q1[n], cloud.q2[n], cloud.q3[n]], logSize: cloud.logSize[n], t: cloud.t });
+  trajectory.push({ q: [cloud.q0[n], cloud.q1[n], cloud.q2[n], cloud.q3[n]], logSize: cloud.logSize[n], t: cloud.t });
 }
 
 // Go back to t = 0 (a new cloud if N or the seed changed) and step
@@ -213,7 +214,7 @@ function replay() {
     cloud.setModel(model);
   }
   shownRun = Math.min(shownRun, runs);
-  history = [];
+  trajectory = [];
   remember();
   while (cloud.t < wantedT) stepOnce();
   draw();
@@ -325,7 +326,7 @@ function cloudDots() {
 function trajectoryDots() {
   const scale = byId("scale").value;
   const dots = { red: [], blue: [], lost: 0 };
-  for (const h of history) {
+  for (const h of trajectory) {
     // pointOf reads a cloud; a tiny "cloud" of one run does the job.
     const one = { q0: [h.q[0]], q1: [h.q[1]], q2: [h.q[2]], q3: [h.q[3]], logSize: [h.logSize], t: h.t };
     for (const [name, x0, y0, box] of [["red", 1, 0, "show-red"], ["blue", 0, 1, "show-blue"]]) {
@@ -358,7 +359,7 @@ function draw() {
   pen.fillRect(0, 0, width, height);
   byId("show-t").textContent = cloud.t;
 
-  let lost = 0;
+  let lost;
   if (viewKind === "histogram") {
     const h = histogramValues();
     lost = h.lost;
@@ -522,29 +523,6 @@ function drawHistogram(values) {
   pen.fillText("tallest bar: " + biggest.toLocaleString() + " runs; bin width " + shortLabel(binWidth), 4, 12);
 }
 
-// The nicest of 1, 2, 5, 10, 20, 50, ... (times a power of 10) at least "rough".
-// (The same as in random-sine.js.)
-function niceStep(rough) {
-  const power = Math.pow(10, Math.floor(Math.log10(rough)));
-  for (const k of [1, 2, 5, 10]) if (k * power >= rough) return k * power;
-  return 10 * power;
-}
-
-// A number short enough for an axis: 3, 0.25, 1.5e+6.
-function shortLabel(v) {
-  if (Math.abs(v) < 1e-12) return "0";
-  if (Math.abs(v) >= 1e5 || Math.abs(v) < 1e-3) return v.toExponential(1);
-  return String(Number(v.toPrecision(4)));
-}
-
-// 4 significant digits: 1.234, 0.0001234 -> 1.234e-4.
-function niceNumber(v) {
-  if (v === 0) return "0";
-  if (!isFinite(v)) return String(v);
-  if (Math.abs(v) >= 1e6 || Math.abs(v) < 1e-3) return v.toExponential(3);
-  return String(Number(v.toPrecision(4)));
-}
-
 function showLegend() {
   const scale = byId("scale").value;
   const after = scale === "none" ? "" : scale === "average" ? ", divided by ρ^t" : ", made length 1";
@@ -663,34 +641,6 @@ function showStats() {
   } else {
     chartPen(byId("eigen-im-chart")).fillText("All the eigenvalues are real.", 0, 20);
   }
-}
-
-// A histogram with 60 bars. With "trimmed", the range is the middle 90%
-// of the values, and anything outside goes into the first or last bar.
-// (As in random-sine.js, plus the case where all values are equal.)
-function histogram(canvas, values, trimmed) {
-  const p = chartPen(canvas);
-  if (values.length < 2) return;
-  const w = canvas.clientWidth, h = canvas.clientHeight, top = 12, bottom = h - 14;
-  const sorted = Float64Array.from(values).sort();
-  let lo = trimmed ? sorted[Math.floor(0.05 * (sorted.length - 1))] : sorted[0];
-  let hi = trimmed ? sorted[Math.ceil(0.95 * (sorted.length - 1))] : sorted[sorted.length - 1];
-  // All (nearly) the same value, like D13's eigenvalue 1, which rounding
-  // spreads by about 1e-15: one bar in the middle, not a bar of noise.
-  if (!(hi - lo > 1e-9 * Math.max(1, Math.abs(lo)))) { lo -= 0.5; hi = lo + 1; }
-  const bars = 60, counts = new Array(bars).fill(0);
-  for (const v of sorted) counts[Math.max(0, Math.min(bars - 1, Math.floor((v - lo) / (hi - lo) * bars)))]++;
-
-  const biggest = Math.max(...counts), barWidth = w / bars;
-  p.fillText(biggest.toLocaleString(), 0, 9);
-  p.fillText(shortLabel(lo), 0, h - 2);
-  const last = shortLabel(hi);
-  p.fillText(last, w - p.measureText(last).width, h - 2);
-  p.fillStyle = CHART_LINE;
-  counts.forEach(function (c, i) {
-    const barHeight = (bottom - top) * c / biggest;
-    if (c > 0) p.fillRect(i * barWidth, bottom - Math.max(1, barHeight), Math.max(1, barWidth - 1), Math.max(1, barHeight));
-  });
 }
 
 

@@ -73,7 +73,7 @@ const TESTS = [
 ];
 
 // Build the list of tests, each with a Run button and a place for results.
-TESTS.forEach(function (test, t) {
+TESTS.forEach(function (test) {
   const box = document.createElement("div");
   box.innerHTML =
     "<h3>" + test.name + "</h3><p class='muted'>" + test.note + "</p>" +
@@ -135,12 +135,13 @@ function runVersion(test, versionName, moves, every, results, whenDone) {
     }
     // chi-square: the sum of (seen - expected)^2 / expected over the
     // packings, and p: the chance of bars at least this uneven if the
-    // chain were uniform (and the notes independent).
+    // chain were uniform (and the notes independent), from the
+    // chi-square distribution in the library jStat.
     const expected = notes / keys.length;
     let chi = 0;
     for (const s of seen) chi += (s - expected) * (s - expected) / expected;
     const df = keys.length - 1;
-    const p = df > 0 ? chiSquareP(chi, df) : 1;
+    const p = df > 0 ? 1 - jStat.chisquare.cdf(chi, df) : 1;
     const finished = done >= moves;
     const uniform = p >= 0.001;
     line.innerHTML = "<b>" + version.label + "</b>: " + keys.length + " packings, " +
@@ -152,27 +153,6 @@ function runVersion(test, versionName, moves, every, results, whenDone) {
     if (!finished) setTimeout(chunk, 0);
     else whenDone();
   })();
-}
-
-// The chance that a chi-square number with df degrees of freedom is at
-// least chi, using the Wilson-Hilferty approximation (E. B. Wilson &
-// M. M. Hilferty, PNAS 17 (1931) 684): (chi/df)^(1/3) is close to a normal
-// number with mean 1 - 2/(9 df) and variance 2/(9 df).
-function chiSquareP(chi, df) {
-  const v = 2 / (9 * df);
-  const z = (Math.cbrt(chi / df) - (1 - v)) / Math.sqrt(v);
-  return 1 - normalCdf(z);
-}
-
-// The normal distribution's cumulative function, from the error function
-// approximation 7.1.26 in Abramowitz & Stegun, "Handbook of Mathematical
-// Functions" (1964), accurate to about 1e-7.
-function normalCdf(z) {
-  const x = Math.abs(z) / Math.SQRT2;
-  const t = 1 / (1 + 0.3275911 * x);
-  const erf = 1 - t * (0.254829592 + t * (-0.284496736 + t * (1.421413741 +
-              t * (-1.453152027 + t * 1.061405429)))) * Math.exp(-x * x);
-  return z >= 0 ? (1 + erf) / 2 : (1 - erf) / 2;
 }
 
 // One bar per packing: seen / expected. The line marks 1.
@@ -358,7 +338,7 @@ function drawArctic() {
   const pen = canvas.getContext("2d");
   const N = arctic.order, d = arctic.domain;
   const size = canvas.width / (2 * N);
-  const showAverage = document.querySelector("input[name=arctic-show]:checked").value === "average";
+  const showAverage = checked("arctic-show") === "average";
   const heat = showAverage ? arctic.chain.heat() : null;
   const owner = arctic.chain.owner();
   const pl = arctic.chain.placements();

@@ -13,7 +13,8 @@
      7. Many samples: histograms
      8. Connecting the buttons
    It uses the shared helpers in js/sim-page.js (byId, showMessage,
-   chartPen, ...) and the formula reading and sliders in js/formulas.js.
+   histogram, niceNumber, ...) and the formula reading and sliders in
+   js/formulas.js.
 
    Everything runs right here, in the page's own thread. One sample
    takes a few thousandths of a second, so the graph follows a slider
@@ -101,7 +102,7 @@ function readSet() {
   // (an "ArrayNode", whose "items" are its entries) and shown entry by
   // entry, inside { } or [ ].
   if (window.katex) {
-    let tex = "";
+    let tex;
     try {
       const trimmed = text.trim();
       if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
@@ -347,20 +348,6 @@ function drawGrid(px, py, top, logScale) {
   }
 }
 
-// The nicest of 1, 2, 5, 10, 20, 50, ... (times a power of 10) at least "rough".
-function niceStep(rough) {
-  const power = Math.pow(10, Math.floor(Math.log10(rough)));
-  for (const k of [1, 2, 5, 10]) if (k * power >= rough) return k * power;
-  return 10 * power;
-}
-
-// A number short enough for an axis: 3, 0.25, 1.5e+6.
-function shortLabel(v) {
-  if (v === 0) return "0";
-  if (Math.abs(v) >= 1e5 || Math.abs(v) < 1e-3) return v.toExponential(1);
-  return String(Number(v.toPrecision(4)));
-}
-
 function showLegend() {
   const parts = ["solid: f"];
   if (byId("show-sine").checked) parts.push("dashed: the sine wave with the same first root and mean gap");
@@ -441,13 +428,6 @@ function showSampleStats() {
   }
 }
 
-// 4 significant digits: 1.234, 0.0001234 -> 1.234e-4.
-function niceNumber(v) {
-  if (v === 0) return "0";
-  if (Math.abs(v) >= 1e6 || Math.abs(v) < 1e-3) return v.toExponential(3);
-  return String(Number(v.toPrecision(4)));
-}
-
 
 /* =====================================================================
    7. MANY SAMPLES: HISTOGRAMS
@@ -522,31 +502,6 @@ function showHistograms() {
   } else {
     histogram(byId("logder-chart"), collected.logders, true);
   }
-}
-
-// A histogram with 60 bars. With "trimmed", the range is the middle 90%
-// of the values, and anything outside goes into the first or last bar.
-function histogram(canvas, values, trimmed) {
-  const p = chartPen(canvas);
-  if (values.length < 2) return;
-  const w = canvas.clientWidth, h = canvas.clientHeight, top = 12, bottom = h - 14;
-  const sorted = Float64Array.from(values).sort();
-  const lo = trimmed ? sorted[Math.floor(0.05 * (sorted.length - 1))] : sorted[0];
-  let hi = trimmed ? sorted[Math.ceil(0.95 * (sorted.length - 1))] : sorted[sorted.length - 1];
-  if (!(hi > lo)) hi = lo + 1;
-  const bars = 60, counts = new Array(bars).fill(0);
-  for (const v of sorted) counts[Math.max(0, Math.min(bars - 1, Math.floor((v - lo) / (hi - lo) * bars)))]++;
-
-  const biggest = Math.max(...counts), barWidth = w / bars;
-  p.fillText(biggest.toLocaleString(), 0, 9);
-  p.fillText(shortLabel(lo), 0, h - 2);
-  const last = shortLabel(hi);
-  p.fillText(last, w - p.measureText(last).width, h - 2);
-  p.fillStyle = CHART_LINE;
-  counts.forEach(function (c, i) {
-    const barHeight = (bottom - top) * c / biggest;
-    if (c > 0) p.fillRect(i * barWidth, bottom - Math.max(1, barHeight), Math.max(1, barWidth - 1), Math.max(1, barHeight));
-  });
 }
 
 

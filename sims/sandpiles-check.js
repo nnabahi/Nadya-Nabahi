@@ -187,11 +187,6 @@ function testPython(oneAtATime) {
   return problems.join("; ");
 }
 
-// Read numbers as Python prints them, e.g. "40 37 [[0, 1], [2, 3]]".
-function readNumbers(text) {
-  return text.replace(/[\[\]]/g, " ").split(/[\s,]+/).filter(function (s) { return s !== ""; }).map(Number);
-}
-
 
 /* ===================================================================
    2-4. ABELIAN PROPERTY, CONSERVATION, UNDO
@@ -429,19 +424,8 @@ function testNoSink(c) {
 
 /* ===================================================================
    THE PAGE: run the tests and fill in the table
+   (addRow, runChecksOnClick and readNumbers are in js/check-page.js)
    =================================================================== */
-
-const resultsBody = document.getElementById("results");
-
-function addRow(test, pass, text) {
-  const row = document.createElement("tr");
-  row.innerHTML = "<td></td><td></td><td></td>";
-  row.children[0].textContent = pass ? "✓ pass" : "✗ FAIL";
-  row.children[0].className = pass ? "check-pass" : "check-fail";
-  row.children[1].textContent = test;
-  row.children[2].textContent = text;
-  resultsBody.appendChild(row);
-}
 
 // Add a row for a test that returns "" when all is well.
 function plainTest(name, run, okText) {
@@ -452,8 +436,7 @@ function plainTest(name, run, okText) {
   };
 }
 
-// The list of tests, run one at a time with a pause between them so
-// the page can show each result as it comes.
+// The list of tests, run one at a time by the "Run the checks" button.
 function allTests() {
   const tests = [];
   tests.push(plainTest("Same as your Python: center piles n = 32 .. 64, one random topple at a time",
@@ -490,25 +473,14 @@ function allTests() {
   return tests;
 }
 
-document.getElementById("run-checks").addEventListener("click", function () {
-  resultsBody.innerHTML = "";
-  const tests = allTests();
-  const button = this;
-  button.disabled = true;
-  function next() {
-    if (tests.length === 0) { button.disabled = false; return; }
-    tests.shift()();
-    setTimeout(next, 0);
-  }
-  next();
-});
+runChecksOnClick(allTests);
 
 // Her own run: each line is "n numTopples [[...], [...], ...]".
-document.getElementById("compare-pasted").addEventListener("click", function () {
-  const width = Number(document.getElementById("pasted-length").value);
-  const height = Number(document.getElementById("pasted-width").value);
-  const out = document.getElementById("pasted-result");
-  const lines = document.getElementById("pasted-runs").value.split("\n").filter(function (line) { return line.trim() !== ""; });
+byId("compare-pasted").addEventListener("click", function () {
+  const width = Number(byId("pasted-length").value);
+  const height = Number(byId("pasted-width").value);
+  const out = byId("pasted-result");
+  const lines = byId("pasted-runs").value.split("\n").filter(function (line) { return line.trim() !== ""; });
   if (lines.length === 0) { out.textContent = "Paste your printed lines first."; return; }
   const problems = [];
   for (const line of lines) {

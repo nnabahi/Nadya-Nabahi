@@ -26,7 +26,9 @@
      cellAt(d, x, y)          which cell is at (x, y)
      stepsFrom(d, starts)     distances through the domain
      defaultColor(c, count)   the old site's colors
-     hexToRGB(hex)            "#rrggbb" as three numbers
+     hsvToHex, hexToHSV       a color as hue, saturation and brightness,
+                              and back
+     hexToRGB, rgbToHex       a color "#rrggbb" as three numbers, and back
    ===================================================================== */
 
 
@@ -153,6 +155,7 @@ function defaultColor(c, count) {
   return hsvToHex(hue, saturation, 0.95);
 }
 
+// Hue (0 .. 360), saturation and brightness (0 .. 1) -> "#rrggbb".
 function hsvToHex(hue, saturation, value) {
   const chroma = value * saturation;
   const x = chroma * (1 - Math.abs((hue / 60) % 2 - 1));
@@ -165,8 +168,26 @@ function hsvToHex(hue, saturation, value) {
   }).join("");
 }
 
+// "#rrggbb" -> [hue, saturation, brightness], the other way round, as in
+// nadya's ColorFunctions.js (the sandpiles sim mixes colors with it).
+function hexToHSV(hex) {
+  const [r, g, b] = hexToRGB(hex).map(function (t) { return t / 255; });
+  const most = Math.max(r, g, b), least = Math.min(r, g, b), spread = most - least;
+  let hue = 0;
+  if (spread > 0) {
+    if (most === r) hue = 60 * (((g - b) / spread) % 6);
+    else if (most === g) hue = 60 * (2 + (b - r) / spread);
+    else hue = 60 * (4 + (r - g) / spread);
+  }
+  if (hue < 0) hue += 360;
+  return [hue, most === 0 ? 0 : spread / most, most];
+}
+
 // "#rrggbb" -> [red, green, blue], each 0 .. 255 (for pictures drawn
-// pixel by pixel).
+// pixel by pixel), and back.
 function hexToRGB(hex) {
   return [1, 3, 5].map(function (k) { return parseInt(hex.slice(k, k + 2), 16); });
+}
+function rgbToHex(rgb) {
+  return "#" + rgb.map(function (t) { return Math.round(t).toString(16).padStart(2, "0"); }).join("");
 }

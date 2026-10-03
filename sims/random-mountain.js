@@ -589,37 +589,9 @@ function showStats() {
     byId("stat-ends").textContent = low + " to " + high;
   }
 
-  plotOverTime(byId("base-chart"), s.traceSteps, s.traceBase);
-  plotOverTime(byId("highest-chart"), s.traceSteps, s.traceHighest);
-  plotOverTime(byId("start-chart"), s.traceSteps, s.traceStart);
-}
-
-// One line over time (steps across, the value up, from 0 to its largest).
-function plotOverTime(canvas, steps, values) {
-  const pen = chartPen(canvas);
-  const w = canvas.clientWidth, h = canvas.clientHeight;
-  if (steps.length < 2) return;
-  let top = 1;
-  for (const value of values) top = Math.max(top, value);
-  const lastStep = steps[steps.length - 1];
-  const left = 44, up = 6, bottom = h - 16;
-  pen.textAlign = "right";
-  pen.textBaseline = "middle";
-  pen.fillText(top.toLocaleString(), left - 6, up);
-  pen.fillText("0", left - 6, bottom);
-  pen.textBaseline = "bottom";
-  pen.fillText("step " + lastStep.toLocaleString(), w, h);
-  pen.textAlign = "left";
-  pen.fillText("0", left, h);
-  pen.beginPath();
-  values.forEach(function (value, k) {
-    const sx = left + (w - left) * steps[k] / lastStep;
-    const sy = bottom - (bottom - up) * value / top;
-    if (k === 0) pen.moveTo(sx, sy); else pen.lineTo(sx, sy);
-  });
-  pen.strokeStyle = CHART_LINE;
-  pen.lineWidth = 1.5;
-  pen.stroke();
+  plotOverTime(byId("base-chart"), s.traceSteps, [{ values: s.traceBase, color: CHART_LINE }], "step");
+  plotOverTime(byId("highest-chart"), s.traceSteps, [{ values: s.traceHighest, color: CHART_LINE }], "step");
+  plotOverTime(byId("start-chart"), s.traceSteps, [{ values: s.traceStart, color: CHART_LINE }], "step");
 }
 
 
@@ -655,24 +627,17 @@ function closeTool() {
   showZoomButtons(view);
 }
 
-// Messages from the tool: its height (so the iframe fits it exactly),
-// and its drawing.
-window.addEventListener("message", function (event) {
-  if (event.source !== frame.contentWindow) return;
-  const message = event.data;
-  if (message.type === "height") frame.style.height = message.height + "px";
-  if (message.type === "graph") { toolMessage = message; checkTool(); }
-});
+// The tool sends its drawing every time it changes (js/sim-page.js).
+listenToTool(frame, function (drawing) { toolMessage = drawing; checkTool(); });
 
+// Check the drawing live and say what's wrong, if anything.
 function checkTool() {
   if (!toolOpen) return;
-  let problem = "";
+  let problem = "", good = "";
   if (!toolMessage) problem = "Loading the drawing tool...";
   else if (toolMessage.graph.vertices.length === 0) problem = "Paint the domain first.";
-  const status = byId("step-status");
-  status.textContent = problem || "✓ " + toolMessage.graph.vertices.length + " cells.";   // ✓ is a tick mark
-  status.className = "step-status " + (problem ? "problem" : "ok");
-  byId("tool-done").disabled = Boolean(problem);
+  else good = toolMessage.graph.vertices.length + " cells.";
+  showToolStatus(problem, good);
 }
 
 byId("tool-done").addEventListener("click", function () {

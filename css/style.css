@@ -16,8 +16,8 @@
      5. Home page image area
      6. Toys n' Sims: the four-quadrant layout
      7. Graph & domain tool (sims/graph-tool.html)
-     8. More for sim pages (the sims, and the graph tool shown
-        inside a sim)
+     8. More for sim pages (the sims, the graph tool shown inside a
+        sim, and the check pages)
      9. Phones and narrow screens
    ===================================================================== */
 
@@ -556,9 +556,9 @@ a.card:hover {
 /* =====================================================================
    8. More for sim pages
    ---------------------------------------------------------------------
-   Used by the sim pages (like sims/random-walk-coloring.html), and by
+   Used by the sim pages (like sims/random-walk-coloring.html), by
    the graph tool when a sim shows it inside its own page
-   (graph-tool.html?embed).
+   (graph-tool.html?embed), and, at the end, by the check pages.
    ===================================================================== */
 
 /* A slider that takes the spare width of its row: the sims' sliders,
@@ -774,8 +774,8 @@ body.embedded .graph-wrap {
 
 
 /* Check pages (like sims/random-mountain-check.html), which test a
-   sim's math and aren't linked from the site: their tables, and each
-   test marked pass (green) or FAIL (red). */
+   sim's math on its own: their tables, and each test marked pass
+   (green) or FAIL (red). */
 .check-table {
   border-collapse: collapse;   /* one line between cells, not two */
   margin: 0.5em 0;

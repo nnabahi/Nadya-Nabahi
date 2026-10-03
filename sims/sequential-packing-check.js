@@ -159,9 +159,8 @@ function checkNonConvex() {
    40,000 centers are sorted into 80 boxes of equal area (10 rings by
    8 slices). If they are uniform, each box gets about 500, and
    Pearson's chi-square statistic (Pearson, Phil. Mag. 50 (1900) 157)
-   has 79 degrees of freedom. Its p-value comes from the Wilson-
-   Hilferty approximation (Wilson & Hilferty, PNAS 17 (1931) 684). A
-   correct sampler fails this 1 time in 1000. */
+   has 79 degrees of freedom. Its p-value comes from the library jStat.
+   A correct sampler fails this 1 time in 1000. */
 function checkUniform() {
   const packing = newPacking({ inS: ANNULUS, inT: DISK });
   const counts = new Array(80).fill(0), total = 40000;
@@ -175,7 +174,7 @@ function checkUniform() {
   const expected = total / 80;
   let chi2 = 0;
   for (const c of counts) chi2 += (c - expected) * (c - expected) / expected;
-  const p = chiSquarePValue(chi2, 79);
+  const p = 1 - jStat.chisquare.cdf(chi2, 79);
   return {
     name: "5. Uniform centers on an annulus (chi-square, 40,000 centers)",
     pass: p > 0.001,
@@ -238,25 +237,8 @@ function checkSpeed() {
 
 
 /* ---------------------------------------------------------------------
-   p-values for checks 5 and 6
+   The p-value for check 6 (jStat has no Kolmogorov-Smirnov test)
    --------------------------------------------------------------------- */
-
-// The chance that a chi-square with k degrees of freedom is at least x,
-// by the Wilson-Hilferty approximation: (x/k)^(1/3) is close to normal
-// with mean 1 - 2/(9k) and variance 2/(9k).
-function chiSquarePValue(x, k) {
-  const z = (Math.cbrt(x / k) - (1 - 2 / (9 * k))) / Math.sqrt(2 / (9 * k));
-  return 1 - normalCdf(z);
-}
-
-// The standard normal distribution function, from the error function
-// (Abramowitz & Stegun, "Handbook of Mathematical Functions", 1964,
-// formula 7.1.26, accurate to about 1e-7).
-function normalCdf(z) {
-  const x = Math.abs(z) / Math.SQRT2, t = 1 / (1 + 0.3275911 * x);
-  const erf = 1 - t * (0.254829592 + t * (-0.284496736 + t * (1.421413741 + t * (-1.453152027 + t * 1.061405429)))) * Math.exp(-x * x);
-  return z >= 0 ? (1 + erf) / 2 : (1 - erf) / 2;
-}
 
 // The chance that the Kolmogorov-Smirnov distance of n samples is at
 // least D: Kolmogorov's series Q(λ) = 2 Σ (-1)^(k-1) exp(-2 k^2 λ^2),

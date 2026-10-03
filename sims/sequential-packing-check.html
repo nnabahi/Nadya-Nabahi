@@ -18,8 +18,8 @@
     <p><a href="../toys.html">&larr; All sims</a></p>
     <h1>Check page: random sequential packing</h1>
     <p>
-      This page tests the math in <code>sequential-packing-growth.js</code>
-      before the real sim page is built. It is not linked from the site.
+      This page tests the math in <code>sequential-packing-growth.js</code>,
+      the math behind the sim. It is linked from the sim's About box.
       The checks start by themselves and take a few seconds; each row
       says what was checked and whether it passed.
     </p>
@@ -39,8 +39,11 @@
     </div>
   </main>
 
-  <!-- seedrandom's "alea": random numbers that repeat for the same seed. -->
+  <!-- seedrandom's "alea": random numbers that repeat for the same seed.
+       jStat: the chi-square p-value. Versions are fixed so an update can
+       never change the tests by surprise. -->
   <script src="https://cdn.jsdelivr.net/npm/seedrandom@3.0.5/lib/alea.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jstat@1.9.6/dist/jstat.min.js"></script>
   <!-- defaultColor(): the old site's colors. -->
   <script src="../js/sim-domains.js"></script>
   <script src="sequential-packing-growth.js"></script>

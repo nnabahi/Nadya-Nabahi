@@ -7,7 +7,7 @@ server. Outside libraries, all loaded from a CDN:
 algorithms), [math.js](https://mathjs.org) (reads typed formulas),
 [KaTeX](https://katex.org) (shows them as typeset math),
 [seedrandom](https://github.com/davidbau/seedrandom) (random numbers that
-repeat for the same seed) and, on a check page,
+repeat for the same seed) and, on the check pages,
 [jStat](https://jstat.github.io) (statistics).
 
 ## What's where
@@ -26,10 +26,11 @@ repeat for the same seed) and, on a check page,
 | `css/style.css` | The single stylesheet for every page |
 | `js/genre-filter.js` | Builds the genre buttons on `toys.html` and hides/shows cards |
 | `js/about-tabs.js` | The Simple / All the details tabs in a sim's About box |
-| `js/sim-page.js` | Small helpers every sim page uses (chart drawing, the second thread, typesetting the formulas) |
+| `js/sim-page.js` | Small helpers every sim page uses (the second thread, the drawing tool inside a sim, small charts, typesetting the formulas) |
 | `js/sim-view.js` | Where a sim's picture of cells goes, and moving and zooming it on a torus, shared by the sims |
-| `js/sim-domains.js` | Domains (box, torus, drawn region) and the old site's colors, shared by the sims |
+| `js/sim-domains.js` | Domains (box, torus, drawn region), the old site's colors and color conversions, shared by the sims |
 | `js/formulas.js` | Typed formulas and their sliders, like Desmos (the graph tool and the sims that take formulas) |
+| `js/check-page.js` | The results table and "Run the checks" button shared by the check pages |
 | `sims/graph-tool.html` | Graph & domain tool: paint a domain on a grid (pinned first on `toys.html`) |
 | `sims/graph-tool.js` | The graph tool's code (painting, torus, formula box, undo, save/load) |
 | `sims/connected-coloring.html` | Random connected coloring sim (box, torus, or a domain drawn in the graph tool) |
@@ -45,13 +46,23 @@ repeat for the same seed) and, on a check page,
 | `sims/sequential-packing.html` | Random sequential packing sim (continuous space): random points grow tiles until they touch the edge of S or an earlier tile, with any typed domain, tile and density |
 | `sims/sequential-packing.js` | That sim's page: the typed formulas and their sliders, play, drawing, statistics |
 | `sims/sequential-packing-growth.js` | That sim's math (growing each tile until it meets the edge of S or an earlier tile), run in a Web Worker |
-| `sims/sequential-packing-check.html`, `.js` | Tests of that math (against nadya's gasket formula, known answers, invariants); not linked from the site |
+| `sims/sequential-packing-check.html`, `.js` | Tests of that math (against nadya's gasket formula, known answers, invariants); linked from the sim's About box |
 | `sims/tile-packing.html` | Random tile packing sim (rectangles pack a box, torus or drawn domain, with or without gaps; every packing equally likely) |
 | `sims/tile-packing.js` | That sim's page: domains, the tiles and presets, drawing, statistics, the custom domain |
 | `sims/tile-packing-chain.js` | That sim's Markov chain (uniform over all packings), run in a Web Worker |
 | `sims/tile-packing-check.html`, `.js` | Tests of that chain (every packing equally likely, counting tilings, the arctic circle); not linked from the site |
-| `sims/random-sine-roots.js` | Random sine function: its math (placing the roots, f, peaks and lobes; not on the site yet) |
+| `sims/random-sine.html` | Random sine function sim (roots at random gaps from a typed set; f, its lobes and their histograms) |
+| `sims/random-sine.js` | That sim's page: the typed set and its sliders, drawing the graph, statistics, many samples |
+| `sims/random-sine-roots.js` | That sim's math (placing the roots, f, peaks and lobes), run in the page itself |
 | `sims/random-sine-check.html` | Tests of that math (Euler's sine product, stationarity, a picture to compare with nadya's Python); not linked from the site |
+| `sims/sandpiles.html` | Sandpiles sim (the abelian sandpile on a box, torus or drawn table, with storms, avalanches and the identity) |
+| `sims/sandpiles.js` | That sim's page: tables, the start, colors, drawing, clicking cells, statistics, the custom table |
+| `sims/sandpiles-pile.js` | That sim's toppling rule (with undo, the identity and the recurrence test), run in a Web Worker |
+| `sims/sandpiles-check.html`, `.js` | Tests of that rule (against nadya's Python, the abelian property, the identity, no sink); not linked from the site |
+| `sims/random-matrix-products.html` | Random matrix products toy (random 2x2 matrices, picked with weights, multiply a cloud of vectors) |
+| `sims/random-matrix-products-page.js` | That toy's page: the matrix boxes and their sliders, play, the cloud, histogram and one-run views, statistics |
+| `sims/random-matrix-products.js` | That toy's math (reading the matrices, the runs, the growth rate, the eigenvalues), run in the page itself |
+| `sims/random-matrix-products-check.html`, `.js` | Tests of that math (exact odds, averages, invariants, the growth rate); not linked from the site |
 
 ## Common changes
 

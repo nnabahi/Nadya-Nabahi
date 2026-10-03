@@ -419,14 +419,8 @@ function showStep(step) {
   checkTool();
 }
 
-// Messages from the tool: its height (so the iframe fits it exactly),
-// and its drawing.
-window.addEventListener("message", function (event) {
-  if (event.source !== frame.contentWindow) return;
-  const message = event.data;
-  if (message.type === "height") frame.style.height = message.height + "px";
-  if (message.type === "graph") { toolMessage = message; checkTool(); }
-});
+// The tool sends its drawing every time it changes (js/sim-page.js).
+listenToTool(frame, function (drawing) { toolMessage = drawing; checkTool(); });
 
 // Check the drawing live and say what's wrong, if anything. Turns the
 // buttons that go on (Use automatic start, Draw my own start, Done) on
@@ -462,10 +456,7 @@ function checkTool() {
       else good = start.used.length + " colors, each one connected piece.";
     }
   }
-  const status = byId("step-status");
-  status.textContent = problem || "✓ " + good;   // ✓ is a tick mark
-  status.className = "step-status " + (problem ? "problem" : "ok");
-  byId("use-auto").disabled = byId("draw-own").disabled = byId("tool-done").disabled = Boolean(problem);
+  showToolStatus(problem, good, ["use-auto", "draw-own", "tool-done"]);
 }
 
 // Your drawn coloring of customDomain, read from the tool. The tool
@@ -556,13 +547,9 @@ function useBox() {
   const width = readWhole("set-width", 2, MAX_SIDE, DEFAULTS.width);
   const height = readWhole("set-height", 2, MAX_SIDE, DEFAULTS.height);
   const neighbors = Number(byId("set-neighbors").value);
-  const torus = (domainChoice() === "torus");
+  const torus = (checked("domain") === "torus");
   useDomain(torus ? "torus" : "box", boxDomain(width, height, neighbors, torus), null, null);
   if (toolWasOpen && wasPlaying) setPlaying(true);
-}
-
-function domainChoice() {
-  return document.querySelector('input[name="domain"]:checked').value;
 }
 
 // Show the options that fit the domain in use, and tick its radio button.

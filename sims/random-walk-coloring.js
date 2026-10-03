@@ -369,13 +369,6 @@ let walkerPointer = -1;       // the pointer dragging it
 // On phones, let a finger drag on the picture instead of scrolling the page.
 simCanvas.style.touchAction = "none";
 
-// Where the pointer is, in screen pixels from the canvas's top-left corner.
-// (y is counted from the top of the picture, which is PAD pixels down.)
-function pointerSpot(event) {
-  const box = simCanvas.getBoundingClientRect();
-  return { x: event.clientX - box.left, y: event.clientY - box.top - PAD };
-}
-
 // The walker under the pointer (the one drawn on top), or -1. Only
 // before the run has started, while paused.
 function walkerUnder(spot) {
@@ -388,14 +381,6 @@ function walkerUnder(spot) {
   return -1;
 }
 
-// The cell under the pointer, or -1.
-function cellUnder(spot) {
-  if (spot.x < view.left || spot.x >= view.left + view.width || spot.y < 0 || spot.y >= view.height) return -1;
-  const i = Math.floor((spot.x - view.left) / view.cell - view.scroll.x);   // its square (i, k)
-  const k = Math.floor(spot.y / view.cell - view.scroll.y);
-  return cellAt(domain, domain.xmin + i, domain.ymax - k);
-}
-
 // The "hand" cursor where something can be dragged.
 function showCursor(spot) {
   simCanvas.style.cursor = (dragWalker >= 0 || view.pointers.size > 0) ? "grabbing"
@@ -405,7 +390,7 @@ function showCursor(spot) {
 // A press on a walker drags the walker. Anywhere else, the pointer
 // moves the torus (pressPointer and the rest are in js/sim-view.js).
 simCanvas.addEventListener("pointerdown", function (event) {
-  const spot = pointerSpot(event);
+  const spot = pointerSpot(view, event);
   if (dragWalker < 0 && view.pointers.size === 0) {
     dragWalker = walkerUnder(spot);                   // a walker, if there's one under the pointer
     if (dragWalker >= 0) {
@@ -418,9 +403,9 @@ simCanvas.addEventListener("pointerdown", function (event) {
 });
 
 simCanvas.addEventListener("pointermove", function (event) {
-  const spot = pointerSpot(event);
+  const spot = pointerSpot(view, event);
   if (dragWalker >= 0 && event.pointerId === walkerPointer) {
-    const cell = cellUnder(spot);
+    const cell = cellUnder(view, domain, spot);
     if (cell !== -1 && cell !== starts[dragWalker]) {
       starts[dragWalker] = cell;
       restart();
@@ -434,7 +419,7 @@ simCanvas.addEventListener("pointermove", function (event) {
 function stopDragging(event) {
   if (event.pointerId === walkerPointer) { dragWalker = -1; walkerPointer = -1; }
   releasePointer(view, event);
-  showCursor(pointerSpot(event));
+  showCursor(pointerSpot(view, event));
 }
 simCanvas.addEventListener("pointerup", stopDragging);
 simCanvas.addEventListener("pointercancel", stopDragging);
@@ -529,37 +514,6 @@ function showColorRows(regions) {
   byId("color-rows").innerHTML = rows;
 }
 
-// Lines over time. "lines" is a list of { color, values }, one value
-// per time in "times". The y axis runs from 0 to the largest value.
-function plotOverTime(canvas, times, lines) {
-  const pen = chartPen(canvas);
-  const w = canvas.clientWidth, h = canvas.clientHeight;
-  if (times.length < 2) return;
-  let top = 1;
-  for (const line of lines) for (const value of line.values) top = Math.max(top, value);
-  const lastTime = Math.max(times[times.length - 1], 1e-9);
-  const left = 44, up = 6, bottom = h - 16;
-  pen.textAlign = "right";
-  pen.textBaseline = "middle";
-  pen.fillText(top.toLocaleString(), left - 6, up);
-  pen.fillText("0", left - 6, bottom);
-  pen.textBaseline = "bottom";
-  pen.fillText("time " + showTime(times[times.length - 1]), w, h);
-  pen.textAlign = "left";
-  pen.fillText("0", left, h);
-  for (const line of lines) {
-    pen.beginPath();
-    line.values.forEach(function (value, k) {
-      const sx = left + (w - left) * times[k] / lastTime;
-      const sy = bottom - (bottom - up) * value / top;
-      if (k === 0) pen.moveTo(sx, sy); else pen.lineTo(sx, sy);
-    });
-    pen.strokeStyle = line.color;
-    pen.lineWidth = 1.5;
-    pen.stroke();
-  }
-}
-
 // The number of cells of each color, over time. The walkers send these
 // as one long list: N numbers (one per color) for each time.
 function drawSizesChart() {
@@ -569,13 +523,13 @@ function drawSizesChart() {
     for (let k = 0; k < latest.traceTimes.length; k++) values.push(latest.traceSizes[k * N + c]);
     lines.push({ color: colorNames[c], values: values });
   }
-  plotOverTime(byId("sizes-chart"), latest.traceTimes, lines);
+  plotOverTime(byId("sizes-chart"), latest.traceTimes, lines, "time");
 }
 
 // The interface, over time.
 function drawInterfaceChart() {
   plotOverTime(byId("interface-chart"), latest.traceTimes,
-    [{ color: CHART_LINE, values: Array.from(latest.traceInterface) }]);
+    [{ color: CHART_LINE, values: Array.from(latest.traceInterface) }], "time");
 }
 
 // How many regions there are of each size. Sizes go from 1 cell to
@@ -683,14 +637,8 @@ function closeTool() {
   showZoomButtons(view);
 }
 
-// Messages from the tool: its height (so the iframe fits it exactly),
-// and its drawing.
-window.addEventListener("message", function (event) {
-  if (event.source !== frame.contentWindow) return;
-  const message = event.data;
-  if (message.type === "height") frame.style.height = message.height + "px";
-  if (message.type === "graph") { toolMessage = message; checkTool(); }
-});
+// The tool sends its drawing every time it changes (js/sim-page.js).
+listenToTool(frame, function (drawing) { toolMessage = drawing; checkTool(); });
 
 // Check the drawing live and say what's wrong, if anything.
 function checkTool() {
@@ -706,10 +654,7 @@ function checkTool() {
     if (reached < region.n) problem = "The region must be one connected piece.";
     else good = region.n + " cells in one connected piece.";
   }
-  const status = byId("step-status");
-  status.textContent = problem || "✓ " + good;   // ✓ is a tick mark
-  status.className = "step-status " + (problem ? "problem" : "ok");
-  byId("tool-done").disabled = Boolean(problem);
+  showToolStatus(problem, good);
 }
 
 byId("tool-done").addEventListener("click", function () {
@@ -748,12 +693,8 @@ function useBox() {
   const width = readWhole("set-width", 2, MAX_SIDE, DEFAULTS.width);
   const height = readWhole("set-height", 2, MAX_SIDE, DEFAULTS.height);
   const neighbors = Number(byId("set-neighbors").value);
-  const torus = (domainChoice() === "torus");
+  const torus = (checked("domain") === "torus");
   useDomain(torus ? "torus" : "box", boxDomain(width, height, neighbors, torus));
-}
-
-function domainChoice() {
-  return document.querySelector('input[name="domain"]:checked').value;
 }
 
 // Show the options that fit the domain in use, and tick its radio button.

@@ -272,26 +272,20 @@ function smallTests() {
 
 /* ===================================================================
    7. THE PAGE: run the tests, fill in the table, draw the histogram
+   (addRow and runChecksOnClick are in js/check-page.js)
    =================================================================== */
 
-const resultsBody = document.getElementById("results");
-
-function addRow(test, result) {
-  const row = document.createElement("tr");
-  row.innerHTML = "<td></td><td></td><td></td>";
-  row.children[0].textContent = result.pass ? "✓ pass" : "✗ FAIL";
-  row.children[0].className = result.pass ? "check-pass" : "check-fail";
-  row.children[1].textContent = test;
-  row.children[2].textContent = result.text;
-  resultsBody.appendChild(row);
+// A test that adds its own row: "run" returns { pass, text }, and a
+// crash becomes a failed row.
+function testRow(name, run) {
+  return function () {
+    let result;
+    try { result = run(); } catch (error) { result = { pass: false, text: "crashed: " + error.message }; }
+    addRow(name, result.pass, result.text);
+  };
 }
 
-// Run a test, and turn a crash into a failed row.
-function safely(test) {
-  try { return test(); }
-  catch (error) { return { pass: false, text: "crashed: " + error.message }; }
-}
-
+// The list of tests, run one at a time by the "Run the checks" button.
 function allTests() {
   const d13 = PRESETS.d13.matrices, d12 = PRESETS.d12.matrices, ab = PRESETS.randmatAB.matrices;
   const weighted = d13.map(function (m, i) { return { entries: m.entries, weight: i === 0 ? "1" : "3" }; });
@@ -302,37 +296,25 @@ function allTests() {
   const prodMean = [(2 * 5 / 4 + 1) / 3, (2 * 3 / 4 - 1) / 3, (2 * 3 / 4 + 0) / 3, (2 * 5 / 4 + 1) / 3];
 
   return [
-    ["Exact odds: D13, equally likely, 6 steps", function () { return chiSquareTest(d13, [0.5, 0.5], 6, 50000); }],
-    ["Exact odds: D13 with weights 1 and 3, 6 steps", function () { return chiSquareTest(weighted, [0.25, 0.75], 6, 50000); }],
-    ["Average: D12 (E[X] = all 1/2), 5 steps", function () { return averageTest(d12, {}, [0.5, 0.5, 0.5, 0.5], 5, 20000); }],
-    ["Average: randmatprod.py pair, weights p = 2/3 and 1 - p, 4 steps", function () { return averageTest(withP, { p: 2 / 3 }, prodMean, 4, 20000); }],
-    ["Invariant: D13 keeps x + y = 1", function () { return sumTest(d13, 60, 500); }],
-    ["Invariant: D12 keeps x + y = 1", function () { return sumTest(d12, 60, 500); }],
-    ["Rescaling: randmatAB.py pair, 15 steps, same as multiplying out", function () { return rescalingTest(ab, 15, 500); }],
-    ["No overflow: randmatAB.py pair, 1000 steps", function () { return noOverflowTest(ab, 1000, 200); }],
-    ["Growth rate: diag(2, 1) and diag(1/2, 1), weights 3 and 1", function () { return growthTest(2000, 500); }],
-    ["Small things", smallTests],
+    testRow("Exact odds: D13, equally likely, 6 steps", function () { return chiSquareTest(d13, [0.5, 0.5], 6, 50000); }),
+    testRow("Exact odds: D13 with weights 1 and 3, 6 steps", function () { return chiSquareTest(weighted, [0.25, 0.75], 6, 50000); }),
+    testRow("Average: D12 (E[X] = all 1/2), 5 steps", function () { return averageTest(d12, {}, [0.5, 0.5, 0.5, 0.5], 5, 20000); }),
+    testRow("Average: randmatprod.py pair, weights p = 2/3 and 1 - p, 4 steps", function () { return averageTest(withP, { p: 2 / 3 }, prodMean, 4, 20000); }),
+    testRow("Invariant: D13 keeps x + y = 1", function () { return sumTest(d13, 60, 500); }),
+    testRow("Invariant: D12 keeps x + y = 1", function () { return sumTest(d12, 60, 500); }),
+    testRow("Rescaling: randmatAB.py pair, 15 steps, same as multiplying out", function () { return rescalingTest(ab, 15, 500); }),
+    testRow("No overflow: randmatAB.py pair, 1000 steps", function () { return noOverflowTest(ab, 1000, 200); }),
+    testRow("Growth rate: diag(2, 1) and diag(1/2, 1), weights 3 and 1", function () { return growthTest(2000, 500); }),
+    testRow("Small things", smallTests),
   ];
 }
 
-document.getElementById("run-checks").addEventListener("click", function () {
-  resultsBody.innerHTML = "";
-  const tests = allTests();
-  const button = this;
-  button.disabled = true;
-  function next() {
-    if (tests.length === 0) { button.disabled = false; return; }
-    const test = tests.shift();
-    addRow(test[0], safely(test[1]));
-    setTimeout(next, 0);
-  }
-  next();
-});
+runChecksOnClick(allTests);
 
 // The picture: a histogram of x after t steps for D13, 20000 runs, like
 // nadya's Desmos D13 (her bin width was 0.0001; here it is typed in).
 function drawHistogram() {
-  const canvas = document.getElementById("histogram");
+  const canvas = byId("histogram");
   const steps = readWhole("hist-steps", 0, 200, 20);
   const width = Math.max(Number(byId("hist-bin").value) || 0.001, 1e-5);
   const runs = 20000;

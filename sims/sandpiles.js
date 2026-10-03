@@ -11,7 +11,7 @@
        statistics.
      - Clicking a cell adds a grain, removes one, or shows its numbers.
    Small helpers used by every sim page (byId, chartPen, ...) are in
-   js/sim-page.js.
+   js/sim-page.js, and the zoom of the torus is in js/sim-view.js.
 
    The file is split into numbered sections:
      1. Settings you might want to change
@@ -46,13 +46,6 @@ const OUTSIDE = "#ecebe7";        // around a custom domain (cells not on the ta
 const SINK = "#555555";           // the sink cell
 const NUMBER_MIN_CELL = 16;       // cells at least this big (in pixels) show their number
 const PAD = 2;                    // room above and below the picture
-
-// Zooming the torus (section 6), as in the coloring sims. Zoom 1 shows
-// the whole torus once.
-const MIN_ZOOM = 0.25;            // zoomed out: the torus 4 times across
-const MAX_ZOOM = 8;               // zoomed in: cells 8 times bigger
-const MIN_CELL_PIXELS = 2;        // but zoomed out, cells stay at least this big
-const ZOOM_STEP = 1.5;            // how much one click on + or − zooms
 const CLICK_DISTANCE = 4;         // a press that moves less than this (pixels) is a click, not a drag
 
 // The speeds on the Speed slider, in topples (or rounds) per second.
@@ -76,8 +69,6 @@ let neighbors = 4;              // 4 or 8: also the number of grains that makes 
 let sinks = [];                 // the sink cell, if any (a list of 0 or 1 cells)
 let customDomain = null;        // the last custom domain drawn, if any
 let customNeighbors = 4;        // the graph tool's neighbors for it
-let scroll = { x: 0, y: 0 };    // torus only: how far the picture is moved, in cells
-let zoom = 1;                   // torus only: 2 = cells twice as big, 0.5 = half as big
 
 let playing = false;            // it starts paused; Play sets it going
 let speedIndex = DEFAULT_SPEED;
@@ -88,23 +79,6 @@ let playId = 0;                 // counts presses of Play and Pause (see section
 // The latest message from the pile: the heights, the topples at every
 // cell, and the numbers (see report() in sandpiles-pile.js).
 let latest = null;
-
-// Small helpers for this page. (The ones every sim page uses are in
-// js/sim-page.js.)
-
-// Wrap a number into 0 .. size (not including size), for any number.
-function wrapNumber(v, size) { return ((v % size) + size) % size; }
-
-// "#rrggbb" -> [red, green, blue], and back.
-function hexToRGB(hex) {
-  return [1, 3, 5].map(function (k) { return parseInt(hex.slice(k, k + 2), 16); });
-}
-function rgbToHex(rgb) {
-  return "#" + rgb.map(function (t) { return Math.round(t).toString(16).padStart(2, "0"); }).join("");
-}
-
-// Which radio button of a group is ticked, e.g. checked("domain") = "box".
-function checked(name) { return document.querySelector('input[name="' + name + '"]:checked').value; }
 
 
 /* =====================================================================
@@ -126,23 +100,10 @@ const HEIGHT_COLORS = ["#ffffff", "#fcaf14", "#cc2020", "#02b51c", "#3305b0",
                        "#e012ad", "#12e0dd", "#eff216", "#b34c04", "#000000"];
 const TOPPLES_DARKEST = [30, 60, 140];   // dark blue
 
-// "#rrggbb" <-> hue (0..360), saturation and brightness (0..1), as in
-// her ColorFunctions.js. (hsvToHex is in js/sim-domains.js.)
-function hexToHSV(hex) {
-  const [r, g, b] = hexToRGB(hex).map(function (t) { return t / 255; });
-  const most = Math.max(r, g, b), least = Math.min(r, g, b), spread = most - least;
-  let hue = 0;
-  if (spread > 0) {
-    if (most === r) hue = 60 * (((g - b) / spread) % 6);
-    else if (most === g) hue = 60 * (2 + (b - r) / spread);
-    else hue = 60 * (4 + (r - g) / spread);
-  }
-  if (hue < 0) hue += 360;
-  return [hue, most === 0 ? 0 : spread / most, most];
-}
-
 // The color of each height 0 .. top (top = the threshold), as [r, g, b].
-// Heights above top use the color of top.
+// Heights above top use the color of top. The colors are mixed in hue,
+// saturation and brightness with hexToHSV and hsvToHex, and turned into
+// [r, g, b] with hexToRGB (all three in js/sim-domains.js).
 let heightRGB = [];
 function makeHeightColors() {
   const top = neighbors;
@@ -250,12 +211,12 @@ function setPlaying(on) {
    pictures.
 
    The picture is drawn screen square by screen square, as in the
-   coloring sims: for each square that shows in the picture's box, find
-   which cell of the table is there (cellAt, in js/sim-domains.js). A
-   box simply fills the picture's box once. A torus (or a table drawn on
-   one) wraps around, so cellAt keeps finding cells beyond the box, and
-   the torus can be moved and zoomed (section 6). Zoomed out, it shows
-   several times side by side.
+   coloring sims: js/sim-view.js places the picture's box on the canvas
+   and says which cell of the table is on each square that shows. A box
+   simply fills the picture's box once. A torus (or a table drawn on
+   one) wraps around, so the squares keep finding cells beyond the box,
+   and the torus can be moved and zoomed (section 6). Zoomed out, it
+   shows several times side by side.
 
    The squares' colors go into a small image, one pixel per square,
    which is then blown up with smoothing off so the squares stay crisp.
@@ -264,11 +225,10 @@ let drawPending = false;
 const tiny = document.createElement("canvas");   // one pixel per square that shows
 const simCanvas = byId("sim-canvas");            // the canvas on the page
 
-// Where the picture sits on the canvas, from the last drawing, in screen
-// pixels: "left", "width" and "height" of its box; "size", the size of
-// a cell when the whole table fits (zoom 1); and "cell", the size of a
-// cell as drawn (with the zoom).
-let view = { left: 0, width: 0, height: 0, size: 1, cell: 1 };
+// Where the picture goes, and the torus's zoom (js/sim-view.js). Cells
+// of 4 pixels or more get a whole number of pixels each, so every cell
+// is exactly the same size.
+const view = makeView(simCanvas, drawSoon, PAD, 4);
 
 // Draw at the browser's next screen refresh (at most once per refresh,
 // however many messages arrive in between).
@@ -282,17 +242,6 @@ function drawSoon() {
   });
 }
 
-// True when the picture can be moved and zoomed: on a torus, or a table
-// drawn on a torus in the graph tool (that one has "wrap" set).
-function scrollable() { return domain !== null && Boolean(domain.wrap); }
-
-// The size of a cell on screen with the zoom, in pixels. Big cells get a
-// whole number of pixels, so every cell is exactly the same size.
-function cellPixels() {
-  const size = view.size * zoom;
-  return size >= 4 ? Math.round(size) : size;
-}
-
 function drawPile() {
   if (!domain || !latest || simCanvas.hidden) return;
   const d = domain, heights = latest.heights, odometer = latest.odometer;
@@ -300,71 +249,47 @@ function drawPile() {
   let mostTopples = 0;
   if (showTopples) for (let v = 0; v < d.n; v++) mostTopples = Math.max(mostTopples, odometer[v]);
 
-  // The picture's box: a cell size that fits the width (and at most
-  // MAX_PICTURE_HEIGHT tall), in the middle of the canvas.
-  const across = d.xmax - d.xmin + 1, down = d.ymax - d.ymin + 1;
-  const cssWidth = simCanvas.clientWidth;
-  view.size = Math.min(cssWidth / across, MAX_PICTURE_HEIGHT / down);
-  if (view.size >= 4) view.size = Math.floor(view.size);
-  view.width = Math.round(view.size * across);
-  view.height = Math.round(view.size * down);
-  view.left = Math.round((cssWidth - view.width) / 2);
-
-  const ratio = window.devicePixelRatio || 1;   // 2 on sharp screens
-  simCanvas.style.height = (view.height + 2 * PAD) + "px";
-  simCanvas.width = Math.round(cssWidth * ratio);
-  simCanvas.height = Math.round((view.height + 2 * PAD) * ratio);
-  const screen = simCanvas.getContext("2d");
-  screen.setTransform(ratio, 0, 0, ratio, 0, PAD * ratio);   // screen pixels from here on; y = 0 is PAD pixels down
-  screen.save();
-  screen.beginPath();
-  screen.rect(view.left, 0, view.width, view.height);
-  screen.clip();                                // nothing outside the picture's box
-
-  // Which squares show. Square (i, k) is column i from the left and row
-  // k from the top of the table (k = 0 is the top row, y = ymax: rows go
-  // up the screen as y goes up). "scroll" moves the squares, in cells,
-  // and "zoom" sizes them; both stay 0 and 1 off the torus.
-  const size = cellPixels();
-  view.cell = size;
-  const firstI = Math.floor(-scroll.x) - 1, lastI = Math.ceil(view.width / size - scroll.x);
-  const firstK = Math.floor(-scroll.y) - 1, lastK = Math.ceil(view.height / size - scroll.y);
-  const cols = lastI - firstI + 1, rows = lastK - firstK + 1;
-  function edgeX(i) { return view.left + Math.round((i + scroll.x) * size); }
-  function edgeY(k) { return Math.round((k + scroll.y) * size); }
+  // The picture's box: as big as fits the width (and at most
+  // MAX_PICTURE_HEIGHT tall), in the middle of the canvas. Then the cell
+  // on each square that shows, row by row from the top: view.cols x
+  // view.rows squares, each view.cell pixels big.
+  const screen = fitPicture(view, d, MAX_PICTURE_HEIGHT);
+  const cellOf = cellsShown(view, d);
+  const cols = view.cols, rows = view.rows, size = view.cell;
 
   // The color of each square that shows, in the small image (row 0 of
   // the image is the top row of squares).
-  const cellOf = new Int32Array(cols * rows);
   tiny.width = cols;
   tiny.height = rows;
   const tinyPen = tiny.getContext("2d");
   const image = tinyPen.createImageData(cols, rows);
   const pixels = image.data;                  // 4 numbers per pixel: red, green, blue, opacity
   const outside = hexToRGB(OUTSIDE), sinkColor = hexToRGB(SINK);
-  for (let k = 0; k < rows; k++) {
-    for (let i = 0; i < cols; i++) {
-      const v = cellAt(d, d.xmin + firstI + i, d.ymax - (firstK + k));
-      const rgb = v === -1 ? outside
-        : sinks.includes(v) ? sinkColor
-        : showTopples ? colorOfTopples(odometer[v], mostTopples)
-        : colorOfHeight(heights[v]);
-      const p = k * cols + i;
-      cellOf[p] = v;
-      pixels[4 * p] = rgb[0]; pixels[4 * p + 1] = rgb[1]; pixels[4 * p + 2] = rgb[2];
-      pixels[4 * p + 3] = 255;
-    }
+  for (let p = 0; p < cols * rows; p++) {
+    const v = cellOf[p];
+    const rgb = v === -1 ? outside
+      : sinks.includes(v) ? sinkColor
+      : showTopples ? colorOfTopples(odometer[v], mostTopples)
+      : colorOfHeight(heights[v]);
+    pixels[4 * p] = rgb[0]; pixels[4 * p + 1] = rgb[1]; pixels[4 * p + 2] = rgb[2];
+    pixels[4 * p + 3] = 255;
   }
   tinyPen.putImageData(image, 0, 0);
   screen.imageSmoothingEnabled = false;
-  screen.drawImage(tiny, edgeX(firstI), edgeY(firstK), cols * size, rows * size);
+  screen.drawImage(tiny, squareLeft(view, view.firstI), squareTop(view, view.firstK), cols * size, rows * size);
 
   // Big cells: thin lines between the cells, the numbers, and a cross
   // on the sink cell.
   if (size >= NUMBER_MIN_CELL) {
     screen.beginPath();
-    for (let i = firstI; i <= lastI + 1; i++) { screen.moveTo(edgeX(i) + 0.5, 0); screen.lineTo(edgeX(i) + 0.5, view.height); }
-    for (let k = firstK; k <= lastK + 1; k++) { screen.moveTo(view.left, edgeY(k) + 0.5); screen.lineTo(view.left + view.width, edgeY(k) + 0.5); }
+    for (let i = view.firstI; i <= view.lastI + 1; i++) {
+      const x = squareLeft(view, i) + 0.5;
+      screen.moveTo(x, 0); screen.lineTo(x, view.height);
+    }
+    for (let k = view.firstK; k <= view.lastK + 1; k++) {
+      const y = squareTop(view, k) + 0.5;
+      screen.moveTo(view.left, y); screen.lineTo(view.left + view.width, y);
+    }
     screen.strokeStyle = "rgba(0, 0, 0, 0.15)";
     screen.lineWidth = 1;
     screen.stroke();
@@ -376,7 +301,8 @@ function drawPile() {
       for (let i = 0; i < cols; i++) {
         const v = cellOf[k * cols + i];
         if (v === -1) continue;
-        const cx = (edgeX(firstI + i) + edgeX(firstI + i + 1)) / 2, cy = (edgeY(firstK + k) + edgeY(firstK + k + 1)) / 2;
+        const cx = (squareLeft(view, view.firstI + i) + squareLeft(view, view.firstI + i + 1)) / 2;
+        const cy = (squareTop(view, view.firstK + k) + squareTop(view, view.firstK + k + 1)) / 2;
         if (sinks.includes(v)) {
           const r = size * 0.25;
           screen.beginPath();
@@ -407,34 +333,19 @@ window.addEventListener("resize", drawSoon);
    A click on a cell adds a grain, removes one, or shows the cell's
    numbers (the "Clicking a cell" options, as in nadya's Sandpiles.js).
    On a torus the picture can also be moved and zoomed, as in the
-   coloring sims (and like a graph in Desmos):
+   coloring sims (and like a graph in Desmos). js/sim-view.js does that:
      drag                             move it
      mouse wheel, or pinch            zoom in or out, around the pointer
      the + / − / Reset buttons        zoom in, zoom out, show it all again
    A press that hardly moves counts as a click, a longer one as a drag.
    "Pointer" events cover the mouse, a pen and fingers alike.
    ===================================================================== */
-const pointers = new Map();   // the pointers pressed on the picture, id -> {x, y}
-let pressedAt = null;         // where the last press began, to tell a click from a drag
-let dragged = false;
+const pressed = new Set();    // the pointers pressed on the picture (their ids)
+let pressedAt = null;         // where the first of them went down, to tell a click from a drag
+let dragged = false;          // true once it moved too far (or two fingers came down): not a click
 
 // On phones, let a finger drag on the picture instead of scrolling the page.
 simCanvas.style.touchAction = "none";
-
-// Where the pointer is, in screen pixels from the canvas's top-left corner.
-// (y is counted from the top of the picture, which is PAD pixels down.)
-function pointerSpot(event) {
-  const box = simCanvas.getBoundingClientRect();
-  return { x: event.clientX - box.left, y: event.clientY - box.top - PAD };
-}
-
-// The cell under the pointer, or -1.
-function cellUnder(spot) {
-  if (spot.x < view.left || spot.x >= view.left + view.width || spot.y < 0 || spot.y >= view.height) return -1;
-  const i = Math.floor((spot.x - view.left) / view.cell - scroll.x);   // its square (i, k)
-  const k = Math.floor(spot.y / view.cell - scroll.y);
-  return cellAt(domain, domain.xmin + i, domain.ymax - k);
-}
 
 // A click on a cell.
 function clickCell(v) {
@@ -450,96 +361,28 @@ function clickCell(v) {
   }
 }
 
-// Zoom the torus by "factor" (2 = twice as close) around the point
-// (px, py), in screen pixels from the top left of the picture's box:
-// the cell under that point stays under it.
-function zoomBy(factor, px, py) {
-  const before = cellPixels();
-  // Zoomed out, cells stay at least MIN_CELL_PIXELS big (but the whole
-  // torus, zoom 1, is always allowed, even with smaller cells).
-  const least = Math.min(1, Math.max(MIN_ZOOM, MIN_CELL_PIXELS / view.size));
-  zoom = Math.min(Math.max(zoom * factor, least), MAX_ZOOM);
-  const after = cellPixels();
-  scroll.x += px / after - px / before;
-  scroll.y += py / after - py / before;
-  drawSoon();
-}
-
-// Back to the whole torus, once, as at the start.
-function resetView() {
-  zoom = 1;
-  scroll = { x: 0, y: 0 };
-  drawSoon();
-}
-
-// The + / − / Reset buttons show only on a torus, with its picture.
-function showZoomButtons() {
-  byId("zoom-buttons").hidden = !scrollable() || simCanvas.hidden;
-}
-
-byId("zoom-in").addEventListener("click", function () {
-  zoomBy(ZOOM_STEP, view.width / 2, view.height / 2);       // around the middle
-});
-byId("zoom-out").addEventListener("click", function () {
-  zoomBy(1 / ZOOM_STEP, view.width / 2, view.height / 2);
-});
-byId("zoom-reset").addEventListener("click", resetView);
-
-// The point between the pressed pointers, and how far apart they are
-// (0 for one pointer). With one finger (or the mouse) down, the picture
-// follows it. With two fingers, it follows the point between them and
-// zooms as they spread apart or pinch together.
-function middleOfPointers() {
-  const p = Array.from(pointers.values());
-  if (p.length === 1) return { x: p[0].x, y: p[0].y, apart: 0 };
-  return { x: (p[0].x + p[1].x) / 2, y: (p[0].y + p[1].y) / 2,
-           apart: Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y) };
-}
-
 simCanvas.addEventListener("pointerdown", function (event) {
-  if (pointers.size === 0) { pressedAt = { x: event.clientX, y: event.clientY }; dragged = false; }
-  pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
-  if (pointers.size > 1) dragged = true;          // two fingers: a pinch, not a click
+  if (pressed.size === 0) { pressedAt = { x: event.clientX, y: event.clientY }; dragged = false; }
+  pressed.add(event.pointerId);
+  if (pressed.size > 1) dragged = true;           // two fingers: a pinch, not a click
   simCanvas.setPointerCapture(event.pointerId);   // keep getting moves even off the canvas
+  pressPointer(view, event);                      // on a torus: drag and pinch (js/sim-view.js)
 });
 
 simCanvas.addEventListener("pointermove", function (event) {
-  simCanvas.style.cursor = scrollable() ? (pointers.size > 0 ? "grabbing" : "grab") : "pointer";
-  if (!pointers.has(event.pointerId)) return;
+  simCanvas.style.cursor = view.torus ? (pressed.size > 0 ? "grabbing" : "grab") : "pointer";
+  if (!pressed.has(event.pointerId)) return;
   if (Math.hypot(event.clientX - pressedAt.x, event.clientY - pressedAt.y) >= CLICK_DISTANCE) dragged = true;
-  if (!scrollable()) return;
-  const before = middleOfPointers();
-  pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
-  const after = middleOfPointers();
-  const size = cellPixels();
-  scroll.x += (after.x - before.x) / size;
-  scroll.y += (after.y - before.y) / size;
-  if (pointers.size >= 2 && before.apart > 0) {
-    const box = simCanvas.getBoundingClientRect();
-    zoomBy(after.apart / before.apart, after.x - box.left - view.left, after.y - box.top - PAD);
-  }
-  drawSoon();
+  movePointer(view, event);
 });
 
 function stopPointer(event, isClick) {
-  if (!pointers.has(event.pointerId)) return;
-  pointers.delete(event.pointerId);
-  if (isClick && pointers.size === 0 && !dragged) clickCell(cellUnder(pointerSpot(event)));
+  if (!pressed.delete(event.pointerId)) return;
+  releasePointer(view, event);
+  if (isClick && pressed.size === 0 && !dragged) clickCell(cellUnder(view, domain, pointerSpot(view, event)));
 }
 simCanvas.addEventListener("pointerup", function (event) { stopPointer(event, true); });
 simCanvas.addEventListener("pointercancel", function (event) { stopPointer(event, false); });
-
-// The mouse wheel zooms around the pointer, as in Desmos. So does a
-// pinch on a trackpad, which the browser reports as the wheel with the
-// Ctrl key held (and small steps, so it counts for more).
-simCanvas.addEventListener("wheel", function (event) {
-  if (!scrollable()) return;
-  event.preventDefault();                              // don't scroll the page
-  const pixels = event.deltaY * (event.deltaMode === 1 ? 16 : 1);   // some mice count lines
-  const box = simCanvas.getBoundingClientRect();
-  zoomBy(Math.exp(-pixels * (event.ctrlKey ? 0.01 : 0.002)),
-         event.clientX - box.left - view.left, event.clientY - box.top - PAD);
-}, { passive: false });   // "passive: false" lets preventDefault stop the page scrolling
 
 
 /* =====================================================================
@@ -665,7 +508,7 @@ function openTool() {
   if (playing) setPlaying(false);
   toolOpen = true;
   simCanvas.hidden = true;
-  showZoomButtons();
+  showZoomButtons(view);
   byId("custom-area").hidden = false;
   if (!frame.src) frame.src = "graph-tool.html?embed";    // the first time only
   checkTool();
@@ -675,17 +518,11 @@ function closeTool() {
   toolOpen = false;
   byId("custom-area").hidden = true;
   simCanvas.hidden = false;
-  showZoomButtons();
+  showZoomButtons(view);
 }
 
-// Messages from the tool: its height (so the iframe fits it exactly),
-// and its drawing.
-window.addEventListener("message", function (event) {
-  if (event.source !== frame.contentWindow) return;
-  const message = event.data;
-  if (message.type === "height") frame.style.height = message.height + "px";
-  if (message.type === "graph") { toolMessage = message; checkTool(); }
-});
+// The tool sends its drawing every time it changes (js/sim-page.js).
+listenToTool(frame, function (drawing) { toolMessage = drawing; checkTool(); });
 
 // Check the drawing live and say what's wrong, if anything.
 function checkTool() {
@@ -694,10 +531,7 @@ function checkTool() {
   if (!toolMessage) problem = "Loading the drawing tool...";
   else if (toolMessage.graph.vertices.length === 0) problem = "Paint the table first.";
   else good = toolMessage.graph.vertices.length + " cells, " + toolMessage.grid.neighbors + " neighbors.";
-  const status = byId("step-status");
-  status.textContent = problem || "✓ " + good;   // ✓ is a tick mark
-  status.className = "step-status " + (problem ? "problem" : "ok");
-  byId("tool-done").disabled = Boolean(problem);
+  showToolStatus(problem, good);
 }
 
 byId("tool-done").addEventListener("click", function () {
@@ -725,10 +559,8 @@ function useDomain(kind, d, n) {
   domainKind = kind;
   domain = d;
   neighbors = n;
-  scroll = { x: 0, y: 0 };
-  zoom = 1;
+  useTorus(view, Boolean(d.wrap));   // moving and zooming only on a torus (js/sim-view.js)
   makeHeightColors();
-  showZoomButtons();
   showDomainChoice();
   chooseSink();
 }
@@ -744,15 +576,13 @@ function chooseSink() {
 // graph tool is open closes it.)
 function useBox() {
   if (toolOpen) closeTool();
-  const torus = (domainChoice() === "torus");
+  const torus = (checked("domain") === "torus");
   const least = torus ? MIN_TORUS : 1;
   const width = readWhole("set-width", least, MAX_SIDE, DEFAULTS.width);
   const height = readWhole("set-height", least, MAX_SIDE, DEFAULTS.height);
   const n = Number(byId("set-neighbors").value);
   useDomain(torus ? "torus" : "box", boxDomain(width, height, n, torus), n);
 }
-
-function domainChoice() { return checked("domain"); }
 
 // Show the options that fit the table in use, and tick its radio button.
 function showDomainChoice() {
@@ -839,7 +669,7 @@ byId("restart").addEventListener("click", function () { restart(); });
 
 // One at a time or rounds; speed; the storm.
 for (const radio of document.querySelectorAll('input[name="order"]')) {
-  radio.addEventListener("change", sendSettings);
+  radio.addEventListener("change", function () { sendSettings(); showSpeed(); });
 }
 function showSpeed() {
   const speed = SPEEDS[speedIndex], what = checked("order") === "rounds" ? "round" : "topple";
@@ -851,9 +681,6 @@ byId("speed").addEventListener("input", function () {
   showSpeed();
   sendSettings();
 });
-for (const radio of document.querySelectorAll('input[name="order"]')) {
-  radio.addEventListener("change", showSpeed);
-}
 function showStormRate() {
   const rate = STORM_RATES[stormRateIndex];
   byId("storm-label").textContent = rate === Infinity ? "as fast as possible"

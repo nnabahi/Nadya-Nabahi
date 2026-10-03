@@ -23,6 +23,8 @@
    It passes its pointer events on to pressPointer, movePointer and
    releasePointer (so a sim can drag other things too, like the random
    walk sim's walkers), and calls useTorus when the domain changes.
+   pointerSpot and cellUnder say which cell is under the pointer (to
+   click a cell, or drop a walker on it).
 
    The page's HTML puts the canvas and the zoom buttons in one box:
      <div class="sim-picture">
@@ -44,6 +46,7 @@
      drawBorders(...)            the lines between squares of different colors
      zoomBy, resetView           zoom around a point; back to the start
      pressPointer, movePointer, releasePointer   dragging and pinching
+     pointerSpot, cellUnder      the cell under the pointer
    ===================================================================== */
 
 
@@ -289,4 +292,20 @@ function middleOfPointers(view) {
   if (p.length === 1) return { x: p[0].x, y: p[0].y, apart: 0 };
   return { x: (p[0].x + p[1].x) / 2, y: (p[0].y + p[1].y) / 2,
            apart: Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y) };
+}
+
+// Where the pointer of a pointer event is, in screen pixels: x from the
+// canvas's left side, y from the top of the picture ("top" pixels down).
+function pointerSpot(view, event) {
+  const box = view.canvas.getBoundingClientRect();
+  return { x: event.clientX - box.left, y: event.clientY - box.top - view.top };
+}
+
+// The cell of domain d under a spot (from pointerSpot), or -1 if there
+// is none: off the picture, or outside a drawn domain.
+function cellUnder(view, d, spot) {
+  if (spot.x < view.left || spot.x >= view.left + view.width || spot.y < 0 || spot.y >= view.height) return -1;
+  const i = Math.floor((spot.x - view.left) / view.cell - view.scroll.x);   // its square (i, k)
+  const k = Math.floor(spot.y / view.cell - view.scroll.y);
+  return cellAt(d, d.xmin + i, d.ymax - k);
 }

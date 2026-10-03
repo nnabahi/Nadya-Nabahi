@@ -24,9 +24,10 @@
     <p><a href="../toys.html">&larr; All sims</a></p>
     <h1>Random sine function</h1>
 
-    <!-- The four quadrants, as on every sim page (see sims/graph-tool.html).
-         All the behavior lives in random-sine.js; the ids below (id="...")
-         are how that script finds each button and box. -->
+    <!-- The four quadrants, as on every sim page (their layout is in
+         section 6 of css/style.css). All the behavior lives in
+         random-sine.js; the ids below (id="...") are how that script
+         finds each button and box. -->
     <div class="quadrants">
 
       <!-- UPPER LEFT: the graph of f. -->
@@ -87,8 +88,8 @@
 
         <h3 class="option-heading">Picture</h3>
         <div class="option-row">
-          x from <input type="number" id="view-xmin" step="1" style="width: 5em">
-          to <input type="number" id="view-xmax" step="1" style="width: 5em">
+          x from <input type="number" id="view-xmin" step="1">
+          to <input type="number" id="view-xmax" step="1">
         </div>
         <div class="option-row">
           Height
@@ -96,7 +97,7 @@
             <option value="fit">fit to f</option>
             <option value="fixed">fixed</option>
           </select>
-          <input type="number" id="set-height" min="0" step="0.5" style="width: 5em">
+          <input type="number" id="set-height" min="0" step="0.5">
           <label><input type="checkbox" id="log-scale"> log scale</label>
         </div>
         <div class="option-row">

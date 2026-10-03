@@ -73,11 +73,6 @@ function compareWithPython(file, u, h) {
   return differences.join("; ");
 }
 
-// Read a list of numbers as Python prints it, e.g. "[0.5, 0.25]".
-function readNumbers(text) {
-  return text.replace(/[\[\]]/g, " ").split(/[\s,]+/).filter(function (s) { return s !== ""; }).map(Number);
-}
-
 
 /* ===================================================================
    2. EXACT ODDS ON SMALL CASES
@@ -251,22 +246,10 @@ function checkInvariants(c, steps) {
 
 /* ===================================================================
    4. THE PAGE: run the tests and fill in the table
+   (addRow, runChecksOnClick and readNumbers are in js/check-page.js)
    =================================================================== */
 
-const resultsBody = document.getElementById("results");
-
-function addRow(test, pass, text) {
-  const row = document.createElement("tr");
-  row.innerHTML = "<td></td><td></td><td></td>";
-  row.children[0].textContent = pass ? "✓ pass" : "✗ FAIL";
-  row.children[0].className = pass ? "check-pass" : "check-fail";
-  row.children[1].textContent = test;
-  row.children[2].textContent = text;
-  resultsBody.appendChild(row);
-}
-
-// The list of tests, run one at a time with a pause between them so
-// the page can show each result as it comes.
+// The list of tests, run one at a time by the "Run the checks" button.
 function allTests() {
   const tests = [];
   for (const run of pythonRuns) {
@@ -290,24 +273,13 @@ function allTests() {
   return tests;
 }
 
-document.getElementById("run-checks").addEventListener("click", function () {
-  resultsBody.innerHTML = "";
-  const tests = allTests();
-  const button = this;
-  button.disabled = true;
-  function next() {
-    if (tests.length === 0) { button.disabled = false; return; }
-    tests.shift()();
-    setTimeout(next, 0);
-  }
-  next();
-});
+runChecksOnClick(allTests);
 
-document.getElementById("compare-pasted").addEventListener("click", function () {
-  const u = readNumbers(document.getElementById("pasted-u").value);
-  const h = readNumbers(document.getElementById("pasted-h").value);
-  const file = document.getElementById("pasted-file").value;
-  const out = document.getElementById("pasted-result");
+byId("compare-pasted").addEventListener("click", function () {
+  const u = readNumbers(byId("pasted-u").value);
+  const h = readNumbers(byId("pasted-h").value);
+  const file = byId("pasted-file").value;
+  const out = byId("pasted-result");
   if (u.length === 0) { out.textContent = "Paste the u's first."; return; }
   const problem = compareWithPython(file, u, h);
   out.textContent = problem === "" ? "✓ Every height matches your Python." : "✗ " + problem;

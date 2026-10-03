@@ -76,11 +76,10 @@ let placements = null;          // the chain's list of tile positions (section 1
 let latest = null;              // the latest packing and numbers from the chain
 let trace = null;               // the run so far, for the chart: { moves: [], shares: [] }
 
-// A small helper for this page. (wrapNumber and hexToRGB, used below,
-// are in js/sim-domains.js.)
-function showingAverage() {
-  return document.querySelector('input[name="show"]:checked').value === "average";
-}
+// A small helper for this page: is "Average over time" ticked? (checked
+// is in js/sim-page.js; wrapNumber and hexToRGB, used below, are in
+// js/sim-domains.js.)
+function showingAverage() { return checked("show") === "average"; }
 
 
 /* =====================================================================
@@ -511,25 +510,17 @@ function closeTool() {
   simCanvas.hidden = false;
 }
 
-// Messages from the tool: its height (so the iframe fits it exactly),
-// and its drawing.
-window.addEventListener("message", function (event) {
-  if (event.source !== frame.contentWindow) return;
-  const message = event.data;
-  if (message.type === "height") frame.style.height = message.height + "px";
-  if (message.type === "graph") { toolMessage = message; checkTool(); }
-});
+// The tool sends its drawing every time it changes (js/sim-page.js).
+listenToTool(frame, function (drawing) { toolMessage = drawing; checkTool(); });
 
 // Check the drawing live and say what's wrong, if anything.
 function checkTool() {
   if (!toolOpen) return;
-  let problem = "";
+  let problem = "", good = "";
   if (!toolMessage) problem = "Loading the drawing tool...";
   else if (toolMessage.graph.vertices.length === 0) problem = "Paint the region first.";
-  const status = byId("step-status");
-  status.textContent = problem || "✓ " + toolMessage.graph.vertices.length + " cells.";   // ✓ is a tick mark
-  status.className = "step-status " + (problem ? "problem" : "ok");
-  byId("tool-done").disabled = Boolean(problem);
+  else good = toolMessage.graph.vertices.length + " cells.";
+  showToolStatus(problem, good);
 }
 
 byId("tool-done").addEventListener("click", function () {
@@ -623,12 +614,8 @@ function useBox() {
   if (toolOpen) closeTool();
   const width = readWhole("set-width", 1, MAX_SIDE, DEFAULTS.width);
   const height = readWhole("set-height", 1, MAX_SIDE, DEFAULTS.height);
-  const torus = (domainChoice() === "torus");
+  const torus = (checked("domain") === "torus");
   useDomain(torus ? "torus" : "box", boxDomain(width, height, 4, torus));
-}
-
-function domainChoice() {
-  return document.querySelector('input[name="domain"]:checked').value;
 }
 
 // Show the options that fit the domain in use, and tick its radio button.

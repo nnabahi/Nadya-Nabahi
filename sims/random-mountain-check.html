@@ -14,8 +14,8 @@
   <main class="page">
     <h1>Random mountain: check page</h1>
     <p>
-      These tests check the growth rule in <code>random-mountain-growth.js</code>
-      before the sim page is built. Press the button; it takes a few seconds.
+      These tests check the growth rule in <code>random-mountain-growth.js</code>,
+      the math behind the sim. Press the button; it takes a few seconds.
       The "Exact odds" tests are random, so a correct program still fails
       one of them about 1 time in 1000. If one fails, press the button again.
     </p>
@@ -57,6 +57,9 @@ print(h)</pre>
   <!-- jStat, for the chi-square p-values. The version is fixed so an
        update can never change the tests by surprise. -->
   <script src="https://cdn.jsdelivr.net/npm/jstat@1.9.6/dist/jstat.min.js"></script>
+  <!-- byId(), and the results table shared by the check pages. -->
+  <script src="../js/sim-page.js"></script>
+  <script src="../js/check-page.js"></script>
   <script src="random-mountain-growth.js"></script>
   <script src="random-mountain-check.js"></script>
 </body>

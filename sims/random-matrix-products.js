@@ -37,8 +37,9 @@
        (1/t) log |P_t|  ->  gamma     as t -> infinity,
    with probability 1, where gamma is a fixed number, the top Lyapunov
    exponent (H. Furstenberg and H. Kesten, "Products of random
-   matrices", Ann. Math. Statist. 31 (1960) 457-469; it needs the average of log+ |M| to be finite, true here since every
-   entry is bounded). |P| can be any matrix norm, since they all differ
+   matrices", Ann. Math. Statist. 31 (1960) 457-469; it needs the
+   average of log+ |M| to be finite, true here since every entry is
+   bounded). |P| can be any matrix norm, since they all differ
    by at most a constant factor, which (1/t) log kills. Here it is the
    largest entry in size, which is exactly logSize.
 
