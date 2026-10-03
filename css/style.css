@@ -329,10 +329,12 @@ a.card:hover {
 .quad-about    { grid-area: about; }
 
 /* The drawing surface for a simulation fills its quadrant's width.
-   The ">" means "a canvas directly inside the quadrant" only, so this
-   rule leaves alone canvases that libraries (like Cytoscape) create
-   deeper inside the page. */
-.quad-sim > canvas {
+   The ">" means "a canvas directly inside the quadrant" (or directly
+   inside its .sim-picture box, section 8) only, so this rule leaves
+   alone canvases that libraries (like Cytoscape) create deeper inside
+   the page. */
+.quad-sim > canvas,
+.sim-picture > canvas {
   display: block;
   width: 100%;
   height: auto;
@@ -604,6 +606,25 @@ a.card:hover {
 
 #sim-canvas.scrollable.dragging {
   cursor: grabbing;
+}
+
+/* The torus's zoom buttons (+, −, Reset) sit in the top right corner of
+   the picture, as in Desmos. "position: relative" on the box around the
+   picture lets "position: absolute" place the buttons inside it. */
+.sim-picture {
+  position: relative;
+}
+
+.zoom-buttons {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  gap: 4px;
+}
+
+.zoom-buttons .tool-button {
+  min-width: 2.2em;         /* so "+" and "−" aren't tiny */
 }
 
 /* The graph tool inside the sim. The sim sets its height to fit. */
