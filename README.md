@@ -36,7 +36,9 @@ repeat for the same seed).
 | `sims/random-walk-coloring.html` | Random walk coloring sim (N walkers color cells by first arrival, in discrete or continuous time) |
 | `sims/random-walk-coloring.js` | That sim's page: the default start, dragging walkers, drawing, statistics, the custom domain |
 | `sims/random-walk-coloring-walk.js` | That sim's walkers (both models), run in a Web Worker |
-| `sims/random-mountain-growth.js` | Random mountain (block growth): the growth rule only, no page yet |
+| `sims/random-mountain.html` | Random mountain sim (blocks pile up on a line or grid; any tile, any domain) |
+| `sims/random-mountain.js` | That sim's page: the clickable tile grid and presets, domains, drawing, statistics, the custom domain |
+| `sims/random-mountain-growth.js` | That sim's growth rule, and the code that runs it in a Web Worker |
 | `sims/random-mountain-check.html`, `.js` | Tests of that growth rule (against nadya's Python, exact odds, invariants); not linked from the site |
 | `sims/sequential-packing.html` | Random sequential packing sim (continuous space): random points grow tiles until they touch the edge of S or an earlier tile, with any typed domain, tile and density |
 | `sims/sequential-packing.js` | That sim's page: the typed formulas and their sliders, play, drawing, statistics |

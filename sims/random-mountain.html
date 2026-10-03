@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Random mountain — Toys n' Sims</title>
+  <link rel="stylesheet" href="../css/style.css">
+  <!-- KaTeX's styles, for the typeset formulas. -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/katex.min.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <nav>
+      <a href="../about.html">About Me</a>
+      <a href="../resume.html">Resume</a>
+      <a href="../index.html">Home</a>
+      <a href="../publications.html">Publications</a>
+      <a href="../toys.html" class="active">Toys n' Sims</a>
+    </nav>
+  </header>
+
+  <main class="page">
+    <p><a href="../toys.html">&larr; All sims</a></p>
+    <h1>Random mountain</h1>
+
+    <!-- The four quadrants, as on every sim page. All the behavior lives
+         in random-mountain.js; the ids below (id="...") are how that
+         script finds each button and box. -->
+    <div class="quadrants">
+
+      <!-- UPPER LEFT: the mountain. -->
+      <section class="quad quad-sim">
+        <h2>Simulation</h2>
+
+        <!-- The picture. random-mountain.js sets its height. On a 2D
+             torus, the zoom buttons sit in its top right corner. -->
+        <div class="sim-picture">
+          <canvas id="sim-canvas"></canvas>
+          <div class="zoom-buttons" id="zoom-buttons" hidden>
+            <button class="tool-button" id="zoom-in" title="Zoom in">+</button>
+            <button class="tool-button" id="zoom-out" title="Zoom out">&minus;</button>
+            <button class="tool-button" id="zoom-reset" title="Show the whole torus once again">Reset</button>
+          </div>
+        </div>
+
+        <!-- Shown instead of the picture while you draw a custom domain:
+             the graph tool itself, in an <iframe> (a page inside this
+             page). -->
+        <div id="custom-area" hidden>
+          <div class="step-bar">
+            <p class="step-title">Draw the domain</p>
+            <p class="muted step-help">Paint the cells the mountain may grow on (any
+              color counts). The first block goes on (0, 0) if you painted it, otherwise
+              on the painted cell nearest the middle. Then press Done.</p>
+            <p class="step-status" id="step-status"></p>
+            <div class="option-row">
+              <button class="tool-button" id="tool-done">Done</button>
+              <button class="tool-button" id="tool-cancel">Cancel</button>
+            </div>
+          </div>
+          <iframe class="tool-frame" id="tool-frame" title="Graph and domain tool"></iframe>
+        </div>
+
+        <!-- Messages, e.g. a problem with the domain. -->
+        <p class="muted" id="sim-message"></p>
+      </section>
+
+      <!-- UPPER RIGHT: settings. -->
+      <section class="quad quad-controls">
+        <h2>Options</h2>
+
+        <h3 class="option-heading">Dimension</h3>
+        <div class="option-row">
+          <label><input type="radio" name="dimension" value="1" checked> 1D (a line)</label>
+          <label><input type="radio" name="dimension" value="2"> 2D (a grid)</label>
+        </div>
+
+        <h3 class="option-heading">Tile T</h3>
+        <div class="option-row" id="tile-presets"></div>
+        <p class="muted small">Click cells to add them to the tile or take them out.
+          The dark cell in the middle is the site itself.</p>
+        <!-- The clickable cells; random-mountain.js fills this in. -->
+        <div class="tile-grid" id="tile-grid"></div>
+        <div class="option-row">
+          <span id="disk-label"></span> r <input type="number" id="disk-radius" min="1" max="30" step="1" value="2">
+          <button class="tool-button" id="make-disk">Make</button>
+        </div>
+        <div class="option-row">
+          <span id="ring-label"></span> r1 <input type="number" id="ring-inner" min="0" max="30" step="1" value="3">
+          to r2 <input type="number" id="ring-outer" min="0" max="30" step="1" value="3">
+          <button class="tool-button" id="make-ring">Make</button>
+        </div>
+        <p class="muted small" id="tile-info"></p>
+
+        <h3 class="option-heading">Domain</h3>
+        <div class="option-row" id="domain-choice"></div>
+        <div class="option-row" id="size-row" hidden>
+          <span id="size-label"></span>
+          <input type="number" id="set-width" min="1" step="1">
+          <span id="height-part">&times; <input type="number" id="set-height" min="1" step="1"></span>
+        </div>
+        <div class="option-row" id="custom-row" hidden>
+          <span id="custom-info"></span>
+          <button class="tool-button" id="edit-custom">Edit custom domain</button>
+        </div>
+
+        <h3 class="option-heading">Run</h3>
+        <div class="option-row">
+          <button class="tool-button" id="play">Play</button>
+          <button class="tool-button" id="step" title="Drop one block">Step</button>
+          <button class="tool-button" id="restart" title="Back to one block, same seed">Restart</button>
+        </div>
+        <div class="option-row">
+          Speed <input type="range" class="wide-range" id="speed" min="0" step="1">
+          <span class="muted" id="speed-label"></span>
+        </div>
+        <div class="option-row">
+          Go to step <input type="number" id="goto-steps" min="0" step="1" style="width: 8em">
+          <button class="tool-button" id="goto">Go</button>
+        </div>
+        <div class="option-row">
+          Seed <input type="text" id="seed" size="8">
+          <button class="tool-button" id="new-seed" title="A random new seed">New seed</button>
+        </div>
+        <p class="muted small">The same seed always gives the same mountain. Changing the
+          tile or the domain keeps the seed and the step you are at, so the mountain
+          changes as little as it can.</p>
+      </section>
+
+      <!-- LOWER LEFT: numbers about this run. -->
+      <section class="quad quad-stats">
+        <h2>Statistics</h2>
+        <table class="stats-table">
+          <tr><td>Steps n</td><td id="stat-steps"></td></tr>
+          <tr><td>Blocks (n + 1)</td><td id="stat-blocks"></td></tr>
+          <tr><td>Base: sites with a block</td><td id="stat-base"></td></tr>
+          <tr><td>Available sites</td><td id="stat-available"></td></tr>
+          <tr><td>Largest height</td><td id="stat-highest"></td></tr>
+          <tr><td>Height at the start site</td><td id="stat-start"></td></tr>
+          <tr id="ends-row"><td>Base from &hellip; to &hellip;</td><td id="stat-ends"></td></tr>
+        </table>
+
+        <h3 class="option-heading chart-heading">Base size over time</h3>
+        <canvas class="chart" id="base-chart"></canvas>
+        <h3 class="option-heading chart-heading">Largest height over time</h3>
+        <canvas class="chart" id="highest-chart"></canvas>
+        <h3 class="option-heading chart-heading">Height at the start site over time</h3>
+        <canvas class="chart" id="start-chart"></canvas>
+      </section>
+
+      <!-- LOWER RIGHT: about the model, in two tabs (js/about-tabs.js
+           switches them). Text in class="tex" is typeset by KaTeX. -->
+      <section class="quad quad-about">
+        <h2>About the model</h2>
+        <nav class="about-tabs">
+          <button class="about-tab selected" data-tab="simple">Simple</button>
+          <button class="about-tab" data-tab="details">All the details</button>
+        </nav>
+
+        <div data-panel="simple">
+        <p>
+          Blocks are dropped one at a time and pile up into a mountain. The
+          <strong>base</strong> is the set of sites that already have a block.
+          A block may land on any site of the base, or on a site the
+          <strong>tile</strong> reaches from the base. It picks one of these
+          <strong>available sites</strong> completely at random, all equally
+          likely.
+        </p>
+        <p>
+          With the tile {&minus;1, +1} on a line, a block lands on the base or one
+          site past either end, so the base only grows when a block lands just
+          past an end. Most blocks land on the base, and the mountain gets
+          taller much faster than it gets wider.
+        </p>
+        <p>
+          <strong>Things to try:</strong> the one-sided tile {+1}; a tile with a
+          gap, like {&minus;2, +1}; 2D with 4 or 8 neighbors; a tile of your own,
+          clicked in the grid; a thin ring, which spreads more than it stacks;
+          or a small domain, where the base soon fills it and
+          the mountain only gets taller. On a 2D torus, drag the picture to
+          slide it around, and zoom with the mouse wheel, a pinch, or the + and
+          &minus; buttons; zoomed out, the torus shows several times side by
+          side.
+        </p>
+        </div>
+
+        <div data-panel="details" hidden>
+        <p>
+          <strong>The rule.</strong> The tile <span class="tex">T</span> is a finite
+          set of offsets in <span class="tex">\mathbb{Z}^d</span>
+          (<span class="tex">d = 1</span> or <span class="tex">2</span>). The base
+          and the available sites start as
+        </p>
+        <div class="tex">D_0 = \{0\}, \qquad S_0 = \{0\} \cup T,</div>
+        <p>
+          with one block on <span class="tex">0</span>:
+          <span class="tex">H(0, 0) = 1</span>. At each step
+          <span class="tex">n = 1, 2, \dots</span>:
+        </p>
+        <div class="tex">X_n \sim \mathrm{Uniform}(S_{n-1}), \qquad H(X_n, n) = H(X_n, n-1) + 1,</div>
+        <div class="tex">D_n = D_{n-1} \cup \{X_n\}, \qquad S_n = S_{n-1} \cup (X_n + T).</div>
+        <p>
+          So <span class="tex">S_n = \{0\} \cup (D_n + T)</span>, and after
+          <span class="tex">n</span> steps there are
+          <span class="tex">n + 1</span> blocks. The uniform choice of
+          <span class="tex">X_n</span> is the only randomness. In a domain
+          <span class="tex">\Omega</span>, sites outside
+          <span class="tex">\Omega</span> are never available; on a torus or a
+          cycle the offsets wrap around.
+        </p>
+        <p>
+          <strong>nadya's models</strong> are presets:
+          <span class="tex">T = \{-1, +1\}</span> is the two-sided mountain
+          (<code>randmountain.py</code>, <code>RandBlockStack.py</code>), where
+          <span class="tex">X_n</span> is uniform on the base interval or one site
+          past either end; <span class="tex">T = \{+1\}</span> is the one-sided
+          mountain (<code>randonesidedmountain.py</code>); and the 4 neighbors in
+          2D is the 2D mountain. For the two-sided mountain the base is an
+          interval of <span class="tex">L</span> sites, and it grows at the next
+          step with probability <span class="tex">2/(L+2)</span>.
+        </p>
+        <p>
+          <strong>The base is an Eden model.</strong> Given that the base grows at
+          a step, the new site is uniform on
+          <span class="tex">S_{n-1} \setminus D_{n-1} = (D_{n-1} + T) \setminus D_{n-1}</span>,
+          the outer boundary of the base. So the base, watched only at the steps
+          where it grows, is Eden's growth model [1] with the neighbors given by
+          <span class="tex">T</span>; the mountain adds the heights on top.
+        </p>
+        <p>
+          <strong>Random numbers.</strong> Step <span class="tex">n</span> uses a
+          uniform number <span class="tex">u_n \in [0, 1)</span> and picks site
+          number <span class="tex">\lfloor u_n |S_{n-1}| \rfloor</span>, as in
+          <code>randmountain.py</code>. In 1D the sites are counted from left to
+          right, as in the Python, so the same <span class="tex">u</span>'s give
+          exactly the same mountain; in 2D they are counted in the order they
+          became available. The <span class="tex">u_n</span> come from the
+          seeded generator seedrandom [2], and the same seed gives the same
+          <span class="tex">u_n</span> whatever the tile and domain.
+        </p>
+        <p><strong>References</strong></p>
+        <ol class="references">
+          <li>M. Eden, &ldquo;A two-dimensional growth process&rdquo;, in
+            <em>Proceedings of the Fourth Berkeley Symposium on Mathematical
+            Statistics and Probability</em>, Vol. 4, University of California
+            Press, 1961, 223&ndash;239.</li>
+          <li>D. Bau, seedrandom.js,
+            <a href="https://github.com/davidbau/seedrandom">github.com/davidbau/seedrandom</a>.</li>
+        </ol>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <!-- KaTeX (https://katex.org) typesets the formulas. The version
+       number is fixed so an update can never change the site by surprise. -->
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/katex.min.js"></script>
+
+  <!-- The Simple / All the details tabs in the About box. -->
+  <script src="../js/about-tabs.js"></script>
+
+  <!-- Helpers shared by the sims (sim-page.js also typesets the
+       formulas, so it comes after KaTeX). Then the growth rule (it runs
+       in a second thread), then this page's code. -->
+  <script src="../js/sim-page.js"></script>
+  <script src="../js/sim-domains.js"></script>
+  <script src="random-mountain-growth.js"></script>
+  <script src="random-mountain.js"></script>
+
+</body>
+</html>
