@@ -2,6 +2,7 @@
 
 A ranked copy of the ideas in `SIMS.md`, written by Claude on 2026-10-03. This is
 only an opinion. `SIMS.md` stays the master list and this file doesn't change it.
+For the full list of models actually in nadya's Programming folder, see `MODELS.md`.
 
 - **Sim**: a model with real mathematics behind it, where moving the sliders teaches you something.
 - **Toy**: something pretty or fun that doesn't need a full four-quadrant page.
@@ -44,23 +45,3 @@ nadya's Python, so treat this as a starting point.
 | Coin-toss convergence | | A teaching toy for the law of large numbers. | |
 | Random billiards / clipping | | Unclear from the names. A toy unless the Python shows more. | |
 | Partitions, graph explorations, digit-rewriting rules | | Thin as they stand. Keep them as ideas. | |
-
-## Suggestions: models not on the list (Claude's suggestions)
-
-These are Claude's ideas, not nadya's. They are only suggestions in this file:
-nothing here goes into `SIMS.md` or onto the site unless nadya picks it. All are standard,
-well-known models, and each one fits the grid, domain tool or Markov chain code the site already has
-or will have.
-
-| Model | Why it fits | Reference |
-| --- | --- | --- |
-| Bernoulli percolation with cluster colouring | The basic model behind gradient and fractal percolation. A p slider shows the giant cluster appear. | Kesten, *Commun. Math. Phys.* 74 (1980) 41 (bond p_c = 1/2 on Z²) |
-| Ising model (Glauber or Swendsen–Wang) | The standard MCMC on a grid, reusing the colouring sim's chain machinery. A temperature slider shows the phase transition. | Onsager, *Phys. Rev.* 65 (1944) 117; Swendsen & Wang, *Phys. Rev. Lett.* 58 (1987) 86 |
-| Diffusion-limited aggregation | Growth by random walkers, a natural partner to the growth-models page. | Witten & Sander, *Phys. Rev. Lett.* 47 (1981) 1400 |
-| Loop-erased random walk | The building block of Wilson's algorithm, already in the colouring sim, so it's cheap to show on its own. | Lawler, *Duke Math. J.* 47 (1980) 655; Wilson, *STOC* 1996 |
-| Bootstrap percolation | A simple rule with a famous, surprisingly slow threshold. Also cheap on the grid. | Holroyd, *Probab. Th. Rel. Fields* 125 (2003) 195 (sharp threshold π²/18) |
-| Random Young diagrams (Plancherel) | A natural sim for the "Partitions" idea, with a curved limit shape to compare against. | Vershik & Kerov, *Soviet Math. Dokl.* 18 (1977) 527; Logan & Shepp, *Adv. Math.* 26 (1977) 206 |
-| TASEP / corner growth | Links the lattice-path counting and growth pages, with an exact parabola-shaped limit. | Rost, *Z. Wahrsch. Verw. Gebiete* 58 (1981) 41 |
-| Voter model | A colouring that evolves by copying neighbours, a dynamic cousin of the connected colouring sim. | Clifford & Sudbury, *Biometrika* 60 (1973) 581; Holley & Liggett, *Ann. Probab.* 3 (1975) 643 |
-| Conway's Game of Life | The obvious 2D partner to the 1D cellular automata, and it runs on the same grid. | Gardner, *Scientific American* 223 (Oct 1970) 120 |
-| Galton–Watson branching trees | The standard random tree. A mean-offspring slider crosses the extinction threshold at 1. | Watson & Galton, *J. Anthropol. Inst.* 4 (1875) 138; Athreya & Ney, *Branching Processes* (1972) |
