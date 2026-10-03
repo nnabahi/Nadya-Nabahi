@@ -58,7 +58,7 @@ let drawnStart = null;     // your own starting colouring, or null for the autom
 let startShape = "";       // what the start was: "rectangles", "blocks" or "yours"
 let scroll = { x: 0, y: 0 };   // torus only: how far the picture is scrolled, in cells
 
-let playing = true;        // like Desmos, it starts moving at once
+let playing = false;       // it starts paused, showing the start; Play sets it going
 let speedIndex = DEFAULT_SPEED;
 let run = 0;               // counts restarts, so leftovers from an older run are ignored
 
@@ -720,12 +720,13 @@ function drawnColouring() {
   return { used: used, colourOf: colourOf, uncoloured: uncoloured };
 }
 
-// Step 1 -> "Use automatic start": run on the region with N blocks.
+// Step 1 -> "Use automatic start": the region, with the automatic start.
+// (It carries on running only if it was running before the tool opened.)
 byId("use-auto").addEventListener("click", function () {
   customDomain = drawnDomain(toolMessage.graph, toolMessage.grid);
   closeTool();
   useDomain("custom", customDomain, null, null);
-  setPlaying(true);
+  if (wasPlaying) setPlaying(true);
 });
 
 // Step 1 -> "Draw my own start": lock the region and go to step 2.
@@ -741,13 +742,13 @@ byId("tool-back").addEventListener("click", function () {
   showStep(1);
 });
 
-// Step 2 -> "Done": run from your colouring, in the tool's colours.
+// Step 2 -> "Done": start from your colouring, in the tool's colours.
 byId("tool-done").addEventListener("click", function () {
   const start = drawnColouring();
   const names = start.used.map(function (c) { return toolMessage.palette[c]; });
   closeTool();
   useDomain("custom", customDomain, start.colourOf, names);
-  setPlaying(true);
+  if (wasPlaying) setPlaying(true);
 });
 
 // Cancel: back to whatever was running before.
@@ -893,4 +894,4 @@ byId("speed").max = SPEEDS.length - 1;
 byId("speed").value = speedIndex;
 showSpeed();
 useBox();
-setPlaying(true);
+setPlaying(false);   // paused: press Play to start
