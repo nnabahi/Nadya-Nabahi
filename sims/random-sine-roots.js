@@ -106,7 +106,8 @@ function makeUniforms(seed, N) {
      1 + δ u^2     a formula in u, where u is uniform on [0, 1].
    Any other letter (δ, d, a, ...) is a slider; its value comes from
    "sliders", e.g. { δ: 0.1 }. Reading is done by math.js
-   (https://mathjs.org), loaded by the page.
+   (https://mathjs.org), Desmos style, by readTree in js/formulas.js:
+   the page loads both before this file.
 
    The result is a "gap law", an object with:
      kind          "set", "interval" or "formula"
@@ -122,7 +123,7 @@ function gapSetLetters(text) {
   const tree = readTree(bracketsAsList(text));
   const names = tree
     .filter(function (node, path, parent) {
-      return node.isSymbolNode && !(parent && parent.isFunctionNode && path === "fn");
+      return node.isSymbolNode && !isFunctionName(path, parent);
     })
     .map(function (node) { return node.name; });
   return [...new Set(names)].filter(function (name) {
@@ -257,24 +258,6 @@ function evaluateList(text, sliders) {
   }
   return values;
 }
-
-// Read the text with math.js, Desmos style: every variable is one
-// letter, so "δu" means δ times u (math.js alone would read one
-// variable called "δu"). Names math.js knows, like sqrt or pi, are left
-// alone. The drawing tool does the same (readTree in graph-tool.js);
-// this version also splits Greek letters.
-function readTree(text) {
-  return math.parse(text).transform(function (node, path, parent) {
-    const isWord = node.isSymbolNode && /^\p{L}{2,}$/u.test(node.name);
-    const isFunction = parent && parent.isFunctionNode && path === "fn";
-    if (!isWord || isFunction || math[node.name] !== undefined) return node;
-    const letters = Array.from(node.name).map(function (ch) { return new math.SymbolNode(ch); });
-    return letters.reduce(function (product, letter) {
-      return new math.OperatorNode("*", "multiply", [product, letter], true);
-    });
-  });
-}
-
 
 /* =====================================================================
    3. PLACING THE ROOTS

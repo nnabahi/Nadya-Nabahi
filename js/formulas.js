@@ -21,19 +21,21 @@
 //     and refuses  x^2 + y^2 = 4  outright, so before reading, every
 //     single "=" (not part of <=, >=, == or !=) becomes "==".
 //   - every variable is one letter, so "xy" means x times y (math.js
-//     would read it as one variable called "xy"). Names math.js knows,
-//     like sin, sqrt or pi, are left alone.
+//     would read it as one variable called "xy"). Greek letters count
+//     too, so "δu" means δ times u. Names math.js knows, like sin, sqrt
+//     or pi, are left alone.
 // (math.js runs the function given to "transform" or "filter" once for
 // every piece of the tree; "path" says where that piece sits inside its
 // "parent".)
 function readTree(text) {
   const equalsFixed = text.replace(/(^|[^<>=!])=(?!=)/g, "$1==");
   return math.parse(equalsFixed).transform(function (node, path, parent) {
-    const isWord = node.isSymbolNode && /^[a-zA-Z]{2,}$/.test(node.name);
+    // \p{L} is any letter, Latin or Greek (the "u" flag lets the test use it).
+    const isWord = node.isSymbolNode && /^\p{L}{2,}$/u.test(node.name);
     if (!isWord || isFunctionName(path, parent) || math[node.name] !== undefined) return node;
     // Split e.g. "xyr" into x * y * r. The "true" means the product is
     // written without a multiplication sign, so the preview shows "xyr".
-    const letters = node.name.split("").map(function (ch) { return new math.SymbolNode(ch); });
+    const letters = Array.from(node.name).map(function (ch) { return new math.SymbolNode(ch); });
     return letters.reduce(function (product, letter) {
       return new math.OperatorNode("*", "multiply", [product, letter], true);
     });
