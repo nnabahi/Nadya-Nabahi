@@ -35,6 +35,8 @@ repeat for the same seed).
 | `sims/random-walk-coloring.html` | Random walk coloring sim (N walkers color cells by first arrival, in discrete or continuous time) |
 | `sims/random-walk-coloring.js` | That sim's page: the default start, dragging walkers, drawing, statistics, the custom domain |
 | `sims/random-walk-coloring-walk.js` | That sim's walkers (both models), run in a Web Worker |
+| `sims/random-mountain-growth.js` | Random mountain (block growth): the growth rule only, no page yet |
+| `sims/random-mountain-check.html`, `.js` | Tests of that growth rule (against nadya's Python, exact odds, invariants); not linked from the site |
 
 ## Common changes
 
