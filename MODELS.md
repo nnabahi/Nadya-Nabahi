@@ -13,11 +13,11 @@ and the Numbers/ plot images are left out.
 
 ---
 
-## 1. Random packings: your favourites, build these first
+## 1. Random packings: your favorites, build these first
 
 ### 1a. Random disk packing in the unit disk (your "gasket" model)
-Centres land at random in the unit disk, at a distance from the middle set by a
-parameter **s**. One value of s gives uniform spread. A centre that falls inside an
+Centers land at random in the unit disk, at a distance from the middle set by a
+parameter **s**. One value of s gives uniform spread. A center that falls inside an
 earlier disk is thrown away. Otherwise the new disk grows until it touches the
 boundary or an earlier disk.
 
@@ -47,13 +47,13 @@ The folder has the two halves of this but not one file that does both:
 - Older: `randomtilingpython.py` (random dominoes), `InteractiveSetups/RandomTilings.js`, `randtiling.py`
 
 ### 1c. Growing circles in a square (geology grains)
-Circles grow one at a time in the unit square until they touch a neighbour or the
+Circles grow one at a time in the unit square until they touch a neighbor or the
 edge (max radius 0.1). The square is then squashed into ellipses (aspect ratios 1:1,
 2:1 and 3:1) and clipped to a sub-box to see how clipping biases the
 diameter-perimeter slope. Your write-up found 0.978, 0.982 and 0.984 instead of 1.
 - `gptcircleclipping.py`, `GeologyProgramming/Simulation Write Up.pdf`, `growing_circles_*.png`
 - Rough grains: `randombrownianbridgeellipsecut.py` (a Brownian-bridge "rough ellipse", cut and measured)
-- `RandomStuff/Poisson Circles.py`: Poisson points in waves, circles growing to their nearest neighbour
+- `RandomStuff/Poisson Circles.py`: Poisson points in waves, circles growing to their nearest neighbor
 - The old site's general version: `js/sims/tilepacking.js` at commit `8e68754`
 
 ### 1d. Square packing from a random planar map
@@ -77,7 +77,7 @@ a fast sampler built on first-passage percolation.
 - Old site: `js/sims/blockgrowth.js`
 
 ## 4. Competing random walks (already being built)
-Two walkers race. Each site is coloured by whoever reaches it first, on a cycle or
+Two walkers race. Each site is colored by whoever reaches it first, on a cycle or
 an L×L torus. Your newest code computes E|interface| exactly with Dirichlet problems
 instead of only simulating.
 - `RandomColoredWalkFinal.py` (553 lines), `RandomColoredWalkFinalLevelSets.py`, `RandomColoredWalk_Companion.py`, `RandomColoredWalkOnCycle.py`, `competingwalk1d.py`, `competingwalks1dclaude.py`, `RandomWalkColoring.py` (1D interface lengths); data in `exact/`, `data/`, `interface_*.csv`
@@ -110,7 +110,7 @@ roots and the heights of the bumps.
 - Tree plus k extra edges, counting shortest paths: `randsmallworldtrees.py`
 - Bounded-degree random trees: `randtreedegd`
 - A graph that randomly gains and loses nodes and edges, with spectrum snapshots: `randgraphwalkongraph`
-- "Cities" (vertices pass value along edges, looking for stable colourings): `CityFun.py`, `Numbers/CityFun.tex`
+- "Cities" (vertices pass value along edges, looking for stable colorings): `CityFun.py`, `Numbers/CityFun.tex`
 
 ## 9. Random iterations
 - Two points re-drawn uniformly between each other until they meet: `randomconvergence.py`, `randomconvergence3starting.py`, `randomconvergence2d` (triangle version)
@@ -144,14 +144,14 @@ roots and the heights of the bumps.
 ---
 
 ## Suggested build order
-Your favourites come first, then whatever reuses their code.
+Your favorites come first, then whatever reuses their code.
 
 1. **Random disk packing in the unit disk (1a).** Your biggest body of work, with clear statistics for the lower-left panel: degrees, generations, coverage and dimension.
-2. **Fixed tileset packing a grid (1b).** Your favourite. It combines `tiling_mcmc.py` with the maximal-with-gaps rule from `randpackagain.py`, and runs on the site's grid tool.
+2. **Fixed tileset packing a grid (1b).** Your favorite. It combines `tiling_mcmc.py` with the maximal-with-gaps rule from `randpackagain.py`, and runs on the site's grid tool.
 3. **Growing circles in a square (1c),** the general version you already had, plus the clipping study.
 4. **Random fragmentation (2).** Small, and the same "s" idea as 1a.
 5. **Random mountain (3).**
 6. **Random functions with random roots (5).**
 7. **Random digits (6).**
 
-Competing walks (4) and connected colouring are already being built in their own threads.
+Competing walks (4) and connected coloring are already being built in their own threads.

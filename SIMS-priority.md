@@ -7,7 +7,7 @@ For the full list of models actually in nadya's Programming folder, see `MODELS.
 - **Sim**: a model with real mathematics behind it, where moving the sliders teaches you something.
 - **Toy**: something pretty or fun that doesn't need a full four-quadrant page.
 
-The two sims already in progress, connected colouring and random walk colouring,
+The two sims already in progress, connected coloring and random walk coloring,
 are left out. Most of these were judged from their names and formulas rather than
 nadya's Python, so treat this as a starting point.
 
@@ -24,7 +24,7 @@ nadya's Python, so treat this as a starting point.
 | 7 | Random digit measures | D11, D16, continued / base-B (random numbers part); D5, D7 (as statistics) | All are "pick digits with unequal weights and look at the distribution": singular CDFs and multifractal densities. | Salem, *Trans. AMS* 53 (1943) 427; Mandelbrot 1974 (above) |
 | 8 | Growth models | Random block growth, Durrett-style growth, antisocial cells | One engine with a rule picker, so three ideas don't become three pages. | Eden, *Proc. 4th Berkeley Symp.* 4 (1961) 223; Richardson, *Proc. Camb. Phil. Soc.* 74 (1973) 515 (shape theorem) |
 | 9 | Lattice path counting | D8, D9 (as presets) | The old version already takes typed rules, so the parity and mod rules become presets. | |
-| 10 | Random trees | | Reuses Wilson's algorithm from the colouring sim, so it's nearly free afterwards. | Wilson, *STOC* 1996; Aldous, *Ann. Probab.* 19 (1991) 1 |
+| 10 | Random trees | | Reuses Wilson's algorithm from the coloring sim, so it's nearly free afterwards. | Wilson, *STOC* 1996; Aldous, *Ann. Probab.* 19 (1991) 1 |
 | 11 | Move-to-front list | D17 | Small, with a known exact answer to check against. | Hendricks, *J. Appl. Probab.* 9 (1972) 231 |
 | 12 | Product over a renewal walk | D1 | Possibly the most research-like idea, but nadya needs to explain it before it can be ranked properly. | |
 | 13 | Random walks page | Random bridges / mountains, dyadic walk, competing walks | Each is thin alone. Together they make one page on walk shapes. | |
