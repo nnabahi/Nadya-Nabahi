@@ -278,7 +278,7 @@ a.card:hover {
 /* =====================================================================
    6. Toys n' Sims: the four-quadrant layout
    ---------------------------------------------------------------------
-   HTML shape (see sims/example.html):
+   HTML shape (see sims/random-walk-coloring.html):
      <div class="quadrants">
        <section class="quad quad-sim">      main simulation     </section>
        <section class="quad quad-controls"> options / controls  </section>

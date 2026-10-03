@@ -20,7 +20,6 @@ repeat for the same seed).
 | `toys.html` | Toys n' Sims: a list of all simulations |
 | `SIMS.md` | Planning list of candidate sims and their status (not shown on the site) |
 | `sims/` | One page per simulation |
-| `sims/example.html` | Blank sim showing the four-quadrant layout; copy it to start a new sim |
 | `css/style.css` | The single stylesheet for every page |
 | `js/genre-filter.js` | Builds the genre buttons on `toys.html` and hides/shows cards |
 | `js/about-tabs.js` | The Simple / All the details tabs in a sim's About box |
@@ -39,7 +38,7 @@ repeat for the same seed).
 - **Change colors or fonts:** edit section 1 at the top of `css/style.css`.
 - **Add a page:** copy an existing page, then add its link to the top bar
   on *every* page (the top bar is copied into each file).
-- **Add a sim:** copy `sims/example.html`, fill in the four boxes, and add a
+- **Add a sim:** copy an existing sim page (like `sims/random-walk-coloring.html`), fill in the four boxes, and add a
   card for it on `toys.html` with its genre labels (`<li>` items in the
   card's `<ul class="tags">`). New genres get a filter button automatically.
 - **Move the sim quadrants around:** edit `grid-template-areas` in section 6
