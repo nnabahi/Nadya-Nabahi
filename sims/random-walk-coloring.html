@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Random walk colouring — Toys n' Sims</title>
+  <title>Random walk coloring — Toys n' Sims</title>
   <link rel="stylesheet" href="../css/style.css">
   <!-- KaTeX's styles, for the typeset formulas in the About quadrant. -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/katex.min.css">
@@ -22,18 +22,18 @@
 
   <main class="page">
     <p><a href="../toys.html">&larr; All sims</a></p>
-    <h1>Random walk colouring</h1>
+    <h1>Random walk coloring</h1>
 
     <!-- The four quadrants, as on every sim page (see sims/example.html).
-         All the behaviour lives in random-walk-colouring.js; the ids
+         All the behavior lives in random-walk-coloring.js; the ids
          below (id="...") are how that script finds each button and box. -->
     <div class="quadrants">
 
-      <!-- UPPER LEFT: the colouring and the walkers. -->
+      <!-- UPPER LEFT: the coloring and the walkers. -->
       <section class="quad quad-sim">
         <h2>Simulation</h2>
 
-        <!-- The picture. random-walk-colouring.js sets its height so the
+        <!-- The picture. random-walk-coloring.js sets its height so the
              cells come out square. -->
         <canvas id="sim-canvas"></canvas>
 
@@ -43,7 +43,7 @@
         <div id="custom-area" hidden>
           <div class="step-bar">
             <p class="step-title">Draw the region</p>
-            <p class="muted step-help">Paint the cells the walkers live on (any colour
+            <p class="muted step-help">Paint the cells the walkers live on (any color
               counts). The region must be one connected piece. Then press Done, and
               drag the walkers to where they should start.</p>
             <p class="step-status" id="step-status"></p>
@@ -55,7 +55,7 @@
           <iframe class="tool-frame" id="tool-frame" title="Graph and domain tool"></iframe>
         </div>
 
-        <!-- Messages, e.g. "every cell is coloured". -->
+        <!-- Messages, e.g. "every cell is colored". -->
         <p class="muted" id="sim-message"></p>
       </section>
 
@@ -79,9 +79,9 @@
           Size <input type="number" id="set-width" min="2" step="1">
           &times; <input type="number" id="set-height" min="2" step="1">
         </div>
-        <div class="option-row" id="neighbours-row">
-          Neighbours
-          <select id="set-neighbours">
+        <div class="option-row" id="neighbors-row">
+          Neighbors
+          <select id="set-neighbors">
             <option value="4">4 (share a side)</option>
             <option value="8">8 (sides or corners)</option>
           </select>
@@ -127,19 +127,19 @@
           <tr><td>Cells</td><td id="stat-cells"></td></tr>
           <tr><td id="stat-time-name">Time</td><td id="stat-time"></td></tr>
           <tr><td>Walker steps</td><td id="stat-moves"></td></tr>
-          <tr><td>Coloured cells</td><td id="stat-coloured"></td></tr>
-          <tr><td>Interface (edges joining two colours)</td><td id="stat-interface"></td></tr>
-          <tr><td>Regions (connected pieces of one colour)</td><td id="stat-regions"></td></tr>
-          <tr><td>Cover time (every cell coloured)</td><td id="stat-cover"></td></tr>
+          <tr><td>Colored cells</td><td id="stat-colored"></td></tr>
+          <tr><td>Interface (edges joining two colors)</td><td id="stat-interface"></td></tr>
+          <tr><td>Regions (connected pieces of one color)</td><td id="stat-regions"></td></tr>
+          <tr><td>Cover time (every cell colored)</td><td id="stat-cover"></td></tr>
         </table>
 
-        <h3 class="option-heading chart-heading">Each colour</h3>
+        <h3 class="option-heading chart-heading">Each color</h3>
         <table class="stats-table">
           <thead><tr><td></td><td>Cells</td><td>Regions</td><td>Largest region</td></tr></thead>
-          <tbody id="colour-rows"></tbody>
+          <tbody id="color-rows"></tbody>
         </table>
 
-        <h3 class="option-heading chart-heading">Cells of each colour over time</h3>
+        <h3 class="option-heading chart-heading">Cells of each color over time</h3>
         <canvas class="chart" id="sizes-chart"></canvas>
         <h3 class="option-heading chart-heading">Interface over time</h3>
         <canvas class="chart" id="interface-chart"></canvas>
@@ -162,22 +162,22 @@
 
         <div data-panel="simple">
         <p>
-          N random walkers wander around the domain, each with its own colour.
-          <strong>Every cell keeps the colour of the first walker to land on
+          N random walkers wander around the domain, each with its own color.
+          <strong>Every cell keeps the color of the first walker to land on
           it</strong>, and keeps it for good. The run ends when every cell is
-          coloured.
+          colored.
         </p>
         <p>
-          Each step, a walker moves to one of its neighbouring cells, chosen at
+          Each step, a walker moves to one of its neighboring cells, chosen at
           random. In <strong>discrete time</strong> all walkers step together,
           and if several land on a new cell at once, one of them is picked at
-          random to colour it. In <strong>continuous time</strong> each walker
+          random to color it. In <strong>continuous time</strong> each walker
           has its own random clock, and only one walker moves at a time.
         </p>
         <p>
-          The <strong>interface</strong> counts the places where two colours
-          touch. A <strong>region</strong> is a connected piece of one colour: a
-          colour can be cut into many regions, because another walker may get
+          The <strong>interface</strong> counts the places where two colors
+          touch. A <strong>region</strong> is a connected piece of one color: a
+          color can be cut into many regions, because another walker may get
           to some cells first.
         </p>
         <p>
@@ -191,35 +191,35 @@
         <div data-panel="details" hidden>
         <p>
           The domain is a graph <span class="tex">G = (V, E)</span>: the cells,
-          joined to their 4 or 8 neighbours (on a torus, the edges wrap
+          joined to their 4 or 8 neighbors (on a torus, the edges wrap
           around). Walker <span class="tex">i</span>, for
           <span class="tex">i = 1, \dots, N</span>, is at
-          <span class="tex">X^i_t</span> and carries colour
+          <span class="tex">X^i_t</span> and carries color
           <span class="tex">i</span>. Each step goes to a uniformly chosen
-          neighbour, so each walker is a simple random walk on
-          <span class="tex">G</span>. The colour of cell
+          neighbor, so each walker is a simple random walk on
+          <span class="tex">G</span>. The color of cell
           <span class="tex">v</span> is <span class="tex">C(v)</span>, with
           <span class="tex">C(v) = 0</span> while no walker has been there.
         </p>
         <p>
-          <strong>Start.</strong> Every occupied cell takes the colour of a
+          <strong>Start.</strong> Every occupied cell takes the color of a
           uniformly chosen walker on it:
         </p>
         <div class="tex">C(v) \sim \mathrm{Uniform}\{\, i : X^i_0 = v \,\}.</div>
         <p>
           <strong>Discrete time.</strong> At each step
           <span class="tex">n = 1, 2, \dots</span> all walkers move at once,
-          independently. Then every uncoloured occupied cell takes the colour of
+          independently. Then every uncolored occupied cell takes the color of
           a uniformly chosen walker on it:
         </p>
         <div class="tex">C(v) \sim \mathrm{Uniform}\{\, i : X^i_n = v \,\} \quad \text{if } C(v) = 0.</div>
         <p>
           The uniform choice is made by putting the walkers in a uniformly random
           order (the Fisher&ndash;Yates shuffle [1]) and letting the first one
-          on a cell take it. With 4 neighbours on a box, or on a torus with even
+          on a cell take it. With 4 neighbors on a box, or on a torus with even
           sides, the graph is a checkerboard (bipartite) and every step changes
-          a walker's square colour; so two walkers can only ever meet on a cell
-          if they started on the same colour of the checkerboard.
+          a walker's square color; so two walkers can only ever meet on a cell
+          if they started on the same color of the checkerboard.
         </p>
         <p>
           <strong>Continuous time.</strong> Each walker steps when its own rate-1
@@ -239,16 +239,16 @@
           <strong>Coupling.</strong> Each walker has its own stream of random
           numbers, used only for its own steps. With the same seed, the walkers
           follow exactly the same paths in both models; only the order in which
-          the steps happen differs, and with it the colouring.
+          the steps happen differs, and with it the coloring.
         </p>
         <p>
           <strong>The statistics.</strong> The interface is the number of edges
-          whose two cells have different colours (uncoloured cells don't count),
-          as in [3]. A region is a connected piece of one colour, using the
-          domain's own neighbours. Its area is its number of cells, and its
-          perimeter the number of edges from it to a different colour, so the
+          whose two cells have different colors (uncolored cells don't count),
+          as in [3]. A region is a connected piece of one color, using the
+          domain's own neighbors. Its area is its number of cells, and its
+          perimeter the number of edges from it to a different color, so the
           perimeters add up to twice the interface. The cover time is when the
-          last cell gets coloured. One walker on an
+          last cell gets colored. One walker on an
           <span class="tex">L \times L</span> torus needs about
           <span class="tex">\tfrac{4}{\pi} L^2 (\log L)^2</span> steps to visit
           every cell [4]; several walkers are faster [5].
@@ -294,11 +294,11 @@
   <!-- The Simple / All the details tabs in the About box. -->
   <script src="../js/about-tabs.js"></script>
 
-  <!-- Domains and colours shared by the sims, then the walkers (they run
+  <!-- Domains and colors shared by the sims, then the walkers (they run
        in a second thread), then this page's code. -->
   <script src="../js/sim-domains.js"></script>
-  <script src="random-walk-colouring-walk.js"></script>
-  <script src="random-walk-colouring.js"></script>
+  <script src="random-walk-coloring-walk.js"></script>
+  <script src="random-walk-coloring.js"></script>
 
 </body>
 </html>

@@ -1,5 +1,5 @@
 /* =====================================================================
-   sim-domains.js  —  domains and colours shared by the sims
+   sim-domains.js  —  domains and colors shared by the sims
    ---------------------------------------------------------------------
    Every sim that lives on cells (a box, a torus, or a region drawn in
    the graph tool) turns its domain into the same kind of object, built
@@ -8,9 +8,9 @@
 
    A domain is an object with:
      n          number of cells, numbered 0 .. n-1
-     x[v], y[v] where cell v is (cell (x, y) is centred at (x, y), as in
+     x[v], y[v] where cell v is (cell (x, y) is centerd at (x, y), as in
                 the graph tool)
-     first, nbr the neighbours of v are nbr[first[v]] .. nbr[first[v+1] - 1]
+     first, nbr the neighbors of v are nbr[first[v]] .. nbr[first[v+1] - 1]
                 (one long list, cut into pieces by "first"; the usual
                 compact way to store a graph, called CSR)
      wrap       for a torus, the x and y range that wraps around; else null
@@ -24,7 +24,7 @@
      drawnDomain(...)         a region drawn in the graph tool
      cellAt(d, x, y)          which cell is at (x, y)
      stepsFrom(d, starts)     distances through the domain
-     defaultColour(c, count)  the old site's colours
+     defaultColor(c, count)  the old site's colors
    ===================================================================== */
 
 
@@ -34,16 +34,16 @@ function wrap(v, lo, hi) {
   return lo + (((v - lo) % n) + n) % n;
 }
 
-// A width x height box of cells, with 4 or 8 neighbours. If "torus" is
+// A width x height box of cells, with 4 or 8 neighbors. If "torus" is
 // true, the right edge is glued to the left and the top to the bottom.
-function boxDomain(width, height, neighbours, torus) {
+function boxDomain(width, height, neighbors, torus) {
   const xs = [], ys = [], edges = [];
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) { xs.push(x); ys.push(y); }
   }
   // As in the graph tool: each cell looks right and up (and, with 8
-  // neighbours, diagonally), wrapping around on a torus.
-  const steps = neighbours === 8 ? [[1, 0], [0, 1], [1, 1], [1, -1]] : [[1, 0], [0, 1]];
+  // neighbors, diagonally), wrapping around on a torus.
+  const steps = neighbors === 8 ? [[1, 0], [0, 1], [1, 1], [1, -1]] : [[1, 0], [0, 1]];
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
       for (const [dx, dy] of steps) {
@@ -62,7 +62,8 @@ function boxDomain(width, height, neighbours, torus) {
 }
 
 // A domain drawn in the graph tool. "graph" is the tool's getGraph():
-// { vertices: [{id, x, y, colour}, ...], edges: [[id, id], ...] }, and
+// { vertices: [{id, x, y, colour}, ...], edges: [[id, id], ...] } ("colour" is
+// the tool's own name for that field), and
 // "toolGrid" its grid settings (for the torus).
 function drawnDomain(graph, toolGrid) {
   const index = new Map();
@@ -79,9 +80,9 @@ function drawnDomain(graph, toolGrid) {
 function makeDomain(xs, ys, edges, wrapRange, ids) {
   const n = xs.length;
 
-  // Neighbour lists, each edge in both directions. A Set drops repeats
-  // (a torus 2 wide meets the same neighbour on both sides), and a cell
-  // is never its own neighbour.
+  // Neighbor lists, each edge in both directions. A Set drops repeats
+  // (a torus 2 wide meets the same neighbor on both sides), and a cell
+  // is never its own neighbor.
   const lists = [];
   for (let v = 0; v < n; v++) lists.push(new Set());
   for (const [a, b] of edges) {
@@ -134,12 +135,12 @@ function stepsFrom(d, starts) {
   return steps;
 }
 
-// How colour c (of "count" colours) is drawn: the old site's colours.
+// How color c (of "count" colors) is drawn: the old site's colors.
 // Hues are spread evenly from red (0 degrees) round to magenta (300; going
-// all the way to 360 would come back to red), each colour a little more
+// all the way to 360 would come back to red), each color a little more
 // saturated than the last, all bright. Hue, saturation and brightness
 // ("HSV") are turned into the usual "#rrggbb".
-function defaultColour(c, count) {
+function defaultColor(c, count) {
   const hue = c / Math.max(count, 1) * 300;
   const saturation = count <= 1 ? 0.85 : 0.55 + 0.30 * c / (count - 1);
   return hsvToHex(hue, saturation, 0.95);

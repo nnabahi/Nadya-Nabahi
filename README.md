@@ -29,10 +29,10 @@ repeat for the same seed).
 | `sims/connected-colouring.html` | Random connected colouring sim (box, torus, or a domain drawn in the graph tool) |
 | `sims/connected-colouring.js` | That sim's page: domains, the start, drawing, statistics, the custom-domain steps |
 | `sims/connected-colouring-chain.js` | That sim's Markov chain (ReCom with a uniform correction), run in a Web Worker |
-| `sims/random-walk-colouring.html` | Random walk colouring sim (N walkers colour cells by first arrival, in discrete or continuous time) |
-| `sims/random-walk-colouring.js` | That sim's page: the default start, dragging walkers, drawing, statistics, the custom domain |
-| `sims/random-walk-colouring-walk.js` | That sim's walkers (both models), run in a Web Worker |
-| `js/sim-domains.js` | Domains (box, torus, drawn region) and the old site's colours, shared by the sims |
+| `sims/random-walk-coloring.html` | Random walk coloring sim (N walkers color cells by first arrival, in discrete or continuous time) |
+| `sims/random-walk-coloring.js` | That sim's page: the default start, dragging walkers, drawing, statistics, the custom domain |
+| `sims/random-walk-coloring-walk.js` | That sim's walkers (both models), run in a Web Worker |
+| `js/sim-domains.js` | Domains (box, torus, drawn region) and the old site's colors, shared by the sims |
 
 ## Common changes
 
