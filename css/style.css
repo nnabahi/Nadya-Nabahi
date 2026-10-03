@@ -737,6 +737,18 @@ body.embedded .graph-wrap {
 }
 
 
+/* Check pages (like sims/random-mountain-check.html): the table of
+   tests, each marked pass (green) or FAIL (red). */
+.check-table td {
+  padding: 3px 12px 3px 0;
+  vertical-align: top;
+  font-size: 0.9em;
+}
+
+.check-pass { color: var(--color-ok); white-space: nowrap; }
+.check-fail { color: var(--color-problem); font-weight: bold; white-space: nowrap; }
+
+
 /* =====================================================================
    9. Phones and narrow screens
    ---------------------------------------------------------------------
