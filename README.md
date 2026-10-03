@@ -26,9 +26,9 @@ repeat for the same seed).
 | `js/about-tabs.js` | The Simple / All the details tabs in a sim's About box |
 | `sims/graph-tool.html` | Graph & domain tool: paint a domain on a grid (pinned first on `toys.html`) |
 | `sims/graph-tool.js` | The graph tool's code (painting, torus, formula box, undo, save/load) |
-| `sims/connected-colouring.html` | Random connected colouring sim (box, torus, or a domain drawn in the graph tool) |
-| `sims/connected-colouring.js` | That sim's page: domains, the start, drawing, statistics, the custom-domain steps |
-| `sims/connected-colouring-chain.js` | That sim's Markov chain (ReCom with a uniform correction), run in a Web Worker |
+| `sims/connected-coloring.html` | Random connected coloring sim (box, torus, or a domain drawn in the graph tool) |
+| `sims/connected-coloring.js` | That sim's page: domains, the start, drawing, statistics, the custom-domain steps |
+| `sims/connected-coloring-chain.js` | That sim's Markov chain (ReCom with a uniform correction), run in a Web Worker |
 | `sims/random-walk-coloring.html` | Random walk coloring sim (N walkers color cells by first arrival, in discrete or continuous time) |
 | `sims/random-walk-coloring.js` | That sim's page: the default start, dragging walkers, drawing, statistics, the custom domain |
 | `sims/random-walk-coloring-walk.js` | That sim's walkers (both models), run in a Web Worker |
