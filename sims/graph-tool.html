@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Graph &amp; domain tool — Toys n' Sims</title>
+  <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <nav>
+      <a href="../about.html">About Me</a>
+      <a href="../resume.html">Resume</a>
+      <a href="../index.html">Home</a>
+      <a href="../publications.html">Publications</a>
+      <a href="../toys.html" class="active">Toys n' Sims</a>
+    </nav>
+  </header>
+
+  <main class="page">
+    <p><a href="../toys.html">&larr; All sims</a></p>
+    <h1>Graph &amp; domain tool</h1>
+
+    <!-- The four quadrants, as on every sim page (see sims/example.html).
+         All the behaviour lives in graph-tool.js; the ids below
+         (id="...") are how that script finds each button and box. -->
+    <div class="quadrants">
+
+      <!-- UPPER LEFT: the drawing. -->
+      <section class="quad quad-sim">
+        <h2>Drawing</h2>
+
+        <!-- Tools you use all the time sit right above the drawing. -->
+        <div class="toolbar">
+          <button class="tool-button selected" id="tool-paint" title="Drag to paint">Paint</button>
+          <button class="tool-button" id="tool-move" title="Drag to move the view">Move</button>
+          <button class="tool-button" id="tool-fit" title="Show the whole grid">Fit view</button>
+          <button class="tool-button" id="tool-undo" title="Undo (Ctrl+Z)">Undo</button>
+          <button class="tool-button" id="tool-redo" title="Redo (Ctrl+Shift+Z)">Redo</button>
+        </div>
+
+        <!-- The palette: graph-tool.js makes one round button per colour. -->
+        <div class="palette" id="palette"></div>
+
+        <!-- Cytoscape draws the grid inside this box. -->
+        <div class="graph-area" id="graph-area"></div>
+
+        <!-- Short messages from the tool ("Copied.", "Grid not changed: ..."). -->
+        <p class="muted" id="tool-message"></p>
+      </section>
+
+      <!-- UPPER RIGHT: settings. -->
+      <section class="quad quad-controls">
+        <h2>Options</h2>
+
+        <h3 class="option-heading">Grid</h3>
+        <div class="option-row">
+          x from <input type="number" id="set-xmin" step="1"> to <input type="number" id="set-xmax" step="1">
+        </div>
+        <div class="option-row">
+          y from <input type="number" id="set-ymin" step="1"> to <input type="number" id="set-ymax" step="1">
+        </div>
+        <div class="option-row">
+          Neighbours
+          <select id="set-neighbours">
+            <option value="4">4 (share a side)</option>
+            <option value="8">8 (sides or corners)</option>
+          </select>
+        </div>
+        <div class="option-row">
+          <label><input type="checkbox" id="set-torus"> Wrap around (torus)</label>
+        </div>
+
+        <h3 class="option-heading">View</h3>
+        <div class="option-row">
+          <label><input type="radio" name="view" value="cells" checked> Cells</label>
+          <label><input type="radio" name="view" value="dots"> Dots and edges</label>
+        </div>
+
+        <h3 class="option-heading">Whole grid</h3>
+        <div class="option-row">
+          <button class="tool-button" id="do-fill" title="Paint every cell in the current colour">Fill all</button>
+          <button class="tool-button" id="do-clear" title="Turn every cell off">Clear all</button>
+          <button class="tool-button" id="do-invert" title="Painted cells turn off; off cells get the current colour">Invert</button>
+        </div>
+
+        <h3 class="option-heading">Save and load</h3>
+        <div class="option-row">
+          <button class="tool-button" id="do-save">Save file</button>
+          <button class="tool-button" id="do-load">Load file</button>
+          <!-- A hidden file picker; the "Load file" button opens it. -->
+          <input type="file" id="load-file" accept=".json,.txt" hidden>
+        </div>
+        <div class="option-row">
+          <button class="tool-button" id="do-copy-json">Copy as JSON</button>
+          <button class="tool-button" id="do-copy-edges">Copy as edge list</button>
+        </div>
+        <textarea class="text-box" id="text-box" rows="5"
+                  placeholder="Copied text appears here. Or paste JSON or an edge list here and press Load from box."></textarea>
+        <div class="option-row">
+          <button class="tool-button" id="do-paste">Load from box</button>
+        </div>
+      </section>
+
+      <!-- LOWER LEFT: numbers about the painted domain. -->
+      <section class="quad quad-stats">
+        <h2>Statistics</h2>
+        <table class="stats-table">
+          <tr><td>Vertices (painted cells)</td><td id="stat-vertices">0</td></tr>
+          <tr><td>Edges</td><td id="stat-edges">0</td></tr>
+          <tr><td>Connected pieces</td><td id="stat-pieces">0</td></tr>
+        </table>
+        <ul class="colour-counts" id="stat-colours"></ul>
+      </section>
+
+      <!-- LOWER RIGHT: how to use it, and what the grid means. -->
+      <section class="quad quad-about">
+        <h2>About the tool</h2>
+        <p>
+          Paint a domain on the grid. The painted cells, joined to their painted
+          neighbours, form a graph; that graph is what a simulation will use.
+        </p>
+        <p>
+          <strong>Painting.</strong> With <em>Paint</em> chosen, drag to paint in
+          the current colour. Starting a drag on a cell that already has that
+          colour erases instead, so a click turns a cell on or off. The &times;
+          swatch always erases. <em>Move</em> drags the view; the mouse wheel or a
+          pinch zooms at any time.
+        </p>
+        <p>
+          <strong>Coordinates.</strong> Cell (x, y) is the unit square centred at
+          the point (x, y): it covers [x&minus;&frac12;, x+&frac12;] &times;
+          [y&minus;&frac12;, y+&frac12;]. In the dots view, the same vertex is the
+          dot at (x, y).
+        </p>
+        <p>
+          <strong>Neighbours.</strong> With 4, two cells are joined when they share
+          a side: this is the square lattice &#8484;<sup>2</sup>. With 8, cells that
+          share only a corner are joined too (the &ldquo;king's graph&rdquo;).
+          Since each cell is centred on a lattice point, &ldquo;cells sharing a
+          side&rdquo; and &ldquo;dots one step apart&rdquo; give exactly the same
+          graph, so the cells and dots views are two pictures of one graph.
+        </p>
+        <p>
+          <strong>Torus.</strong> With wrap-around on, the right edge is joined to
+          the left and the top to the bottom, giving
+          (&#8484;/W&#8484;) &times; (&#8484;/H&#8484;), where W and H are the
+          grid's width and height in cells. The faded copies around the grid show
+          the wrap; painting a copy paints the real cell.
+        </p>
+        <p>
+          <strong>Colours.</strong> Each colour reaches a simulation as its number
+          (1, 2, 3, &hellip;); 0 means off.
+        </p>
+        <p>
+          <strong>Files.</strong> <em>Save file</em> and <em>Copy as JSON</em> keep
+          everything. <em>Copy as edge list</em> gives one edge per line, like
+          <code>3,-2 4,-2</code>, which other programs read easily (for example
+          networkx's <code>read_edgelist</code>), but it forgets colours and any
+          painted cell with no painted neighbour.
+        </p>
+      </section>
+
+    </div>
+  </main>
+
+  <!-- Cytoscape.js (https://js.cytoscape.org), loaded from a public
+       file server (a "CDN"). It does the drawing, zooming and panning,
+       and the graph work like counting connected pieces. The version
+       number is fixed so an update can never change the site by surprise. -->
+  <script src="https://cdn.jsdelivr.net/npm/cytoscape@3.34.3/dist/cytoscape.min.js"></script>
+
+  <!-- This tool's own code. -->
+  <script src="graph-tool.js"></script>
+
+</body>
+</html>

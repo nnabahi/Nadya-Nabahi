@@ -16,6 +16,7 @@
      5. Home page image area
      6. Toys n' Sims: the four-quadrant layout
      7. Phones and narrow screens
+     8. Graph & domain tool (sims/graph-tool.html)
    ===================================================================== */
 
 
@@ -342,6 +343,11 @@ a.card:hover {
     overflow-x: auto;
   }
 
+  /* A shorter drawing area on phones (section 8). */
+  .graph-area {
+    height: 380px;
+  }
+
   /* Stack the four quadrants in one column, in this order. */
   .quadrants {
     grid-template-columns: 1fr;
@@ -351,4 +357,143 @@ a.card:hover {
       "stats"
       "about";
   }
+}
+
+
+/* =====================================================================
+   8. Graph & domain tool (sims/graph-tool.html)
+   ---------------------------------------------------------------------
+   The buttons, colour palette, drawing box and settings on the tool's
+   page. The drawing itself is styled in sims/graph-tool.js (section 3),
+   because Cytoscape draws it, not the browser's CSS.
+   ===================================================================== */
+
+/* A row of buttons above the drawing. */
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+/* A small rounded button, same look as the genre buttons. */
+.tool-button {
+  font: inherit;
+  font-size: 0.85em;
+  background: var(--color-surface);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  padding: 3px 12px;
+  cursor: pointer;
+}
+
+.tool-button:hover {
+  border-color: var(--color-accent);
+}
+
+/* The tool currently in use (Paint or Move). */
+.tool-button.selected {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: var(--color-surface);
+}
+
+/* The colour palette: a row of round buttons. */
+.palette {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.swatch {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;                  /* 50% = a circle */
+  border: 2px solid var(--color-border);
+  background: var(--color-surface);    /* the eraser stays white */
+  color: var(--color-text-muted);
+  font-size: 16px;
+  line-height: 1;
+  padding: 0;
+  cursor: pointer;
+}
+
+/* The colour you're painting with gets a thick dark ring. */
+.swatch.selected {
+  border: 3px solid var(--color-text);
+}
+
+/* The box Cytoscape draws in. It needs a fixed height to draw into. */
+.graph-area {
+  height: 520px;
+  border: 1px solid var(--color-border);
+  border-radius: calc(var(--corner-radius) / 2);
+  background: var(--color-placeholder);
+  cursor: crosshair;     /* painting */
+  touch-action: none;    /* on phones, a finger draws instead of scrolling the page */
+}
+
+/* With the Move tool, show the "hand" cursor. */
+.graph-area.moving {
+  cursor: grab;
+}
+
+/* Settings in the Options quadrant. */
+.option-heading {
+  font-size: 0.95em;
+  margin: 16px 0 6px;
+}
+
+.option-heading:first-of-type {
+  margin-top: 0;
+}
+
+.option-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin-bottom: 8px;
+  font-size: 0.9em;
+}
+
+.option-row input[type="number"] {
+  width: 5em;
+  font: inherit;
+}
+
+.option-row select {
+  font: inherit;
+}
+
+/* The box for copied or pasted text. */
+.text-box {
+  width: 100%;
+  font-family: monospace;
+  font-size: 0.8em;
+  margin-bottom: 8px;
+}
+
+/* The numbers in the Statistics quadrant. */
+.stats-table td {
+  padding: 2px 16px 2px 0;
+}
+
+.colour-counts {
+  list-style: none;
+  padding: 0;
+  margin: 12px 0 0;
+  font-size: 0.9em;
+}
+
+/* The little colour square next to each colour count. */
+.swatch-small {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  margin-right: 8px;
+  vertical-align: middle;
 }
