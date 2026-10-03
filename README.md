@@ -27,6 +27,7 @@ repeat for the same seed).
 | `js/about-tabs.js` | The Simple / All the details tabs in a sim's About box |
 | `js/sim-page.js` | Small helpers every sim page uses (chart drawing, the second thread, typesetting the formulas) |
 | `js/sim-domains.js` | Domains (box, torus, drawn region) and the old site's colors, shared by the sims |
+| `js/sim-formulas.js` | Reads typed formulas Desmos-style ("=" means equals, "xy" means x times y), for the graph tool and the sims |
 | `sims/graph-tool.html` | Graph & domain tool: paint a domain on a grid (pinned first on `toys.html`) |
 | `sims/graph-tool.js` | The graph tool's code (painting, torus, formula box, undo, save/load) |
 | `sims/connected-coloring.html` | Random connected coloring sim (box, torus, or a domain drawn in the graph tool) |
@@ -35,7 +36,9 @@ repeat for the same seed).
 | `sims/random-walk-coloring.html` | Random walk coloring sim (N walkers color cells by first arrival, in discrete or continuous time) |
 | `sims/random-walk-coloring.js` | That sim's page: the default start, dragging walkers, drawing, statistics, the custom domain |
 | `sims/random-walk-coloring-walk.js` | That sim's walkers (both models), run in a Web Worker |
-| `sims/random-mountain-growth.js` | Random mountain (block growth): the growth rule only, no page yet |
+| `sims/random-mountain.html` | Random mountain sim (blocks pile up on a line or grid; any tile, any domain). Not on `toys.html` yet |
+| `sims/random-mountain.js` | That sim's page: the tile formula and presets, domains, drawing, statistics, the custom domain |
+| `sims/random-mountain-growth.js` | That sim's growth rule, and the code that runs it in a Web Worker |
 | `sims/random-mountain-check.html`, `.js` | Tests of that growth rule (against nadya's Python, exact odds, invariants); not linked from the site |
 
 ## Common changes

@@ -40,9 +40,18 @@
    list of u's gives exactly her mountain. In 2D they are counted in the
    order they became available. Either way every site is equally likely.
 
-   This file is the math only: no drawing, no buttons. The sim page
-   runs it in a second thread, and sims/random-mountain-check.html tests
-   it in the browser.
+   The file has two parts, with no drawing and no buttons:
+     1. newMountain(options): the growth rule itself. The check page
+        (sims/random-mountain-check.html) tests it in the browser.
+     2. mountainWorker(): runs a mountain in a second thread (a "Web
+        Worker") for the sim page, random-mountain.js, so the page never
+        freezes. startWorker (js/sim-page.js) starts it, with
+        newMountain copied in.
+   ===================================================================== */
+
+
+/* =====================================================================
+   1. THE GROWTH RULE
    ===================================================================== */
 
 
@@ -191,4 +200,160 @@ function newMountain(options) {
   drop(m.start);
 
   return m;
+}
+
+
+/* =====================================================================
+   2. THE MOUNTAIN IN A SECOND THREAD
+   ---------------------------------------------------------------------
+   Random numbers. The library seedrandom
+   (https://github.com/davidbau/seedrandom) gives random numbers that
+   repeat exactly for the same seed. Step n always uses the n-th number
+   u_n, whatever the tile or domain. So changing the tile or the domain
+   with the same seed reuses the same u's, and the picture changes as
+   little as it can, like a Desmos slider.
+
+   The page sends:
+     { type: "setup", run, dim, tile, domain, start, seed, steps }
+         a new mountain, grown at once to "steps" steps with the same
+         seed (so changing a setting keeps the step you were at)
+     { type: "play", speed }   drop "speed" blocks per second
+                               (Infinity = as fast as possible)
+     { type: "pause" }
+     { type: "step" }          one block
+     { type: "goto", steps }   jump to that step (back or forward)
+   The worker answers with "state" messages: the available sites, their
+   heights, and the numbers for the Statistics quadrant. Each carries
+   its run number, so the page can ignore leftovers from an older run.
+   ===================================================================== */
+function mountainWorker() {
+  // seedrandom adds Math.seedrandom(seed). The version number is fixed
+  // so an update can never change the sim by surprise.
+  importScripts("https://cdn.jsdelivr.net/npm/seedrandom@3.0.5/seedrandom.min.js");
+
+  const MAX_STEPS = 10000000;   // ten million blocks at most
+  let options = null;           // the latest setup message
+  let mountain = null;          // from newMountain() (part 1)
+  let random = null;            // the seeded random numbers
+  let run = 0;
+  let problem = "";             // e.g. "The start site is outside the domain."
+
+  // Start again from one block, and grow to "steps" steps.
+  function setup(steps) {
+    random = new Math.seedrandom(String(options.seed));
+    problem = "";
+    try {
+      mountain = newMountain(options);
+    } catch (error) {
+      mountain = null;
+      problem = error.message;
+      return;
+    }
+    traceSteps = []; traceBase = []; traceHighest = []; traceStart = [];
+    traceGap = 1;
+    nextSample = 0;
+    takeSample();
+    while (mountain.steps < Math.min(steps, MAX_STEPS)) oneStep();
+  }
+
+  function oneStep() {
+    if (!mountain || mountain.steps >= MAX_STEPS) return;
+    mountain.step(random());
+    takeSample();
+  }
+
+  // The run so far, for the charts over time. A sample is taken every
+  // traceGap steps; when there are more than MAX_SAMPLES, every other one
+  // is dropped and traceGap doubles, so a long run keeps evenly spaced
+  // samples from start to end.
+  const MAX_SAMPLES = 1000;
+  let traceSteps = [], traceBase = [], traceHighest = [], traceStart = [];
+  let traceGap = 1, nextSample = 0;
+
+  function takeSample() {
+    if (mountain.steps < nextSample) return;
+    traceSteps.push(mountain.steps);
+    traceBase.push(mountain.baseSize);
+    traceHighest.push(mountain.maxHeight);
+    traceStart.push(mountain.height[mountain.start]);
+    nextSample = mountain.steps + traceGap;
+    if (traceSteps.length > MAX_SAMPLES) {
+      const even = function (value, k) { return k % 2 === 0; };
+      traceSteps = traceSteps.filter(even);
+      traceBase = traceBase.filter(even);
+      traceHighest = traceHighest.filter(even);
+      traceStart = traceStart.filter(even);
+      traceGap *= 2;
+    }
+  }
+
+  // The run loop, as in the other sims: every few milliseconds, drop the
+  // blocks that are due (at most TICK_BUDGET ms of work), then report.
+  let playing = false, speed = 20, owed = 0, lastTick = 0, timer = null;
+  const TICK_BUDGET = 25;
+
+  self.onmessage = function (event) {
+    const message = event.data;
+    if (message.type === "setup") {
+      options = message;
+      run = message.run;
+      setup(message.steps);
+      report();
+    } else if (message.type === "play") {
+      speed = message.speed;
+      if (!playing) {
+        playing = true;
+        owed = 0;
+        lastTick = performance.now();
+        timer = setTimeout(tick, 0);
+      }
+    } else if (message.type === "pause") {
+      playing = false;
+      clearTimeout(timer);
+    } else if (message.type === "step") {
+      oneStep();
+      report();
+    } else if (message.type === "goto") {
+      if (mountain && message.steps < mountain.steps) setup(message.steps);
+      else while (mountain && mountain.steps < Math.min(message.steps, MAX_STEPS)) oneStep();
+      report();
+    }
+  };
+
+  function tick() {
+    const now = performance.now();
+    const until = now + TICK_BUDGET;
+    if (speed === Infinity) {
+      do oneStep(); while (performance.now() < until);
+    } else {
+      owed = Math.min(owed + speed * (now - lastTick) / 1000, speed);   // at most 1 second behind
+      while (owed >= 1 && performance.now() < until) { oneStep(); owed--; }
+    }
+    lastTick = now;
+    report();
+    if (playing) timer = setTimeout(tick, 10);
+  }
+
+  // Send the available sites (their coordinates and heights) and the
+  // numbers to the page.
+  function report() {
+    if (!mountain) {
+      self.postMessage({ type: "state", run: run, problem: problem });
+      return;
+    }
+    const m = mountain;
+    const x = Int32Array.from(m.siteX), y = Int32Array.from(m.siteY), h = Int32Array.from(m.height);
+    self.postMessage({
+      type: "state", run: run, problem: "", dim: options.dim,
+      x: x, y: y, height: h,             // every available site, in the order they became available
+      start: m.start,
+      steps: m.steps, blocks: m.blocks, baseSize: m.baseSize,
+      available: m.available.length, maxHeight: m.maxHeight,
+      atMax: m.steps >= MAX_STEPS,
+      traceSteps: Float64Array.from(traceSteps),
+      traceBase: Float64Array.from(traceBase),
+      traceHighest: Float64Array.from(traceHighest),
+      traceStart: Float64Array.from(traceStart),
+    }, [x.buffer, y.buffer, h.buffer]);   // hand the copies over instead of copying again
+  }
 }
