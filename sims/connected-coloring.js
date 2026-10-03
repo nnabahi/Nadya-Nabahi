@@ -250,10 +250,10 @@ function setPlaying(on) {
 
    The picture is drawn screen cell by screen cell: for each square
    that shows in the picture's box, find which cell of the domain is
-   there (cellAt, js/sim-domains.js) and paint its color. A box or a
-   drawn region simply fills the box once. A torus wraps around, so
-   cellAt finds a cell for every square, and the torus can be moved and
-   zoomed (like a graph in Desmos):
+   there (cellAt, js/sim-domains.js) and paint its color. A box simply
+   fills the picture's box once. A torus (or a region drawn on one)
+   wraps around, so cellAt keeps finding cells beyond the box, and the
+   torus can be moved and zoomed (like a graph in Desmos):
      drag it                          move it
      mouse wheel, or pinch            zoom in or out, around the pointer
      the + / − / Reset buttons        zoom in, zoom out, show it all again
@@ -279,10 +279,10 @@ function drawSoon() {
   });
 }
 
-// True when the picture can be moved and zoomed: the Torus domain. (A
-// drawn region on a torus usually doesn't fill the whole torus, so it
-// stays put.)
-function scrollable() { return domainKind === "torus"; }
+// True when the picture can be moved and zoomed: on any torus, the
+// Torus domain or a region drawn on a torus in the graph tool (that one
+// has "wrap" set). Zoomed out, a drawn region repeats with the torus.
+function scrollable() { return domain !== null && Boolean(domain.wrap); }
 
 function drawColoring() {
   if (!domain || !colors || simCanvas.hidden) return;
