@@ -34,8 +34,16 @@
         <h2>Simulation</h2>
 
         <!-- The picture. random-walk-coloring.js sets its height so the
-             cells come out square. -->
-        <canvas id="sim-canvas"></canvas>
+             cells come out square. On a torus, the zoom buttons sit in
+             its top right corner. -->
+        <div class="sim-picture">
+          <canvas id="sim-canvas"></canvas>
+          <div class="zoom-buttons" id="zoom-buttons" hidden>
+            <button class="tool-button" id="zoom-in" title="Zoom in">+</button>
+            <button class="tool-button" id="zoom-out" title="Zoom out">&minus;</button>
+            <button class="tool-button" id="zoom-reset" title="Show the whole torus once again">Reset</button>
+          </div>
+        </div>
 
         <!-- Shown instead of the picture while you draw a custom domain:
              the graph tool itself, in an <iframe> (a page inside this
@@ -184,7 +192,9 @@
           <strong>Things to try:</strong> drag the walkers to new starting
           places, then press Play; switch between the two models; change N; or
           pick Custom to draw your own region. On the torus, drag the empty
-          space (or scroll over it) to slide the picture around.
+          space to slide the picture around, and zoom with the mouse wheel, a
+          pinch, or the + and &minus; buttons; zoomed out, the torus shows
+          several times side by side.
         </p>
         </div>
 
