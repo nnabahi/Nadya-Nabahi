@@ -31,7 +31,7 @@
      2. What the tool remembers (the "state")
      3. How things look (the style rules)
      4. Building the grid
-     5. The background grid lines (like Desmos)
+     5. The background: grid lines (like Desmos) and torus copies
      6. Painting, undo and redo
      7. The graph: statistics and getGraph()
      8. Saving, loading, copying and pasting
@@ -112,9 +112,6 @@ let stroke = null;        // the stroke being drawn right now, or null
 let strokeColour = 0;     // the colour this stroke paints
 let lastPoint = null;     // where the pointer was a moment ago
 
-// The 8 copies drawn around the grid when it's a torus.
-const COPY_SHIFTS = [[-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [0, 1], [1, 1]];
-
 
 // Small helpers.
 function cellName(x, y) { return x + "," + y; }
@@ -136,9 +133,6 @@ function wrap(v, lo, hi) {
   return lo + (((v - lo) % n) + n) % n;
 }
 
-// The name of a torus copy of cell (x, y), shifted by (sx, sy) grids.
-function copyName(sx, sy, x, y) { return "copy " + sx + " " + sy + " " + cellName(x, y); }
-
 
 /* =====================================================================
    3. HOW THINGS LOOK (the style rules)
@@ -157,15 +151,13 @@ function makeStyle() {
     { selector: "edge", style: { "z-index-compare": "manual", "z-index": 1, "curve-style": "straight" } },
 
     // An unpainted cell is see-through, so the background grid lines
-    // (section 4) show. An unpainted dot is a small grey dot.
+    // (section 5) show. An unpainted dot is a small grey dot.
     {
-      selector: "node.cell, node.copy",
+      selector: "node.cell",
       style: dots
         ? { shape: "ellipse", width: 0.2 * UNIT, height: 0.2 * UNIT, "background-color": OFF_DOT }
         : { shape: "rectangle", width: UNIT, height: UNIT, "background-opacity": 0 },
     },
-    // Torus copies are faded, so the real grid stands out.
-    { selector: "node.copy", style: { opacity: 0.4 } },
   ];
 
   // One rule per palette colour. Painted cells are slightly see-through,
@@ -235,21 +227,6 @@ function buildGrid() {
     }
   }
 
-  // Torus: 8 faded copies around the grid, so you can see it wrap.
-  if (grid.torus) {
-    for (const [sx, sy] of COPY_SHIFTS) {
-      for (let x = grid.xmin; x <= grid.xmax; x++) {
-        for (let y = grid.ymin; y <= grid.ymax; y++) {
-          elements.push({
-            group: "nodes", classes: "copy",
-            data: { id: copyName(sx, sy, x, y), colour: colourAt(x, y) },
-            position: drawAt(x + sx * width(), y + sy * height()),
-          });
-        }
-      }
-    }
-  }
-
   // The edges. Each cell looks right and up (and, with 8 neighbours,
   // diagonally right-up and right-down); looking the other ways would
   // only find the same edges again.
@@ -291,7 +268,7 @@ function buildGrid() {
     cy.edges(".lattice").forEach(updateEdge);
   });
   cy.fit(cy.nodes(".cell"), 30);
-  drawGridLines();
+  drawBackground();
 
   // Undo can't go back across a grid change, so start a fresh history.
   undoStack = [];
@@ -306,22 +283,23 @@ function buildGrid() {
 
 
 /* =====================================================================
-   5. THE BACKGROUND GRID LINES (like Desmos)
+   5. THE BACKGROUND: GRID LINES (like Desmos) AND TORUS COPIES
    ---------------------------------------------------------------------
    Cytoscape doesn't draw grid lines, so this draws them on a second
    <canvas id="grid-lines"> that sits underneath Cytoscape's drawing.
    Whenever the view moves or zooms, Cytoscape sends a "viewport" event
-   and the lines are drawn again.
+   and the background is drawn again.
 
      - light grey lines every cell: in cells view they are the cell
        borders (at x = ..., -0.5, 0.5, 1.5, ...); in dots view they go
        through the dots (at whole numbers)
      - grey lines every MAJOR_EVERY cells, at x = 0, 5, 10, ...
      - black axes at x = 0 and y = 0, with numbers along them
+     - on a torus: faded copies of the drawing in every direction
    ===================================================================== */
 const linesCanvas = document.getElementById("grid-lines");
 
-function drawGridLines() {
+function drawBackground() {
   // Make the canvas's pixels match its size on screen. "ratio" is 2 on
   // high-resolution screens; drawing at that density keeps lines sharp.
   const ratio = window.devicePixelRatio || 1;
@@ -352,8 +330,9 @@ function drawGridLines() {
     pen.beginPath(); pen.moveTo(0, sy); pen.lineTo(w, sy); pen.stroke();
   }
 
-  // 1. Grey everywhere, white inside the grid's limits.
-  pen.fillStyle = OUTSIDE_GRID;
+  // 1. Grey everywhere, white inside the grid's limits. (A torus has
+  //    copies of the grid everywhere, so then it's all white.)
+  pen.fillStyle = grid.torus ? BACKGROUND : OUTSIDE_GRID;
   pen.fillRect(0, 0, w, h);
   pen.fillStyle = BACKGROUND;
   pen.fillRect(screenX(grid.xmin - 0.5), screenY(grid.ymax + 0.5), width() * scale, height() * scale);
@@ -396,11 +375,89 @@ function drawGridLines() {
     }
     pen.fillText("0", yAxisAt - 4, xAxisAt + 9);
   }
+
+  // 6. Torus: faded copies of the drawing, repeated in every direction as
+  //    far as the screen reaches, so panning never runs out. They are
+  //    only pictures (the real grid is the one Cytoscape draws on top);
+  //    clicking a copy paints the real cell, because cellAt() wraps every
+  //    point back into the grid.
+  if (grid.torus) drawTorusCopies(pen, scale, screenX, screenY, left, right, bottom, top);
+}
+
+function drawTorusCopies(pen, scale, screenX, screenY, left, right, bottom, top) {
+  const W = width(), H = height();
+
+  // Copy (i, j) is the grid moved right by i*W and up by j*H.
+  // These are the first and last copies that reach onto the screen.
+  const iFrom = Math.ceil((left - grid.xmax - 0.5) / W), iTo = Math.floor((right - grid.xmin + 0.5) / W);
+  const jFrom = Math.ceil((bottom - grid.ymax - 0.5) / H), jTo = Math.floor((top - grid.ymin + 0.5) / H);
+  const copies = (iTo - iFrom + 1) * (jTo - jFrom + 1);
+  if (copies > 400) return;   // zoomed out too far to see anything useful
+
+  const painted = cy.nodes(".cell[colour > 0]");
+  const edges = cy.edges(".on").not(".wrap");   // wrap-around edges are never drawn
+  const dots = (view === "dots");
+
+  pen.globalAlpha = 0.4;   // faded
+  for (let i = iFrom; i <= iTo; i++) {
+    for (let j = jFrom; j <= jTo; j++) {
+      if (i === 0 && j === 0) continue;   // that's the real grid
+      const dx = i * W, dy = j * H;
+
+      // Dots view: the small grey unpainted dots, if they're big enough to see.
+      if (dots && scale >= 6) {
+        pen.fillStyle = OFF_DOT;
+        forEachCell(function (x, y) {
+          if (colourAt(x, y) === 0) circle(pen, screenX(x + dx), screenY(y + dy), 0.1 * scale);
+        });
+      }
+      // Dots view: the edges between painted dots.
+      if (dots) {
+        pen.strokeStyle = EDGE_COLOUR;
+        pen.lineWidth = 3 * cy.zoom();
+        edges.forEach(function (edge) {
+          const a = edge.source().data(), b = edge.target().data();
+          pen.beginPath();
+          pen.moveTo(screenX(a.x + dx), screenY(a.y + dy));
+          pen.lineTo(screenX(b.x + dx), screenY(b.y + dy));
+          pen.stroke();
+        });
+      }
+      // The painted cells (squares) or dots (circles).
+      painted.forEach(function (node) {
+        const x = node.data("x") + dx, y = node.data("y") + dy;
+        pen.fillStyle = palette[node.data("colour")];
+        if (dots) circle(pen, screenX(x), screenY(y), 0.225 * scale);
+        else pen.fillRect(screenX(x) - scale / 2, screenY(y) - scale / 2, scale, scale);
+      });
+    }
+  }
+  pen.globalAlpha = 1;
+
+  // A dashed outline around the real grid, so you can tell which copy it is.
+  pen.strokeStyle = MAJOR_LINE;
+  pen.lineWidth = 1.5;
+  pen.setLineDash([6, 4]);
+  pen.strokeRect(screenX(grid.xmin - 0.5), screenY(grid.ymax + 0.5), W * scale, H * scale);
+  pen.setLineDash([]);
+}
+
+// A filled circle of radius r centred at (sx, sy) on screen.
+function circle(pen, sx, sy, r) {
+  pen.beginPath();
+  pen.arc(sx, sy, r, 0, 2 * Math.PI);
+  pen.fill();
+}
+
+// The torus copies are drawn on the background, so it must be redrawn
+// whenever a colour changes. (Without a torus there's nothing to update.)
+function redrawCopies() {
+  if (grid.torus) drawBackground();
 }
 
 // Redraw the lines whenever the view moves or zooms, or the window resizes.
-cy.on("viewport", drawGridLines);
-window.addEventListener("resize", drawGridLines);
+cy.on("viewport", drawBackground);
+window.addEventListener("resize", drawBackground);
 
 
 /* =====================================================================
@@ -421,12 +478,10 @@ function setColour(x, y, c) {
   if (c === 0) delete colourOf[cellName(x, y)];
   else colourOf[cellName(x, y)] = c;
 
-  // Recolour the cell, its torus copies, and the edges touching it.
+  // Recolour the cell and the edges touching it. (Torus copies are
+  // redrawn by redrawCopies(), once per mouse move rather than per cell.)
   const node = cy.getElementById(cellName(x, y));
   node.data("colour", c);
-  if (grid.torus) {
-    for (const [sx, sy] of COPY_SHIFTS) cy.getElementById(copyName(sx, sy, x, y)).data("colour", c);
-  }
   node.connectedEdges().forEach(updateEdge);
 }
 
@@ -474,6 +529,7 @@ cy.on("tapstart", function (event) {
   strokeColour = startsOnSameColour ? 0 : currentColour;
 
   if (cell) setColour(cell.x, cell.y, strokeColour);
+  redrawCopies();
 });
 
 // Pointer moves: keep painting if a stroke is going.
@@ -481,6 +537,7 @@ cy.on("tapdrag", function (event) {
   if (!stroke) return;
   cy.batch(function () { paintAlong(lastPoint, event.position); });
   lastPoint = event.position;
+  redrawCopies();
 });
 
 // Pointer comes up (on or off the drawing): the stroke is finished.
@@ -494,6 +551,7 @@ function finishStroke() {
     redoStack = [];            // a new change makes old redos meaningless
   }
   stroke = null;
+  redrawCopies();
   updateStats();
 }
 
@@ -525,6 +583,7 @@ function replay(from, to, which) {
     });
   });
   to.push(step);
+  redrawCopies();
   updateStats();
 }
 
@@ -808,6 +867,7 @@ chooser.addEventListener("change", function () {
   }
   buildPalette();
   restyle();        // repaint cells of that colour
+  redrawCopies();   // and their torus copies
   updateStats();    // the colour list shows the swatches too
 });
 
@@ -858,7 +918,7 @@ for (const radio of document.querySelectorAll('input[name="view"]')) {
   radio.addEventListener("change", function () {
     view = radio.value;
     restyle();
-    drawGridLines();   // the light lines move between cell borders and dots
+    drawBackground();   // the light lines move between cell borders and dots
   });
 }
 
