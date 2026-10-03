@@ -222,6 +222,7 @@ function buildGrid() {
     for (let y = grid.ymin; y <= grid.ymax; y++) {
       elements.push({
         group: "nodes", classes: "cell",
+        pannable: true,   // with the Move tool, dragging on a cell moves the view
         data: { id: cellName(x, y), x: x, y: y, colour: colourAt(x, y) },
         position: drawAt(x, y),
       });
@@ -297,7 +298,8 @@ function buildGrid() {
        through the dots (at whole numbers)
      - grey lines every MAJOR_EVERY cells, at x = 0, 5, 10, ...
      - black axes at x = 0 and y = 0, with numbers along them
-     - on a torus: faded copies of the drawing in every direction
+     - on a torus: copies of the drawing, and of the lines, axes and
+       numbers, in every direction
    ===================================================================== */
 const linesCanvas = document.getElementById("grid-lines");
 
@@ -347,43 +349,86 @@ function drawBackground() {
     for (let y = Math.ceil(bottom - offset) + offset; y <= top; y++) horizontalLine(y, MINOR_LINE, 1);
   }
 
+  // Where the grey lines and the axes go (see majorLines and placesOf
+  // below). On a torus they are the real grid's lines, repeated in every
+  // copy, and the numbers are the real coordinates: on a torus 10 wide,
+  // the copy of the line x = 5 is labelled 5 again.
+  const W = width(), H = height();
+  const majorX = majorLines(left, right, grid.xmin, grid.xmax, W);
+  const majorY = majorLines(bottom, top, grid.ymin, grid.ymax, H);
+  const axisX = placesOf(0, left, right, grid.xmin, grid.xmax, W);     // the y-axis (x = 0)
+  const axisY = placesOf(0, bottom, top, grid.ymin, grid.ymax, H);     // the x-axis (y = 0)
+
   // 3. Grey lines every MAJOR_EVERY cells.
   const major = MAJOR_EVERY * scale;   // pixels between grey lines
   if (major >= 4) {
-    for (let x = Math.ceil(left / MAJOR_EVERY) * MAJOR_EVERY; x <= right; x += MAJOR_EVERY) verticalLine(x, MAJOR_LINE, 1);
-    for (let y = Math.ceil(bottom / MAJOR_EVERY) * MAJOR_EVERY; y <= top; y += MAJOR_EVERY) horizontalLine(y, MAJOR_LINE, 1);
+    for (const line of majorX) for (const at of line.places) verticalLine(at, MAJOR_LINE, 1);
+    for (const line of majorY) for (const at of line.places) horizontalLine(at, MAJOR_LINE, 1);
   }
 
   // 4. The axes.
-  verticalLine(0, AXIS_LINE, 1.5);
-  horizontalLine(0, AXIS_LINE, 1.5);
+  for (const at of axisX) verticalLine(at, AXIS_LINE, 1.5);
+  for (const at of axisY) horizontalLine(at, AXIS_LINE, 1.5);
 
-  // 5. Numbers at the grey lines, next to the axes. When an axis is off
-  //    screen, its numbers stay along the nearest edge (as in Desmos).
+  // 5. Numbers at the grey lines, next to each axis. When no axis is on
+  //    screen, the numbers stay along the nearest edge (as in Desmos).
   if (major >= 28) {
     pen.fillStyle = LABEL_COLOUR;
     pen.font = "11px sans-serif";
-    const xAxisAt = Math.min(Math.max(screenY(0), 0), h - 14);   // height of the x-axis numbers
-    const yAxisAt = Math.min(Math.max(screenX(0), 24), w);       // the y-axis numbers end here
+    const rows = (axisY.length > 0 ? axisY : [0]).map(function (y) {   // heights of the x-axis numbers
+      return Math.min(Math.max(screenY(y), 0), h - 14);
+    });
+    const cols = (axisX.length > 0 ? axisX : [0]).map(function (x) {   // where the y-axis numbers end
+      return Math.min(Math.max(screenX(x), 24), w);
+    });
     pen.textAlign = "center";
     pen.textBaseline = "top";
-    for (let x = Math.ceil(left / MAJOR_EVERY) * MAJOR_EVERY; x <= right; x += MAJOR_EVERY) {
-      if (x !== 0) pen.fillText(String(x), screenX(x), xAxisAt + 3);
+    for (const row of rows) {
+      for (const line of majorX) {
+        if (line.value === 0) continue;
+        for (const at of line.places) pen.fillText(String(line.value), screenX(at), row + 3);
+      }
     }
     pen.textAlign = "right";
     pen.textBaseline = "middle";
-    for (let y = Math.ceil(bottom / MAJOR_EVERY) * MAJOR_EVERY; y <= top; y += MAJOR_EVERY) {
-      if (y !== 0) pen.fillText(String(y), yAxisAt - 4, screenY(y));
+    for (const col of cols) {
+      for (const line of majorY) {
+        if (line.value === 0) continue;
+        for (const at of line.places) pen.fillText(String(line.value), col - 4, screenY(at));
+      }
     }
-    pen.fillText("0", yAxisAt - 4, xAxisAt + 9);
+    for (const row of rows) for (const col of cols) pen.fillText("0", col - 4, row + 9);   // where axes cross
   }
 
-  // 6. Torus: faded copies of the drawing, repeated in every direction as
-  //    far as the screen reaches, so panning never runs out. They are
-  //    only pictures (the real grid is the one Cytoscape draws on top);
+  // 6. Torus: copies of the drawing, repeated in every direction as far
+  //    as the screen reaches, so panning never runs out. They are only
+  //    pictures (the real grid is the one Cytoscape draws on top);
   //    clicking a copy paints the real cell, because cellAt() wraps every
   //    point back into the grid.
   if (grid.torus) drawTorusCopies(pen, scale, screenX, screenY, left, right, bottom, top);
+}
+
+// Every place between "from" and "to" where the line for the value v
+// goes. Without a torus that's just v. On a torus it's v in every copy
+// (v, v + period, v - period, ...), but only if v is inside the real grid
+// (lo to hi), since otherwise no copy contains it.
+function placesOf(v, from, to, lo, hi, period) {
+  if (!grid.torus) return (v >= from && v <= to) ? [v] : [];
+  if (v < lo || v > hi) return [];
+  const places = [];
+  for (let k = Math.ceil((from - v) / period); v + k * period <= to; k++) places.push(v + k * period);
+  return places;
+}
+
+// The grey lines, as a list of { value, places }: one for each multiple
+// of MAJOR_EVERY on screen (or, on a torus, inside the real grid).
+function majorLines(from, to, lo, hi, period) {
+  const a = grid.torus ? lo : from, b = grid.torus ? hi : to;
+  const lines = [];
+  for (let v = Math.ceil(a / MAJOR_EVERY) * MAJOR_EVERY; v <= b; v += MAJOR_EVERY) {
+    lines.push({ value: v, places: placesOf(v, from, to, lo, hi, period) });
+  }
+  return lines;
 }
 
 function drawTorusCopies(pen, scale, screenX, screenY, left, right, bottom, top) {
@@ -400,7 +445,9 @@ function drawTorusCopies(pen, scale, screenX, screenY, left, right, bottom, top)
   const edges = cy.edges(".on").not(".wrap");   // wrap-around edges are never drawn
   const dots = (view === "dots");
 
-  pen.globalAlpha = 0.4;   // faded
+  // As see-through as the real cells (0.85 in cells view, see section 3),
+  // so copies and the real grid look the same.
+  pen.globalAlpha = dots ? 1 : 0.85;
   for (let i = iFrom; i <= iTo; i++) {
     for (let j = jFrom; j <= jTo; j++) {
       if (i === 0 && j === 0) continue;   // that's the real grid
