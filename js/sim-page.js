@@ -8,7 +8,7 @@
      byId(id)                         the element with that id="..."
      showMessage(text)                a line of text under the picture
      readWhole(id, lo, hi, fallback)  a whole number typed in a box
-     startWorker(fn)                  run a function in a second thread
+     startWorker(fn, helpers)         run a function in a second thread
      CHART_TEXT, CHART_LINE           the colors of the small charts
      chartPen(canvas)                 get a small chart ready to draw on
 
@@ -39,9 +39,12 @@ function readWhole(id, lo, hi, fallback) {
 // file's address, which browsers refuse for pages opened straight from
 // the computer (file://). So the function's own text is wrapped in a
 // "Blob" (a file made in memory) and the worker is made from that; it
-// works both ways.
-function startWorker(fn) {
-  const code = new Blob(["(" + fn.toString() + ")();"], { type: "text/javascript" });
+// works both ways. "helpers" (optional) is a list of other functions
+// the worker uses; their text is put in first, so "fn" can call them.
+function startWorker(fn, helpers) {
+  const parts = (helpers || []).map(function (helper) { return helper.toString() + "\n"; });
+  parts.push("(" + fn.toString() + ")();");
+  const code = new Blob(parts, { type: "text/javascript" });
   return new Worker(URL.createObjectURL(code));
 }
 
