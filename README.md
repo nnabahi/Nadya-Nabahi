@@ -18,6 +18,7 @@ repeat for the same seed).
 | `resume.html` | Resume |
 | `publications.html` | Publications |
 | `toys.html` | Toys n' Sims: a list of all simulations |
+| `SIMS.md` | Planning list of candidate sims and their status (not shown on the site) |
 | `sims/` | One page per simulation |
 | `sims/example.html` | Blank sim showing the four-quadrant layout; copy it to start a new sim |
 | `css/style.css` | The single stylesheet for every page |
