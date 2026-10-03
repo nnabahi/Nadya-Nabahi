@@ -25,7 +25,7 @@
     <h1>Graph &amp; domain tool</h1>
 
     <!-- The four quadrants, as on every sim page (see sims/example.html).
-         All the behaviour lives in graph-tool.js; the ids below
+         All the behavior lives in graph-tool.js; the ids below
          (id="...") are how that script finds each button and box. -->
     <div class="quadrants">
 
@@ -43,20 +43,20 @@
         </div>
 
         <!-- The palette: graph-tool.js fills id="palette" with one square
-             per colour, 7 across. The buttons next to it pick the eraser,
-             swap the chosen colour, or add a new one. -->
+             per color, 7 across. The buttons next to it pick the eraser,
+             swap the chosen color, or add a new one. -->
         <div class="palette-area">
           <div class="palette" id="palette"></div>
           <div class="palette-buttons">
             <button class="tool-button" id="eraser" title="Turn cells off">Eraser</button>
-            <button class="tool-button" id="swap-colour" title="Change the chosen colour">Swap colour</button>
-            <button class="tool-button" id="add-colour" title="Add a new colour to the palette">+ Add colour</button>
-            <!-- The browser's colour chooser. It's invisible; the two
+            <button class="tool-button" id="swap-color" title="Change the chosen color">Swap color</button>
+            <button class="tool-button" id="add-color" title="Add a new color to the palette">+ Add color</button>
+            <!-- The browser's color chooser. It's invisible; the two
                  buttons above open it. -->
-            <input type="color" id="colour-chooser" class="invisible-input" tabindex="-1">
+            <input type="color" id="color-chooser" class="invisible-input" tabindex="-1">
           </div>
         </div>
-        <p class="muted" id="current-colour"></p>
+        <p class="muted" id="current-color"></p>
 
         <!-- The drawing: two layers on top of each other. Underneath, a
              canvas with the Desmos-style grid lines; on top, the box
@@ -82,8 +82,8 @@
           y from <input type="number" id="set-ymin" step="1"> to <input type="number" id="set-ymax" step="1">
         </div>
         <div class="option-row">
-          Neighbours
-          <select id="set-neighbours">
+          Neighbors
+          <select id="set-neighbors">
             <option value="4">4 (share a side)</option>
             <option value="8">8 (sides or corners)</option>
           </select>
@@ -120,9 +120,9 @@
 
         <h3 class="option-heading">Whole grid</h3>
         <div class="option-row">
-          <button class="tool-button" id="do-fill" title="Paint every cell in the current colour">Fill all</button>
+          <button class="tool-button" id="do-fill" title="Paint every cell in the current color">Fill all</button>
           <button class="tool-button" id="do-clear" title="Turn every cell off">Clear all</button>
-          <button class="tool-button" id="do-invert" title="Painted cells turn off; off cells get the current colour">Invert</button>
+          <button class="tool-button" id="do-invert" title="Painted cells turn off; off cells get the current color">Invert</button>
         </div>
 
         <h3 class="option-heading">Save and load</h3>
@@ -151,7 +151,7 @@
           <tr><td>Edges</td><td id="stat-edges">0</td></tr>
           <tr><td>Connected pieces</td><td id="stat-pieces">0</td></tr>
         </table>
-        <ul class="colour-counts" id="stat-colours"></ul>
+        <ul class="color-counts" id="stat-colors"></ul>
       </section>
 
       <!-- LOWER RIGHT: how to use it, and what the grid means. -->
@@ -159,31 +159,31 @@
         <h2>About the tool</h2>
         <p>
           Paint a domain on the grid. The painted cells, joined to their painted
-          neighbours, form a graph; that graph is what a simulation will use.
+          neighbors, form a graph; that graph is what a simulation will use.
         </p>
         <p>
           <strong>Painting.</strong> With <em>Paint</em> chosen, drag to paint in
-          the current colour. Starting a drag on a cell that already has that
-          colour erases instead, so a click turns a cell on or off. The
-          <em>Eraser</em> always erases. <em>Swap colour</em> changes the chosen
-          square's colour (cells already painted with it change too), and
-          <em>+ Add colour</em> adds a new one. <em>Move</em> drags the view; the mouse wheel or a
+          the current color. Starting a drag on a cell that already has that
+          color erases instead, so a click turns a cell on or off. The
+          <em>Eraser</em> always erases. <em>Swap color</em> changes the chosen
+          square's color (cells already painted with it change too), and
+          <em>+ Add color</em> adds a new one. <em>Move</em> drags the view; the mouse wheel or a
           pinch zooms at any time.
         </p>
         <p>
-          <strong>Coordinates.</strong> Cell (x, y) is the unit square centred at
+          <strong>Coordinates.</strong> Cell (x, y) is the unit square centered at
           the point (x, y): it covers [x&minus;&frac12;, x+&frac12;] &times;
           [y&minus;&frac12;, y+&frac12;]. In the dots view, the same vertex is the
           dot at (x, y). As in Desmos, the black lines are the axes, numbered
-          every 5 units. The light grey lines are every unit: the cell borders in
+          every 5 units. The light gray lines are every unit: the cell borders in
           the cells view, and through the dots in the dots view, where darker
-          grey lines also mark every 5 units.
+          gray lines also mark every 5 units.
         </p>
         <p>
-          <strong>Neighbours.</strong> With 4, two cells are joined when they share
+          <strong>Neighbors.</strong> With 4, two cells are joined when they share
           a side: this is the square lattice &#8484;<sup>2</sup>. With 8, cells that
           share only a corner are joined too (the &ldquo;king's graph&rdquo;).
-          Since each cell is centred on a lattice point, &ldquo;cells sharing a
+          Since each cell is centered on a lattice point, &ldquo;cells sharing a
           side&rdquo; and &ldquo;dots one step apart&rdquo; give exactly the same
           graph, so the cells and dots views are two pictures of one graph.
         </p>
@@ -193,13 +193,13 @@
           (&#8484;/W&#8484;) &times; (&#8484;/H&#8484;), where W and H are the
           grid's width and height in cells. Copies of the drawing, with their
           own axes and grid lines, repeat in every direction however far you pan.
-          Numbers on the axes are the real coordinates, so each copy is labelled
+          Numbers on the axes are the real coordinates, so each copy is labeled
           the same. Painting a copy paints the real cell.
         </p>
         <p>
           <strong>Formula.</strong> Type a condition such as
           <code>x^2 + y^2 &lt;= r^2</code> or <code>4 &lt;= x^2 + y^2 &lt;= 25</code>;
-          each cell whose centre (x, y) satisfies it is painted, and the grid
+          each cell whose center (x, y) satisfies it is painted, and the grid
           follows the formula live as you type or move a slider. Every letter
           besides x and y gets a slider. As in Desmos, <code>xy</code> means
           x&middot;y and <code>=</code> means equals; use <code>abs(x)</code> for
@@ -209,15 +209,15 @@
           drawn. <em>Done</em> (or painting) keeps the result as one Undo step.
         </p>
         <p>
-          <strong>Colours.</strong> Each colour reaches a simulation as its number
+          <strong>Colors.</strong> Each color reaches a simulation as its number
           (1, 2, 3, &hellip;); 0 means off.
         </p>
         <p>
           <strong>Files.</strong> <em>Save file</em> and <em>Copy as JSON</em> keep
           everything. <em>Copy as edge list</em> gives one edge per line, like
           <code>3,-2 4,-2</code>, which other programs read easily (for example
-          networkx's <code>read_edgelist</code>), but it forgets colours and any
-          painted cell with no painted neighbour.
+          networkx's <code>read_edgelist</code>), but it forgets colors and any
+          painted cell with no painted neighbor.
         </p>
       </section>
 
@@ -231,7 +231,7 @@
   <script src="https://cdn.jsdelivr.net/npm/cytoscape@3.34.3/dist/cytoscape.min.js"></script>
 
   <!-- math.js (https://mathjs.org) reads the typed formula, and KaTeX
-       (https://katex.org) shows it as typeset maths. -->
+       (https://katex.org) shows it as typeset math. -->
   <script src="https://cdn.jsdelivr.net/npm/mathjs@15.2.0/lib/browser/math.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/katex.min.js"></script>
 

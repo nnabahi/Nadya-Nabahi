@@ -3,12 +3,12 @@
    ---------------------------------------------------------------------
    What it does, in plain words:
      - Draws a square grid. Each grid cell (x, y) is the unit square
-       centred at the point (x, y), i.e. [x-1/2, x+1/2] x [y-1/2, y+1/2].
-     - You paint cells with colours. Colour 0 means "off" (not in the
-       domain); colours 1, 2, 3, ... are handed to sims as numbers.
-     - The painted cells, plus the edges between painted neighbours,
+       centered at the point (x, y), i.e. [x-1/2, x+1/2] x [y-1/2, y+1/2].
+     - You paint cells with colors. Color 0 means "off" (not in the
+       domain); colors 1, 2, 3, ... are handed to sims as numbers.
+     - The painted cells, plus the edges between painted neighbors,
        form a graph. That graph is what a sim will receive.
-     - A formula box paints every cell whose centre satisfies a
+     - A formula box paints every cell whose center satisfies a
        condition, like x^2 + y^2 <= r^2, with a slider for r.
 
    The drawing, zooming, panning and touch support all come from
@@ -21,7 +21,7 @@
      - "node"         a vertex. Here: one grid cell, drawn as a square
                       or a dot.
      - "edge"         a line between two nodes.
-     - "data"         numbers stored on a node, e.g. its colour.
+     - "data"         numbers stored on a node, e.g. its color.
      - "class"        a label on a node or edge (like class="..." in
                       HTML) that the style rules below can pick out.
      - "position"     where a node is drawn, in Cytoscape's own units.
@@ -29,7 +29,7 @@
                       is drawn at (x * UNIT, -y * UNIT).
 
    The file is split into numbered sections:
-     1. Settings you might want to change (colours, sizes)
+     1. Settings you might want to change (colors, sizes)
      2. What the tool remembers (the "state")
      3. How things look (the style rules)
      4. Building the grid
@@ -47,10 +47,10 @@
    1. SETTINGS YOU MIGHT WANT TO CHANGE
    ===================================================================== */
 
-// The starting palette: 14 colours, shown as a grid 7 across and 2 high.
-// Position 0 is "off" (the eraser). Every other position is a colour you
+// The starting palette: 14 colors, shown as a grid 7 across and 2 high.
+// Position 0 is "off" (the eraser). Every other position is a color you
 // can paint with; its number (1, 2, ...) is what a sim gets. On the page
-// you can swap any colour or add more, and Save keeps them.
+// you can swap any color or add more, and Save keeps them.
 let palette = [
   null,        // 0 = off
   // first row
@@ -67,23 +67,23 @@ let palette = [
   "#9ad13b",   // 10 lime
   "#5bb3e6",   // 11 sky blue
   "#a58fd6",   // 12 lavender
-  "#8a8a8a",   // 13 grey
+  "#8a8a8a",   // 13 gray
   "#000000",   // 14 black
 ];
 
-// The background grid, like Desmos: black axes, light grey lines every
-// cell, and (dots view only) grey lines every MAJOR_EVERY cells.
+// The background grid, like Desmos: black axes, light gray lines every
+// cell, and (dots view only) gray lines every MAJOR_EVERY cells.
 const BACKGROUND   = "#ffffff";   // inside the grid's x/y limits
 const OUTSIDE_GRID = "#f0f0f0";   // outside them (no cells there)
 const MINOR_LINE   = "#e4e4e4";   // every cell
 const MAJOR_LINE   = "#b4b4b4";   // every MAJOR_EVERY cells (dots view)
 const AXIS_LINE    = "#000000";   // the lines x = 0 and y = 0
-const LABEL_COLOUR = "#333333";   // the numbers along the axes
+const LABEL_COLOR = "#333333";   // the numbers along the axes
 const MAJOR_EVERY  = 5;           // also how often the axes get a number
 
 // Cells and dots. Dot sizes are in cells: 0.45 is just under half a cell.
 const OFF_DOT      = "#bdbdbd";   // an unpainted dot (dots view)
-const EDGE_COLOUR  = "#333333";   // an edge between two painted dots
+const EDGE_COLOR  = "#333333";   // an edge between two painted dots
 const EDGE_WIDTH   = 3;           // its thickness, in Cytoscape units
 const OFF_DOT_SIZE = 0.2;         // width of an unpainted dot
 const DOT_SIZE     = 0.45;        // width of a painted dot
@@ -105,29 +105,29 @@ const SMALLEST_STEP = 0.001;
 const grid = {
   xmin: -10, xmax: 10,
   ymin: -10, ymax: 10,
-  neighbours: 4,       // 4 = share a side; 8 = sides or corners
+  neighbors: 4,       // 4 = share a side; 8 = sides or corners
   torus: false,        // true = right edge joins left, top joins bottom
 };
 
-// The colour of every painted cell, e.g. { "3,-2": 1, "0,0": 4 }.
-// A cell that isn't listed is off (colour 0).
-let colourOf = {};
+// The color of every painted cell, e.g. { "3,-2": 1, "0,0": 4 }.
+// A cell that isn't listed is off (color 0).
+let colorOf = {};
 
-let currentColour = 1;   // the palette colour you're painting with
+let currentColor = 1;   // the palette color you're painting with
 let tool = "paint";      // "paint" or "move"
 let view = "cells";      // "cells" or "dots"
 
 // Undo and redo. Each entry is one brush stroke (or one button press):
-// a Map from cell name "x,y" to { before: colour, after: colour }.
+// a Map from cell name "x,y" to { before: color, after: color }.
 let undoStack = [];
 let redoStack = [];
 let stroke = null;        // the stroke being drawn right now, or null
-let strokeColour = 0;     // the colour this stroke paints
+let strokeColor = 0;     // the color this stroke paints
 let lastPoint = null;     // where the pointer was a moment ago
 
 // The formula box (section 9).
 let formula = null;         // the formula, ready to evaluate (null if none)
-let beforeFormula = null;   // a copy of colourOf from before the formula changed anything
+let beforeFormula = null;   // a copy of colorOf from before the formula changed anything
 const sliders = {};         // one per letter, e.g. sliders.r = { value: 1, min: -10, max: 10, step: 0.1 }
 
 // Inside a sim (section 11). "embedded" is true when this page is shown
@@ -144,7 +144,7 @@ function byId(id) { return document.getElementById(id); }
 function showMessage(text) { byId("tool-message").textContent = text; }
 
 function cellName(x, y) { return x + "," + y; }
-function colourAt(x, y) { return colourOf[cellName(x, y)] || 0; }
+function colorAt(x, y) { return colorOf[cellName(x, y)] || 0; }
 function width()  { return grid.xmax - grid.xmin + 1; }
 function height() { return grid.ymax - grid.ymin + 1; }
 
@@ -162,9 +162,9 @@ function forEachCell(doThis) {
   }
 }
 
-// The colour that Invert, the formula and pasting paint with: the
-// current colour, or colour 1 when the eraser is chosen.
-function paintColour() { return currentColour || 1; }
+// The color that Invert, the formula and pasting paint with: the
+// current color, or color 1 when the eraser is chosen.
+function paintColor() { return currentColor || 1; }
 
 // Where the point (x, y) is drawn. Minus sign: Cytoscape's y points down.
 function drawAt(x, y) { return { x: x * UNIT, y: -y * UNIT }; }
@@ -182,7 +182,7 @@ function wrap(v, lo, hi) {
    ---------------------------------------------------------------------
    Cytoscape styles work like CSS: a list of { selector, style } rules,
    and later rules win over earlier ones. "node.cell" means nodes with
-   class "cell"; "node[colour = 2]" means nodes whose colour data is 2.
+   class "cell"; "node[color = 2]" means nodes whose color data is 2.
    This is a function because cells view and dots view look different.
    ===================================================================== */
 function makeStyle() {
@@ -194,7 +194,7 @@ function makeStyle() {
     { selector: "edge", style: { "z-index-compare": "manual", "z-index": 1, "curve-style": "straight" } },
 
     // An unpainted cell is see-through, so the background grid lines
-    // (section 5) show. An unpainted dot is a small grey dot.
+    // (section 5) show. An unpainted dot is a small gray dot.
     {
       selector: "node.cell",
       style: dots
@@ -203,15 +203,15 @@ function makeStyle() {
     },
   ];
 
-  // One rule per palette colour. Painted cells are slightly see-through,
+  // One rule per palette color. Painted cells are slightly see-through,
   // so the grid lines still show; painted dots are drawn bigger.
   for (let c = 1; c < palette.length; c++) {
     const look = { "background-color": palette[c], "background-opacity": dots ? 1 : CELL_OPACITY };
     if (dots) { look.width = DOT_SIZE * UNIT; look.height = DOT_SIZE * UNIT; }
-    rules.push({ selector: "node[colour = " + c + "]", style: look });
+    rules.push({ selector: "node[color = " + c + "]", style: look });
   }
 
-  // A cell outside a sim's locked domain (section 11) is greyed out.
+  // A cell outside a sim's locked domain (section 11) is grayed out.
   rules.push({
     selector: "node.blocked",
     style: dots ? { "background-opacity": 0 } : { "background-color": OUTSIDE_GRID, "background-opacity": 1 },
@@ -222,14 +222,14 @@ function makeStyle() {
   // lattice. The long wrap-around edges of a torus are never drawn.
   rules.push(
     { selector: "edge",      style: { display: "none" } },
-    { selector: "edge.on",   style: { display: dots ? "element" : "none", width: EDGE_WIDTH, "line-color": EDGE_COLOUR } },
+    { selector: "edge.on",   style: { display: dots ? "element" : "none", width: EDGE_WIDTH, "line-color": EDGE_COLOR } },
     { selector: "edge.wrap", style: { display: "none" } },
   );
 
   return rules;
 }
 
-// Apply the style rules again (after changing the view or a colour).
+// Apply the style rules again (after changing the view or a color).
 function restyle() {
   cy.style().fromJson(makeStyle()).update();
 }
@@ -258,13 +258,13 @@ function fitView() {
    ---------------------------------------------------------------------
    Called at the start and whenever a grid setting changes. Throws away
    everything Cytoscape is showing and makes it again from "grid" and
-   "colourOf".
+   "colorOf".
    ===================================================================== */
 function buildGrid() {
   // Forget painted cells that are now outside the grid.
-  for (const name of Object.keys(colourOf)) {
+  for (const name of Object.keys(colorOf)) {
     const [x, y] = name.split(",").map(Number);
-    if (!inGrid(x, y)) delete colourOf[name];
+    if (!inGrid(x, y)) delete colorOf[name];
   }
 
   const elements = [];   // everything to draw, collected here first
@@ -275,16 +275,16 @@ function buildGrid() {
       elements.push({
         group: "nodes", classes: isBlocked(cellName(x, y)) ? "cell blocked" : "cell",
         pannable: true,   // with the Move tool, dragging on a cell moves the view
-        data: { id: cellName(x, y), x: x, y: y, colour: colourAt(x, y) },
+        data: { id: cellName(x, y), x: x, y: y, color: colorAt(x, y) },
         position: drawAt(x, y),
       });
     }
   }
 
-  // The edges. Each cell looks right and up (and, with 8 neighbours,
+  // The edges. Each cell looks right and up (and, with 8 neighbors,
   // diagonally right-up and right-down); looking the other ways would
   // only find the same edges again.
-  const steps = grid.neighbours === 8 ? [[1, 0], [0, 1], [1, 1], [1, -1]] : [[1, 0], [0, 1]];
+  const steps = grid.neighbors === 8 ? [[1, 0], [0, 1], [1, 1], [1, -1]] : [[1, 0], [0, 1]];
   const seen = new Set();   // edges already made, so none is made twice
 
   for (let x = grid.xmin; x <= grid.xmax; x++) {
@@ -293,7 +293,7 @@ function buildGrid() {
         let nx = x + dx, ny = y + dy;
         let wrapped = false;
         if (!inGrid(nx, ny)) {
-          if (!grid.torus) continue;           // off the edge: no neighbour
+          if (!grid.torus) continue;           // off the edge: no neighbor
           nx = wrap(nx, grid.xmin, grid.xmax); // torus: come back the other side
           ny = wrap(ny, grid.ymin, grid.ymax);
           wrapped = true;
@@ -341,10 +341,10 @@ function buildGrid() {
    Whenever the view moves or zooms, Cytoscape sends a "viewport" event
    and the background is drawn again.
 
-     - light grey lines every cell: in cells view they are the cell
+     - light gray lines every cell: in cells view they are the cell
        borders (at x = ..., -0.5, 0.5, 1.5, ...); in dots view they go
        through the dots (at whole numbers)
-     - in dots view only, grey lines every MAJOR_EVERY cells, at
+     - in dots view only, gray lines every MAJOR_EVERY cells, at
        x = 0, 5, 10, ... (in cells view they would run through the
        middle of the cells, which is too busy)
      - black axes at x = 0 and y = 0, with numbers every MAJOR_EVERY
@@ -374,18 +374,18 @@ function drawBackground() {
 
   // Lines are 1 pixel wide; the +0.5 puts them exactly on a pixel, so
   // they look crisp instead of blurry.
-  function verticalLine(x, colour, thickness) {
+  function verticalLine(x, color, thickness) {
     const sx = Math.round(screenX(x)) + 0.5;
-    pen.strokeStyle = colour; pen.lineWidth = thickness;
+    pen.strokeStyle = color; pen.lineWidth = thickness;
     pen.beginPath(); pen.moveTo(sx, 0); pen.lineTo(sx, h); pen.stroke();
   }
-  function horizontalLine(y, colour, thickness) {
+  function horizontalLine(y, color, thickness) {
     const sy = Math.round(screenY(y)) + 0.5;
-    pen.strokeStyle = colour; pen.lineWidth = thickness;
+    pen.strokeStyle = color; pen.lineWidth = thickness;
     pen.beginPath(); pen.moveTo(0, sy); pen.lineTo(w, sy); pen.stroke();
   }
 
-  // 1. Grey everywhere, white inside the grid's limits. (A torus has
+  // 1. Gray everywhere, white inside the grid's limits. (A torus has
   //    copies of the grid everywhere, so then it's all white.)
   pen.fillStyle = grid.torus ? BACKGROUND : OUTSIDE_GRID;
   pen.fillRect(0, 0, w, h);
@@ -393,26 +393,26 @@ function drawBackground() {
   pen.fillRect(screenX(grid.xmin - 0.5), screenY(grid.ymax + 0.5), width() * scale, height() * scale);
 
   // 2. Light lines every cell (skipped when zoomed so far out that
-  //    they would be closer than 4 pixels and just look grey).
+  //    they would be closer than 4 pixels and just look gray).
   if (scale >= 4) {
     const offset = (view === "cells") ? 0.5 : 0;
     for (let x = Math.ceil(left - offset) + offset; x <= right; x++) verticalLine(x, MINOR_LINE, 1);
     for (let y = Math.ceil(bottom - offset) + offset; y <= top; y++) horizontalLine(y, MINOR_LINE, 1);
   }
 
-  // Where the grey lines and the axes go (see majorLines and placesOf
+  // Where the gray lines and the axes go (see majorLines and placesOf
   // below). On a torus they are the real grid's lines, repeated in every
   // copy, and the numbers are the real coordinates: on a torus 10 wide,
-  // the copy of the line x = 5 is labelled 5 again.
+  // the copy of the line x = 5 is labeled 5 again.
   const W = width(), H = height();
   const majorX = majorLines(left, right, grid.xmin, grid.xmax, W);
   const majorY = majorLines(bottom, top, grid.ymin, grid.ymax, H);
   const axisX = placesOf(0, left, right, grid.xmin, grid.xmax, W);     // the y-axis (x = 0)
   const axisY = placesOf(0, bottom, top, grid.ymin, grid.ymax, H);     // the x-axis (y = 0)
 
-  // 3. Grey lines every MAJOR_EVERY cells, in dots view only. In cells
+  // 3. Gray lines every MAJOR_EVERY cells, in dots view only. In cells
   //    view they would cut through the middle of a row of cells.
-  const major = MAJOR_EVERY * scale;   // pixels between grey lines
+  const major = MAJOR_EVERY * scale;   // pixels between gray lines
   if (view === "dots" && major >= 4) {
     for (const line of majorX) for (const at of line.places) verticalLine(at, MAJOR_LINE, 1);
     for (const line of majorY) for (const at of line.places) horizontalLine(at, MAJOR_LINE, 1);
@@ -426,7 +426,7 @@ function drawBackground() {
   //    is on screen, the numbers stay along the nearest edge (as in
   //    Desmos).
   if (major >= 28) {
-    pen.fillStyle = LABEL_COLOUR;
+    pen.fillStyle = LABEL_COLOR;
     pen.font = "11px sans-serif";
     const rows = (axisY.length > 0 ? axisY : [0]).map(function (y) {   // heights of the x-axis numbers
       return Math.min(Math.max(screenY(y), 0), h - 14);
@@ -473,7 +473,7 @@ function placesOf(v, from, to, lo, hi, period) {
   return places;
 }
 
-// The grey lines (and numbers), as a list of { value, places }: one for
+// The gray lines (and numbers), as a list of { value, places }: one for
 // each multiple of MAJOR_EVERY on screen (or, on a torus, inside the
 // real grid).
 function majorLines(from, to, lo, hi, period) {
@@ -501,7 +501,7 @@ function drawTorusCopies(pen, scale, screenX, screenY, left, right, bottom, top)
   const copies = (iTo - iFrom + 1) * (jTo - jFrom + 1);
   if (copies > 400) return;   // zoomed out too far to see anything useful
 
-  const painted = cy.nodes(".cell[colour > 0]");
+  const painted = cy.nodes(".cell[color > 0]");
   const edges = cy.edges(".on").not(".wrap");   // wrap-around edges are never drawn
   const dots = (view === "dots");
 
@@ -513,16 +513,16 @@ function drawTorusCopies(pen, scale, screenX, screenY, left, right, bottom, top)
       if (i === 0 && j === 0) continue;   // that's the real grid
       const dx = i * W, dy = j * H;
 
-      // Dots view: the small grey unpainted dots, if they're big enough to see.
+      // Dots view: the small gray unpainted dots, if they're big enough to see.
       if (dots && scale >= 6) {
         pen.fillStyle = OFF_DOT;
         forEachCell(function (x, y) {
-          if (colourAt(x, y) === 0) circle(pen, screenX(x + dx), screenY(y + dy), OFF_DOT_SIZE / 2 * scale);
+          if (colorAt(x, y) === 0) circle(pen, screenX(x + dx), screenY(y + dy), OFF_DOT_SIZE / 2 * scale);
         });
       }
       // Dots view: the edges between painted dots.
       if (dots) {
-        pen.strokeStyle = EDGE_COLOUR;
+        pen.strokeStyle = EDGE_COLOR;
         pen.lineWidth = EDGE_WIDTH * cy.zoom();
         edges.forEach(function (edge) {
           const a = edge.source().data(), b = edge.target().data();
@@ -532,7 +532,7 @@ function drawTorusCopies(pen, scale, screenX, screenY, left, right, bottom, top)
           pen.stroke();
         });
       }
-      // Cells outside a sim's locked domain (section 11), greyed out.
+      // Cells outside a sim's locked domain (section 11), grayed out.
       if (allowed !== null && !dots) {
         pen.globalAlpha = 1;
         pen.fillStyle = OUTSIDE_GRID;
@@ -544,7 +544,7 @@ function drawTorusCopies(pen, scale, screenX, screenY, left, right, bottom, top)
       // The painted cells (squares) or dots (circles).
       painted.forEach(function (node) {
         const x = node.data("x") + dx, y = node.data("y") + dy;
-        pen.fillStyle = palette[node.data("colour")];
+        pen.fillStyle = palette[node.data("color")];
         if (dots) circle(pen, screenX(x), screenY(y), DOT_SIZE / 2 * scale);
         else pen.fillRect(screenX(x) - scale / 2, screenY(y) - scale / 2, scale, scale);
       });
@@ -553,7 +553,7 @@ function drawTorusCopies(pen, scale, screenX, screenY, left, right, bottom, top)
   pen.globalAlpha = 1;
 }
 
-// A filled circle of radius r centred at (sx, sy) on screen.
+// A filled circle of radius r centered at (sx, sy) on screen.
 function circle(pen, sx, sy, r) {
   pen.beginPath();
   pen.arc(sx, sy, r, 0, 2 * Math.PI);
@@ -561,7 +561,7 @@ function circle(pen, sx, sy, r) {
 }
 
 // The torus copies are drawn on the background, so it must be redrawn
-// whenever a colour changes. (Without a torus there's nothing to update.)
+// whenever a color changes. (Without a torus there's nothing to update.)
 function redrawCopies() {
   if (grid.torus) drawBackground();
 }
@@ -575,10 +575,10 @@ window.addEventListener("resize", drawBackground);
    6. PAINTING, UNDO AND REDO
    ===================================================================== */
 
-// Give cell (x, y) colour c, and remember it for undo if a stroke is going.
-function setColour(x, y, c) {
+// Give cell (x, y) color c, and remember it for undo if a stroke is going.
+function setColor(x, y, c) {
   const name = cellName(x, y);
-  const before = colourOf[name] || 0;
+  const before = colorOf[name] || 0;
   if (before === c || isBlocked(name)) return;
 
   if (stroke) {
@@ -586,24 +586,24 @@ function setColour(x, y, c) {
     stroke.get(name).after = c;
   }
 
-  if (c === 0) delete colourOf[name];
-  else colourOf[name] = c;
+  if (c === 0) delete colorOf[name];
+  else colorOf[name] = c;
 
-  // Recolour the cell and the edges touching it. (Torus copies are
+  // Recolor the cell and the edges touching it. (Torus copies are
   // redrawn by redrawCopies(), once per mouse move rather than per cell.)
   const node = cy.getElementById(name);
-  node.data("colour", c);
+  node.data("color", c);
   node.connectedEdges().forEach(updateEdge);
 }
 
 // An edge is "on" (part of the domain) when both of its ends are painted.
 function updateEdge(edge) {
-  const bothPainted = edge.source().data("colour") > 0 && edge.target().data("colour") > 0;
+  const bothPainted = edge.source().data("color") > 0 && edge.target().data("color") > 0;
   edge.toggleClass("on", bothPainted);
 }
 
 // Which cell is under a point of the drawing? null if none.
-// Rounding finds the nearest centre, because cell (x, y) is centred at (x, y).
+// Rounding finds the nearest center, because cell (x, y) is centered at (x, y).
 function cellAt(point) {
   let x = Math.round(point.x / UNIT);
   let y = Math.round(-point.y / UNIT);
@@ -623,7 +623,7 @@ function paintAlong(a, b) {
   for (let i = 1; i <= pieces; i++) {
     const t = i / pieces;
     const cell = cellAt({ x: a.x + t * (b.x - a.x), y: a.y + t * (b.y - a.y) });
-    if (cell) setColour(cell.x, cell.y, strokeColour);
+    if (cell) setColor(cell.x, cell.y, strokeColor);
   }
 }
 
@@ -634,13 +634,13 @@ cy.on("tapstart", function (event) {
   stroke = new Map();
   lastPoint = event.position;
 
-  // Starting on a cell that already has the current colour erases
+  // Starting on a cell that already has the current color erases
   // instead, so a single click toggles a cell on and off.
   const cell = cellAt(event.position);
-  const startsOnSameColour = cell && currentColour !== 0 && colourAt(cell.x, cell.y) === currentColour;
-  strokeColour = startsOnSameColour ? 0 : currentColour;
+  const startsOnSameColor = cell && currentColor !== 0 && colorAt(cell.x, cell.y) === currentColor;
+  strokeColor = startsOnSameColor ? 0 : currentColor;
 
-  if (cell) setColour(cell.x, cell.y, strokeColour);
+  if (cell) setColor(cell.x, cell.y, strokeColor);
   redrawCopies();
 });
 
@@ -664,7 +664,7 @@ function finishStroke() {
   updateStats();
 }
 
-// Run "change" (which calls setColour many times) as one undoable step.
+// Run "change" (which calls setColor many times) as one undoable step.
 // Used by the Fill / Clear / Invert buttons and by pasting.
 function asOneStep(change) {
   keepFormulaResult();   // keep whatever a formula drew first (section 9)
@@ -680,7 +680,7 @@ function remember(step) {
   redoStack = [];   // a new change makes old redos meaningless
 }
 
-// Undo / redo: replay a stroke's "before" (or "after") colours.
+// Undo / redo: replay a stroke's "before" (or "after") colors.
 function undo() { replay(undoStack, redoStack, "before"); }
 function redo() { replay(redoStack, undoStack, "after"); }
 
@@ -691,7 +691,7 @@ function replay(from, to, which) {
   cy.batch(function () {
     step.forEach(function (change, name) {
       const [x, y] = name.split(",").map(Number);
-      setColour(x, y, change[which]);
+      setColor(x, y, change[which]);
     });
   });
   to.push(step);
@@ -708,11 +708,11 @@ function replay(from, to, which) {
    ===================================================================== */
 
 // The graph a sim will receive, as plain lists:
-//   { vertices: [ {id: "3,-2", x: 3, y: -2, colour: 1}, ... ],
+//   { vertices: [ {id: "3,-2", x: 3, y: -2, color: 1}, ... ],
 //     edges:    [ ["3,-2", "4,-2"], ... ] }
 function getGraph() {
-  const vertices = cy.nodes(".cell[colour > 0]").map(function (node) {
-    return { id: node.id(), x: node.data("x"), y: node.data("y"), colour: node.data("colour") };
+  const vertices = cy.nodes(".cell[color > 0]").map(function (node) {
+    return { id: node.id(), x: node.data("x"), y: node.data("y"), color: node.data("color") };
   });
   const edges = cy.edges(".on").map(function (edge) {
     return [edge.source().id(), edge.target().id()];
@@ -722,7 +722,7 @@ function getGraph() {
 
 // Fill in the Statistics quadrant.
 function updateStats() {
-  const painted = cy.nodes(".cell[colour > 0]");
+  const painted = cy.nodes(".cell[color > 0]");
   const edges = cy.edges(".on");
   // components(): Cytoscape splits the graph into its connected pieces.
   const pieces = painted.union(edges).components().length;
@@ -731,15 +731,15 @@ function updateStats() {
   byId("stat-edges").textContent = edges.length;
   byId("stat-pieces").textContent = pieces;
 
-  // How many cells of each colour, as a list with a colour swatch.
-  const list = byId("stat-colours");
+  // How many cells of each color, as a list with a color swatch.
+  const list = byId("stat-colors");
   list.innerHTML = "";
   for (let c = 1; c < palette.length; c++) {
-    const count = cy.nodes(".cell[colour = " + c + "]").length;
+    const count = cy.nodes(".cell[color = " + c + "]").length;
     if (count === 0) continue;
     const item = document.createElement("li");
     item.innerHTML = '<span class="swatch-small" style="background:' + palette[c] + '"></span>' +
-                     "colour " + c + ": " + count;
+                     "color " + c + ": " + count;
     list.appendChild(item);
   }
   tellSim();   // inside a sim, send it the new drawing (section 11)
@@ -751,12 +751,12 @@ function updateStats() {
    ---------------------------------------------------------------------
    Two text formats:
      - JSON: keeps everything (grid settings, palette, positions,
-       colours). Used for Save / Load. Looks like:
+       colors). Used for Save / Load. Looks like:
          { "format": "graph-tool", "mode": "grid", "grid": {...},
            "palette": [...], "vertices": [...], "edges": [...] }
      - Edge list: one edge per line, "3,-2 4,-2". Easy to use in other
-       programs (networkx: nx.read_edgelist), but it forgets colours
-       and any painted cell with no painted neighbour.
+       programs (networkx: nx.read_edgelist), but it forgets colors
+       and any painted cell with no painted neighbor.
    ===================================================================== */
 
 function toJSONText() {
@@ -766,7 +766,7 @@ function toJSONText() {
     version: 1,
     mode: "grid",
     grid: grid,
-    palette: palette.slice(1),   // the colours, without the "off" at position 0
+    palette: palette.slice(1),   // the colors, without the "off" at position 0
     vertices: graph.vertices,
     edges: graph.edges,
   };
@@ -778,7 +778,7 @@ function toJSONText() {
 }
 
 function toEdgeListText() {
-  const lines = ["# Edge list from the graph tool. Vertex x,y is the cell centred at (x, y)."];
+  const lines = ["# Edge list from the graph tool. Vertex x,y is the cell centered at (x, y)."];
   for (const [a, b] of getGraph().edges) lines.push(a + " " + b);
   return lines.join("\n") + "\n";
 }
@@ -814,6 +814,12 @@ function loadText(text) {
   else loadEdgeList(text);
 }
 
+// Files saved before the site switched to American spelling say "colour"
+// and "neighbours"; new files say "color" and "neighbors". Read either.
+function oldOrNew(object, oldName, newName) {
+  return object[newName] !== undefined ? object[newName] : object[oldName];
+}
+
 function loadJSON(text) {
   let data;
   try {
@@ -828,7 +834,7 @@ function loadJSON(text) {
   const settings = {
     xmin: Number(data.grid.xmin), xmax: Number(data.grid.xmax),
     ymin: Number(data.grid.ymin), ymax: Number(data.grid.ymax),
-    neighbours: Number(data.grid.neighbours) === 8 ? 8 : 4,
+    neighbors: Number(oldOrNew(data.grid, "neighbours", "neighbors")) === 8 ? 8 : 4,
     torus: data.grid.torus === true,
   };
   const problem = checkSettings(settings);
@@ -836,18 +842,18 @@ function loadJSON(text) {
 
   Object.assign(grid, settings);
 
-  // The palette, if the file has one made of "#rrggbb" colours.
-  const isColour = function (text) { return /^#[0-9a-fA-F]{6}$/.test(text); };
-  if (Array.isArray(data.palette) && data.palette.length > 0 && data.palette.every(isColour)) {
+  // The palette, if the file has one made of "#rrggbb" colors.
+  const isColor = function (text) { return /^#[0-9a-fA-F]{6}$/.test(text); };
+  if (Array.isArray(data.palette) && data.palette.length > 0 && data.palette.every(isColor)) {
     palette = [null].concat(data.palette);
-    if (currentColour >= palette.length) currentColour = 1;
+    if (currentColor >= palette.length) currentColor = 1;
   }
 
-  colourOf = {};
+  colorOf = {};
   for (const v of data.vertices) {
-    const c = Number(v.colour);
+    const c = Number(oldOrNew(v, "colour", "color"));
     if (Number.isInteger(v.x) && Number.isInteger(v.y) && c > 0 && c < palette.length) {
-      colourOf[cellName(v.x, v.y)] = c;
+      colorOf[cellName(v.x, v.y)] = c;
     }
   }
   showSettings();
@@ -859,7 +865,7 @@ function loadJSON(text) {
 
 // In grid mode, an edge list can only say which cells to paint: the grid
 // itself decides the edges. So every vertex named "x,y" gets painted in
-// paintColour() (the current colour, or colour 1 with the eraser chosen).
+// paintColor() (the current color, or color 1 with the eraser chosen).
 function loadEdgeList(text) {
   const names = [];
   for (const line of text.split("\n")) {
@@ -882,7 +888,7 @@ function loadEdgeList(text) {
   let outside = 0;
   asOneStep(function () {
     for (const cell of cells) {
-      if (inGrid(cell.x, cell.y)) setColour(cell.x, cell.y, paintColour());
+      if (inGrid(cell.x, cell.y)) setColor(cell.x, cell.y, paintColor());
       else outside++;
     }
   });
@@ -895,7 +901,7 @@ function loadEdgeList(text) {
    9. THE FORMULA BOX
    ---------------------------------------------------------------------
    Type a condition in x and y, like  x^2 + y^2 <= r^2 , and every cell
-   whose centre (x, y) makes it true gets painted. Reading the formula
+   whose center (x, y) makes it true gets painted. Reading the formula
    is done by math.js (https://mathjs.org) and the typeset preview by
    KaTeX (https://katex.org); both are loaded in graph-tool.html.
 
@@ -978,14 +984,14 @@ function readFormula() {
 // Recompute every cell from the formula, the sliders and the mode.
 function applyFormula() {
   if (!formula) return;
-  if (beforeFormula === null) beforeFormula = Object.assign({}, colourOf);   // remember the grid first
+  if (beforeFormula === null) beforeFormula = Object.assign({}, colorOf);   // remember the grid first
 
   // The values the formula can use: the slider letters, then x and y.
   const scope = {};
   for (const name in sliders) scope[name] = sliders[name].value;
 
   const mode = byId("formula-mode").value;
-  const paint = paintColour();
+  const paint = paintColor();
   let problem = "";
 
   cy.batch(function () {
@@ -1001,11 +1007,11 @@ function applyFormula() {
       const before = beforeFormula[cellName(x, y)] || 0;
 
       let c;
-      if (mode === "replace")     c = inside ? paint : 0;        // only the region, in the current colour
+      if (mode === "replace")     c = inside ? paint : 0;        // only the region, in the current color
       else if (mode === "add")    c = inside ? paint : before;   // the region joins the drawing
       else if (mode === "remove") c = inside ? 0 : before;       // the region is cut out of the drawing
       else                        c = inside ? before : 0;       // "keep": only the drawing inside the region
-      setColour(x, y, c);
+      setColor(x, y, c);
     });
   });
   redrawCopies();
@@ -1021,7 +1027,7 @@ function keepFormulaResult() {
   const step = new Map();
   forEachCell(function (x, y) {
     const name = cellName(x, y);
-    const before = beforeFormula[name] || 0, after = colourAt(x, y);
+    const before = beforeFormula[name] || 0, after = colorAt(x, y);
     if (before !== after) step.set(name, { before: before, after: after });
   });
   remember(step);
@@ -1032,7 +1038,7 @@ function keepFormulaResult() {
 function cancelFormula() {
   if (beforeFormula === null) return;
   cy.batch(function () {
-    forEachCell(function (x, y) { setColour(x, y, beforeFormula[cellName(x, y)] || 0); });
+    forEachCell(function (x, y) { setColor(x, y, beforeFormula[cellName(x, y)] || 0); });
   });
   beforeFormula = null;
   redrawCopies();
@@ -1156,64 +1162,64 @@ document.addEventListener("keydown", function (event) {
   else if (key === "y" || (key === "z" && event.shiftKey)) { event.preventDefault(); redo(); }
 });
 
-// --- The palette: a grid of colour squares, 7 across --------------------
-// Click a square to paint with it. "Swap colour" changes the chosen
-// square's colour and "+ Add colour" adds a new square; both open the
-// browser's own colour chooser, an invisible <input type="color">.
+// --- The palette: a grid of color squares, 7 across --------------------
+// Click a square to paint with it. "Swap color" changes the chosen
+// square's color and "+ Add color" adds a new square; both open the
+// browser's own color chooser, an invisible <input type="color">.
 function buildPalette() {
   const holder = byId("palette");
-  holder.innerHTML = "";                         // empty it, then add one square per colour
+  holder.innerHTML = "";                         // empty it, then add one square per color
   for (let c = 1; c < palette.length; c++) {
     const square = document.createElement("button");
     square.className = "swatch";
-    square.title = "Colour " + c;
+    square.title = "Color " + c;
     square.style.background = palette[c];
-    square.classList.toggle("selected", c === currentColour);
-    square.addEventListener("click", function () { chooseColour(c); });
+    square.classList.toggle("selected", c === currentColor);
+    square.addEventListener("click", function () { chooseColor(c); });
     holder.appendChild(square);
   }
-  byId("eraser").classList.toggle("selected", currentColour === 0);
-  byId("swap-colour").disabled = (currentColour === 0);   // the eraser has no colour to swap
-  byId("current-colour").textContent =
-    currentColour === 0 ? "Erasing." : "Painting with colour " + currentColour + ".";
+  byId("eraser").classList.toggle("selected", currentColor === 0);
+  byId("swap-color").disabled = (currentColor === 0);   // the eraser has no color to swap
+  byId("current-color").textContent =
+    currentColor === 0 ? "Erasing." : "Painting with color " + currentColor + ".";
 }
 
-function chooseColour(c) {
-  currentColour = c;
+function chooseColor(c) {
+  currentColor = c;
   buildPalette();
   chooseTool("paint");
 }
-byId("eraser").addEventListener("click", function () { chooseColour(0); });
+byId("eraser").addEventListener("click", function () { chooseColor(0); });
 
-// Open the colour chooser. "adding" remembers which button opened it.
-const chooser = byId("colour-chooser");
+// Open the color chooser. "adding" remembers which button opened it.
+const chooser = byId("color-chooser");
 let adding = false;
-function openChooser(startColour) {
-  chooser.value = startColour;
+function openChooser(startColor) {
+  chooser.value = startColor;
   if (chooser.showPicker) chooser.showPicker();   // newer browsers
   else chooser.click();                           // older ones
 }
-byId("swap-colour").addEventListener("click", function () {
+byId("swap-color").addEventListener("click", function () {
   adding = false;
-  openChooser(palette[currentColour]);
+  openChooser(palette[currentColor]);
 });
-byId("add-colour").addEventListener("click", function () {
+byId("add-color").addEventListener("click", function () {
   adding = true;
   openChooser("#888888");
 });
 
-// "change" happens once a colour has been picked.
+// "change" happens once a color has been picked.
 chooser.addEventListener("change", function () {
   if (adding) {
     palette.push(chooser.value);           // a new square at the end
-    currentColour = palette.length - 1;
+    currentColor = palette.length - 1;
   } else {
-    palette[currentColour] = chooser.value;
+    palette[currentColor] = chooser.value;
   }
   buildPalette();
-  restyle();        // repaint cells of that colour
+  restyle();        // repaint cells of that color
   redrawCopies();   // and their torus copies
-  updateStats();    // the colour list shows the swatches too
+  updateStats();    // the color list shows the swatches too
 });
 
 // --- Grid settings ----------------------------------------------------
@@ -1233,7 +1239,7 @@ function showSettings() {
   byId("set-xmax").value = grid.xmax;
   byId("set-ymin").value = grid.ymin;
   byId("set-ymax").value = grid.ymax;
-  byId("set-neighbours").value = String(grid.neighbours);
+  byId("set-neighbors").value = String(grid.neighbors);
   byId("set-torus").checked = grid.torus;
 }
 
@@ -1242,7 +1248,7 @@ function applySettings() {
   const settings = {
     xmin: Number(byId("set-xmin").value), xmax: Number(byId("set-xmax").value),
     ymin: Number(byId("set-ymin").value), ymax: Number(byId("set-ymax").value),
-    neighbours: Number(byId("set-neighbours").value),
+    neighbors: Number(byId("set-neighbors").value),
     torus: byId("set-torus").checked,
   };
   const problem = checkSettings(settings);
@@ -1254,7 +1260,7 @@ function applySettings() {
   showMessage("");
   buildGrid();
 }
-for (const id of ["set-xmin", "set-xmax", "set-ymin", "set-ymax", "set-neighbours", "set-torus"]) {
+for (const id of ["set-xmin", "set-xmax", "set-ymin", "set-ymax", "set-neighbors", "set-torus"]) {
   byId(id).addEventListener("change", applySettings);   // "change" = after you finish editing
 }
 
@@ -1269,14 +1275,14 @@ for (const radio of document.querySelectorAll('input[name="view"]')) {
 
 // --- Fill / Clear / Invert ------------------------------------------
 byId("do-fill").addEventListener("click", function () {
-  asOneStep(function () { forEachCell(function (x, y) { setColour(x, y, currentColour); }); });
+  asOneStep(function () { forEachCell(function (x, y) { setColor(x, y, currentColor); }); });
 });
 byId("do-clear").addEventListener("click", function () {
-  asOneStep(function () { forEachCell(function (x, y) { setColour(x, y, 0); }); });
+  asOneStep(function () { forEachCell(function (x, y) { setColor(x, y, 0); }); });
 });
 byId("do-invert").addEventListener("click", function () {
   asOneStep(function () {
-    forEachCell(function (x, y) { setColour(x, y, colourAt(x, y) > 0 ? 0 : paintColour()); });
+    forEachCell(function (x, y) { setColor(x, y, colorAt(x, y) > 0 ? 0 : paintColor()); });
   });
 });
 
@@ -1310,8 +1316,8 @@ buildGrid();
        (tellSim, called from updateStats in section 7), and so is this
        page's height, so the sim can make the iframe fit it exactly
      - the sim can send "lock": from then on only the cells painted at
-       that moment can be painted (in any colour, or erased), the others
-       are greyed out, and the grid settings and loading are switched
+       that moment can be painted (in any color, or erased), the others
+       are grayed out, and the grid settings and loading are switched
        off. "unlock" ends this.
    The two pages talk with postMessage, which works even for pages
    opened straight from the computer (file://).
@@ -1329,13 +1335,13 @@ function tellSim() {
 function lockDomain(on) {
   if ((allowed !== null) === on) return;   // already that way
   keepFormulaResult();
-  allowed = on ? new Set(Object.keys(colourOf)) : null;
-  for (const id of ["set-xmin", "set-xmax", "set-ymin", "set-ymax", "set-neighbours", "set-torus",
+  allowed = on ? new Set(Object.keys(colorOf)) : null;
+  for (const id of ["set-xmin", "set-xmax", "set-ymin", "set-ymax", "set-neighbors", "set-torus",
                     "do-load", "do-paste"]) {
     byId(id).disabled = on;
   }
   buildGrid();
-  showMessage(on ? "The region is fixed now: paint colours inside it. Grey cells are outside it." : "");
+  showMessage(on ? "The region is fixed now: paint colors inside it. Gray cells are outside it." : "");
 }
 
 if (embedded) {

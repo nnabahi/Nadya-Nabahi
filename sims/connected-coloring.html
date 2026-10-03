@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Random connected colouring — Toys n' Sims</title>
+  <title>Random connected coloring — Toys n' Sims</title>
   <link rel="stylesheet" href="../css/style.css">
   <!-- KaTeX's styles, for the typeset formulas in the About quadrant. -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/katex.min.css">
@@ -22,18 +22,18 @@
 
   <main class="page">
     <p><a href="../toys.html">&larr; All sims</a></p>
-    <h1>Random connected colouring</h1>
+    <h1>Random connected coloring</h1>
 
     <!-- The four quadrants, as on every sim page (see sims/example.html).
-         All the behaviour lives in connected-colouring.js; the ids below
+         All the behavior lives in connected-coloring.js; the ids below
          (id="...") are how that script finds each button and box. -->
     <div class="quadrants">
 
-      <!-- UPPER LEFT: the colouring. -->
+      <!-- UPPER LEFT: the coloring. -->
       <section class="quad quad-sim">
         <h2>Simulation</h2>
 
-        <!-- The picture. connected-colouring.js sets its height so the
+        <!-- The picture. connected-coloring.js sets its height so the
              cells come out square. -->
         <canvas id="sim-canvas"></canvas>
 
@@ -76,9 +76,9 @@
           Size <input type="number" id="set-width" min="2" max="100" step="1">
           &times; <input type="number" id="set-height" min="2" max="100" step="1">
         </div>
-        <div class="option-row" id="neighbours-row">
-          Neighbours
-          <select id="set-neighbours">
+        <div class="option-row" id="neighbors-row">
+          Neighbors
+          <select id="set-neighbors">
             <option value="4">4 (share a side)</option>
             <option value="8">8 (sides or corners)</option>
           </select>
@@ -88,10 +88,10 @@
           <button class="tool-button" id="edit-custom">Edit custom domain</button>
         </div>
 
-        <h3 class="option-heading">Colours</h3>
+        <h3 class="option-heading">Colors</h3>
         <div class="option-row">
-          N = <input type="number" id="set-colours" min="2" step="1">
-          <input type="range" class="wide-range" id="colours-slider" min="2" step="1">
+          N = <input type="number" id="set-colors" min="2" step="1">
+          <input type="range" class="wide-range" id="colors-slider" min="2" step="1">
         </div>
         <p class="muted small" id="start-info"></p>
 
@@ -117,13 +117,13 @@
         <h2>Statistics</h2>
         <table class="stats-table">
           <tr><td>Cells</td><td id="stat-cells"></td></tr>
-          <tr><td>Colours N</td><td id="stat-colours"></td></tr>
+          <tr><td>Colors N</td><td id="stat-colors"></td></tr>
           <tr><td>Moves tried</td><td id="stat-proposed"></td></tr>
           <tr><td>Moves accepted</td><td id="stat-accepted"></td></tr>
-          <tr><td>Boundary edges (joining two colours)</td><td id="stat-boundary"></td></tr>
-          <tr><td>Touching pairs of colours, A(X)</td><td id="stat-pairs"></td></tr>
+          <tr><td>Boundary edges (joining two colors)</td><td id="stat-boundary"></td></tr>
+          <tr><td>Touching pairs of colors, A(X)</td><td id="stat-pairs"></td></tr>
         </table>
-        <h3 class="option-heading chart-heading">Size of each colour</h3>
+        <h3 class="option-heading chart-heading">Size of each color</h3>
         <canvas class="chart" id="sizes-chart"></canvas>
         <h3 class="option-heading chart-heading">Boundary edges over the last moves</h3>
         <canvas class="chart" id="trace-chart"></canvas>
@@ -142,49 +142,49 @@
 
         <div data-panel="simple">
         <p>
-          The domain is split into N colours, and each colour is <strong>one
+          The domain is split into N colors, and each color is <strong>one
           connected piece</strong>: you can walk between any two of its cells
-          without leaving the colour.
+          without leaving the color.
         </p>
         <p>
-          <strong>Each move</strong> merges two neighbouring colours into one
+          <strong>Each move</strong> merges two neighboring colors into one
           region and splits it again at random: a random tree is drawn through
           the region, visiting every cell, and one of its links is cut. The tree
-          falls into two connected pieces, and those are the two new colours.
+          falls into two connected pieces, and those are the two new colors.
         </p>
         <p>
           Some moves are refused, with just the right probability that, in the
-          long run, <strong>every such colouring is equally likely</strong>. The
+          long run, <strong>every such coloring is equally likely</strong>. The
           other tab explains why, with references.
         </p>
         <p>
           <strong>Things to try:</strong> press Play (or Step, for one move at a
           time); change N; switch to the torus (drag it, or scroll over it, and it
           wraps around); or pick Custom to draw your own region and even your own
-          starting colours.
+          starting colors.
         </p>
         </div>
 
         <div data-panel="details" hidden>
         <p>
-          A <strong>connected N-colouring</strong> of the domain gives every cell
-          one of N colours so that each colour is used and forms one connected
+          A <strong>connected N-coloring</strong> of the domain gives every cell
+          one of N colors so that each color is used and forms one connected
           piece. This sim moves randomly between them in such a way that, in the
-          long run, every connected N-colouring is equally likely.
+          long run, every connected N-coloring is equally likely.
         </p>
         <p>
           <strong>One move</strong> (ReCom, short for recombination [1]), from the
-          current colouring <span class="tex">X</span>:
+          current coloring <span class="tex">X</span>:
         </p>
         <ol class="about-steps">
-          <li>Pick two colours <span class="tex">i, j</span> that touch, uniformly
+          <li>Pick two colors <span class="tex">i, j</span> that touch, uniformly
             among the <span class="tex">A(X)</span> pairs that touch.</li>
           <li>Merge them: <span class="tex">M = C_i \cup C_j</span>.</li>
           <li>Draw a uniformly random spanning tree of <span class="tex">M</span>
             with Wilson's algorithm [2].</li>
           <li>Cut a uniformly random edge of the tree. It falls into two connected
             pieces, <span class="tex">P</span> and <span class="tex">Q</span>.</li>
-          <li>A fair coin decides which piece gets colour <span class="tex">i</span>;
+          <li>A fair coin decides which piece gets color <span class="tex">i</span>;
             the other gets <span class="tex">j</span>. Call this
             <span class="tex">Y</span>.</li>
           <li>Move to <span class="tex">Y</span> with probability
@@ -196,7 +196,7 @@
             <span class="tex">R</span>.</li>
         </ol>
         <p>
-          <strong>Why every colouring is equally likely.</strong> A spanning tree
+          <strong>Why every coloring is equally likely.</strong> A spanning tree
           of <span class="tex">M</span> with an edge that splits it into
           <span class="tex">\{P, Q\}</span> is the same thing as a spanning tree of
           <span class="tex">P</span>, one of <span class="tex">Q</span>, and an
@@ -210,9 +210,9 @@
           <span class="tex">\alpha</span> above, is the Metropolis&ndash;Hastings
           rule for the uniform distribution [3, 4]: the chain is reversible with
           respect to it, so the uniform distribution is stationary. (The long-run
-          claim also needs every connected colouring to be reachable from every
+          claim also needs every connected coloring to be reachable from every
           other; that is not proved here for every domain.) The coin matters:
-          without it, which piece gets colour <span class="tex">i</span> depends on
+          without it, which piece gets color <span class="tex">i</span> depends on
           where the tree was rooted, and <span class="tex">q</span> would not be
           the formula above.
         </p>
@@ -221,16 +221,16 @@
           Theorem [5, 6], <span class="tex">\tau(S)</span> is the determinant of
           the Laplacian matrix of <span class="tex">S</span> with one row and the
           matching column removed. It is computed (as a logarithm, since it is
-          huge) with a banded Cholesky factorisation [7], numbering the cells in
-          breadth-first order so the matrix is banded. The count for each colour
+          huge) with a banded Cholesky factorization [7], numbering the cells in
+          breadth-first order so the matrix is banded. The count for each color
           is remembered, so a move needs only two new determinants.
         </p>
         <p>
           <strong>Domains and starts.</strong> A box or torus of cells, with 4 or 8
-          neighbours, or your own region drawn in the graph tool. The torus can
+          neighbors, or your own region drawn in the graph tool. The torus can
           be scrolled: drag it, or scroll over it. The automatic start cuts the
           domain into a grid of N rectangles; a drawn region that can't be cut
-          that way with each colour in one piece starts from N compact blocks
+          that way with each color in one piece starts from N compact blocks
           around spread-out cells instead. Compact pieces matter: from thin
           stripes, almost every move would be refused at first. With a custom
           domain you can also paint your own start. The seed fixes the random
@@ -275,8 +275,8 @@
   <script src="../js/about-tabs.js"></script>
 
   <!-- The chain (it runs in a second thread), then this page's code. -->
-  <script src="connected-colouring-chain.js"></script>
-  <script src="connected-colouring.js"></script>
+  <script src="connected-coloring-chain.js"></script>
+  <script src="connected-coloring.js"></script>
 
 </body>
 </html>

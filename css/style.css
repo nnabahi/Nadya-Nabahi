@@ -16,7 +16,7 @@
      5. Home page image area
      6. Toys n' Sims: the four-quadrant layout
      7. Graph & domain tool (sims/graph-tool.html)
-     8. More for sim pages (random connected colouring; the graph
+     8. More for sim pages (random connected coloring; the graph
         tool shown inside a sim)
      9. Phones and narrow screens
    ===================================================================== */
@@ -41,7 +41,7 @@
   --color-border:       #dedbd4;  /* thin lines around cards           */
   --color-accent:       #3a5a7a;  /* links, active tab, highlights     */
   --color-topbar:       #ffffff;  /* background of the top bar         */
-  --color-placeholder:  #ecebe7;  /* grey boxes where content will go  */
+  --color-placeholder:  #ecebe7;  /* gray boxes where content will go  */
   --color-tag:          #e8edf2;  /* background of genre labels        */
 
   /* Fonts: the browser uses the first one it has, else the next. */
@@ -165,7 +165,7 @@ a {
   margin-bottom: 20px;
 }
 
-/* Small grey text, e.g. dates or "coming soon" notes. */
+/* Small gray text, e.g. dates or "coming soon" notes. */
 .muted {
   color: var(--color-text-muted);
   font-size: 0.9em;
@@ -261,7 +261,7 @@ a.card:hover {
    5. Home page image area
    ---------------------------------------------------------------------
    A wide box on index.html where a picture (or a rotating set of
-   pictures) will go later. For now it's an empty grey box.
+   pictures) will go later. For now it's an empty gray box.
    ===================================================================== */
 .hero {
   background: var(--color-placeholder);
@@ -341,7 +341,7 @@ a.card:hover {
 /* =====================================================================
    7. Graph & domain tool (sims/graph-tool.html)
    ---------------------------------------------------------------------
-   The buttons, colour palette, drawing box and settings on the tool's
+   The buttons, color palette, drawing box and settings on the tool's
    page. The drawing itself is styled in sims/graph-tool.js (section 3),
    because Cytoscape draws it, not the browser's CSS.
    ===================================================================== */
@@ -366,7 +366,7 @@ a.card:hover {
   cursor: default;
 }
 
-/* The palette: a grid of colour squares 7 across (like OneNote or
+/* The palette: a grid of color squares 7 across (like OneNote or
    Word), with the Eraser / Swap / Add buttons beside it. */
 .palette-area {
   display: flex;
@@ -390,22 +390,22 @@ a.card:hover {
   cursor: pointer;
 }
 
-/* The colour you're painting with gets a dark ring around it. */
+/* The color you're painting with gets a dark ring around it. */
 .swatch.selected {
   outline: 2px solid var(--color-text);
   outline-offset: 1px;
 }
 
 .palette-buttons {
-  position: relative;       /* the invisible colour chooser sits in here */
+  position: relative;       /* the invisible color chooser sits in here */
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
   max-width: 280px;
 }
 
-/* "Painting with colour 3." under the palette. */
-#current-colour {
+/* "Painting with color 3." under the palette. */
+#current-color {
   margin: 6px 0 8px;
 }
 
@@ -534,14 +534,14 @@ a.card:hover {
   padding: 2px 16px 2px 0;
 }
 
-.colour-counts {
+.color-counts {
   list-style: none;
   padding: 0;
   margin: 12px 0 0;
   font-size: 0.9em;
 }
 
-/* The little colour square next to each colour count. */
+/* The little color square next to each color count. */
 .swatch-small {
   display: inline-block;
   width: 12px;
@@ -556,7 +556,7 @@ a.card:hover {
 /* =====================================================================
    8. More for sim pages
    ---------------------------------------------------------------------
-   Used by sims/connected-colouring.html, and by the graph tool when a
+   Used by sims/connected-coloring.html, and by the graph tool when a
    sim shows it inside its own page (graph-tool.html?embed).
    ===================================================================== */
 
@@ -565,7 +565,7 @@ a.card:hover {
   flex: 1 1 120px;
 }
 
-/* Smaller grey notes under the options. */
+/* Smaller gray notes under the options. */
 .small {
   font-size: 0.85em;
   margin: 0 0 8px;
