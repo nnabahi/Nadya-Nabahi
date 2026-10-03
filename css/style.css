@@ -514,6 +514,48 @@ a.card:hover {
   font: inherit;
 }
 
+/* The formula box, its typeset preview, and its sliders. */
+.formula-input {
+  width: 100%;
+  font-family: monospace;
+  font-size: 0.95em;
+  padding: 4px 6px;
+}
+
+.formula-preview {
+  min-height: 1.8em;       /* keeps the space even when it's empty */
+  margin: 6px 0;
+  overflow-x: auto;        /* a long formula scrolls instead of spilling out */
+}
+
+/* One slider:  r = [1]  ====o====  min [-10] max [10] step [0.1] */
+.slider-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin-bottom: 8px;
+  font-size: 0.85em;
+}
+
+.slider-name {
+  font-family: var(--font-heading);
+  font-style: italic;
+}
+
+.slider-range {
+  flex: 1 1 120px;         /* the slider takes the spare width */
+}
+
+.slider-row input[type="number"] {
+  width: 4.5em;
+  font: inherit;
+}
+
+.slider-limits {
+  color: var(--color-text-muted);
+}
+
 /* The box for copied or pasted text. */
 .text-box {
   width: 100%;

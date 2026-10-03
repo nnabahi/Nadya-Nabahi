@@ -35,7 +35,8 @@
      6. Painting, undo and redo
      7. The graph: statistics and getGraph()
      8. Saving, loading, copying and pasting
-     9. Connecting the buttons on the page
+     9. The formula box
+    10. Connecting the buttons on the page
    ===================================================================== */
 
 
@@ -221,6 +222,7 @@ function buildGrid() {
     for (let y = grid.ymin; y <= grid.ymax; y++) {
       elements.push({
         group: "nodes", classes: "cell",
+        pannable: true,   // with the Move tool, dragging on a cell moves the view
         data: { id: cellName(x, y), x: x, y: y, colour: colourAt(x, y) },
         position: drawAt(x, y),
       });
@@ -273,6 +275,7 @@ function buildGrid() {
   // Undo can't go back across a grid change, so start a fresh history.
   undoStack = [];
   redoStack = [];
+  beforeFormula = null;   // a live formula's result is simply kept
 
   if (grid.torus && (width() <= 2 || height() <= 2)) {
     showMessage("On a torus this narrow, wrapping around would repeat edges or join a cell to " +
@@ -295,7 +298,8 @@ function buildGrid() {
        through the dots (at whole numbers)
      - grey lines every MAJOR_EVERY cells, at x = 0, 5, 10, ...
      - black axes at x = 0 and y = 0, with numbers along them
-     - on a torus: faded copies of the drawing in every direction
+     - on a torus: copies of the drawing, and of the lines, axes and
+       numbers, in every direction
    ===================================================================== */
 const linesCanvas = document.getElementById("grid-lines");
 
@@ -345,43 +349,86 @@ function drawBackground() {
     for (let y = Math.ceil(bottom - offset) + offset; y <= top; y++) horizontalLine(y, MINOR_LINE, 1);
   }
 
+  // Where the grey lines and the axes go (see majorLines and placesOf
+  // below). On a torus they are the real grid's lines, repeated in every
+  // copy, and the numbers are the real coordinates: on a torus 10 wide,
+  // the copy of the line x = 5 is labelled 5 again.
+  const W = width(), H = height();
+  const majorX = majorLines(left, right, grid.xmin, grid.xmax, W);
+  const majorY = majorLines(bottom, top, grid.ymin, grid.ymax, H);
+  const axisX = placesOf(0, left, right, grid.xmin, grid.xmax, W);     // the y-axis (x = 0)
+  const axisY = placesOf(0, bottom, top, grid.ymin, grid.ymax, H);     // the x-axis (y = 0)
+
   // 3. Grey lines every MAJOR_EVERY cells.
   const major = MAJOR_EVERY * scale;   // pixels between grey lines
   if (major >= 4) {
-    for (let x = Math.ceil(left / MAJOR_EVERY) * MAJOR_EVERY; x <= right; x += MAJOR_EVERY) verticalLine(x, MAJOR_LINE, 1);
-    for (let y = Math.ceil(bottom / MAJOR_EVERY) * MAJOR_EVERY; y <= top; y += MAJOR_EVERY) horizontalLine(y, MAJOR_LINE, 1);
+    for (const line of majorX) for (const at of line.places) verticalLine(at, MAJOR_LINE, 1);
+    for (const line of majorY) for (const at of line.places) horizontalLine(at, MAJOR_LINE, 1);
   }
 
   // 4. The axes.
-  verticalLine(0, AXIS_LINE, 1.5);
-  horizontalLine(0, AXIS_LINE, 1.5);
+  for (const at of axisX) verticalLine(at, AXIS_LINE, 1.5);
+  for (const at of axisY) horizontalLine(at, AXIS_LINE, 1.5);
 
-  // 5. Numbers at the grey lines, next to the axes. When an axis is off
-  //    screen, its numbers stay along the nearest edge (as in Desmos).
+  // 5. Numbers at the grey lines, next to each axis. When no axis is on
+  //    screen, the numbers stay along the nearest edge (as in Desmos).
   if (major >= 28) {
     pen.fillStyle = LABEL_COLOUR;
     pen.font = "11px sans-serif";
-    const xAxisAt = Math.min(Math.max(screenY(0), 0), h - 14);   // height of the x-axis numbers
-    const yAxisAt = Math.min(Math.max(screenX(0), 24), w);       // the y-axis numbers end here
+    const rows = (axisY.length > 0 ? axisY : [0]).map(function (y) {   // heights of the x-axis numbers
+      return Math.min(Math.max(screenY(y), 0), h - 14);
+    });
+    const cols = (axisX.length > 0 ? axisX : [0]).map(function (x) {   // where the y-axis numbers end
+      return Math.min(Math.max(screenX(x), 24), w);
+    });
     pen.textAlign = "center";
     pen.textBaseline = "top";
-    for (let x = Math.ceil(left / MAJOR_EVERY) * MAJOR_EVERY; x <= right; x += MAJOR_EVERY) {
-      if (x !== 0) pen.fillText(String(x), screenX(x), xAxisAt + 3);
+    for (const row of rows) {
+      for (const line of majorX) {
+        if (line.value === 0) continue;
+        for (const at of line.places) pen.fillText(String(line.value), screenX(at), row + 3);
+      }
     }
     pen.textAlign = "right";
     pen.textBaseline = "middle";
-    for (let y = Math.ceil(bottom / MAJOR_EVERY) * MAJOR_EVERY; y <= top; y += MAJOR_EVERY) {
-      if (y !== 0) pen.fillText(String(y), yAxisAt - 4, screenY(y));
+    for (const col of cols) {
+      for (const line of majorY) {
+        if (line.value === 0) continue;
+        for (const at of line.places) pen.fillText(String(line.value), col - 4, screenY(at));
+      }
     }
-    pen.fillText("0", yAxisAt - 4, xAxisAt + 9);
+    for (const row of rows) for (const col of cols) pen.fillText("0", col - 4, row + 9);   // where axes cross
   }
 
-  // 6. Torus: faded copies of the drawing, repeated in every direction as
-  //    far as the screen reaches, so panning never runs out. They are
-  //    only pictures (the real grid is the one Cytoscape draws on top);
+  // 6. Torus: copies of the drawing, repeated in every direction as far
+  //    as the screen reaches, so panning never runs out. They are only
+  //    pictures (the real grid is the one Cytoscape draws on top);
   //    clicking a copy paints the real cell, because cellAt() wraps every
   //    point back into the grid.
   if (grid.torus) drawTorusCopies(pen, scale, screenX, screenY, left, right, bottom, top);
+}
+
+// Every place between "from" and "to" where the line for the value v
+// goes. Without a torus that's just v. On a torus it's v in every copy
+// (v, v + period, v - period, ...), but only if v is inside the real grid
+// (lo to hi), since otherwise no copy contains it.
+function placesOf(v, from, to, lo, hi, period) {
+  if (!grid.torus) return (v >= from && v <= to) ? [v] : [];
+  if (v < lo || v > hi) return [];
+  const places = [];
+  for (let k = Math.ceil((from - v) / period); v + k * period <= to; k++) places.push(v + k * period);
+  return places;
+}
+
+// The grey lines, as a list of { value, places }: one for each multiple
+// of MAJOR_EVERY on screen (or, on a torus, inside the real grid).
+function majorLines(from, to, lo, hi, period) {
+  const a = grid.torus ? lo : from, b = grid.torus ? hi : to;
+  const lines = [];
+  for (let v = Math.ceil(a / MAJOR_EVERY) * MAJOR_EVERY; v <= b; v += MAJOR_EVERY) {
+    lines.push({ value: v, places: placesOf(v, from, to, lo, hi, period) });
+  }
+  return lines;
 }
 
 function drawTorusCopies(pen, scale, screenX, screenY, left, right, bottom, top) {
@@ -398,7 +445,9 @@ function drawTorusCopies(pen, scale, screenX, screenY, left, right, bottom, top)
   const edges = cy.edges(".on").not(".wrap");   // wrap-around edges are never drawn
   const dots = (view === "dots");
 
-  pen.globalAlpha = 0.4;   // faded
+  // As see-through as the real cells (0.85 in cells view, see section 3),
+  // so copies and the real grid look the same.
+  pen.globalAlpha = dots ? 1 : 0.85;
   for (let i = iFrom; i <= iTo; i++) {
     for (let j = jFrom; j <= jTo; j++) {
       if (i === 0 && j === 0) continue;   // that's the real grid
@@ -519,6 +568,7 @@ function paintAlong(a, b) {
 // Pointer (mouse or finger) goes down: start a stroke.
 cy.on("tapstart", function (event) {
   if (tool !== "paint") return;
+  keepFormulaResult();   // painting keeps whatever a formula drew (section 9)
   stroke = new Map();
   lastPoint = event.position;
 
@@ -558,6 +608,7 @@ function finishStroke() {
 // Run "change" (which calls setColour many times) as one undoable step.
 // Used by the Fill / Clear / Invert buttons and by pasting.
 function asOneStep(change) {
+  keepFormulaResult();   // keep whatever a formula drew first (section 9)
   stroke = new Map();
   cy.batch(change);
   finishStroke();
@@ -574,6 +625,7 @@ function undo() { replay(undoStack, redoStack, "before"); }
 function redo() { replay(redoStack, undoStack, "after"); }
 
 function replay(from, to, which) {
+  keepFormulaResult();   // so Undo first undoes a live formula as a whole
   const step = from.pop();
   if (!step) return;
   cy.batch(function () {
@@ -780,7 +832,248 @@ function loadEdgeList(text) {
 
 
 /* =====================================================================
-   9. CONNECTING THE BUTTONS ON THE PAGE
+   9. THE FORMULA BOX
+   ---------------------------------------------------------------------
+   Type a condition in x and y, like  x^2 + y^2 <= r^2 , and every cell
+   whose centre (x, y) makes it true gets painted. Reading the formula
+   is done by math.js (https://mathjs.org) and the typeset preview by
+   KaTeX (https://katex.org); both are loaded in graph-tool.html.
+
+   It works "live", like Desmos: every change to the formula, a slider
+   or the mode recomputes the grid from how it looked before the formula
+   started changing it ("beforeFormula"). Painting by hand, or pressing
+   Done, keeps the result, and the whole formula session becomes one
+   Undo step.
+   ===================================================================== */
+
+let formula = null;         // the formula, ready to evaluate (null if none)
+let beforeFormula = null;   // a copy of colourOf from before the formula changed anything
+const sliders = {};         // one per letter, e.g. sliders.r = { value: 1, min: -10, max: 10, step: 0.1 }
+
+// Turn the typed text into a math.js expression "tree", made more
+// Desmos-like in two ways:
+//   - "=" means "equals" (math.js would read  y = x^2  as "set y to x^2")
+//   - every variable is one letter, so "xy" means x times y (math.js
+//     would read it as one variable called "xy"). Names math.js knows,
+//     like sin, sqrt or pi, are left alone.
+function readTree(text) {
+  const equalsFixed = math.parse(text).transform(function (node) {
+    if (node.isAssignmentNode && node.object.isSymbolNode) {
+      return new math.OperatorNode("==", "equal", [node.object, node.value]);
+    }
+    return node;
+  });
+  return equalsFixed.transform(function (node, path, parent) {
+    const isFunctionName = parent && parent.isFunctionNode && path === "fn";   // the "sin" in sin(x)
+    const isWord = node.isSymbolNode && /^[a-zA-Z]{2,}$/.test(node.name);
+    if (!isWord || isFunctionName || math[node.name] !== undefined) return node;
+    // Split e.g. "xyr" into x * y * r. The "true" means the product is
+    // written without a multiplication sign, so the preview shows "xyr".
+    const letters = node.name.split("").map(function (ch) { return new math.SymbolNode(ch); });
+    return letters.reduce(function (product, letter) {
+      return new math.OperatorNode("*", "multiply", [product, letter], true);
+    });
+  });
+}
+
+// The letters in the formula that need a slider: everything except x, y
+// and names math.js already knows (pi, e, sqrt, ...).
+function sliderLetters(tree) {
+  const names = tree
+    .filter(function (node, path, parent) {
+      return node.isSymbolNode && !(parent && parent.isFunctionNode && path === "fn");
+    })
+    .map(function (node) { return node.name; });
+  return [...new Set(names)].filter(function (name) {
+    return name !== "x" && name !== "y" && math[name] === undefined;
+  });
+}
+
+// Runs on every keystroke in the formula box.
+function readFormula() {
+  const text = byId("formula").value.trim();
+  if (text === "") {                // box emptied: undo the live preview
+    formula = null;
+    byId("formula-preview").innerHTML = "";
+    showSliders([]);
+    cancelFormula();
+    return showFormulaMessage("");
+  }
+
+  let tree;
+  try {
+    tree = readTree(text);
+  } catch (problem) {
+    // Usually just a half-typed formula; keep the last good one showing.
+    return showFormulaMessage("Can't read that yet: " + problem.message);
+  }
+  katex.render(tree.toTex({ parenthesis: "keep", implicit: "hide" }), byId("formula-preview"),
+               { throwOnError: false });
+  formula = tree.compile();
+  showSliders(sliderLetters(tree));
+  applyFormula();
+}
+
+// Recompute every cell from the formula, the sliders and the mode.
+function applyFormula() {
+  if (!formula) return;
+  if (beforeFormula === null) beforeFormula = Object.assign({}, colourOf);   // remember the grid first
+
+  // The values the formula can use: the slider letters, then x and y.
+  const scope = {};
+  for (const name in sliders) scope[name] = sliders[name].value;
+
+  const mode = byId("formula-mode").value;
+  const paint = currentColour || 1;   // with the eraser chosen, paint colour 1
+  let problem = "";
+
+  cy.batch(function () {
+    forEachCell(function (x, y) {
+      scope.x = x;
+      scope.y = y;
+      let answer;
+      try { answer = formula.evaluate(scope); } catch (error) { problem = error.message; }
+      if (answer !== true && answer !== false && !problem) {
+        problem = "the formula should be a condition (true or false), like x^2 + y^2 <= 25.";
+      }
+      const inside = (answer === true);
+      const before = beforeFormula[cellName(x, y)] || 0;
+
+      let c;
+      if (mode === "replace")     c = inside ? paint : 0;        // only the region, in the current colour
+      else if (mode === "add")    c = inside ? paint : before;   // the region joins the drawing
+      else if (mode === "remove") c = inside ? 0 : before;       // the region is cut out of the drawing
+      else                        c = inside ? before : 0;       // "keep": only the drawing inside the region
+      setColour(x, y, c);
+    });
+  });
+  redrawCopies();
+  updateStats();
+  showFormulaMessage(problem
+    ? "Problem: " + problem
+    : "Live: the grid follows the formula. Press Done, or paint, to keep it.");
+}
+
+// Keep what the formula drew, as one Undo step.
+function keepFormulaResult() {
+  if (beforeFormula === null) return;
+  const step = new Map();
+  forEachCell(function (x, y) {
+    const name = cellName(x, y);
+    const before = beforeFormula[name] || 0, after = colourAt(x, y);
+    if (before !== after) step.set(name, { before: before, after: after });
+  });
+  if (step.size > 0) {
+    undoStack.push(step);
+    redoStack = [];
+  }
+  beforeFormula = null;
+}
+
+// Put the grid back the way it was before the formula started.
+function cancelFormula() {
+  if (beforeFormula === null) return;
+  cy.batch(function () {
+    forEachCell(function (x, y) { setColour(x, y, beforeFormula[cellName(x, y)] || 0); });
+  });
+  beforeFormula = null;
+  redrawCopies();
+  updateStats();
+}
+
+function showFormulaMessage(text) { byId("formula-message").textContent = text; }
+
+
+// --- Sliders, like Desmos ---------------------------------------------
+// One row per letter:   r = [1]  ====o====   min [-10]  max [10]  step [0.1]
+// A letter keeps its slider settings even if it leaves the formula and
+// comes back.
+function showSliders(names) {
+  const holder = byId("sliders");
+  holder.innerHTML = "";
+  for (const name of names) {
+    if (!sliders[name]) sliders[name] = { value: 1, min: -10, max: 10, step: 0.1 };
+    holder.appendChild(makeSlider(name, sliders[name]));
+  }
+}
+
+const SMALLEST_STEP = 0.001;
+
+function makeSlider(name, s) {
+  const row = document.createElement("div");
+  row.className = "slider-row";
+  row.innerHTML =
+    '<span class="slider-name"></span>' +
+    '<input type="number" class="slider-value" title="Value">' +
+    '<input type="range" class="slider-range">' +
+    '<span class="slider-limits">' +
+      'min <input type="number" class="slider-min"> ' +
+      'max <input type="number" class="slider-max"> ' +
+      'step <input type="number" class="slider-step" min="' + SMALLEST_STEP + '">' +
+    '</span>';
+  row.querySelector(".slider-name").textContent = name + " =";
+
+  const value = row.querySelector(".slider-value");
+  const range = row.querySelector(".slider-range");
+  const min = row.querySelector(".slider-min");
+  const max = row.querySelector(".slider-max");
+  const step = row.querySelector(".slider-step");
+
+  // Copy the slider's numbers into its boxes.
+  function show() {
+    range.min = s.min; range.max = s.max; range.step = s.step; range.value = s.value;
+    value.value = s.value; value.step = s.step;
+    min.value = s.min; max.value = s.max; step.value = s.step;
+  }
+
+  // Dragging the slider.
+  range.addEventListener("input", function () {
+    s.value = Number(range.value);
+    value.value = s.value;
+    applyFormula();
+  });
+  // Typing a value. Like Desmos, a value past min or max stretches the range.
+  value.addEventListener("input", function () {
+    const v = Number(value.value);
+    if (value.value === "" || !isFinite(v)) return;   // half-typed, e.g. "-"
+    s.value = v;
+    if (v < s.min) s.min = v;
+    if (v > s.max) s.max = v;
+    range.min = s.min; range.max = s.max; range.value = v;
+    min.value = s.min; max.value = s.max;
+    applyFormula();
+  });
+  // Changing min, max or step (checked when you finish typing).
+  min.addEventListener("change", function () {
+    const v = Number(min.value);
+    if (min.value !== "" && v < s.max) { s.min = v; s.value = Math.max(s.value, v); }
+    show(); applyFormula();
+  });
+  max.addEventListener("change", function () {
+    const v = Number(max.value);
+    if (max.value !== "" && v > s.min) { s.max = v; s.value = Math.min(s.value, v); }
+    show(); applyFormula();
+  });
+  step.addEventListener("change", function () {
+    const v = Number(step.value);
+    if (step.value !== "" && v > 0) s.step = Math.max(v, SMALLEST_STEP);
+    show();
+  });
+
+  show();
+  return row;
+}
+
+byId("formula").addEventListener("input", readFormula);
+byId("formula-mode").addEventListener("change", applyFormula);
+byId("formula-done").addEventListener("click", function () {
+  keepFormulaResult();
+  showFormulaMessage("Kept. Changing the formula now starts again from the current grid.");
+});
+
+
+/* =====================================================================
+   10. CONNECTING THE BUTTONS ON THE PAGE
    ===================================================================== */
 
 function byId(id) { return document.getElementById(id); }
