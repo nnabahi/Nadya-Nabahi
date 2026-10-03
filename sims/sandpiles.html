@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sandpiles — Toys n' Sims</title>
+  <link rel="stylesheet" href="../css/style.css">
+  <!-- KaTeX's styles, for the typeset formulas in the About quadrant. -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/katex.min.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <nav>
+      <a href="../about.html">About Me</a>
+      <a href="../resume.html">Resume</a>
+      <a href="../index.html">Home</a>
+      <a href="../publications.html">Publications</a>
+      <a href="../toys.html" class="active">Toys n' Sims</a>
+    </nav>
+  </header>
+
+  <main class="page">
+    <p><a href="../toys.html">&larr; All sims</a></p>
+    <h1>Sandpiles</h1>
+
+    <!-- The four quadrants, as on every sim page (see sims/graph-tool.html).
+         All the behavior lives in sandpiles.js; the ids below (id="...")
+         are how that script finds each button and box. -->
+    <div class="quadrants">
+
+      <!-- UPPER LEFT: the pile. -->
+      <section class="quad quad-sim">
+        <h2>Simulation</h2>
+
+        <!-- The picture. sandpiles.js sets its height so the cells come
+             out square. On a torus, the zoom buttons sit in its top right
+             corner. -->
+        <div class="sim-picture">
+          <canvas id="sim-canvas"></canvas>
+          <div class="zoom-buttons" id="zoom-buttons" hidden>
+            <button class="tool-button" id="zoom-in" title="Zoom in">+</button>
+            <button class="tool-button" id="zoom-out" title="Zoom out">&minus;</button>
+            <button class="tool-button" id="zoom-reset" title="Show the whole torus once again">Reset</button>
+          </div>
+        </div>
+
+        <!-- Shown instead of the picture while you draw a custom domain:
+             the graph tool itself, in an <iframe> (a page inside this
+             page), with a live check above it. -->
+        <div id="custom-area" hidden>
+          <div class="step-bar">
+            <p class="step-title">Draw the table</p>
+            <p class="muted step-help">Paint the cells of the table (any color counts).
+              Grains that fall off its edge are lost. Pick 4 or 8 neighbors in the tool;
+              that is also how many grains a cell needs to topple.</p>
+            <p class="step-status" id="step-status"></p>
+            <div class="option-row">
+              <button class="tool-button" id="tool-done">Done</button>
+              <button class="tool-button" id="tool-cancel">Cancel</button>
+            </div>
+          </div>
+          <iframe class="tool-frame" id="tool-frame" title="Graph and domain tool"></iframe>
+        </div>
+
+        <!-- Messages, e.g. "the pile is stable". -->
+        <p class="muted" id="sim-message"></p>
+      </section>
+
+      <!-- UPPER RIGHT: settings. -->
+      <section class="quad quad-controls">
+        <h2>Options</h2>
+
+        <h3 class="option-heading">Table</h3>
+        <div class="option-row">
+          <label><input type="radio" name="domain" value="box" checked> Box</label>
+          <label><input type="radio" name="domain" value="torus"> Torus</label>
+          <label><input type="radio" name="domain" value="custom"> Custom (draw it)</label>
+        </div>
+        <div class="option-row" id="size-row">
+          Size <input type="number" id="set-width" min="1" step="1">
+          &times; <input type="number" id="set-height" min="1" step="1">
+        </div>
+        <div class="option-row" id="neighbors-row">
+          Neighbors
+          <select id="set-neighbors">
+            <option value="4">4 (share a side): topples at 4 grains</option>
+            <option value="8">8 (sides or corners): topples at 8 grains</option>
+          </select>
+        </div>
+        <div class="option-row" id="custom-row" hidden>
+          <span id="custom-info"></span>
+          <button class="tool-button" id="edit-custom">Edit custom domain</button>
+        </div>
+        <div class="option-row" id="sink-row" hidden>
+          <label><input type="radio" name="sink" value="cell" checked> One sink cell in the middle</label>
+          <label><input type="radio" name="sink" value="none"> No sink</label>
+        </div>
+
+        <h3 class="option-heading">Start</h3>
+        <div class="option-row">
+          <select id="start-kind">
+            <option value="center">Center pile</option>
+            <option value="random">Random</option>
+            <option value="full">Full</option>
+            <option value="linear">Linear</option>
+            <option value="empty">Empty</option>
+            <option value="identity">Identity (watch it form)</option>
+          </select>
+          <button class="tool-button" id="show-identity" title="The identity of this table, at once">Show the identity</button>
+        </div>
+        <div class="option-row" id="grains-row">
+          n = <input type="number" id="set-grains" min="0" step="1">
+          <input type="range" class="wide-range" id="grains-slider" min="0" step="1">
+        </div>
+        <div class="option-row" id="most-row">
+          Up to <input type="number" id="set-most" min="0" step="1">
+          <input type="range" class="wide-range" id="most-slider" min="0" step="1">
+        </div>
+        <div class="option-row" id="full-row">
+          Height <input type="number" id="set-full" min="0" step="1">
+          <input type="range" class="wide-range" id="full-slider" min="0" step="1">
+        </div>
+        <div class="option-row" id="linear-row">
+          Value <input type="number" id="set-value" step="1">
+          Slope <input type="number" id="set-slope" step="1">
+        </div>
+        <p class="muted small" id="start-help"></p>
+        <div class="option-row">
+          <label><input type="checkbox" id="auto-jump"> Jump to the end whenever a setting changes</label>
+        </div>
+
+        <h3 class="option-heading">Run</h3>
+        <div class="option-row">
+          <button class="tool-button" id="play">Play</button>
+          <button class="tool-button" id="step" title="One topple (or one round)">Step</button>
+          <button class="tool-button" id="undo" title="Take back the last topple (or round)">Undo</button>
+          <button class="tool-button" id="jump" title="Topple until stable, at once">Jump to the end</button>
+          <button class="tool-button" id="restart" title="Back to the start, same seed">Restart</button>
+        </div>
+        <div class="option-row">
+          <label><input type="radio" name="order" value="one" checked> One random topple at a time</label>
+          <label><input type="radio" name="order" value="rounds"> All unstable cells at once</label>
+        </div>
+        <div class="option-row">
+          Speed <input type="range" class="wide-range" id="speed" min="0" step="1">
+          <span class="muted" id="speed-label"></span>
+        </div>
+
+        <h3 class="option-heading">Storm</h3>
+        <div class="option-row">
+          <label><input type="checkbox" id="storm"> Drop grains on random cells</label>
+          <label><input type="checkbox" id="storm-wait" checked> Wait until stable</label>
+        </div>
+        <div class="option-row">
+          Rate <input type="range" class="wide-range" id="storm-rate" min="0" step="1">
+          <span class="muted" id="storm-label"></span>
+        </div>
+
+        <h3 class="option-heading">Clicking a cell</h3>
+        <div class="option-row">
+          <label><input type="radio" name="click" value="add" checked> Adds a grain</label>
+          <label><input type="radio" name="click" value="remove"> Removes a grain</label>
+          <label><input type="radio" name="click" value="info"> Shows its numbers</label>
+        </div>
+
+        <h3 class="option-heading">Picture</h3>
+        <div class="option-row">
+          <label><input type="radio" name="show" value="heights" checked> Heights</label>
+          <label><input type="radio" name="show" value="topples"> Topples so far</label>
+        </div>
+        <div class="option-row">
+          Colors
+          <select id="palette">
+            <option value="list">One color per height</option>
+            <option value="gradient">Orange to red</option>
+          </select>
+          <label><input type="checkbox" id="show-numbers" checked> Numbers on big cells</label>
+        </div>
+        <div class="option-row">
+          Seed <input type="text" id="seed" size="8">
+          <button class="tool-button" id="new-seed" title="A random new seed">New seed</button>
+        </div>
+        <p class="muted small">The seed fixes the random start, the order of the topples
+          and where the storm's grains land. The final pile never depends on the order.</p>
+      </section>
+
+      <!-- LOWER LEFT: numbers about this pile. -->
+      <section class="quad quad-stats">
+        <h2>Statistics</h2>
+        <table class="stats-table">
+          <tr><td>Cells</td><td id="stat-cells"></td></tr>
+          <tr><td>Grains on the table</td><td id="stat-grains"></td></tr>
+          <tr><td>Grains at the start, and added since</td><td id="stat-added"></td></tr>
+          <tr><td>Grains lost to the sink</td><td id="stat-lost"></td></tr>
+          <tr><td>Topples</td><td id="stat-topples"></td></tr>
+          <tr><td>Unstable cells</td><td id="stat-unstable"></td></tr>
+          <tr><td>Stable?</td><td id="stat-stable"></td></tr>
+          <tr><td>Recurrent?</td><td id="stat-recurrent"></td></tr>
+        </table>
+
+        <h3 class="option-heading chart-heading">Cells of each height</h3>
+        <canvas class="chart" id="heights-chart"></canvas>
+        <h3 class="option-heading chart-heading">Avalanche sizes (storm, waiting until stable)</h3>
+        <canvas class="chart" id="avalanche-chart"></canvas>
+        <p class="muted small" id="avalanche-info"></p>
+      </section>
+
+      <!-- LOWER RIGHT: about the model, in two tabs (js/about-tabs.js
+           switches them): a simple version, and all the details. Text in
+           class="tex" is typeset by KaTeX (<div> on its own line, <span>
+           inside a sentence). -->
+      <section class="quad quad-about">
+        <h2>About the model</h2>
+        <nav class="about-tabs">
+          <button class="about-tab selected" data-tab="simple">Simple</button>
+          <button class="about-tab" data-tab="details">All the details</button>
+        </nav>
+
+        <div data-panel="simple">
+        <p>
+          Every cell holds some grains of sand. A cell with
+          <strong>4 or more grains</strong> (8 with 8 neighbors) is too tall:
+          it <strong>topples</strong>, giving one grain to each of its
+          neighbors. That can make the neighbors topple too, in an avalanche.
+          Grains that fall off the edge of the table are lost. When no cell
+          can topple, the pile is <strong>stable</strong>.
+        </p>
+        <p>
+          The next cell to topple is picked at random, but the
+          <strong>final pile is always the same</strong>, whatever the order.
+          That is why "Jump to the end" can skip straight to it.
+        </p>
+        <p>
+          On a torus there is no edge. With one <strong>sink cell</strong>,
+          that cell eats every grain it gets. With <strong>no sink</strong>,
+          grains can never leave: with too many grains the pile topples
+          forever, and the sim says so.
+        </p>
+        <p>
+          The <strong>identity</strong> is a special stable pile: adding it
+          to any pile that a long storm can make, and toppling, gives that
+          pile back. Every table with a sink has one, often a beautiful
+          picture. "Show the identity" shows it, and the start "Identity
+          (watch it form)" lets you watch it topple into place.
+        </p>
+        <p>
+          <strong>Things to try:</strong> slide n for the center pile with
+          "Jump to the end whenever a setting changes" ticked; start a storm
+          and watch the avalanches; draw your own table and show its
+          identity. On the torus, drag the picture to slide it around, and
+          zoom with the mouse wheel, a pinch, or the + and &minus; buttons.
+        </p>
+        </div>
+
+        <div data-panel="details" hidden>
+        <p>
+          <strong>The rule.</strong> The table is a graph: the cells
+          <span class="tex">V</span>, joined to their 4 or 8 neighbors, plus a
+          sink <span class="tex">s</span>. Each lattice neighbor of
+          <span class="tex">v</span> that is not on the table (or is the sink
+          cell) is an edge from <span class="tex">v</span> to
+          <span class="tex">s</span>, so every cell has degree
+          <span class="tex">d(v) = 4</span> (or 8). A pile is
+          <span class="tex">\eta : V \to \{0, 1, 2, \dots\}</span>. If
+          <span class="tex">\eta(v) \ge d(v)</span>, cell
+          <span class="tex">v</span> may topple:
+        </p>
+        <div class="tex">\eta(v) \mapsto \eta(v) - d(v), \qquad \eta(w) \mapsto \eta(w) + 1 \ \text{for each neighbor } w \ne s.</div>
+        <p>
+          This is the abelian sandpile of Bak, Tang and Wiesenfeld [1], in the
+          form of Dhar [2]. In the sim, the next cell to topple is uniform
+          among the unstable cells, as in nadya's own sandpile code; "All
+          unstable cells at once" topples them together, as in [1].
+        </p>
+        <p>
+          <strong>The abelian property</strong> [2]. If every cell can reach the
+          sink, toppling always stops, and the stable pile
+          <span class="tex">\eta^\circ</span> and the number of topples at each
+          cell do not depend on the order. "Jump to the end" uses this: a cell
+          with <span class="tex">\eta(v)</span> grains topples
+          <span class="tex">\lfloor \eta(v)/d(v) \rfloor</span> times at once.
+        </p>
+        <p>
+          <strong>No sink.</strong> On the torus without a sink, grains are
+          conserved. Björner, Lovász and Shor [3] showed that if every cell
+          topples at least once the toppling never ends, so the sim stops there
+          and says so. With <span class="tex">N</span> grains, it always ends if
+          <span class="tex">N &lt; |E|</span> and never ends if
+          <span class="tex">N &gt; 2|E| - |V|</span>, where
+          <span class="tex">|E|</span> counts the pairs of neighbors [3, Theorem 1.1].
+        </p>
+        <p>
+          <strong>Recurrent piles and the identity.</strong> Drop grains on
+          uniformly random cells forever (the storm, waiting until stable):
+          the piles that keep coming back are the <em>recurrent</em> ones. They
+          form a group under "add, then topple",
+          <span class="tex">\eta \oplus \xi = (\eta + \xi)^\circ</span>, the
+          sandpile group, and the storm visits each of them equally often in
+          the long run [2]. Their number is the determinant of the reduced
+          Laplacian, which by Kirchhoff's matrix-tree theorem [4] is the number
+          of spanning trees [2]. The sim checks recurrence with Dhar's burning
+          test [2]: add one grain to each cell for each of its edges to the
+          sink and topple; the pile is recurrent exactly when every cell
+          topples once. The identity of the group is
+        </p>
+        <div class="tex">e = \bigl(2M - (2M)^\circ\bigr)^\circ, \qquad M(v) = d(v) - 1,</div>
+        <p>
+          on any table [5, 6]: <span class="tex">2M - (2M)^\circ</span> differs
+          from the empty pile only by topples and is at least
+          <span class="tex">M</span> everywhere, so its stable version is
+          recurrent and equivalent to the empty pile, and that is the identity.
+          "Identity (watch it form)" starts from
+          <span class="tex">2M - (2M)^\circ</span>. The identity pictures on
+          squares were made famous by Creutz [7].
+        </p>
+        <p>
+          <strong>Statistics.</strong> An avalanche is the number of topples
+          caused by one grain of the storm. They follow a rough power law, the
+          "self-organized criticality" of [1]. For recurrent piles on large
+          squares, the fraction of cells with no grains tends to
+          <span class="tex">\tfrac{2}{\pi^2} - \tfrac{4}{\pi^3} \approx 0.074</span>
+          [8]. The center pile of <span class="tex">n</span> grains, scaled
+          down by <span class="tex">\sqrt{n}</span>, converges to a limit shape
+          [9].
+        </p>
+        <p><strong>References</strong></p>
+        <ol class="references">
+          <li>P. Bak, C. Tang, K. Wiesenfeld, &ldquo;Self-organized criticality:
+            an explanation of the 1/f noise&rdquo;, <em>Physical Review
+            Letters</em> 59 (1987), 381&ndash;384.
+            <a href="https://doi.org/10.1103/PhysRevLett.59.381">doi:10.1103/PhysRevLett.59.381</a></li>
+          <li>D. Dhar, &ldquo;Self-organized critical state of sandpile automaton
+            models&rdquo;, <em>Physical Review Letters</em> 64 (1990),
+            1613&ndash;1616.
+            <a href="https://doi.org/10.1103/PhysRevLett.64.1613">doi:10.1103/PhysRevLett.64.1613</a></li>
+          <li>A. Björner, L. Lovász, P. W. Shor, &ldquo;Chip-firing games on
+            graphs&rdquo;, <em>European Journal of Combinatorics</em> 12 (1991),
+            283&ndash;291.</li>
+          <li>G. Kirchhoff, &ldquo;Ueber die Auflösung der Gleichungen, auf welche
+            man bei der Untersuchung der linearen Vertheilung galvanischer
+            Ströme geführt wird&rdquo;, <em>Annalen der Physik und Chemie</em> 72
+            (1847), 497&ndash;508.</li>
+          <li>Y. Le Borgne, D. Rossin, &ldquo;On the identity of the sandpile
+            group&rdquo;, <em>Discrete Mathematics</em> 256 (2002),
+            775&ndash;790.</li>
+          <li>A. E. Holroyd, L. Levine, K. Mészáros, Y. Peres, J. Propp,
+            D. B. Wilson, &ldquo;Chip-firing and rotor-routing on directed graphs&rdquo;,
+            in <em>In and Out of Equilibrium 2</em>, Progress in Probability 60,
+            Birkhäuser, 2008, 331&ndash;364.</li>
+          <li>M. Creutz, &ldquo;Abelian sandpiles&rdquo;, <em>Computers in
+            Physics</em> 5 (1991), 198&ndash;203.</li>
+          <li>S. N. Majumdar, D. Dhar, &ldquo;Height correlations in the Abelian
+            sandpile model&rdquo;, <em>Journal of Physics A</em> 24 (1991),
+            L357&ndash;L362.</li>
+          <li>W. Pegden, C. K. Smart, &ldquo;Convergence of the Abelian
+            sandpile&rdquo;, <em>Duke Mathematical Journal</em> 162 (2013),
+            627&ndash;642.</li>
+        </ol>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <!-- KaTeX (https://katex.org) typesets the formulas. The version number
+       is fixed so an update can never change the site by surprise. -->
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/katex.min.js"></script>
+
+  <!-- The Simple / All the details tabs in the About box. -->
+  <script src="../js/about-tabs.js"></script>
+
+  <!-- Helpers shared by every sim page (they also typeset the formulas,
+       so they come after KaTeX), and domains shared by the sims. Then the
+       toppling rule (it runs in a second thread), then this page's code. -->
+  <script src="../js/sim-page.js"></script>
+  <script src="../js/sim-domains.js"></script>
+  <script src="sandpiles-pile.js"></script>
+  <script src="sandpiles.js"></script>
+
+</body>
+</html>
