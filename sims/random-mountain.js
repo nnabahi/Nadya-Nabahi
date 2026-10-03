@@ -19,6 +19,7 @@
      4. The domain
      5. Running the mountain
      6. Drawing the mountain
+     6b. Moving and zooming a 2D torus
      7. Statistics
      8. Custom domains: the graph tool inside this page
      9. Connecting the buttons on the page
@@ -64,6 +65,13 @@ const MAX_PICTURE_HEIGHT = 600;   // 2D, in screen pixels
 const EMPTY = "#c9c6bf";          // available sites with no block yet
 const OUTSIDE = "#ffffff";        // everything else
 
+// Zooming a 2D torus (section 6b), as in the coloring sims. Zoom 1
+// shows the whole torus once.
+const MIN_ZOOM = 0.25;            // zoomed out: the torus 4 times across
+const MAX_ZOOM = 8;               // zoomed in: cells 8 times bigger
+const MIN_CELL_PIXELS = 2;        // but zoomed out, cells stay at least this big
+const ZOOM_STEP = 1.5;            // how much one click on + or − zooms
+
 // The speeds on the Speed slider, in blocks per second. Infinity means
 // "as fast as the computer can". The default is slow, so you can watch
 // every block land.
@@ -81,6 +89,8 @@ let domainKind = "whole";    // "whole", "box", "torus" or "custom"
 let customDomain = null;     // the last custom domain drawn (js/sim-domains.js), if any
 let playing = false;         // it starts paused; Play sets it going
 let speedIndex = DEFAULT_SPEED;
+let scroll = { x: 0, y: 0 }; // 2D torus only: how far the picture is moved, in cells
+let zoom = 1;                // 2D torus only: 2 = cells twice as big, 0.5 = half as big
 let run = 0;                 // counts restarts, so leftovers from an older run are ignored
 
 // The latest message from the mountain (see part 2 of
@@ -194,6 +204,9 @@ function showDomainChoice() {
     });
     row.appendChild(label);
   }
+  zoom = 1;                       // a new domain starts with the whole picture
+  scroll = { x: 0, y: 0 };
+  showZoomButtons();
   const bounded = (domainKind === "box" || domainKind === "torus");
   byId("size-row").hidden = !bounded;
   byId("size-label").textContent = dim === 1 ? "Sites" : "Size";
@@ -416,48 +429,200 @@ function drawLine() {
   }
 }
 
-// 2D: seen from above.
+// 2D: seen from above. As in the coloring sims, the picture is drawn
+// screen square by screen square: for each square that shows in the
+// picture's box, find which cell is there. On a torus that wraps
+// around, so the squares beyond the box show the torus again, and the
+// picture can be moved and zoomed (section 6b).
+
+// Where the picture sits on the canvas, from the last drawing, in screen
+// pixels: "left", "width" and "height" of its box, and "size", the size
+// of a cell when the whole picture fits (zoom 1).
+let view = { left: 0, width: 0, height: 0, size: 1 };
+
+// The torus that the 2D picture wraps around, or null.
+function torusRange() {
+  if (dim !== 2) return null;
+  if (domainKind === "torus") return pictureRange();
+  if (domainKind === "custom" && customDomain && customDomain.wrap) return customDomain.wrap;
+  return null;
+}
+
+// The size of a cell on screen with the zoom, in pixels.
+function cellPixels() { return view.size * zoom; }
+
 function drawGrid() {
-  const s = latest, range = pictureRange();
+  const s = latest, range = pictureRange(), wrapRange = torusRange();
   const across = range.xmax - range.xmin + 1, down = range.ymax - range.ymin + 1;
   const cssWidth = simCanvas.clientWidth;
-  const size = Math.min(cssWidth / across, MAX_PICTURE_HEIGHT / down);   // a cell, in screen pixels
-  const width = size * across, height = size * down;
-  const ratio = window.devicePixelRatio || 1;
+  view.size = Math.min(cssWidth / across, MAX_PICTURE_HEIGHT / down);   // a cell at zoom 1
+  view.width = Math.round(view.size * across);
+  view.height = Math.round(view.size * down);
+  view.left = Math.round((cssWidth - view.width) / 2);
 
-  // 1. One pixel per cell. Row 0 of the image is the top of the
-  //    picture, which is the largest y (y goes up the screen).
-  tiny.width = across;
-  tiny.height = down;
+  const ratio = window.devicePixelRatio || 1;   // 2 on sharp screens
+  simCanvas.style.height = view.height + "px";
+  simCanvas.width = Math.round(cssWidth * ratio);
+  simCanvas.height = Math.round(view.height * ratio);
+  const pen = simCanvas.getContext("2d");
+  pen.setTransform(ratio, 0, 0, ratio, 0, 0);   // draw in screen pixels from here on
+
+  // Each site's number, by its place, to look up a cell quickly.
+  const siteAt = new Map();
+  for (let i = 0; i < s.x.length; i++) siteAt.set(s.x[i] + "," + s.y[i], i);
+
+  // Which squares show. Square (i, k) is column i from the left and row
+  // k from the top of the picture (k = 0 is the top row, y = ymax: rows
+  // go up the screen as y goes up). "scroll" moves the squares, in
+  // cells, and "zoom" sizes them; off a torus they stay 0 and 1.
+  const size = cellPixels();
+  const firstI = Math.floor(-scroll.x) - 1, lastI = Math.ceil(view.width / size - scroll.x);
+  const firstK = Math.floor(-scroll.y) - 1, lastK = Math.ceil(view.height / size - scroll.y);
+  const cols = lastI - firstI + 1, rows = lastK - firstK + 1;
+
+  // One pixel per square, in a small image. Row 0 of the image is the
+  // top row of squares.
+  tiny.width = cols;
+  tiny.height = rows;
   const tinyPen = tiny.getContext("2d");
-  const image = tinyPen.createImageData(across, down);
+  const image = tinyPen.createImageData(cols, rows);
   const pixels = image.data;   // 4 numbers per pixel: red, green, blue, opacity
   const outside = hexToRGB(OUTSIDE), empty = hexToRGB(EMPTY);
-  for (let p = 0; p < across * down; p++) {
-    pixels[4 * p] = outside[0]; pixels[4 * p + 1] = outside[1]; pixels[4 * p + 2] = outside[2];
-    pixels[4 * p + 3] = 255;
-  }
   const highest = Math.max(s.maxHeight, 1);
-  for (let i = 0; i < s.x.length; i++) {
-    const p = (range.ymax - s.y[i]) * across + (s.x[i] - range.xmin);
-    const rgb = s.height[i] === 0 ? empty : heatColor(s.height[i] / highest);
-    pixels[4 * p] = rgb[0]; pixels[4 * p + 1] = rgb[1]; pixels[4 * p + 2] = rgb[2];
+  for (let k = 0; k < rows; k++) {
+    for (let i = 0; i < cols; i++) {
+      let x = range.xmin + firstI + i, y = range.ymax - (firstK + k);
+      if (wrapRange) { x = wrap(x, wrapRange.xmin, wrapRange.xmax); y = wrap(y, wrapRange.ymin, wrapRange.ymax); }
+      const inBox = x >= range.xmin && x <= range.xmax && y >= range.ymin && y <= range.ymax;
+      const site = inBox ? siteAt.get(x + "," + y) : undefined;
+      const rgb = site === undefined ? outside
+        : s.height[site] === 0 ? empty : heatColor(s.height[site] / highest);
+      const p = k * cols + i;
+      pixels[4 * p] = rgb[0]; pixels[4 * p + 1] = rgb[1]; pixels[4 * p + 2] = rgb[2];
+      pixels[4 * p + 3] = 255;
+    }
   }
   tinyPen.putImageData(image, 0, 0);
 
-  // 2. Blow it up onto the page, in the middle, with smoothing off so
-  //    the cells stay sharp squares; a thin frame around it.
-  simCanvas.style.height = Math.ceil(height) + "px";
-  simCanvas.width = Math.round(cssWidth * ratio);
-  simCanvas.height = Math.round(Math.ceil(height) * ratio);
-  const pen = simCanvas.getContext("2d");
-  pen.setTransform(ratio, 0, 0, ratio, 0, 0);
+  // Blow it up into the picture's box, with smoothing off so the cells
+  // stay sharp squares, and a thin frame around the box.
+  pen.save();
+  pen.beginPath();
+  pen.rect(view.left, 0, view.width, view.height);
+  pen.clip();                                     // nothing outside the picture's box
   pen.imageSmoothingEnabled = false;
-  const left = (cssWidth - width) / 2;
-  pen.drawImage(tiny, left, 0, width, height);
+  pen.drawImage(tiny, view.left + Math.round((firstI + scroll.x) * size), Math.round((firstK + scroll.y) * size),
+                cols * size, rows * size);
+  pen.restore();
   pen.strokeStyle = EMPTY;
-  pen.strokeRect(left + 0.5, 0.5, width - 1, height - 1);
+  pen.strokeRect(view.left + 0.5, 0.5, view.width - 1, view.height - 1);
 }
+
+
+/* =====================================================================
+   6b. MOVING AND ZOOMING A 2D TORUS
+   ---------------------------------------------------------------------
+   On a 2D torus (the Torus domain, or a domain drawn on a torus in the
+   graph tool) the picture can be moved and zoomed, as in the coloring
+   sims (and like a graph in Desmos):
+     drag                         move it
+     mouse wheel, or pinch        zoom in or out, around the pointer
+     the + / − / Reset buttons    zoom in, zoom out, show it all again
+   "Pointer" events cover the mouse, a pen and fingers alike.
+   ===================================================================== */
+const pointers = new Map();   // the pointers pressed on the picture, id -> {x, y}
+
+// True when the picture can be moved and zoomed.
+function scrollable() { return torusRange() !== null && !simCanvas.hidden; }
+
+// Zoom by "factor" (2 = twice as close) around the point (px, py), in
+// screen pixels from the top left of the picture's box: the cell under
+// that point stays under it.
+function zoomBy(factor, px, py) {
+  const before = cellPixels();
+  // Zoomed out, cells stay at least MIN_CELL_PIXELS big (but the whole
+  // torus, zoom 1, is always allowed, even with smaller cells).
+  const least = Math.min(1, Math.max(MIN_ZOOM, MIN_CELL_PIXELS / view.size));
+  zoom = Math.min(Math.max(zoom * factor, least), MAX_ZOOM);
+  const after = cellPixels();
+  scroll.x += px / after - px / before;
+  scroll.y += py / after - py / before;
+  drawSoon();
+}
+
+// Back to the whole picture, once, as at the start.
+function resetView() {
+  zoom = 1;
+  scroll = { x: 0, y: 0 };
+  drawSoon();
+}
+
+// The + / − / Reset buttons, the "hand" cursor and finger dragging show
+// only on a torus.
+function showZoomButtons() {
+  byId("zoom-buttons").hidden = !scrollable();
+  simCanvas.classList.toggle("scrollable", scrollable());
+}
+
+byId("zoom-in").addEventListener("click", function () {
+  zoomBy(ZOOM_STEP, view.width / 2, view.height / 2);       // around the middle
+});
+byId("zoom-out").addEventListener("click", function () {
+  zoomBy(1 / ZOOM_STEP, view.width / 2, view.height / 2);
+});
+byId("zoom-reset").addEventListener("click", resetView);
+
+// The point between the pressed pointers, and how far apart they are
+// (0 for one pointer). With one finger (or the mouse) down, the picture
+// follows it. With two fingers, it follows the point between them and
+// zooms as they spread apart or pinch together.
+function middleOfPointers() {
+  const p = Array.from(pointers.values());
+  if (p.length === 1) return { x: p[0].x, y: p[0].y, apart: 0 };
+  return { x: (p[0].x + p[1].x) / 2, y: (p[0].y + p[1].y) / 2,
+           apart: Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y) };
+}
+
+simCanvas.addEventListener("pointerdown", function (event) {
+  if (!scrollable()) return;
+  pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+  simCanvas.setPointerCapture(event.pointerId);   // keep getting moves even off the canvas
+  simCanvas.classList.add("dragging");
+});
+
+simCanvas.addEventListener("pointermove", function (event) {
+  if (!pointers.has(event.pointerId)) return;
+  const before = middleOfPointers();
+  pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+  const after = middleOfPointers();
+  const size = cellPixels();
+  scroll.x += (after.x - before.x) / size;
+  scroll.y += (after.y - before.y) / size;
+  if (pointers.size >= 2 && before.apart > 0) {
+    const box = simCanvas.getBoundingClientRect();
+    zoomBy(after.apart / before.apart, after.x - box.left - view.left, after.y - box.top);
+  }
+  drawSoon();
+});
+
+function stopDragging(event) {
+  pointers.delete(event.pointerId);
+  if (pointers.size === 0) simCanvas.classList.remove("dragging");
+}
+simCanvas.addEventListener("pointerup", stopDragging);
+simCanvas.addEventListener("pointercancel", stopDragging);
+
+// The mouse wheel zooms around the pointer, as in Desmos. So does a
+// pinch on a trackpad, which the browser reports as the wheel with the
+// Ctrl key held (and small steps, so it counts for more).
+simCanvas.addEventListener("wheel", function (event) {
+  if (!scrollable()) return;
+  event.preventDefault();                              // don't scroll the page
+  const pixels = event.deltaY * (event.deltaMode === 1 ? 16 : 1);   // some mice count lines
+  const box = simCanvas.getBoundingClientRect();
+  zoomBy(Math.exp(-pixels * (event.ctrlKey ? 0.01 : 0.002)),
+         event.clientX - box.left - view.left, event.clientY - box.top);
+}, { passive: false });   // "passive: false" lets preventDefault stop the page scrolling
 
 
 /* =====================================================================
@@ -541,6 +706,7 @@ function openTool() {
   toolOpen = true;
   simCanvas.hidden = true;
   byId("custom-area").hidden = false;
+  showZoomButtons();
   if (!frame.src) frame.src = "graph-tool.html?embed";    // the first time only
   checkTool();
 }
@@ -549,6 +715,7 @@ function closeTool() {
   toolOpen = false;
   byId("custom-area").hidden = true;
   simCanvas.hidden = false;
+  showZoomButtons();
 }
 
 // Messages from the tool: its height (so the iframe fits it exactly),
