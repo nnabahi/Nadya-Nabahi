@@ -3,12 +3,12 @@
    ---------------------------------------------------------------------
    Every sim that lives on cells (a box, a torus, or a region drawn in
    the graph tool) turns its domain into the same kind of object, built
-   here. The code is the same as in connected-colouring.js; that sim
+   here. The code is the same as in the connected coloring sim; that sim
    will switch to this file too, so it is written in one place only.
 
    A domain is an object with:
      n          number of cells, numbered 0 .. n-1
-     x[v], y[v] where cell v is (cell (x, y) is centerd at (x, y), as in
+     x[v], y[v] where cell v is (cell (x, y) is centered at (x, y), as in
                 the graph tool)
      first, nbr the neighbors of v are nbr[first[v]] .. nbr[first[v+1] - 1]
                 (one long list, cut into pieces by "first"; the usual
@@ -62,8 +62,7 @@ function boxDomain(width, height, neighbors, torus) {
 }
 
 // A domain drawn in the graph tool. "graph" is the tool's getGraph():
-// { vertices: [{id, x, y, colour}, ...], edges: [[id, id], ...] } ("colour" is
-// the tool's own name for that field), and
+// { vertices: [{id, x, y, color}, ...], edges: [[id, id], ...] }, and
 // "toolGrid" its grid settings (for the torus).
 function drawnDomain(graph, toolGrid) {
   const index = new Map();

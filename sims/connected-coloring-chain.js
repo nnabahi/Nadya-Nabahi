@@ -1,20 +1,20 @@
 /* =====================================================================
-   connected-colouring-chain.js  —  the Markov chain behind the
-   "Random connected colouring" sim
+   connected-coloring-chain.js  —  the Markov chain behind the
+   "Random connected coloring" sim
    ---------------------------------------------------------------------
    What it does, in plain words:
-     The domain is a graph (the cells, joined to their neighbours). A
-     "connected N-colouring" gives every cell one of N colours so that
-     each colour is used and forms one connected piece. This file runs a
+     The domain is a graph (the cells, joined to their neighbors). A
+     "connected N-coloring" gives every cell one of N colors so that
+     each color is used and forms one connected piece. This file runs a
      Markov chain whose long-run distribution is UNIFORM over all
-     connected N-colourings: in the long run, every such colouring is
+     connected N-colorings: in the long run, every such coloring is
      equally likely.
 
    One move of the chain (ReCom, "recombination", from DeFord, Duchin &
    Solomon, Harvard Data Science Review 3(1), 2021,
    doi:10.1162/99608f92.eb30390f), with a Metropolis-Hastings correction:
-     1. Pick a pair of colours i, j that touch, uniformly among the
-        A(X) touching pairs of the current colouring X.
+     1. Pick a pair of colors i, j that touch, uniformly among the
+        A(X) touching pairs of the current coloring X.
      2. Merge them: M = C_i u C_j (it is connected, since C_i and C_j
         each are, and they touch).
      3. Draw a uniformly random spanning tree T of M, with Wilson's
@@ -22,8 +22,8 @@
         quickly than the cover time", STOC 1996, doi:10.1145/237814.237880).
      4. Cut a uniformly random edge of T. A tree minus one edge falls into
         exactly two connected pieces, P and Q.
-     5. Toss a fair coin: heads, P gets colour i and Q gets j; tails, the
-        other way round. Call the new colouring Y.
+     5. Toss a fair coin: heads, P gets color i and Q gets j; tails, the
+        other way round. Call the new coloring Y.
      6. Accept Y with probability
           alpha = min(1,  A(X)/A(Y)  *  tau(C_i) tau(C_j) / (tau(P) tau(Q))
                               *  k(C_i, C_j) / k(P, Q) ),
@@ -44,7 +44,7 @@
    Biometrika 57 (1970) 97, doi:10.1093/biomet/57.1.97) for a uniform
    target accepts with min(1, q(Y -> X) / q(X -> Y)), which is the alpha
    above: tau(M) and |M| - 1 cancel. The coin in step 5 matters: without
-   it, which piece gets colour i depends on where Wilson's walk was
+   it, which piece gets color i depends on where Wilson's walk was
    rooted, and the formula for q would be wrong.
 
    tau(S) comes from Kirchhoff's Matrix-Tree Theorem (G. Kirchhoff,
@@ -56,7 +56,7 @@
    Cholesky factor (Golub & Van Loan, "Matrix Computations", 4th ed.,
    Section 4.2). Numbering the cells in breadth-first order keeps every
    nonzero entry close to the diagonal (a "band" of width b), and a
-   banded Cholesky factorisation then costs about |S| b^2 steps instead
+   banded Cholesky factorization then costs about |S| b^2 steps instead
    of |S|^3 / 3 (same book, Section 4.3). Spanning-tree counts are huge,
    so everything is kept as logarithms.
 
@@ -67,7 +67,7 @@
 
    HOW IT RUNS
    The whole chain is one function, chainWorker(). The sim page
-   (connected-colouring.js) turns that function into a "Web Worker": a
+   (connected-coloring.js) turns that function into a "Web Worker": a
    second thread that runs the chain without freezing the page. The page
    and the worker talk by sending each other messages (section 5).
 
@@ -89,21 +89,21 @@ function chainWorker() {
   /* ===================================================================
      1. THE STATE OF THE CHAIN
      -------------------------------------------------------------------
-     The domain is a graph with n cells numbered 0 .. n-1. The neighbours
+     The domain is a graph with n cells numbered 0 .. n-1. The neighbors
      of cell v are  nbr[first[v]], nbr[first[v] + 1], ..., nbr[first[v + 1] - 1]
      (one long list, cut into pieces by "first"; this is the usual
      compact way to store a graph, called CSR).
      =================================================================== */
   let n = 0;               // number of cells
-  let first = null;        // where each cell's neighbours start in nbr
-  let nbr = null;          // all the neighbour lists, one after another
-  let N = 0;               // number of colours
-  let colour = null;       // colour[v] = colour of cell v, 0 .. N-1
-  let size = null;         // size[c] = number of cells of colour c
-  let between = null;      // between[i*N + j] (i < j) = edges joining colours i and j
-  let pairs = 0;           // A(X): how many pairs of colours touch
-  let boundary = 0;        // edges whose two ends have different colours
-  let logTau = null;       // logTau[c] = log(number of spanning trees of colour c)
+  let first = null;        // where each cell's neighbors start in nbr
+  let nbr = null;          // all the neighbor lists, one after another
+  let N = 0;               // number of colors
+  let color = null;       // color[v] = color of cell v, 0 .. N-1
+  let size = null;         // size[c] = number of cells of color c
+  let between = null;      // between[i*N + j] (i < j) = edges joining colors i and j
+  let pairs = 0;           // A(X): how many pairs of colors touch
+  let boundary = 0;        // edges whose two ends have different colors
+  let logTau = null;       // logTau[c] = log(number of spanning trees of color c)
   let random = Math.random;
   let proposed = 0;        // moves tried
   let accepted = 0;        // moves accepted
@@ -114,7 +114,7 @@ function chainWorker() {
   // them; bumping the number un-marks every cell at once, for free.
   let inM, inTree, member, seen;   // stamp arrays
   let mStamp = 0, treeStamp = 0, memberStamp = 0, seenStamp = 0;
-  let parent, next, side, oldColour, newColour, order, position, path;
+  let parent, next, side, oldColor, newColor, order, position, path;
   let band = new Float64Array(1024);   // the banded matrix (section 4); grows when needed
 
   function setup(message) {
@@ -122,7 +122,7 @@ function chainWorker() {
     first = message.first;
     nbr = message.nbr;
     N = message.N;
-    colour = Int32Array.from(message.colours);
+    color = Int32Array.from(message.colors);
     random = new Math.seedrandom(String(message.seed));
     run = message.run;
     proposed = 0;
@@ -132,37 +132,37 @@ function chainWorker() {
     member = new Int32Array(n); seen = new Int32Array(n);
     parent = new Int32Array(n); next = new Int32Array(n);
     side = new Int8Array(n);
-    oldColour = new Int32Array(n); newColour = new Int32Array(n);
+    oldColor = new Int32Array(n); newColor = new Int32Array(n);
     order = new Int32Array(n); position = new Int32Array(n); path = new Int32Array(n);
 
-    // Count the colours, and the edges between each pair of colours.
+    // Count the colors, and the edges between each pair of colors.
     size = new Int32Array(N);
     between = new Int32Array(N * N);
     pairs = 0;
     boundary = 0;
     for (let v = 0; v < n; v++) {
-      size[colour[v]]++;
+      size[color[v]]++;
       for (let e = first[v]; e < first[v + 1]; e++) {
         const w = nbr[e];
-        if (w < v || colour[w] === colour[v]) continue;   // each edge once; same colour isn't a boundary
-        const key = pairKey(colour[v], colour[w]);
+        if (w < v || color[w] === color[v]) continue;   // each edge once; same color isn't a boundary
+        const key = pairKey(color[v], color[w]);
         if (between[key] === 0) pairs++;
         between[key]++;
         boundary++;
       }
     }
 
-    // The spanning trees of each colour, remembered from move to move.
+    // The spanning trees of each color, remembered from move to move.
     logTau = new Float64Array(N);
-    for (let c = 0; c < N; c++) logTau[c] = logSpanningTrees(cellsOfColour(c));
+    for (let c = 0; c < N; c++) logTau[c] = logSpanningTrees(cellsOfColor(c));
   }
 
-  // Where the pair of colours a, b is stored in "between".
+  // Where the pair of colors a, b is stored in "between".
   function pairKey(a, b) { return a < b ? a * N + b : b * N + a; }
 
-  function cellsOfColour(c) {
+  function cellsOfColor(c) {
     const cells = [];
-    for (let v = 0; v < n; v++) if (colour[v] === c) cells.push(v);
+    for (let v = 0; v < n; v++) if (color[v] === c) cells.push(v);
     return cells;
   }
 
@@ -174,22 +174,22 @@ function chainWorker() {
   function oneMove() {
     proposed++;
 
-    // Step 1: the touching pairs of colours, and one picked at random.
+    // Step 1: the touching pairs of colors, and one picked at random.
     const touching = [];
     for (let i = 0; i < N; i++) {
       for (let j = i + 1; j < N; j++) if (between[i * N + j] > 0) touching.push(i * N + j);
     }
-    if (touching.length === 0) return false;   // only possible with a single colour
+    if (touching.length === 0) return false;   // only possible with a single color
     const key = touching[Math.floor(random() * touching.length)];
     const i = Math.floor(key / N), j = key % N;
     const pairsBefore = pairs;                 // A(X)
     const kBefore = between[key];              // k(C_i, C_j)
 
-    // Step 2: M = the cells of colour i or j, marked in inM.
+    // Step 2: M = the cells of color i or j, marked in inM.
     mStamp++;
     const M = [];
     for (let v = 0; v < n; v++) {
-      if (colour[v] === i || colour[v] === j) { M.push(v); inM[v] = mStamp; }
+      if (color[v] === i || color[v] === j) { M.push(v); inM[v] = mStamp; }
     }
 
     // Steps 3 and 4: a random spanning tree of M, cut at a random edge.
@@ -201,23 +201,23 @@ function chainWorker() {
     do { cut = M[Math.floor(random() * M.length)]; } while (cut === root);
     markPieceBelow(M, cut);                    // side[v] = 1 in P (below the cut), 2 in Q
 
-    // Step 5: the fair coin decides which piece gets colour i.
-    const colourP = random() < 0.5 ? i : j;
-    const colourQ = (colourP === i) ? j : i;
+    // Step 5: the fair coin decides which piece gets color i.
+    const colorP = random() < 0.5 ? i : j;
+    const colorQ = (colorP === i) ? j : i;
     let changed = 0;
     for (const v of M) {
-      oldColour[v] = colour[v];
-      newColour[v] = (side[v] === 1) ? colourP : colourQ;
-      if (newColour[v] !== colour[v]) changed++;
+      oldColor[v] = color[v];
+      newColor[v] = (side[v] === 1) ? colorP : colorQ;
+      if (newColor[v] !== color[v]) changed++;
     }
     if (changed === 0) { accepted++; return true; }   // Y = X: alpha = 1 and nothing moves
 
-    // Step 6: recolour for real, measure Y, then keep it or put X back.
-    recolour(M, newColour);
+    // Step 6: recolor for real, measure Y, then keep it or put X back.
+    recolor(M, newColor);
     const pairsAfter = pairs;                  // A(Y)
     const kAfter = between[key];               // k(P, Q)
-    const newI = M.filter(function (v) { return colour[v] === i; });
-    const newJ = M.filter(function (v) { return colour[v] === j; });
+    const newI = M.filter(function (v) { return color[v] === i; });
+    const newJ = M.filter(function (v) { return color[v] === j; });
     const logTauI = logSpanningTrees(newI);
     const logTauJ = logSpanningTrees(newJ);
 
@@ -231,20 +231,20 @@ function chainWorker() {
       accepted++;
       return true;
     }
-    recolour(M, oldColour);                    // rejected: back to X
+    recolor(M, oldColor);                    // rejected: back to X
     return false;
   }
 
-  // Give each cell v of "cells" the colour target[v], keeping size,
+  // Give each cell v of "cells" the color target[v], keeping size,
   // between, pairs and boundary up to date. Only edges touching "cells"
   // can change, so only those are taken out and put back.
   // ("cells" is always M, the cells marked in inM.)
-  function recolour(cells, target) {
+  function recolor(cells, target) {
     countEdges(cells, -1);
     for (const v of cells) {
-      size[colour[v]]--;
-      colour[v] = target[v];
-      size[colour[v]]++;
+      size[color[v]]--;
+      color[v] = target[v];
+      size[color[v]]++;
     }
     countEdges(cells, +1);
   }
@@ -255,8 +255,8 @@ function chainWorker() {
       for (let e = first[v]; e < first[v + 1]; e++) {
         const w = nbr[e];
         if (inM[w] === mStamp && w < v) continue;   // both ends in M: count it once
-        if (colour[w] === colour[v]) continue;
-        const key = pairKey(colour[v], colour[w]);
+        if (color[w] === color[v]) continue;
+        const key = pairKey(color[v], color[w]);
         if (sign < 0 && between[key] === 1) pairs--;   // this pair stops touching
         if (sign > 0 && between[key] === 0) pairs++;   // this pair starts touching
         between[key] += sign;
@@ -283,7 +283,7 @@ function chainWorker() {
     for (const u of cells) {
       let v = u;
       while (inTree[v] !== treeStamp) {        // walk until the tree is hit
-        next[v] = randomNeighbourInM(v);
+        next[v] = randomNeighborInM(v);
         v = next[v];
       }
       v = u;
@@ -295,10 +295,10 @@ function chainWorker() {
     }
   }
 
-  // A uniformly random neighbour of v inside M. Pick any neighbour and
-  // try again if it's outside M: every neighbour inside M is equally
+  // A uniformly random neighbor of v inside M. Pick any neighbor and
+  // try again if it's outside M: every neighbor inside M is equally
   // likely to come out.
-  function randomNeighbourInM(v) {
+  function randomNeighborInM(v) {
     const start = first[v], count = first[v + 1] - start;
     for (;;) {
       const w = nbr[start + Math.floor(random() * count)];
@@ -332,10 +332,10 @@ function chainWorker() {
      diagonal, -1 for each edge) with one cell's row and column removed.
      Steps:
        a. Number the cells in breadth-first order, starting from a cell
-          far from the middle, so neighbours get nearby numbers.
+          far from the middle, so neighbors get nearby numbers.
        b. Drop the last cell; build L, keeping only its band: the
           entries at most b places left of the diagonal (b = the largest
-          gap in numbers between two neighbours). The rest are zero.
+          gap in numbers between two neighbors). The rest are zero.
        c. Cholesky: L = R R^T with R lower triangular and inside the same
           band. Then det L = (product of R's diagonal)^2, so
           log det L = sum of log(R[p][p]^2).
@@ -351,7 +351,7 @@ function chainWorker() {
     // a. Breadth-first order, twice: the last cell of the first search
     //    is far from where it started, a good place to start the second.
     const count = breadthFirstOrder(cells[0]);
-    if (count !== cells.length) throw new Error("a colour is not connected");
+    if (count !== cells.length) throw new Error("a color is not connected");
     breadthFirstOrder(order[count - 1]);
 
     // b. The band width b, then the matrix itself.
@@ -426,12 +426,12 @@ function chainWorker() {
      5. MESSAGES FROM THE PAGE, AND THE RUN LOOP
      -------------------------------------------------------------------
      The page sends:
-       { type: "setup", run, n, first, nbr, colours, N, seed }   a new run
+       { type: "setup", run, n, first, nbr, colors, N, seed }   a new run
        { type: "play", speed }    run "speed" moves per second
                                   (Infinity = as fast as possible)
        { type: "pause" }
        { type: "step" }           one move
-     The worker answers with "state" messages: the colours, and the
+     The worker answers with "state" messages: the colors, and the
      numbers for the Statistics quadrant. Each one carries its run
      number, so the page can ignore leftovers from an older run.
      =================================================================== */
@@ -490,11 +490,11 @@ function chainWorker() {
   function report() {
     if (proposed === lastReported) return;   // nothing new to show
     lastReported = proposed;
-    const copy = colour.slice();
+    const copy = color.slice();
     self.postMessage({
       type: "state",
       run: run,
-      colours: copy,
+      colors: copy,
       proposed: proposed,
       accepted: accepted,
       boundary: boundary,
