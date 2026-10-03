@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Random connected colouring — Toys n' Sims</title>
+  <link rel="stylesheet" href="../css/style.css">
+  <!-- KaTeX's styles, for the typeset formulas in the About quadrant. -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/katex.min.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <nav>
+      <a href="../about.html">About Me</a>
+      <a href="../resume.html">Resume</a>
+      <a href="../index.html">Home</a>
+      <a href="../publications.html">Publications</a>
+      <a href="../toys.html" class="active">Toys n' Sims</a>
+    </nav>
+  </header>
+
+  <main class="page">
+    <p><a href="../toys.html">&larr; All sims</a></p>
+    <h1>Random connected colouring</h1>
+
+    <!-- The four quadrants, as on every sim page (see sims/example.html).
+         All the behaviour lives in connected-colouring.js; the ids below
+         (id="...") are how that script finds each button and box. -->
+    <div class="quadrants">
+
+      <!-- UPPER LEFT: the colouring. -->
+      <section class="quad quad-sim">
+        <h2>Simulation</h2>
+
+        <!-- The picture. connected-colouring.js sets its height so the
+             cells come out square. -->
+        <canvas id="sim-canvas"></canvas>
+
+        <!-- Shown instead of the picture while you draw a custom domain:
+             the steps, and the graph tool itself in an <iframe> (a page
+             inside this page). The buttons with data-step="1" show in
+             step 1, those with data-step="2" in step 2. -->
+        <div id="custom-area" hidden>
+          <div class="step-bar">
+            <p class="step-title" id="step-title"></p>
+            <p class="muted step-help" id="step-help"></p>
+            <p class="step-status" id="step-status"></p>
+            <div class="option-row">
+              <button class="tool-button" id="use-auto" data-step="1">Use automatic start</button>
+              <button class="tool-button" id="draw-own" data-step="1">Draw my own start</button>
+              <button class="tool-button tool-cancel" data-step="1">Cancel</button>
+              <button class="tool-button" id="tool-back" data-step="2">Back to the region</button>
+              <button class="tool-button" id="tool-done" data-step="2">Done</button>
+              <button class="tool-button tool-cancel" data-step="2">Cancel</button>
+            </div>
+          </div>
+          <iframe class="tool-frame" id="tool-frame" title="Graph and domain tool"></iframe>
+        </div>
+
+        <!-- Messages, e.g. if the chain can't start. -->
+        <p class="muted" id="sim-message"></p>
+      </section>
+
+      <!-- UPPER RIGHT: settings. -->
+      <section class="quad quad-controls">
+        <h2>Options</h2>
+
+        <h3 class="option-heading">Domain</h3>
+        <div class="option-row">
+          <label><input type="radio" name="domain" value="box" checked> Box</label>
+          <label><input type="radio" name="domain" value="torus"> Torus</label>
+          <label><input type="radio" name="domain" value="custom"> Custom (draw it)</label>
+        </div>
+        <div class="option-row" id="size-row">
+          Size <input type="number" id="set-width" min="2" max="100" step="1">
+          &times; <input type="number" id="set-height" min="2" max="100" step="1">
+        </div>
+        <div class="option-row" id="neighbours-row">
+          Neighbours
+          <select id="set-neighbours">
+            <option value="4">4 (share a side)</option>
+            <option value="8">8 (sides or corners)</option>
+          </select>
+        </div>
+        <div class="option-row" id="custom-row" hidden>
+          <span id="custom-info"></span>
+          <button class="tool-button" id="edit-custom">Edit custom domain</button>
+        </div>
+
+        <h3 class="option-heading">Colours</h3>
+        <div class="option-row">
+          N = <input type="number" id="set-colours" min="2" step="1">
+          <input type="range" class="wide-range" id="colours-slider" min="2" step="1">
+        </div>
+        <p class="muted small" id="start-info"></p>
+
+        <h3 class="option-heading">Run</h3>
+        <div class="option-row">
+          <button class="tool-button selected" id="play">Pause</button>
+          <button class="tool-button" id="step" title="One move">Step</button>
+          <button class="tool-button" id="restart" title="Back to the start, same seed">Restart</button>
+        </div>
+        <div class="option-row">
+          Speed <input type="range" class="wide-range" id="speed" min="0" step="1">
+          <span class="muted" id="speed-label"></span>
+        </div>
+        <div class="option-row">
+          Seed <input type="text" id="seed" size="8">
+          <button class="tool-button" id="new-seed" title="A random new seed">New seed</button>
+        </div>
+        <p class="muted small">The same seed always gives the same run.</p>
+      </section>
+
+      <!-- LOWER LEFT: numbers about the chain. -->
+      <section class="quad quad-stats">
+        <h2>Statistics</h2>
+        <table class="stats-table">
+          <tr><td>Cells</td><td id="stat-cells"></td></tr>
+          <tr><td>Colours N</td><td id="stat-colours"></td></tr>
+          <tr><td>Moves tried</td><td id="stat-proposed"></td></tr>
+          <tr><td>Moves accepted</td><td id="stat-accepted"></td></tr>
+          <tr><td>Boundary edges (joining two colours)</td><td id="stat-boundary"></td></tr>
+          <tr><td>Touching pairs of colours, A(X)</td><td id="stat-pairs"></td></tr>
+        </table>
+        <h3 class="option-heading chart-heading">Size of each colour</h3>
+        <canvas class="chart" id="sizes-chart"></canvas>
+        <h3 class="option-heading chart-heading">Boundary edges over the last moves</h3>
+        <canvas class="chart" id="trace-chart"></canvas>
+      </section>
+
+      <!-- LOWER RIGHT: the maths. Text in class="tex" is typeset by KaTeX
+           (<div> on its own line, <span> inside a sentence). -->
+      <section class="quad quad-about">
+        <h2>About the model</h2>
+        <p>
+          A <strong>connected N-colouring</strong> of the domain gives every cell
+          one of N colours so that each colour is used and forms one connected
+          piece. This sim moves randomly between them in such a way that, in the
+          long run, every connected N-colouring is equally likely.
+        </p>
+        <p>
+          <strong>One move</strong> (ReCom, short for recombination [1]), from the
+          current colouring <span class="tex">X</span>:
+        </p>
+        <ol class="about-steps">
+          <li>Pick two colours <span class="tex">i, j</span> that touch, uniformly
+            among the <span class="tex">A(X)</span> pairs that touch.</li>
+          <li>Merge them: <span class="tex">M = C_i \cup C_j</span>.</li>
+          <li>Draw a uniformly random spanning tree of <span class="tex">M</span>
+            with Wilson's algorithm [2].</li>
+          <li>Cut a uniformly random edge of the tree. It falls into two connected
+            pieces, <span class="tex">P</span> and <span class="tex">Q</span>.</li>
+          <li>A fair coin decides which piece gets colour <span class="tex">i</span>;
+            the other gets <span class="tex">j</span>. Call this
+            <span class="tex">Y</span>.</li>
+          <li>Move to <span class="tex">Y</span> with probability
+            <div class="tex">\alpha = \min\left(1,\ \frac{A(X)}{A(Y)} \cdot \frac{\tau(C_i)\,\tau(C_j)}{\tau(P)\,\tau(Q)} \cdot \frac{k(C_i, C_j)}{k(P, Q)}\right),</div>
+            otherwise stay at <span class="tex">X</span>. Here
+            <span class="tex">\tau(S)</span> is the number of spanning trees of
+            <span class="tex">S</span>, and <span class="tex">k(S, R)</span> the
+            number of edges joining <span class="tex">S</span> to
+            <span class="tex">R</span>.</li>
+        </ol>
+        <p>
+          <strong>Why every colouring is equally likely.</strong> A spanning tree
+          of <span class="tex">M</span> with an edge that splits it into
+          <span class="tex">\{P, Q\}</span> is the same thing as a spanning tree of
+          <span class="tex">P</span>, one of <span class="tex">Q</span>, and an
+          edge joining them. So steps 1&ndash;5 propose <span class="tex">Y</span>
+          with probability
+        </p>
+        <div class="tex">q(X \to Y) = \frac{1}{A(X)} \cdot \frac{1}{2} \cdot \frac{\tau(P)\,\tau(Q)\,k(P, Q)}{\tau(M)\,(|M| - 1)},</div>
+        <p>
+          and the way back merges the same <span class="tex">M</span>. Accepting
+          with <span class="tex">\min(1, q(Y \to X) / q(X \to Y))</span>, which is
+          <span class="tex">\alpha</span> above, is the Metropolis&ndash;Hastings
+          rule for the uniform distribution [3, 4]: the chain is reversible with
+          respect to it, so the uniform distribution is stationary. (The long-run
+          claim also needs every connected colouring to be reachable from every
+          other; that is not proved here for every domain.) The coin matters:
+          without it, which piece gets colour <span class="tex">i</span> depends on
+          where the tree was rooted, and <span class="tex">q</span> would not be
+          the formula above.
+        </p>
+        <p>
+          <strong>Counting spanning trees.</strong> By Kirchhoff's Matrix-Tree
+          Theorem [5, 6], <span class="tex">\tau(S)</span> is the determinant of
+          the Laplacian matrix of <span class="tex">S</span> with one row and the
+          matching column removed. It is computed (as a logarithm, since it is
+          huge) with a banded Cholesky factorisation [7], numbering the cells in
+          breadth-first order so the matrix is banded. The count for each colour
+          is remembered, so a move needs only two new determinants.
+        </p>
+        <p>
+          <strong>Domains and starts.</strong> A box or torus of cells, with 4 or 8
+          neighbours, or your own region drawn in the graph tool. The automatic
+          start splits the domain into N compact blocks around spread-out cells;
+          with a custom domain you can also paint your own start. The seed fixes
+          the random numbers, so a run can be repeated exactly.
+        </p>
+        <p><strong>References</strong></p>
+        <ol class="references">
+          <li>D. DeFord, M. Duchin, J. Solomon, &ldquo;Recombination: A family of
+            Markov chains for redistricting&rdquo;, <em>Harvard Data Science
+            Review</em> 3(1), 2021.
+            <a href="https://doi.org/10.1162/99608f92.eb30390f">doi:10.1162/99608f92.eb30390f</a></li>
+          <li>D. B. Wilson, &ldquo;Generating random spanning trees more quickly
+            than the cover time&rdquo;, <em>Proceedings of STOC</em> 1996, 296&ndash;303.
+            <a href="https://doi.org/10.1145/237814.237880">doi:10.1145/237814.237880</a></li>
+          <li>N. Metropolis, A. W. Rosenbluth, M. N. Rosenbluth, A. H. Teller,
+            E. Teller, &ldquo;Equation of state calculations by fast computing
+            machines&rdquo;, <em>J. Chem. Phys.</em> 21 (1953), 1087&ndash;1092.
+            <a href="https://doi.org/10.1063/1.1699114">doi:10.1063/1.1699114</a></li>
+          <li>W. K. Hastings, &ldquo;Monte Carlo sampling methods using Markov chains
+            and their applications&rdquo;, <em>Biometrika</em> 57 (1970), 97&ndash;109.
+            <a href="https://doi.org/10.1093/biomet/57.1.97">doi:10.1093/biomet/57.1.97</a></li>
+          <li>G. Kirchhoff, &ldquo;Ueber die Aufl&ouml;sung der Gleichungen, auf welche
+            man bei der Untersuchung der linearen Vertheilung galvanischer
+            Str&ouml;me gef&uuml;hrt wird&rdquo;, <em>Annalen der Physik und
+            Chemie</em> 72 (1847), 497&ndash;508.</li>
+          <li>C. Godsil, G. Royle, <em>Algebraic Graph Theory</em>, Springer, 2001,
+            Section 13.2.</li>
+          <li>G. H. Golub, C. F. Van Loan, <em>Matrix Computations</em>, 4th ed.,
+            Johns Hopkins University Press, 2013, Sections 4.2&ndash;4.3.</li>
+        </ol>
+      </section>
+
+    </div>
+  </main>
+
+  <!-- KaTeX (https://katex.org) typesets the formulas. The version number
+       is fixed so an update can never change the site by surprise. -->
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/katex.min.js"></script>
+
+  <!-- The chain (it runs in a second thread), then this page's code. -->
+  <script src="connected-colouring-chain.js"></script>
+  <script src="connected-colouring.js"></script>
+
+</body>
+</html>

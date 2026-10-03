@@ -39,6 +39,7 @@
      8. Saving, loading, copying and pasting
      9. The formula box
     10. Connecting the buttons on the page
+    11. Inside a sim (graph-tool.html?embed)
    ===================================================================== */
 
 
@@ -129,6 +130,14 @@ let formula = null;         // the formula, ready to evaluate (null if none)
 let beforeFormula = null;   // a copy of colourOf from before the formula changed anything
 const sliders = {};         // one per letter, e.g. sliders.r = { value: 1, min: -10, max: 10, step: 0.1 }
 
+// Inside a sim (section 11). "embedded" is true when this page is shown
+// inside a sim's page, as graph-tool.html?embed. While the sim has locked
+// the domain, "allowed" is the set of cells that can still be painted;
+// otherwise it is null.
+const embedded = new URLSearchParams(window.location.search).has("embed");
+if (embedded) document.body.classList.add("embedded");
+let allowed = null;
+
 
 // Small helpers.
 function byId(id) { return document.getElementById(id); }
@@ -142,6 +151,9 @@ function height() { return grid.ymax - grid.ymin + 1; }
 function inGrid(x, y) {
   return x >= grid.xmin && x <= grid.xmax && y >= grid.ymin && y <= grid.ymax;
 }
+
+// True for a cell outside a sim's locked domain (section 11).
+function isBlocked(name) { return allowed !== null && !allowed.has(name); }
 
 // Do something for every cell of the grid.
 function forEachCell(doThis) {
@@ -199,6 +211,12 @@ function makeStyle() {
     rules.push({ selector: "node[colour = " + c + "]", style: look });
   }
 
+  // A cell outside a sim's locked domain (section 11) is greyed out.
+  rules.push({
+    selector: "node.blocked",
+    style: dots ? { "background-opacity": 0 } : { "background-color": OUTSIDE_GRID, "background-opacity": 1 },
+  });
+
   // Edges are drawn only in dots view, and only between two painted dots
   // (class "on"); the background grid already shows the rest of the
   // lattice. The long wrap-around edges of a torus are never drawn.
@@ -255,7 +273,7 @@ function buildGrid() {
   for (let x = grid.xmin; x <= grid.xmax; x++) {
     for (let y = grid.ymin; y <= grid.ymax; y++) {
       elements.push({
-        group: "nodes", classes: "cell",
+        group: "nodes", classes: isBlocked(cellName(x, y)) ? "cell blocked" : "cell",
         pannable: true,   // with the Move tool, dragging on a cell moves the view
         data: { id: cellName(x, y), x: x, y: y, colour: colourAt(x, y) },
         position: drawAt(x, y),
@@ -514,6 +532,15 @@ function drawTorusCopies(pen, scale, screenX, screenY, left, right, bottom, top)
           pen.stroke();
         });
       }
+      // Cells outside a sim's locked domain (section 11), greyed out.
+      if (allowed !== null && !dots) {
+        pen.globalAlpha = 1;
+        pen.fillStyle = OUTSIDE_GRID;
+        forEachCell(function (x, y) {
+          if (isBlocked(cellName(x, y))) pen.fillRect(screenX(x + dx) - scale / 2, screenY(y + dy) - scale / 2, scale, scale);
+        });
+        pen.globalAlpha = CELL_OPACITY;
+      }
       // The painted cells (squares) or dots (circles).
       painted.forEach(function (node) {
         const x = node.data("x") + dx, y = node.data("y") + dy;
@@ -552,7 +579,7 @@ window.addEventListener("resize", drawBackground);
 function setColour(x, y, c) {
   const name = cellName(x, y);
   const before = colourOf[name] || 0;
-  if (before === c) return;
+  if (before === c || isBlocked(name)) return;
 
   if (stroke) {
     if (!stroke.has(name)) stroke.set(name, { before: before });
@@ -715,6 +742,7 @@ function updateStats() {
                      "colour " + c + ": " + count;
     list.appendChild(item);
   }
+  tellSim();   // inside a sim, send it the new drawing (section 11)
 }
 
 
@@ -1269,3 +1297,56 @@ byId("do-paste").addEventListener("click", function () { loadText(byId("text-box
 buildPalette();
 showSettings();
 buildGrid();
+
+
+/* =====================================================================
+   11. INSIDE A SIM (graph-tool.html?embed)
+   ---------------------------------------------------------------------
+   A sim can show this tool inside its own page, in an <iframe> (a page
+   inside a page), so you can draw its domain. Then:
+     - only the drawing and the options show (css/style.css, section 7,
+       the "body.embedded" rules)
+     - after every change the drawing is sent to the sim as a message
+       (tellSim, called from updateStats in section 7), and so is this
+       page's height, so the sim can make the iframe fit it exactly
+     - the sim can send "lock": from then on only the cells painted at
+       that moment can be painted (in any colour, or erased), the others
+       are greyed out, and the grid settings and loading are switched
+       off. "unlock" ends this.
+   The two pages talk with postMessage, which works even for pages
+   opened straight from the computer (file://).
+   ===================================================================== */
+function tellSim() {
+  if (!embedded) return;
+  window.parent.postMessage({
+    type: "graph",
+    graph: getGraph(),
+    grid: Object.assign({}, grid),
+    palette: palette.slice(),
+  }, "*");
+}
+
+function lockDomain(on) {
+  if ((allowed !== null) === on) return;   // already that way
+  keepFormulaResult();
+  allowed = on ? new Set(Object.keys(colourOf)) : null;
+  for (const id of ["set-xmin", "set-xmax", "set-ymin", "set-ymax", "set-neighbours", "set-torus",
+                    "do-load", "do-paste"]) {
+    byId(id).disabled = on;
+  }
+  buildGrid();
+  showMessage(on ? "The region is fixed now: paint colours inside it. Grey cells are outside it." : "");
+}
+
+if (embedded) {
+  window.addEventListener("message", function (event) {
+    if (event.source !== window.parent) return;
+    if (event.data.type === "lock") lockDomain(true);
+    if (event.data.type === "unlock") lockDomain(false);
+  });
+  // Send the page's height now, and again whenever it changes.
+  new ResizeObserver(function () {
+    const height = Math.ceil(document.body.getBoundingClientRect().height);
+    window.parent.postMessage({ type: "height", height: height }, "*");
+  }).observe(document.body);
+}

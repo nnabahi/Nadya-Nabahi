@@ -2,10 +2,12 @@
 
 Plain HTML, CSS and JavaScript. No build step: open any `.html` file in a
 browser and it works. Everything runs in the visitor's browser; there is no
-server. Outside libraries, all loaded from a CDN by the graph tool:
+server. Outside libraries, all loaded from a CDN:
 [Cytoscape.js](https://js.cytoscape.org) (graph drawing and graph
-algorithms), [math.js](https://mathjs.org) (reads typed formulas) and
-[KaTeX](https://katex.org) (shows them as typeset maths).
+algorithms), [math.js](https://mathjs.org) (reads typed formulas),
+[KaTeX](https://katex.org) (shows them as typeset maths) and
+[seedrandom](https://github.com/davidbau/seedrandom) (random numbers that
+repeat for the same seed).
 
 ## What's where
 
@@ -22,6 +24,9 @@ algorithms), [math.js](https://mathjs.org) (reads typed formulas) and
 | `js/genre-filter.js` | Builds the genre buttons on `toys.html` and hides/shows cards |
 | `sims/graph-tool.html` | Graph & domain tool: paint a domain on a grid (pinned first on `toys.html`) |
 | `sims/graph-tool.js` | The graph tool's code (painting, torus, formula box, undo, save/load) |
+| `sims/connected-colouring.html` | Random connected colouring sim (box, torus, or a domain drawn in the graph tool) |
+| `sims/connected-colouring.js` | That sim's page: domains, the start, drawing, statistics, the custom-domain steps |
+| `sims/connected-colouring-chain.js` | That sim's Markov chain (ReCom with a uniform correction), run in a Web Worker |
 
 ## Common changes
 

@@ -16,7 +16,9 @@
      5. Home page image area
      6. Toys n' Sims: the four-quadrant layout
      7. Graph & domain tool (sims/graph-tool.html)
-     8. Phones and narrow screens
+     8. More for sim pages (random connected colouring; the graph
+        tool shown inside a sim)
+     9. Phones and narrow screens
    ===================================================================== */
 
 
@@ -61,6 +63,14 @@
 /* Make widths include padding and borders. Avoids a lot of surprises. */
 * {
   box-sizing: border-box;
+}
+
+/* Anything with the "hidden" attribute stays hidden, even when another
+   rule gives it a "display" (e.g. "a.card" below says display: block).
+   Scripts hide and show things this way, like js/genre-filter.js does
+   with the cards. */
+[hidden] {
+  display: none !important;
 }
 
 body {
@@ -180,14 +190,6 @@ a.card {
 a.card:hover {
   border-color: var(--color-accent);
 }
-
-/* A card with the "hidden" attribute (set by js/genre-filter.js when it
-   doesn't match the chosen genre) disappears. Needed because "a.card"
-   above says display: block, which would otherwise win. */
-.card[hidden] {
-  display: none;
-}
-
 
 /* ---------------------------------------------------------------------
    Genre labels and genre filter buttons (toys.html)
@@ -552,7 +554,127 @@ a.card:hover {
 
 
 /* =====================================================================
-   8. Phones and narrow screens
+   8. More for sim pages
+   ---------------------------------------------------------------------
+   Used by sims/connected-colouring.html, and by the graph tool when a
+   sim shows it inside its own page (graph-tool.html?embed).
+   ===================================================================== */
+
+/* A slider that takes the spare width of its row. */
+.wide-range {
+  flex: 1 1 120px;
+}
+
+/* Smaller grey notes under the options. */
+.small {
+  font-size: 0.85em;
+  margin: 0 0 8px;
+}
+
+/* The steps above the graph tool: a title, some help, and a live check
+   that turns green when the drawing is fine and red when it isn't. */
+.step-bar {
+  margin-bottom: 10px;
+}
+
+.step-bar p {
+  margin: 0 0 6px;
+}
+
+.step-title {
+  font-family: var(--font-heading);
+  font-size: 1.05em;
+}
+
+.step-help,
+.step-status {
+  font-size: 0.9em;
+}
+
+.step-status.ok      { color: #2f7d3a; }
+.step-status.problem { color: #b3402f; }
+
+/* The graph tool inside the sim. The sim sets its height to fit. */
+.tool-frame {
+  display: block;
+  width: 100%;
+  height: 900px;
+  border: 0;
+}
+
+/* The small plots in the Statistics quadrant. */
+.chart {
+  display: block;
+  width: 100%;
+  height: 90px;
+}
+
+.chart-heading {
+  margin-top: 16px;
+}
+
+/* The numbered steps and the references in the About quadrant. */
+.about-steps,
+.references {
+  padding-left: 1.4em;
+}
+
+.references {
+  font-size: 0.85em;
+}
+
+.references li {
+  margin-bottom: 4px;
+}
+
+/* A typeset formula on its own line that is wider than its box (on a
+   phone) scrolls sideways instead of spilling out of the page. */
+.katex-display {
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+/* The graph tool when a sim shows it inside its page: "embedded" is
+   added to <body> by graph-tool.js. Only the drawing and its options
+   show, one above the other, with no page around them. */
+body.embedded {
+  background: var(--color-surface);
+}
+
+body.embedded .topbar,
+body.embedded .page > p:first-child,
+body.embedded h1,
+body.embedded .quad h2,
+body.embedded .quad-stats,
+body.embedded .quad-about {
+  display: none;
+}
+
+body.embedded .page {
+  max-width: none;
+  padding: 0 0 8px;
+}
+
+body.embedded .quadrants {
+  grid-template-columns: 1fr;
+  grid-template-areas:
+    "sim"
+    "controls";
+  gap: 12px;
+}
+
+body.embedded .quad {
+  border: 0;
+  padding: 0;
+}
+
+body.embedded .graph-wrap {
+  height: 440px;
+}
+
+
+/* =====================================================================
+   9. Phones and narrow screens
    ---------------------------------------------------------------------
    Everything inside "@media (max-width: 760px) { ... }" only applies
    when the window is 760px wide or less. It comes last in the file so
