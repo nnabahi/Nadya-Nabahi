@@ -1,15 +1,15 @@
 /* =====================================================================
-   connected-colouring.js  —  the page of the "Random connected
-   colouring" sim
+   connected-coloring.js  —  the page of the "Random connected
+   coloring" sim
    ---------------------------------------------------------------------
    What it does, in plain words:
      - Builds the domain: a box or torus of cells, or a custom one drawn
        in the graph tool (shown inside this page).
-     - Builds a starting colouring: an automatic one (N compact blocks)
+     - Builds a starting coloring: an automatic one (N compact blocks)
        or one you draw yourself.
-     - Hands both to the Markov chain (connected-colouring-chain.js),
+     - Hands both to the Markov chain (connected-coloring-chain.js),
        which runs in a second thread (a "Web Worker"), and draws every
-       colouring it sends back, with the statistics.
+       coloring it sends back, with the statistics.
 
    The file is split into numbered sections:
      1. Settings you might want to change
@@ -17,7 +17,7 @@
      3. Domains: boxes, tori, and drawn ones
      4. The automatic start
      5. Running the chain
-     6. Drawing the colouring
+     6. Drawing the coloring
      7. Statistics
      8. Custom domains: the graph tool inside this page
      9. Connecting the buttons on the page
@@ -28,13 +28,13 @@
    1. SETTINGS YOU MIGHT WANT TO CHANGE
    ===================================================================== */
 
-// The default domain and number of colours.
-const DEFAULTS = { width: 24, height: 24, neighbours: 4, colours: 6, seed: "1" };
+// The default domain and number of colors.
+const DEFAULTS = { width: 24, height: 24, neighbors: 4, colors: 6, seed: "1" };
 
-const MAX_COLOURS = 100;      // the most colours allowed
+const MAX_COLORS = 100;      // the most colors allowed
 const MAX_SIDE = 100;         // the biggest box or torus is 100 x 100
 const MAX_PICTURE_HEIGHT = 600;   // in screen pixels
-const BORDER = "#1e1e1e";     // the lines between colours
+const BORDER = "#1e1e1e";     // the lines between colors
 const OUTSIDE = "#ecebe7";    // around a custom domain (cells not in it)
 const TRACE_LENGTH = 400;     // how many points the "boundary edges" plot keeps
 
@@ -52,9 +52,9 @@ const DEFAULT_SPEED = SPEEDS.indexOf(10);
 let domainKind = "box";    // "box", "torus" or "custom": the domain in use
 let domain = null;         // the domain graph (section 3)
 let customDomain = null;   // the last custom domain drawn, if any
-let N = DEFAULTS.colours;  // number of colours
-let colourNames = [];      // colourNames[c] = how colour c is drawn, e.g. "#c74440"
-let drawnStart = null;     // your own starting colouring, or null for the automatic one
+let N = DEFAULTS.colors;  // number of colors
+let colorNames = [];      // colorNames[c] = how color c is drawn, e.g. "#c74440"
+let drawnStart = null;     // your own starting coloring, or null for the automatic one
 let startShape = "";       // what the start was: "rectangles", "blocks" or "yours"
 let scroll = { x: 0, y: 0 };   // torus only: how far the picture is scrolled, in cells
 
@@ -62,8 +62,8 @@ let playing = false;       // it starts paused, showing the start; Play sets it 
 let speedIndex = DEFAULT_SPEED;
 let run = 0;               // counts restarts, so leftovers from an older run are ignored
 
-// The latest colouring and numbers from the chain.
-let colours = null;        // colours[v] = colour of cell v
+// The latest coloring and numbers from the chain.
+let colors = null;        // colors[v] = color of cell v
 let latest = null;         // { proposed, accepted, boundary, pairs }
 let trace = [];            // [moves tried, boundary edges] pairs, for the plot
 
@@ -77,12 +77,12 @@ function wrap(v, lo, hi) {
   return lo + (((v - lo) % n) + n) % n;
 }
 
-// How colour c (of "count" colours) is drawn: the old site's colours.
+// How color c (of "count" colors) is drawn: the old site's colors.
 // Hues are spread evenly from red (0 degrees) round to magenta (300; going
-// all the way to 360 would come back to red), each colour a little more
+// all the way to 360 would come back to red), each color a little more
 // saturated than the last, all bright. Hue, saturation and brightness
 // ("HSV") are turned into the usual "#rrggbb".
-function defaultColour(c, count) {
+function defaultColor(c, count) {
   const hue = c / Math.max(count, 1) * 300;
   const saturation = count <= 1 ? 0.85 : 0.55 + 0.30 * c / (count - 1);
   return hsvToHex(hue, saturation, 0.95);
@@ -106,9 +106,9 @@ function hsvToHex(hue, saturation, value) {
    ---------------------------------------------------------------------
    Every domain becomes the same kind of object:
      n          number of cells, numbered 0 .. n-1
-     x[v], y[v] where cell v is (cell (x, y) is centred at (x, y), as in
+     x[v], y[v] where cell v is (cell (x, y) is centered at (x, y), as in
                 the graph tool)
-     first, nbr the neighbours of v are nbr[first[v]] .. nbr[first[v+1] - 1]
+     first, nbr the neighbors of v are nbr[first[v]] .. nbr[first[v+1] - 1]
                 (the compact list the chain uses; see its section 1)
      wrap       for a torus, the x and y range that wraps around; else null
      xmin .. ymax, cellAt   the smallest box around the cells, and which
@@ -116,14 +116,14 @@ function hsvToHex(hue, saturation, value) {
      ids[v]     for a drawn domain, the graph tool's name "x,y" of cell v
    ===================================================================== */
 
-function boxDomain(width, height, neighbours, torus) {
+function boxDomain(width, height, neighbors, torus) {
   const xs = [], ys = [], edges = [];
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) { xs.push(x); ys.push(y); }
   }
   // As in the graph tool: each cell looks right and up (and, with 8
-  // neighbours, diagonally), wrapping around on a torus.
-  const steps = neighbours === 8 ? [[1, 0], [0, 1], [1, 1], [1, -1]] : [[1, 0], [0, 1]];
+  // neighbors, diagonally), wrapping around on a torus.
+  const steps = neighbors === 8 ? [[1, 0], [0, 1], [1, 1], [1, -1]] : [[1, 0], [0, 1]];
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
       for (const [dx, dy] of steps) {
@@ -142,7 +142,7 @@ function boxDomain(width, height, neighbours, torus) {
 }
 
 // A domain drawn in the graph tool. "graph" is the tool's getGraph():
-// { vertices: [{id, x, y, colour}, ...], edges: [[id, id], ...] }, and
+// { vertices: [{id, x, y, color}, ...], edges: [[id, id], ...] }, and
 // "toolGrid" its grid settings (for the torus).
 function drawnDomain(graph, toolGrid) {
   const index = new Map();
@@ -159,9 +159,9 @@ function drawnDomain(graph, toolGrid) {
 function makeDomain(xs, ys, edges, wrapRange, ids) {
   const n = xs.length;
 
-  // Neighbour lists, each edge in both directions. A Set drops repeats
-  // (a torus 2 wide meets the same neighbour on both sides), and a cell
-  // is never its own neighbour.
+  // Neighbor lists, each edge in both directions. A Set drops repeats
+  // (a torus 2 wide meets the same neighbor on both sides), and a cell
+  // is never its own neighbor.
   const lists = [];
   for (let v = 0; v < n; v++) lists.push(new Set());
   for (const [a, b] of edges) {
@@ -198,21 +198,21 @@ function cellAt(d, x, y) {
   return d.cellAt[(y - d.ymin) * (d.xmax - d.xmin + 1) + (x - d.xmin)];
 }
 
-// How many connected pieces each colour has. pieces[c] for c = 0 .. count-1.
-// (A colouring with every colour 0 gives the pieces of the whole domain.)
-function countPieces(d, colourOf, count) {
+// How many connected pieces each color has. pieces[c] for c = 0 .. count-1.
+// (A coloring with every color 0 gives the pieces of the whole domain.)
+function countPieces(d, colorOf, count) {
   const pieces = new Array(count).fill(0);
   const seen = new Uint8Array(d.n);
   for (let s = 0; s < d.n; s++) {
     if (seen[s]) continue;
-    pieces[colourOf[s]]++;
+    pieces[colorOf[s]]++;
     seen[s] = 1;
-    const stack = [s];                    // explore everything joined to s in its colour
+    const stack = [s];                    // explore everything joined to s in its color
     while (stack.length > 0) {
       const v = stack.pop();
       for (let e = d.first[v]; e < d.first[v + 1]; e++) {
         const w = d.nbr[e];
-        if (!seen[w] && colourOf[w] === colourOf[v]) { seen[w] = 1; stack.push(w); }
+        if (!seen[w] && colorOf[w] === colorOf[v]) { seen[w] = 1; stack.push(w); }
       }
     }
   }
@@ -230,7 +230,7 @@ function countPieces(d, colourOf, count) {
    are a good start: thin stripes would make the chain reject almost
    every move at first.
 
-   A drawn region may not cut into rectangles with each colour in one
+   A drawn region may not cut into rectangles with each color in one
    piece (think of a ring). Then the start is N compact "blocks" instead
    (blockStart below).
    ===================================================================== */
@@ -241,27 +241,27 @@ function automaticStart(d, count) {
 }
 
 // The grid of rectangles over the smallest box around the domain, or
-// null if some colour would be missing or in more than one piece.
+// null if some color would be missing or in more than one piece.
 function rectangleStart(d, count) {
   const across = d.xmax - d.xmin + 1, down = d.ymax - d.ymin + 1;
   const rows = Math.min(count, down, Math.max(1, Math.round(Math.sqrt(count * down / across))));
   const rowOf = bands(down, rows);              // row of each line of cells, counted from the top
-  const columnsOf = [], firstColourOf = [];     // for each row of rectangles
-  let colour = 0;
+  const columnsOf = [], firstColorOf = [];     // for each row of rectangles
+  let color = 0;
   for (let r = 0; r < rows; r++) {
     const inRow = Math.floor(count / rows) + (r < count % rows ? 1 : 0);
     if (inRow > across) return null;            // narrower than the rectangles it needs
     columnsOf.push(bands(across, inRow));
-    firstColourOf.push(colour);
-    colour += inRow;
+    firstColorOf.push(color);
+    color += inRow;
   }
-  const colourOf = new Int32Array(d.n);
+  const colorOf = new Int32Array(d.n);
   for (let v = 0; v < d.n; v++) {
     const r = rowOf[d.ymax - d.y[v]];
-    colourOf[v] = firstColourOf[r] + columnsOf[r][d.x[v] - d.xmin];
+    colorOf[v] = firstColorOf[r] + columnsOf[r][d.x[v] - d.xmin];
   }
-  const pieces = countPieces(d, colourOf, count);
-  return pieces.every(function (p) { return p === 1; }) ? colourOf : null;
+  const pieces = countPieces(d, colorOf, count);
+  return pieces.every(function (p) { return p === 1; }) ? colorOf : null;
 }
 
 // Cut 0 .. total-1 into "parts" runs of (almost) equal length:
@@ -277,10 +277,10 @@ function bands(total, parts) {
 // N compact blocks, for any connected domain. N seed cells are spread
 // out: the first is the cell farthest from cell 0, and each next one is
 // the cell farthest from all seeds so far ("farthest" = most steps
-// through the graph). Then every cell takes the colour of its nearest
+// through the graph). Then every cell takes the color of its nearest
 // seed, found by a breadth-first search from all the seeds at once.
-// Each cell is reached through a neighbour of its own colour, so every
-// colour is one connected piece.
+// Each cell is reached through a neighbor of its own color, so every
+// color is one connected piece.
 function blockStart(d, count) {
   const seeds = [];
   let distance = stepsFrom(d, [0]);
@@ -290,18 +290,18 @@ function blockStart(d, count) {
     seeds.push(far);
     distance = stepsFrom(d, seeds);
   }
-  // The search from all seeds at once, handing out colours as it goes.
-  const colourOf = new Int32Array(d.n).fill(-1);
+  // The search from all seeds at once, handing out colors as it goes.
+  const colorOf = new Int32Array(d.n).fill(-1);
   const queue = [];
-  seeds.forEach(function (s, c) { colourOf[s] = c; queue.push(s); });
+  seeds.forEach(function (s, c) { colorOf[s] = c; queue.push(s); });
   for (let head = 0; head < queue.length; head++) {
     const v = queue[head];
     for (let e = d.first[v]; e < d.first[v + 1]; e++) {
       const w = d.nbr[e];
-      if (colourOf[w] === -1) { colourOf[w] = colourOf[v]; queue.push(w); }
+      if (colorOf[w] === -1) { colorOf[w] = colorOf[v]; queue.push(w); }
     }
   }
-  return colourOf;
+  return colorOf;
 }
 
 // The number of steps from the nearest of the cells "starts" to every cell.
@@ -323,7 +323,7 @@ function stepsFrom(d, starts) {
 /* =====================================================================
    5. RUNNING THE CHAIN
    ---------------------------------------------------------------------
-   The chain is the function chainWorker() in connected-colouring-chain.js.
+   The chain is the function chainWorker() in connected-coloring-chain.js.
    A Web Worker is normally made from a file's address, which browsers
    refuse for pages opened straight from the computer (file://). So the
    function's own text is wrapped in a "Blob" (a file made in memory)
@@ -335,7 +335,7 @@ const worker = new Worker(URL.createObjectURL(workerCode));
 worker.onmessage = function (event) {
   const message = event.data;
   if (message.type !== "state" || message.run !== run) return;   // from an older run
-  colours = message.colours;
+  colors = message.colors;
   latest = message;
   trace.push([message.proposed, message.boundary]);
   if (trace.length > TRACE_LENGTH) trace.shift();
@@ -347,18 +347,18 @@ worker.onerror = function () {
               "internet, so check the connection and reload the page.");
 };
 
-// Start the chain again from the start colouring, with the current
+// Start the chain again from the start coloring, with the current
 // domain, N and seed.
 function restart() {
   run++;
   if (drawnStart) startShape = "yours";
-  colours = drawnStart ? drawnStart.slice() : automaticStart(domain, N);
+  colors = drawnStart ? drawnStart.slice() : automaticStart(domain, N);
   trace = [];
   latest = null;
   worker.postMessage({
     type: "setup", run: run,
     n: domain.n, first: domain.first, nbr: domain.nbr,
-    colours: colours, N: N, seed: byId("seed").value,
+    colors: colors, N: N, seed: byId("seed").value,
   });
   if (playing) worker.postMessage({ type: "play", speed: SPEEDS[speedIndex] });
   showStartInfo();
@@ -374,15 +374,15 @@ function setPlaying(on) {
 
 
 /* =====================================================================
-   6. DRAWING THE COLOURING
+   6. DRAWING THE COLORING
    ---------------------------------------------------------------------
-   The colouring is drawn on a hidden canvas, "picture": each cell a
-   square in its colour, and a dark line along every side where two
-   cells of different colours meet, or where the domain ends. Then the
+   The coloring is drawn on a hidden canvas, "picture": each cell a
+   square in its color, and a dark line along every side where two
+   cells of different colors meet, or where the domain ends. Then the
    picture is copied onto the canvas on the page.
 
    On a torus the sides at the edge of the picture are joined to the
-   opposite edge, so a line is drawn there only if the colours across
+   opposite edge, so a line is drawn there only if the colors across
    the wrap differ. And a torus can be scrolled: drag it, or use the
    mouse wheel or two fingers on a trackpad. It wraps around, so the
    picture is copied four times, shifted, and whatever falls outside
@@ -392,13 +392,13 @@ let drawPending = false;
 const picture = document.createElement("canvas");
 
 // Draw at the browser's next screen refresh (at most once per refresh,
-// however many colourings arrive in between).
+// however many colorings arrive in between).
 function drawSoon() {
   if (drawPending) return;
   drawPending = true;
   requestAnimationFrame(function () {
     drawPending = false;
-    drawColouring();
+    drawColoring();
     showStats();
   });
 }
@@ -408,9 +408,9 @@ function drawSoon() {
 // scrolled.)
 function scrollable() { return domainKind === "torus"; }
 
-function drawColouring() {
+function drawColoring() {
   const canvas = byId("sim-canvas");
-  if (!domain || !colours || canvas.hidden) return;
+  if (!domain || !colors || canvas.hidden) return;
   const d = domain;
 
   // A cell size that fits the width (and at most MAX_PICTURE_HEIGHT tall).
@@ -434,7 +434,7 @@ function drawColouring() {
   for (let v = 0; v < d.n; v++) {
     const x0 = edgeX(d.x[v]), x1 = edgeX(d.x[v] + 1);
     const y0 = edgeY(d.y[v] + 1), y1 = edgeY(d.y[v]);
-    pen.fillStyle = colourNames[colours[v]];
+    pen.fillStyle = colorNames[colors[v]];
     pen.fillRect(x0, y0, x1 - x0, y1 - y0);
   }
 
@@ -456,7 +456,7 @@ function drawColouring() {
   // Does a border go between cell v and the place (x, y) next to it?
   function differs(v, x, y) {
     const w = cellAt(d, x, y);
-    return w === -1 || colours[w] !== colours[v];
+    return w === -1 || colors[w] !== colors[v];
   }
 
   // 2. Copy it onto the page, in the middle.
@@ -532,9 +532,9 @@ window.addEventListener("resize", drawSoon);
    7. STATISTICS
    ===================================================================== */
 function showStats() {
-  if (!domain || !colours) return;
+  if (!domain || !colors) return;
   byId("stat-cells").textContent = domain.n;
-  byId("stat-colours").textContent = N;
+  byId("stat-colors").textContent = N;
   const s = latest || { proposed: 0, accepted: 0, boundary: "", pairs: "" };
   byId("stat-proposed").textContent = s.proposed.toLocaleString();
   byId("stat-accepted").textContent = s.accepted.toLocaleString() +
@@ -558,20 +558,20 @@ function chartPen(canvas) {
   return pen;
 }
 
-// One bar per colour, as tall as its number of cells.
+// One bar per color, as tall as its number of cells.
 function drawSizes() {
   const canvas = byId("sizes-chart");
   const pen = chartPen(canvas);
   const w = canvas.clientWidth, h = canvas.clientHeight;
   const sizes = new Array(N).fill(0);
-  for (let v = 0; v < colours.length; v++) sizes[colours[v]]++;
+  for (let v = 0; v < colors.length; v++) sizes[colors[v]]++;
   const biggest = Math.max(...sizes);
   pen.textBaseline = "top";
   pen.fillText("largest: " + biggest + " cells", 0, 0);
   const top = 16, barWidth = w / N;
   for (let c = 0; c < N; c++) {
     const barHeight = Math.max(1, (h - top) * sizes[c] / biggest);
-    pen.fillStyle = colourNames[c];
+    pen.fillStyle = colorNames[c];
     pen.fillRect(c * barWidth + 1, h - barHeight, Math.max(1, barWidth - 2), barHeight);
   }
 }
@@ -612,10 +612,10 @@ function drawTrace() {
      1. Draw the region. It must be one connected piece. Then either
         "Use automatic start" (N compact blocks, as for a box), or
         "Draw my own start".
-     2. Colour the region. The region is locked in the tool (cells
-        outside it can't be painted). Every cell needs a colour, and
-        each colour must be one connected piece; the colours you use
-        become the N colours.
+     2. Color the region. The region is locked in the tool (cells
+        outside it can't be painted). Every cell needs a color, and
+        each color must be one connected piece; the colors you use
+        become the N colors.
    ===================================================================== */
 const frame = byId("tool-frame");
 let toolStep = 0;          // 0 = tool closed, 1 or 2 = that step
@@ -642,12 +642,12 @@ function showStep(step) {
   toolStep = step;
   byId("step-title").textContent = step === 1
     ? "Step 1 of 2: draw the region"
-    : "Step 2 of 2: colour the region";
+    : "Step 2 of 2: color the region";
   byId("step-help").textContent = step === 1
-    ? "Paint the cells the colouring lives on (any colour counts). The region must be one " +
+    ? "Paint the cells the coloring lives on (any color counts). The region must be one " +
       "connected piece. Then pick an automatic start, or draw your own."
-    : "The rule: every cell needs a colour, and each colour must be one connected piece. " +
-      "Cells outside the region are greyed out. The colours you use become the N colours.";
+    : "The rule: every cell needs a color, and each color must be one connected piece. " +
+      "Cells outside the region are grayed out. The colors you use become the N colors.";
   for (const button of document.querySelectorAll("[data-step]")) {
     button.hidden = Number(button.dataset.step) !== step;
   }
@@ -680,21 +680,21 @@ function checkTool() {
     else if (pieces > 1) problem = "The region is in " + pieces + " pieces; it must be one connected piece.";
     else good = region.n + " cells in one connected piece.";
   } else {
-    const start = drawnColouring();
-    if (start.uncoloured > 0) {
-      problem = start.uncoloured + (start.uncoloured === 1 ? " cell has" : " cells have") + " no colour yet.";
+    const start = drawnColoring();
+    if (start.uncolored > 0) {
+      problem = start.uncolored + (start.uncolored === 1 ? " cell has" : " cells have") + " no color yet.";
     } else if (start.used.length < 2) {
-      problem = "Use at least 2 colours.";
-    } else if (start.used.length > MAX_COLOURS) {
-      problem = "At most " + MAX_COLOURS + " colours, please.";
+      problem = "Use at least 2 colors.";
+    } else if (start.used.length > MAX_COLORS) {
+      problem = "At most " + MAX_COLORS + " colors, please.";
     } else {
-      const pieces = countPieces(customDomain, start.colourOf, start.used.length);
+      const pieces = countPieces(customDomain, start.colorOf, start.used.length);
       const broken = [];
       pieces.forEach(function (count, c) {
-        if (count > 1) broken.push("colour " + start.used[c] + " is in " + count + " pieces");
+        if (count > 1) broken.push("color " + start.used[c] + " is in " + count + " pieces");
       });
-      if (broken.length > 0) problem = "Each colour must be one connected piece: " + broken.join(", ") + ".";
-      else good = start.used.length + " colours, each one connected piece.";
+      if (broken.length > 0) problem = "Each color must be one connected piece: " + broken.join(", ") + ".";
+      else good = start.used.length + " colors, each one connected piece.";
     }
   }
   const status = byId("step-status");
@@ -703,21 +703,21 @@ function checkTool() {
   byId("use-auto").disabled = byId("draw-own").disabled = byId("tool-done").disabled = Boolean(problem);
 }
 
-// Your drawn colouring of customDomain, read from the tool. The tool
-// numbers colours by palette square (1, 2, ...); the chain wants
-// 0 .. N-1, so the colours used are renumbered in order.
-//   used[c] = the tool's number of colour c;  colourOf[v] = c (or -1)
-function drawnColouring() {
-  const toolColour = new Map();
-  for (const v of toolMessage.graph.vertices) toolColour.set(v.id, v.colour);
-  const used = [...new Set(toolColour.values())].sort(function (a, b) { return a - b; });
-  const colourOf = new Int32Array(customDomain.n);
-  let uncoloured = 0;
+// Your drawn coloring of customDomain, read from the tool. The tool
+// numbers colors by palette square (1, 2, ...); the chain wants
+// 0 .. N-1, so the colors used are renumbered in order.
+//   used[c] = the tool's number of color c;  colorOf[v] = c (or -1)
+function drawnColoring() {
+  const toolColor = new Map();
+  for (const v of toolMessage.graph.vertices) toolColor.set(v.id, v.color);
+  const used = [...new Set(toolColor.values())].sort(function (a, b) { return a - b; });
+  const colorOf = new Int32Array(customDomain.n);
+  let uncolored = 0;
   customDomain.ids.forEach(function (id, v) {
-    if (toolColour.has(id)) colourOf[v] = used.indexOf(toolColour.get(id));
-    else { colourOf[v] = -1; uncoloured++; }
+    if (toolColor.has(id)) colorOf[v] = used.indexOf(toolColor.get(id));
+    else { colorOf[v] = -1; uncolored++; }
   });
-  return { used: used, colourOf: colourOf, uncoloured: uncoloured };
+  return { used: used, colorOf: colorOf, uncolored: uncolored };
 }
 
 // Step 1 -> "Use automatic start": the region, with the automatic start.
@@ -742,12 +742,12 @@ byId("tool-back").addEventListener("click", function () {
   showStep(1);
 });
 
-// Step 2 -> "Done": start from your colouring, in the tool's colours.
+// Step 2 -> "Done": start from your coloring, in the tool's colors.
 byId("tool-done").addEventListener("click", function () {
-  const start = drawnColouring();
+  const start = drawnColoring();
   const names = start.used.map(function (c) { return toolMessage.palette[c]; });
   closeTool();
-  useDomain("custom", customDomain, start.colourOf, names);
+  useDomain("custom", customDomain, start.colorOf, names);
   if (wasPlaying) setPlaying(true);
 });
 
@@ -766,20 +766,20 @@ for (const button of document.querySelectorAll(".tool-cancel")) {
    9. CONNECTING THE BUTTONS ON THE PAGE
    ===================================================================== */
 
-// Switch to a new domain and restart. "start" is your own colouring
-// (with "names", its colours) or null for the automatic start.
+// Switch to a new domain and restart. "start" is your own coloring
+// (with "names", its colors) or null for the automatic start.
 function useDomain(kind, d, start, names) {
   domainKind = kind;
   domain = d;
   drawnStart = start;
-  const most = Math.min(MAX_COLOURS, domain.n);
+  const most = Math.min(MAX_COLORS, domain.n);
   N = start ? names.length : Math.min(Math.max(N, 2), most);
-  colourNames = start ? names : [];
-  for (let c = colourNames.length; c < N; c++) colourNames.push(defaultColour(c, N));
+  colorNames = start ? names : [];
+  for (let c = colorNames.length; c < N; c++) colorNames.push(defaultColor(c, N));
   scroll = { x: 0, y: 0 };
   simCanvas.classList.toggle("scrollable", scrollable());
-  byId("set-colours").max = byId("colours-slider").max = most;
-  byId("set-colours").value = byId("colours-slider").value = N;
+  byId("set-colors").max = byId("colors-slider").max = most;
+  byId("set-colors").value = byId("colors-slider").value = N;
   showDomainChoice();
   restart();
 }
@@ -791,9 +791,9 @@ function useBox() {
   if (toolWasOpen) closeTool();
   const width = readWhole("set-width", 2, MAX_SIDE, DEFAULTS.width);
   const height = readWhole("set-height", 2, MAX_SIDE, DEFAULTS.height);
-  const neighbours = Number(byId("set-neighbours").value);
+  const neighbors = Number(byId("set-neighbors").value);
   const torus = (domainChoice() === "torus");
-  useDomain(torus ? "torus" : "box", boxDomain(width, height, neighbours, torus), null, null);
+  useDomain(torus ? "torus" : "box", boxDomain(width, height, neighbors, torus), null, null);
   if (toolWasOpen && wasPlaying) setPlaying(true);
 }
 
@@ -814,7 +814,7 @@ function domainChoice() {
 function showDomainChoice() {
   document.querySelector('input[name="domain"][value="' + domainKind + '"]').checked = true;
   const custom = (domainKind === "custom");
-  byId("size-row").hidden = byId("neighbours-row").hidden = custom;
+  byId("size-row").hidden = byId("neighbors-row").hidden = custom;
   byId("custom-row").hidden = !custom;
   if (custom && customDomain) {
     byId("custom-info").textContent = "Your region: " + customDomain.n + " cells" +
@@ -824,10 +824,10 @@ function showDomainChoice() {
 
 function showStartInfo() {
   byId("start-info").textContent =
-    startShape === "yours" ? "Starting from your own colouring. Changing N switches to the automatic start." :
+    startShape === "yours" ? "Starting from your own coloring. Changing N switches to the automatic start." :
     startShape === "rectangles" ? "Starting from a grid of " + N + " rectangles." :
     "Starting from " + N + " compact blocks (this region can't be cut into a grid of rectangles " +
-    "with each colour in one piece).";
+    "with each color in one piece).";
 }
 
 // Domain: Box / Torus / Custom.
@@ -837,19 +837,19 @@ for (const radio of document.querySelectorAll('input[name="domain"]')) {
     else useBox();
   });
 }
-for (const id of ["set-width", "set-height", "set-neighbours"]) {
+for (const id of ["set-width", "set-height", "set-neighbors"]) {
   byId(id).addEventListener("change", useBox);
 }
 byId("edit-custom").addEventListener("click", openTool);
 
 // N: the slider and the number box move together, and the chain restarts
 // live while you drag, like a Desmos slider.
-function setColourCount(value) {
-  N = Math.min(Math.max(Math.round(value) || 2, 2), Math.min(MAX_COLOURS, domain.n));
+function setColorCount(value) {
+  N = Math.min(Math.max(Math.round(value) || 2, 2), Math.min(MAX_COLORS, domain.n));
   useDomain(domainKind, domain, null, null);   // a new N always uses the automatic start
 }
-byId("colours-slider").addEventListener("input", function () { setColourCount(Number(this.value)); });
-byId("set-colours").addEventListener("change", function () { setColourCount(Number(this.value)); });
+byId("colors-slider").addEventListener("input", function () { setColorCount(Number(this.value)); });
+byId("set-colors").addEventListener("change", function () { setColorCount(Number(this.value)); });
 
 // Play / Pause, Step, Restart.
 byId("play").addEventListener("click", function () { setPlaying(!playing); });
@@ -888,7 +888,7 @@ for (const element of document.querySelectorAll(".tex")) {
 // --- Start ------------------------------------------------------------
 byId("set-width").value = DEFAULTS.width;
 byId("set-height").value = DEFAULTS.height;
-byId("set-neighbours").value = String(DEFAULTS.neighbours);
+byId("set-neighbors").value = String(DEFAULTS.neighbors);
 byId("seed").value = DEFAULTS.seed;
 byId("speed").max = SPEEDS.length - 1;
 byId("speed").value = speedIndex;
