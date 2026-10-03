@@ -881,7 +881,9 @@ function loadEdgeList(text) {
 
 // Turn the typed text into a math.js expression "tree", made more
 // Desmos-like in two ways:
-//   - "=" means "equals" (math.js would read  y = x^2  as "set y to x^2")
+//   - "=" means "equals". math.js reads a single "=" as "set y to ...",
+//     and refuses  x^2 + y^2 = 4  outright, so before reading, every
+//     single "=" (not part of <=, >=, == or !=) becomes "==".
 //   - every variable is one letter, so "xy" means x times y (math.js
 //     would read it as one variable called "xy"). Names math.js knows,
 //     like sin, sqrt or pi, are left alone.
@@ -889,13 +891,8 @@ function loadEdgeList(text) {
 // every piece of the tree; "path" says where that piece sits inside its
 // "parent".)
 function readTree(text) {
-  const equalsFixed = math.parse(text).transform(function (node) {
-    if (node.isAssignmentNode && node.object.isSymbolNode) {
-      return new math.OperatorNode("==", "equal", [node.object, node.value]);
-    }
-    return node;
-  });
-  return equalsFixed.transform(function (node, path, parent) {
+  const equalsFixed = text.replace(/(^|[^<>=!])=(?!=)/g, "$1==");
+  return math.parse(equalsFixed).transform(function (node, path, parent) {
     const isWord = node.isSymbolNode && /^[a-zA-Z]{2,}$/.test(node.name);
     if (!isWord || isFunctionName(path, parent) || math[node.name] !== undefined) return node;
     // Split e.g. "xyr" into x * y * r. The "true" means the product is
