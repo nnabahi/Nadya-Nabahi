@@ -20,7 +20,7 @@
      3. The default start
      4. Running the walkers
      5. Drawing the coloring and the walkers
-     6. Dragging: walkers before the start, and the torus
+     6. Dragging and zooming: walkers before the start, and the torus
      7. Statistics
      8. Custom domains: the graph tool inside this page
      9. Connecting the buttons on the page
@@ -43,6 +43,13 @@ const OUTSIDE = "#ecebe7";        // around a custom domain (cells not in it)
 const SMALLEST_BORDERED_CELL = 4; // cells smaller than this (in pixels) get no border lines
 const PAD = 8;                    // room above and below the picture, so walkers at the edge show
 
+// Zooming the torus (section 6), as in the connected coloring sim. Zoom 1
+// shows the whole torus once.
+const MIN_ZOOM = 0.25;            // zoomed out: the torus 4 times across
+const MAX_ZOOM = 8;               // zoomed in: cells 8 times bigger
+const MIN_CELL_PIXELS = 2;        // but zoomed out, cells stay at least this big
+const ZOOM_STEP = 1.5;            // how much one click on + or − zooms
+
 // The speeds on the Speed slider, in steps per second (one step = one
 // unit of time, in both models). Infinity means "as fast as the
 // computer can". The default is slow, so you can watch every step.
@@ -62,7 +69,8 @@ let N = DEFAULTS.walkers;       // number of walkers
 let starts = [];                // starts[i] = the cell walker i starts on
 let colorNames = [];            // colorNames[i] = how color i is drawn, e.g. "#f2735a"
 let colorRGB = [];              // the same colors as [red, green, blue], 0..255
-let scroll = { x: 0, y: 0 };    // torus only: how far the picture is scrolled, in cells
+let scroll = { x: 0, y: 0 };    // torus only: how far the picture is moved, in cells
+let zoom = 1;                   // torus only: 2 = cells twice as big, 0.5 = half as big
 let showWalkers = true;         // the "Show walkers" box
 
 let playing = false;            // it starts paused; Play sets it going
@@ -213,25 +221,35 @@ function setPlaying(on) {
 /* =====================================================================
    5. DRAWING THE COLORING AND THE WALKERS
    ---------------------------------------------------------------------
-   The coloring is first drawn one pixel per cell (an "image" whose
-   pixels we set one by one: fast even for 300 x 300 cells), then blown
-   up onto a hidden canvas, "picture", with smoothing off so the cells
-   stay crisp squares. When cells are big enough to see, a dark line
-   goes along every side where two cells of different colors meet (an
-   uncolored cell counts as a color here), or where the domain ends.
-   Then the picture is copied onto the canvas on the page, and the
-   walkers are drawn on top as round markers.
+   Each cell is a square in its color (white until a walker reaches it).
+   When cells are big enough to see, a dark line goes along every side
+   where two cells of different colors meet (an uncolored cell counts as
+   a color here), or where the domain ends. The walkers are drawn on top
+   as round markers.
 
-   On a torus the sides at the edge of the picture are joined to the
-   opposite edge, and the picture can be scrolled: it is copied four
-   times, shifted, and whatever falls outside the picture's box is cut
-   off. (As in the connected coloring sim.)
+   The picture is drawn screen square by screen square, as in the
+   connected coloring sim: for each square that shows in the picture's
+   box, find which cell of the domain is there (cellAt, in
+   js/sim-domains.js). A box simply fills the picture's box once. A
+   torus (or a region drawn on one) wraps around, so cellAt keeps
+   finding cells beyond the box, and the torus can be moved and zoomed
+   (section 6). Zoomed out, it shows several times side by side, and so
+   do the walkers.
+
+   The squares' colors go into a small image, one pixel per square,
+   which is then blown up with smoothing off so the squares stay crisp.
+   (Setting pixels one by one is fast even for many thousands of
+   squares.)
    ===================================================================== */
 let drawPending = false;
-const tiny = document.createElement("canvas");      // one pixel per cell
-const picture = document.createElement("canvas");   // the full-size picture
-const simCanvas = byId("sim-canvas");
-let view = null;   // where the picture went on screen: { left, size, width, height, shiftX, shiftY }
+const tiny = document.createElement("canvas");   // one pixel per square that shows
+const simCanvas = byId("sim-canvas");            // the canvas on the page
+
+// Where the picture sits on the canvas, from the last drawing, in screen
+// pixels: "left", "width" and "height" of its box; "size", the size of
+// a cell when the whole domain fits (zoom 1); "cell", the size of a cell
+// as drawn (with the zoom); and which squares showed (see drawColoring).
+let view = { left: 0, width: 0, height: 0, size: 1, cell: 1, firstI: 0, lastI: -1, firstK: 0, lastK: -1 };
 
 // Draw at the browser's next screen refresh (at most once per refresh,
 // however many messages arrive in between).
@@ -245,116 +263,145 @@ function drawSoon() {
   });
 }
 
-// True when the picture can be scrolled: the Torus domain.
-function scrollable() { return domainKind === "torus"; }
+// True when the picture can be moved and zoomed: on any torus, the
+// Torus domain or a region drawn on a torus in the graph tool (that one
+// has "wrap" set). Zoomed out, a drawn region repeats with the torus.
+function scrollable() { return domain !== null && Boolean(domain.wrap); }
+
+// The size of a cell on screen with the zoom, in pixels. Cells with
+// border lines get a whole number of pixels, so every cell is exactly
+// the same size and the lines sit exactly on the cell edges.
+function cellPixels() {
+  const size = view.size * zoom;
+  return size >= SMALLEST_BORDERED_CELL ? Math.round(size) : size;
+}
 
 function drawColoring() {
   if (!domain || !latest || simCanvas.hidden) return;
   const d = domain, colors = latest.colors;
 
-  // The size of a cell on screen: as big as fits the width (and at most
-  // MAX_PICTURE_HEIGHT tall). Cells with border lines get a whole number
-  // of pixels, so every cell is exactly the same size and the lines sit
-  // exactly on the cell edges.
+  // The picture's box: a cell size that fits the width (and at most
+  // MAX_PICTURE_HEIGHT tall), in the middle of the canvas. A whole
+  // number of pixels if the cells get border lines (see cellPixels).
   const across = d.xmax - d.xmin + 1, down = d.ymax - d.ymin + 1;
   const cssWidth = simCanvas.clientWidth;
-  let size = Math.min(cssWidth / across, MAX_PICTURE_HEIGHT / down);
-  const bordered = (size >= SMALLEST_BORDERED_CELL);
-  if (bordered) size = Math.floor(size);
-  const width = size * across, height = size * down;
-  const ratio = window.devicePixelRatio || 1;   // 2 on sharp screens
+  view.size = Math.min(cssWidth / across, MAX_PICTURE_HEIGHT / down);
+  if (view.size >= SMALLEST_BORDERED_CELL) view.size = Math.floor(view.size);
+  view.width = Math.round(view.size * across);
+  view.height = Math.round(view.size * down);
+  view.left = Math.round((cssWidth - view.width) / 2);
 
-  // 1. One pixel per cell. Row 0 of the image is the top of the
-  //    picture, which is the largest y (y goes up the screen).
-  tiny.width = across;
-  tiny.height = down;
+  const ratio = window.devicePixelRatio || 1;   // 2 on sharp screens
+  simCanvas.style.height = (view.height + 2 * PAD) + "px";
+  simCanvas.width = Math.round(cssWidth * ratio);
+  simCanvas.height = Math.round((view.height + 2 * PAD) * ratio);
+  const screen = simCanvas.getContext("2d");
+  screen.setTransform(ratio, 0, 0, ratio, 0, PAD * ratio);   // screen pixels from here on; y = 0 is PAD pixels down
+  screen.save();
+  screen.beginPath();
+  screen.rect(view.left, 0, view.width, view.height);
+  screen.clip();                                // nothing outside the picture's box
+
+  // Which squares show. Square (i, k) is column i from the left and row
+  // k from the top of the domain (so k = 0 is the top row, y = ymax:
+  // rows go up the screen as y goes up). "scroll" moves the squares, in
+  // cells, and "zoom" sizes them; both stay 0 and 1 off the torus.
+  const size = cellPixels();
+  const firstI = Math.floor(-scroll.x) - 1, lastI = Math.ceil(view.width / size - scroll.x);
+  const firstK = Math.floor(-scroll.y) - 1, lastK = Math.ceil(view.height / size - scroll.y);
+  const cols = lastI - firstI + 1, rows = lastK - firstK + 1;
+  view.cell = size;
+  view.firstI = firstI; view.lastI = lastI;
+  view.firstK = firstK; view.lastK = lastK;
+  // The sides of the squares. Rounding to whole pixels avoids thin gaps.
+  function edgeX(i) { return view.left + Math.round((i + scroll.x) * size); }
+  function edgeY(k) { return Math.round((k + scroll.y) * size); }
+
+  // The color on each square that shows (-1 = not reached yet, -2 = not
+  // in the domain), and the small image with one pixel per square.
+  // Row 0 of the image is the top row of squares.
+  const shown = new Int32Array(cols * rows);
+  tiny.width = cols;
+  tiny.height = rows;
   const tinyPen = tiny.getContext("2d");
-  const image = tinyPen.createImageData(across, down);
+  const image = tinyPen.createImageData(cols, rows);
   const pixels = image.data;                  // 4 numbers per pixel: red, green, blue, opacity
   const outside = hexToRGB(OUTSIDE), blank = hexToRGB(UNCOLORED);
-  for (let p = 0; p < across * down; p++) {
-    pixels[4 * p] = outside[0]; pixels[4 * p + 1] = outside[1]; pixels[4 * p + 2] = outside[2];
-    pixels[4 * p + 3] = 255;
-  }
-  for (let v = 0; v < d.n; v++) {
-    const p = (d.ymax - d.y[v]) * across + (d.x[v] - d.xmin);
-    const rgb = colors[v] === -1 ? blank : colorRGB[colors[v]];
-    pixels[4 * p] = rgb[0]; pixels[4 * p + 1] = rgb[1]; pixels[4 * p + 2] = rgb[2];
+  for (let k = 0; k < rows; k++) {
+    for (let i = 0; i < cols; i++) {
+      const v = cellAt(d, d.xmin + firstI + i, d.ymax - (firstK + k));
+      const c = v === -1 ? -2 : colors[v];
+      const rgb = c === -2 ? outside : c === -1 ? blank : colorRGB[c];
+      const p = k * cols + i;
+      shown[p] = c;
+      pixels[4 * p] = rgb[0]; pixels[4 * p + 1] = rgb[1]; pixels[4 * p + 2] = rgb[2];
+      pixels[4 * p + 3] = 255;
+    }
   }
   tinyPen.putImageData(image, 0, 0);
 
-  // 2. Blow it up, with smoothing off so the cells stay sharp squares.
-  picture.width = Math.round(width * ratio);
-  picture.height = Math.round(height * ratio);
-  const pen = picture.getContext("2d");
-  pen.setTransform(ratio, 0, 0, ratio, 0, 0);   // draw in screen pixels from here on
-  pen.imageSmoothingEnabled = false;
-  pen.drawImage(tiny, 0, 0, width, height);
+  // The squares: the small image blown up, with smoothing off so they
+  // stay sharp.
+  screen.imageSmoothingEnabled = false;
+  screen.drawImage(tiny, edgeX(firstI), edgeY(firstK), cols * size, rows * size);
 
-  // 3. The border lines, all collected into one path and drawn at once.
-  if (bordered) {
-    function edgeX(x) { return (x - d.xmin) * size; }        // left side of column x
-    function edgeY(y) { return (d.ymax - y + 1) * size; }    // bottom side of row y
-    // Does a border go between cell v and the place (x, y) next to it?
-    function differs(v, x, y) {
-      const w = cellAt(d, x, y);
-      return w === -1 || colors[w] !== colors[v];
+  // The border lines, all collected into one path and drawn at once: a
+  // line between two squares side by side, or one above the other, whose
+  // colors differ (the outside counts as a color of its own).
+  if (size >= SMALLEST_BORDERED_CELL) {
+    screen.beginPath();
+    for (let k = 0; k < rows; k++) {
+      for (let i = 0; i < cols; i++) {
+        const c = shown[k * cols + i];
+        const x1 = edgeX(firstI + i + 1), y0 = edgeY(firstK + k), y1 = edgeY(firstK + k + 1);
+        if (i + 1 < cols && shown[k * cols + i + 1] !== c) {         // the square to the right
+          screen.moveTo(x1, y0); screen.lineTo(x1, y1);
+        }
+        if (k + 1 < rows && shown[(k + 1) * cols + i] !== c) {       // the square below
+          screen.moveTo(edgeX(firstI + i), y1); screen.lineTo(x1, y1);
+        }
+      }
     }
-    pen.beginPath();
-    for (let v = 0; v < d.n; v++) {
-      const x = d.x[v], y = d.y[v];
-      const x0 = edgeX(x), x1 = edgeX(x + 1), y0 = edgeY(y + 1), y1 = edgeY(y);
-      if (differs(v, x + 1, y)) { pen.moveTo(x1, y0); pen.lineTo(x1, y1); }   // right side
-      if (differs(v, x - 1, y)) { pen.moveTo(x0, y0); pen.lineTo(x0, y1); }   // left side
-      if (differs(v, x, y + 1)) { pen.moveTo(x0, y0); pen.lineTo(x1, y0); }   // top side
-      if (differs(v, x, y - 1)) { pen.moveTo(x0, y1); pen.lineTo(x1, y1); }   // bottom side
-    }
-    pen.strokeStyle = BORDER;
-    pen.lineWidth = Math.max(1, Math.min(2.5, size / 10));
-    pen.lineCap = "square";
-    pen.stroke();
+    screen.strokeStyle = BORDER;
+    screen.lineWidth = Math.max(1, Math.min(2.5, size / 10));
+    screen.lineCap = "square";
+    screen.stroke();
   }
 
-  // 4. Copy it onto the page, in the middle (on a torus, shifted by the
-  //    scroll and wrapped around).
-  simCanvas.style.height = (height + 2 * PAD) + "px";
-  simCanvas.width = Math.round(cssWidth * ratio);
-  simCanvas.height = Math.round((height + 2 * PAD) * ratio);
-  const screen = simCanvas.getContext("2d");
-  screen.setTransform(ratio, 0, 0, ratio, 0, PAD * ratio);   // y = 0 is PAD pixels down
-  const left = Math.round((cssWidth - width) / 2);
-  let shiftX = 0, shiftY = 0;
-  if (scrollable()) {
-    shiftX = wrapNumber(Math.round(scroll.x * size), width);
-    shiftY = wrapNumber(Math.round(scroll.y * size), height);
-  }
-  view = { left: left, size: size, width: width, height: height, shiftX: shiftX, shiftY: shiftY };
-
-  screen.save();
-  screen.beginPath();
-  screen.rect(left, 0, width, height);
-  screen.clip();                                   // nothing outside the picture's box
-  if (scrollable()) {
-    for (const dx of [shiftX - width, shiftX]) {
-      for (const dy of [shiftY - height, shiftY]) screen.drawImage(picture, left + dx, dy, width, height);
-    }
-  } else {
-    screen.drawImage(picture, left, 0, width, height);
-  }
   screen.restore();
   if (showWalkers) drawWalkers(screen);   // not cut off, so walkers on the edge show whole
 }
 
 // The size of a walker's marker, in screen pixels.
-function walkerRadius() { return Math.max(5, Math.min(14, view.size * 0.7)); }
+function walkerRadius() { return Math.max(5, Math.min(14, view.cell * 0.7)); }
 
-// Where walker i is drawn on the screen (the middle of its cell).
-function walkerSpot(i) {
+// Where walker i is drawn on the screen: the middle of its cell, in
+// every copy of the torus that shows (just once on a box). Only spots
+// inside the picture's box count, so at zoom 1 each walker shows once.
+// y counts from the top of the picture, PAD below the canvas top.
+function walkerSpots(i) {
   const d = domain, v = latest.positions[i];
-  let x = (d.x[v] - d.xmin + 0.5) * view.size + view.shiftX;
-  let y = (d.ymax - d.y[v] + 0.5) * view.size + view.shiftY;
-  if (scrollable()) { x = wrapNumber(x, view.width); y = wrapNumber(y, view.height); }
-  return { x: view.left + x, y: y };   // y counts from the top of the picture, PAD below the canvas top
+  let columns = [d.x[v] - d.xmin], rows = [d.ymax - d.y[v]];   // its square (column, row)
+  if (d.wrap) {
+    columns = repeatsBetween(columns[0], d.wrap.xmax - d.wrap.xmin + 1, view.firstI, view.lastI);
+    rows = repeatsBetween(rows[0], d.wrap.ymax - d.wrap.ymin + 1, view.firstK, view.lastK);
+  }
+  const spots = [];
+  for (const column of columns) {
+    for (const row of rows) {
+      const x = (column + 0.5 + scroll.x) * view.cell, y = (row + 0.5 + scroll.y) * view.cell;
+      if (x >= 0 && x < view.width && y >= 0 && y < view.height) spots.push({ x: view.left + x, y: y });
+    }
+  }
+  return spots;
+}
+
+// The numbers t, t + period, t - period, t + 2 period, ... between lo and
+// hi: the places a column (or row) shows again around the torus.
+function repeatsBetween(t, period, lo, hi) {
+  const list = [];
+  for (let s = lo + wrapNumber(t - lo, period); s <= hi; s += period) list.push(s);
+  return list;
 }
 
 // Each walker is a disc in its color, with a white ring and a thin dark
@@ -366,22 +413,23 @@ function drawWalkers(screen) {
   screen.textBaseline = "middle";
   screen.font = "bold " + Math.round(r * 1.1) + "px sans-serif";
   for (let i = 0; i < N; i++) {
-    const spot = walkerSpot(i);
-    screen.beginPath();
-    screen.arc(spot.x, spot.y, r, 0, 2 * Math.PI);
-    screen.fillStyle = colorNames[i];
-    screen.fill();
-    screen.lineWidth = 2;
-    screen.strokeStyle = "#ffffff";
-    screen.stroke();
-    screen.beginPath();
-    screen.arc(spot.x, spot.y, r + 1.5, 0, 2 * Math.PI);
-    screen.lineWidth = 1;
-    screen.strokeStyle = BORDER;
-    screen.stroke();
-    if (r >= 9) {
-      screen.fillStyle = BORDER;
-      screen.fillText(String(i + 1), spot.x, spot.y + 1);
+    for (const spot of walkerSpots(i)) {
+      screen.beginPath();
+      screen.arc(spot.x, spot.y, r, 0, 2 * Math.PI);
+      screen.fillStyle = colorNames[i];
+      screen.fill();
+      screen.lineWidth = 2;
+      screen.strokeStyle = "#ffffff";
+      screen.stroke();
+      screen.beginPath();
+      screen.arc(spot.x, spot.y, r + 1.5, 0, 2 * Math.PI);
+      screen.lineWidth = 1;
+      screen.strokeStyle = BORDER;
+      screen.stroke();
+      if (r >= 9) {
+        screen.fillStyle = BORDER;
+        screen.fillText(String(i + 1), spot.x, spot.y + 1);
+      }
     }
   }
 }
@@ -390,18 +438,23 @@ window.addEventListener("resize", drawSoon);
 
 
 /* =====================================================================
-   6. DRAGGING: WALKERS BEFORE THE START, AND THE TORUS
+   6. DRAGGING AND ZOOMING: WALKERS BEFORE THE START, AND THE TORUS
    ---------------------------------------------------------------------
    Before the run starts (paused, at time 0), a walker can be dragged to
    another cell; it snaps to the cell under the pointer, and the start
    is redrawn at once. Once the run has started, Restart brings the
    walkers back to their starting cells, and they can be dragged again.
-   On a torus, dragging anywhere else scrolls the picture, and so does
-   the mouse wheel. "Pointer" events cover the mouse, a pen and fingers
-   alike.
+
+   On a torus the picture can be moved and zoomed, as in the connected
+   coloring sim (and like a graph in Desmos):
+     drag (anywhere but a walker)     move it
+     mouse wheel, or pinch            zoom in or out, around the pointer
+     the + / − / Reset buttons        zoom in, zoom out, show it all again
+   "Pointer" events cover the mouse, a pen and fingers alike.
    ===================================================================== */
-let dragWalker = -1;   // the walker being dragged, or -1
-let dragFrom = null;   // while scrolling: where the pointer was a moment ago
+let dragWalker = -1;          // the walker being dragged, or -1
+let walkerPointer = -1;       // the pointer dragging it
+const pointers = new Map();   // moving the torus: the pointers pressed on the picture, id -> {x, y}
 
 // On phones, let a finger drag on the picture instead of scrolling the page.
 simCanvas.style.touchAction = "none";
@@ -416,69 +469,130 @@ function pointerSpot(event) {
 // The walker under the pointer (the one drawn on top), or -1. Only
 // before the run has started, while paused.
 function walkerUnder(spot) {
-  if (!view || !latest || !showWalkers || playing || started()) return -1;
+  if (!latest || !showWalkers || playing || started()) return -1;
   for (let i = N - 1; i >= 0; i--) {
-    const w = walkerSpot(i);
-    if (Math.hypot(w.x - spot.x, w.y - spot.y) <= walkerRadius() + 3) return i;
+    for (const w of walkerSpots(i)) {
+      if (Math.hypot(w.x - spot.x, w.y - spot.y) <= walkerRadius() + 3) return i;
+    }
   }
   return -1;
 }
 
 // The cell under the pointer, or -1.
 function cellUnder(spot) {
-  let x = spot.x - view.left - view.shiftX, y = spot.y - view.shiftY;
-  if (scrollable()) { x = wrapNumber(x, view.width); y = wrapNumber(y, view.height); }
-  if (x < 0 || x >= view.width || y < 0 || y >= view.height) return -1;
-  return cellAt(domain, domain.xmin + Math.floor(x / view.size), domain.ymax - Math.floor(y / view.size));
+  if (spot.x < view.left || spot.x >= view.left + view.width || spot.y < 0 || spot.y >= view.height) return -1;
+  const i = Math.floor((spot.x - view.left) / view.cell - scroll.x);   // its square (i, k)
+  const k = Math.floor(spot.y / view.cell - scroll.y);
+  return cellAt(domain, domain.xmin + i, domain.ymax - k);
 }
 
 // The "hand" cursor where something can be dragged.
 function showCursor(spot) {
-  simCanvas.style.cursor = (dragWalker >= 0 || dragFrom) ? "grabbing"
+  simCanvas.style.cursor = (dragWalker >= 0 || pointers.size > 0) ? "grabbing"
     : (walkerUnder(spot) >= 0 || scrollable()) ? "grab" : "default";
+}
+
+// Zoom the torus by "factor" (2 = twice as close) around the point
+// (px, py), in screen pixels from the top left of the picture's box:
+// the cell under that point stays under it.
+function zoomBy(factor, px, py) {
+  const before = cellPixels();
+  // Zoomed out, cells stay at least MIN_CELL_PIXELS big (but the whole
+  // torus, zoom 1, is always allowed, even with smaller cells).
+  const least = Math.min(1, Math.max(MIN_ZOOM, MIN_CELL_PIXELS / view.size));
+  zoom = Math.min(Math.max(zoom * factor, least), MAX_ZOOM);
+  const after = cellPixels();
+  scroll.x += px / after - px / before;
+  scroll.y += py / after - py / before;
+  drawSoon();
+}
+
+// Back to the whole torus, once, as at the start.
+function resetView() {
+  zoom = 1;
+  scroll = { x: 0, y: 0 };
+  drawSoon();
+}
+
+// The + / − / Reset buttons show only on a torus, with its picture.
+function showZoomButtons() {
+  byId("zoom-buttons").hidden = !scrollable() || simCanvas.hidden;
+}
+
+byId("zoom-in").addEventListener("click", function () {
+  zoomBy(ZOOM_STEP, view.width / 2, view.height / 2);       // around the middle
+});
+byId("zoom-out").addEventListener("click", function () {
+  zoomBy(1 / ZOOM_STEP, view.width / 2, view.height / 2);
+});
+byId("zoom-reset").addEventListener("click", resetView);
+
+// The point between the pressed pointers, and how far apart they are
+// (0 for one pointer). With one finger (or the mouse) down, the picture
+// follows it. With two fingers, it follows the point between them and
+// zooms as they spread apart or pinch together.
+function middleOfPointers() {
+  const p = Array.from(pointers.values());
+  if (p.length === 1) return { x: p[0].x, y: p[0].y, apart: 0 };
+  return { x: (p[0].x + p[1].x) / 2, y: (p[0].y + p[1].y) / 2,
+           apart: Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y) };
 }
 
 simCanvas.addEventListener("pointerdown", function (event) {
   const spot = pointerSpot(event);
-  dragWalker = walkerUnder(spot);
-  if (dragWalker < 0 && scrollable()) dragFrom = { x: event.clientX, y: event.clientY };
-  if (dragWalker >= 0 || dragFrom) simCanvas.setPointerCapture(event.pointerId);   // keep getting moves even off the canvas
+  if (dragWalker < 0 && pointers.size === 0) {
+    dragWalker = walkerUnder(spot);                 // a walker, if there's one under the pointer
+    if (dragWalker >= 0) walkerPointer = event.pointerId;
+  }
+  if (dragWalker < 0 && scrollable()) pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+  if (dragWalker >= 0 || pointers.has(event.pointerId)) {
+    simCanvas.setPointerCapture(event.pointerId);   // keep getting moves even off the canvas
+  }
   showCursor(spot);
 });
 
 simCanvas.addEventListener("pointermove", function (event) {
   const spot = pointerSpot(event);
-  if (dragWalker >= 0) {
+  if (dragWalker >= 0 && event.pointerId === walkerPointer) {
     const cell = cellUnder(spot);
     if (cell !== -1 && cell !== starts[dragWalker]) {
       starts[dragWalker] = cell;
       restart();
     }
-  } else if (dragFrom) {
-    scroll.x += (event.clientX - dragFrom.x) / view.size;
-    scroll.y += (event.clientY - dragFrom.y) / view.size;
-    dragFrom = { x: event.clientX, y: event.clientY };
+  } else if (pointers.has(event.pointerId)) {
+    const before = middleOfPointers();
+    pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    const after = middleOfPointers();
+    const size = cellPixels();
+    scroll.x += (after.x - before.x) / size;
+    scroll.y += (after.y - before.y) / size;
+    if (pointers.size >= 2 && before.apart > 0) {
+      const box = simCanvas.getBoundingClientRect();
+      zoomBy(after.apart / before.apart, after.x - box.left - view.left, after.y - box.top - PAD);
+    }
     drawSoon();
   }
   showCursor(spot);
 });
 
 function stopDragging(event) {
-  dragWalker = -1;
-  dragFrom = null;
+  if (event.pointerId === walkerPointer) { dragWalker = -1; walkerPointer = -1; }
+  pointers.delete(event.pointerId);
   showCursor(pointerSpot(event));
 }
 simCanvas.addEventListener("pointerup", stopDragging);
 simCanvas.addEventListener("pointercancel", stopDragging);
 
-// The mouse wheel, or two fingers on a trackpad, scroll the torus like
-// a page (instead of scrolling the page) while the pointer is over it.
+// The mouse wheel zooms around the pointer, as in Desmos. So does a
+// pinch on a trackpad, which the browser reports as the wheel with the
+// Ctrl key held (and small steps, so it counts for more).
 simCanvas.addEventListener("wheel", function (event) {
-  if (!scrollable() || !view) return;
-  event.preventDefault();
-  scroll.x -= event.deltaX / view.size;
-  scroll.y -= event.deltaY / view.size;
-  drawSoon();
+  if (!scrollable()) return;
+  event.preventDefault();                              // don't scroll the page
+  const pixels = event.deltaY * (event.deltaMode === 1 ? 16 : 1);   // some mice count lines
+  const box = simCanvas.getBoundingClientRect();
+  zoomBy(Math.exp(-pixels * (event.ctrlKey ? 0.01 : 0.002)),
+         event.clientX - box.left - view.left, event.clientY - box.top - PAD);
 }, { passive: false });   // "passive: false" lets preventDefault stop the page scrolling
 
 
@@ -712,6 +826,7 @@ function openTool() {
   if (playing) setPlaying(false);
   toolOpen = true;
   simCanvas.hidden = true;
+  showZoomButtons();
   byId("custom-area").hidden = false;
   if (!frame.src) frame.src = "graph-tool.html?embed";    // the first time only
   checkTool();
@@ -721,6 +836,7 @@ function closeTool() {
   toolOpen = false;
   byId("custom-area").hidden = true;
   simCanvas.hidden = false;
+  showZoomButtons();
 }
 
 // Messages from the tool: its height (so the iframe fits it exactly),
@@ -777,6 +893,8 @@ function useDomain(kind, d) {
   domainKind = kind;
   domain = d;
   scroll = { x: 0, y: 0 };
+  zoom = 1;
+  showZoomButtons();
   showDomainChoice();
   setWalkerCount(N);
 }

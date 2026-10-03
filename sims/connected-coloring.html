@@ -34,8 +34,16 @@
         <h2>Simulation</h2>
 
         <!-- The picture. connected-coloring.js sets its height so the
-             cells come out square. -->
-        <canvas id="sim-canvas"></canvas>
+             cells come out square. On the torus, the zoom buttons sit in
+             its top right corner. -->
+        <div class="sim-picture">
+          <canvas id="sim-canvas"></canvas>
+          <div class="zoom-buttons" id="zoom-buttons" hidden>
+            <button class="tool-button" id="zoom-in" title="Zoom in">+</button>
+            <button class="tool-button" id="zoom-out" title="Zoom out">&minus;</button>
+            <button class="tool-button" id="zoom-reset" title="Show the whole torus once again">Reset</button>
+          </div>
+        </div>
 
         <!-- Shown instead of the picture while you draw a custom domain:
              the steps, and the graph tool itself in an <iframe> (a page
@@ -159,8 +167,8 @@
         </p>
         <p>
           <strong>Things to try:</strong> press Play (or Step, for one move at a
-          time); change N; switch to the torus (drag it, or scroll over it, and it
-          wraps around); or pick Custom to draw your own region and even your own
+          time); change N; switch to the torus (drag it and it wraps around; zoom
+          with the mouse wheel, a pinch, or the + and &minus; buttons); or pick Custom to draw your own region and even your own
           starting colors.
         </p>
         </div>
@@ -228,7 +236,9 @@
         <p>
           <strong>Domains and starts.</strong> A box or torus of cells, with 4 or 8
           neighbors, or your own region drawn in the graph tool. The torus can
-          be scrolled: drag it, or scroll over it. The automatic start cuts the
+          be moved by dragging it and zoomed with the mouse wheel, a pinch or
+          the buttons in its corner; zoomed out, it shows several times side
+          by side. The automatic start cuts the
           domain into a grid of N rectangles; a drawn region that can't be cut
           that way with each color in one piece starts from N compact blocks
           around spread-out cells instead. Compact pieces matter: from thin
