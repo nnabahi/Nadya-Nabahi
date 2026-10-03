@@ -1,5 +1,5 @@
 /* =====================================================================
-   graph-tool.js  —  the Graph & domain tool, GRID MODE (step 1)
+   graph-tool.js  —  the Graph & domain tool (grid mode)
    ---------------------------------------------------------------------
    What it does, in plain words:
      - Draws a square grid. Each grid cell (x, y) is the unit square
@@ -8,6 +8,8 @@
        domain); colours 1, 2, 3, ... are handed to sims as numbers.
      - The painted cells, plus the edges between painted neighbours,
        form a graph. That graph is what a sim will receive.
+     - A formula box paints every cell whose centre satisfies a
+       condition, like x^2 + y^2 <= r^2, with a slider for r.
 
    The drawing, zooming, panning and touch support all come from
    Cytoscape.js, a JavaScript graph library loaded in graph-tool.html.
@@ -78,11 +80,20 @@ const AXIS_LINE    = "#000000";   // the lines x = 0 and y = 0
 const LABEL_COLOUR = "#333333";   // the numbers along the axes
 const MAJOR_EVERY  = 5;           // also how often the axes get a number
 
-const OFF_DOT     = "#bdbdbd";   // an unpainted dot (dots view)
-const EDGE_COLOUR = "#333333";   // an edge between two painted dots
+// Cells and dots. Dot sizes are in cells: 0.45 is just under half a cell.
+const OFF_DOT      = "#bdbdbd";   // an unpainted dot (dots view)
+const EDGE_COLOUR  = "#333333";   // an edge between two painted dots
+const EDGE_WIDTH   = 3;           // its thickness, in Cytoscape units
+const OFF_DOT_SIZE = 0.2;         // width of an unpainted dot
+const DOT_SIZE     = 0.45;        // width of a painted dot
+const CELL_OPACITY = 0.85;        // painted cells are slightly see-through, like Desmos shading
 
 const UNIT = 20;            // size of one cell, in Cytoscape units
 const MAX_CELLS = 10000;    // biggest grid allowed (e.g. 100 x 100)
+
+// A new slider in the formula box, and the smallest step it can have.
+const NEW_SLIDER = { value: 1, min: -10, max: 10, step: 0.1 };
+const SMALLEST_STEP = 0.001;
 
 
 /* =====================================================================
@@ -113,8 +124,16 @@ let stroke = null;        // the stroke being drawn right now, or null
 let strokeColour = 0;     // the colour this stroke paints
 let lastPoint = null;     // where the pointer was a moment ago
 
+// The formula box (section 9).
+let formula = null;         // the formula, ready to evaluate (null if none)
+let beforeFormula = null;   // a copy of colourOf from before the formula changed anything
+const sliders = {};         // one per letter, e.g. sliders.r = { value: 1, min: -10, max: 10, step: 0.1 }
+
 
 // Small helpers.
+function byId(id) { return document.getElementById(id); }
+function showMessage(text) { byId("tool-message").textContent = text; }
+
 function cellName(x, y) { return x + "," + y; }
 function colourAt(x, y) { return colourOf[cellName(x, y)] || 0; }
 function width()  { return grid.xmax - grid.xmin + 1; }
@@ -123,6 +142,17 @@ function height() { return grid.ymax - grid.ymin + 1; }
 function inGrid(x, y) {
   return x >= grid.xmin && x <= grid.xmax && y >= grid.ymin && y <= grid.ymax;
 }
+
+// Do something for every cell of the grid.
+function forEachCell(doThis) {
+  for (let x = grid.xmin; x <= grid.xmax; x++) {
+    for (let y = grid.ymin; y <= grid.ymax; y++) doThis(x, y);
+  }
+}
+
+// The colour that Invert, the formula and pasting paint with: the
+// current colour, or colour 1 when the eraser is chosen.
+function paintColour() { return currentColour || 1; }
 
 // Where the point (x, y) is drawn. Minus sign: Cytoscape's y points down.
 function drawAt(x, y) { return { x: x * UNIT, y: -y * UNIT }; }
@@ -156,17 +186,16 @@ function makeStyle() {
     {
       selector: "node.cell",
       style: dots
-        ? { shape: "ellipse", width: 0.2 * UNIT, height: 0.2 * UNIT, "background-color": OFF_DOT }
+        ? { shape: "ellipse", width: OFF_DOT_SIZE * UNIT, height: OFF_DOT_SIZE * UNIT, "background-color": OFF_DOT }
         : { shape: "rectangle", width: UNIT, height: UNIT, "background-opacity": 0 },
     },
   ];
 
   // One rule per palette colour. Painted cells are slightly see-through,
-  // like Desmos shading, so the grid lines still show; painted dots are
-  // drawn bigger.
+  // so the grid lines still show; painted dots are drawn bigger.
   for (let c = 1; c < palette.length; c++) {
-    const look = { "background-color": palette[c], "background-opacity": dots ? 1 : 0.85 };
-    if (dots) { look.width = 0.45 * UNIT; look.height = 0.45 * UNIT; }
+    const look = { "background-color": palette[c], "background-opacity": dots ? 1 : CELL_OPACITY };
+    if (dots) { look.width = DOT_SIZE * UNIT; look.height = DOT_SIZE * UNIT; }
     rules.push({ selector: "node[colour = " + c + "]", style: look });
   }
 
@@ -174,9 +203,9 @@ function makeStyle() {
   // (class "on"); the background grid already shows the rest of the
   // lattice. The long wrap-around edges of a torus are never drawn.
   rules.push(
-    { selector: "edge.lattice",    style: { display: "none" } },
-    { selector: "edge.lattice.on", style: { display: dots ? "element" : "none", width: 3, "line-color": EDGE_COLOUR } },
-    { selector: "edge.wrap",       style: { display: "none" } },
+    { selector: "edge",      style: { display: "none" } },
+    { selector: "edge.on",   style: { display: dots ? "element" : "none", width: EDGE_WIDTH, "line-color": EDGE_COLOUR } },
+    { selector: "edge.wrap", style: { display: "none" } },
   );
 
   return rules;
@@ -190,7 +219,7 @@ function restyle() {
 
 // Create the Cytoscape drawing inside <div id="graph-area">.
 const cy = cytoscape({
-  container: document.getElementById("graph-area"),
+  container: byId("graph-area"),
   style: makeStyle(),
   minZoom: 0.05,
   maxZoom: 10,
@@ -199,6 +228,11 @@ const cy = cytoscape({
   autounselectify: true,        // clicking doesn't "select" anything
   userPanningEnabled: false,    // dragging paints; the Move tool turns panning on
 });
+
+// Zoom and pan so the whole grid fits, with a 30-pixel margin.
+function fitView() {
+  cy.fit(cy.nodes(), 30);
+}
 
 
 /* =====================================================================
@@ -253,23 +287,19 @@ function buildGrid() {
         if (seen.has(pair)) continue;          // a tiny torus can repeat an edge
         seen.add(pair);
 
-        let classes = "lattice";
-        if (dx !== 0 && dy !== 0) classes += " diagonal";
-        if (wrapped) classes += " wrap";
-        elements.push({ group: "edges", classes: classes, data: { source: a, target: b } });
+        elements.push({ group: "edges", classes: wrapped ? "wrap" : "", data: { source: a, target: b } });
       }
     }
   }
-
 
   // Swap the old drawing for the new one. "batch" makes Cytoscape redraw
   // once at the end instead of after every single change.
   cy.batch(function () {
     cy.elements().remove();
     cy.add(elements);
-    cy.edges(".lattice").forEach(updateEdge);
+    cy.edges().forEach(updateEdge);
   });
-  cy.fit(cy.nodes(".cell"), 30);
+  fitView();
   drawBackground();
 
   // Undo can't go back across a grid change, so start a fresh history.
@@ -304,7 +334,7 @@ function buildGrid() {
      - on a torus: copies of the drawing, and of the lines, axes and
        numbers, in every direction
    ===================================================================== */
-const linesCanvas = document.getElementById("grid-lines");
+const linesCanvas = byId("grid-lines");
 
 function drawBackground() {
   // Make the canvas's pixels match its size on screen. "ratio" is 2 on
@@ -457,9 +487,9 @@ function drawTorusCopies(pen, scale, screenX, screenY, left, right, bottom, top)
   const edges = cy.edges(".on").not(".wrap");   // wrap-around edges are never drawn
   const dots = (view === "dots");
 
-  // As see-through as the real cells (0.85 in cells view, see section 3),
+  // The same sizes and see-through-ness as the real cells (section 3),
   // so copies and the real grid look the same.
-  pen.globalAlpha = dots ? 1 : 0.85;
+  pen.globalAlpha = dots ? 1 : CELL_OPACITY;
   for (let i = iFrom; i <= iTo; i++) {
     for (let j = jFrom; j <= jTo; j++) {
       if (i === 0 && j === 0) continue;   // that's the real grid
@@ -469,13 +499,13 @@ function drawTorusCopies(pen, scale, screenX, screenY, left, right, bottom, top)
       if (dots && scale >= 6) {
         pen.fillStyle = OFF_DOT;
         forEachCell(function (x, y) {
-          if (colourAt(x, y) === 0) circle(pen, screenX(x + dx), screenY(y + dy), 0.1 * scale);
+          if (colourAt(x, y) === 0) circle(pen, screenX(x + dx), screenY(y + dy), OFF_DOT_SIZE / 2 * scale);
         });
       }
       // Dots view: the edges between painted dots.
       if (dots) {
         pen.strokeStyle = EDGE_COLOUR;
-        pen.lineWidth = 3 * cy.zoom();
+        pen.lineWidth = EDGE_WIDTH * cy.zoom();
         edges.forEach(function (edge) {
           const a = edge.source().data(), b = edge.target().data();
           pen.beginPath();
@@ -488,7 +518,7 @@ function drawTorusCopies(pen, scale, screenX, screenY, left, right, bottom, top)
       painted.forEach(function (node) {
         const x = node.data("x") + dx, y = node.data("y") + dy;
         pen.fillStyle = palette[node.data("colour")];
-        if (dots) circle(pen, screenX(x), screenY(y), 0.225 * scale);
+        if (dots) circle(pen, screenX(x), screenY(y), DOT_SIZE / 2 * scale);
         else pen.fillRect(screenX(x) - scale / 2, screenY(y) - scale / 2, scale, scale);
       });
     }
@@ -520,21 +550,21 @@ window.addEventListener("resize", drawBackground);
 
 // Give cell (x, y) colour c, and remember it for undo if a stroke is going.
 function setColour(x, y, c) {
-  const before = colourAt(x, y);
+  const name = cellName(x, y);
+  const before = colourOf[name] || 0;
   if (before === c) return;
 
   if (stroke) {
-    const name = cellName(x, y);
     if (!stroke.has(name)) stroke.set(name, { before: before });
     stroke.get(name).after = c;
   }
 
-  if (c === 0) delete colourOf[cellName(x, y)];
-  else colourOf[cellName(x, y)] = c;
+  if (c === 0) delete colourOf[name];
+  else colourOf[name] = c;
 
   // Recolour the cell and the edges touching it. (Torus copies are
   // redrawn by redrawCopies(), once per mouse move rather than per cell.)
-  const node = cy.getElementById(cellName(x, y));
+  const node = cy.getElementById(name);
   node.data("colour", c);
   node.connectedEdges().forEach(updateEdge);
 }
@@ -601,10 +631,7 @@ window.addEventListener("pointerup", finishStroke);
 
 function finishStroke() {
   if (!stroke) return;
-  if (stroke.size > 0) {
-    undoStack.push(stroke);
-    redoStack = [];            // a new change makes old redos meaningless
-  }
+  remember(stroke);
   stroke = null;
   redrawCopies();
   updateStats();
@@ -619,10 +646,11 @@ function asOneStep(change) {
   finishStroke();
 }
 
-function forEachCell(doThis) {
-  for (let x = grid.xmin; x <= grid.xmax; x++) {
-    for (let y = grid.ymin; y <= grid.ymax; y++) doThis(x, y);
-  }
+// Add a finished change (a Map of cells, like "stroke") to the undo list.
+function remember(step) {
+  if (step.size === 0) return;
+  undoStack.push(step);
+  redoStack = [];   // a new change makes old redos meaningless
 }
 
 // Undo / redo: replay a stroke's "before" (or "after") colours.
@@ -672,12 +700,12 @@ function updateStats() {
   // components(): Cytoscape splits the graph into its connected pieces.
   const pieces = painted.union(edges).components().length;
 
-  document.getElementById("stat-vertices").textContent = painted.length;
-  document.getElementById("stat-edges").textContent = edges.length;
-  document.getElementById("stat-pieces").textContent = pieces;
+  byId("stat-vertices").textContent = painted.length;
+  byId("stat-edges").textContent = edges.length;
+  byId("stat-pieces").textContent = pieces;
 
   // How many cells of each colour, as a list with a colour swatch.
-  const list = document.getElementById("stat-colours");
+  const list = byId("stat-colours");
   list.innerHTML = "";
   for (let c = 1; c < palette.length; c++) {
     const count = cy.nodes(".cell[colour = " + c + "]").length;
@@ -729,7 +757,7 @@ function toEdgeListText() {
 
 // Put text in the box on the page and try to copy it to the clipboard.
 function showAndCopy(text) {
-  const box = document.getElementById("text-box");
+  const box = byId("text-box");
   box.value = text;
   if (!navigator.clipboard) {
     return showMessage("Select the text in the box below and copy it.");
@@ -803,7 +831,7 @@ function loadJSON(text) {
 
 // In grid mode, an edge list can only say which cells to paint: the grid
 // itself decides the edges. So every vertex named "x,y" gets painted in
-// the current colour (colour 1 if the eraser is chosen).
+// paintColour() (the current colour, or colour 1 with the eraser chosen).
 function loadEdgeList(text) {
   const names = [];
   for (const line of text.split("\n")) {
@@ -823,11 +851,10 @@ function loadEdgeList(text) {
     cells.push({ x: Number(match[1]), y: Number(match[2]) });
   }
 
-  const colour = currentColour || 1;
   let outside = 0;
   asOneStep(function () {
     for (const cell of cells) {
-      if (inGrid(cell.x, cell.y)) setColour(cell.x, cell.y, colour);
+      if (inGrid(cell.x, cell.y)) setColour(cell.x, cell.y, paintColour());
       else outside++;
     }
   });
@@ -848,12 +875,9 @@ function loadEdgeList(text) {
    or the mode recomputes the grid from how it looked before the formula
    started changing it ("beforeFormula"). Painting by hand, or pressing
    Done, keeps the result, and the whole formula session becomes one
-   Undo step.
+   Undo step. (Its state, "formula", "beforeFormula" and "sliders", is
+   in section 2.)
    ===================================================================== */
-
-let formula = null;         // the formula, ready to evaluate (null if none)
-let beforeFormula = null;   // a copy of colourOf from before the formula changed anything
-const sliders = {};         // one per letter, e.g. sliders.r = { value: 1, min: -10, max: 10, step: 0.1 }
 
 // Turn the typed text into a math.js expression "tree", made more
 // Desmos-like in two ways:
@@ -861,6 +885,9 @@ const sliders = {};         // one per letter, e.g. sliders.r = { value: 1, min:
 //   - every variable is one letter, so "xy" means x times y (math.js
 //     would read it as one variable called "xy"). Names math.js knows,
 //     like sin, sqrt or pi, are left alone.
+// (math.js runs the function given to "transform" or "filter" once for
+// every piece of the tree; "path" says where that piece sits inside its
+// "parent".)
 function readTree(text) {
   const equalsFixed = math.parse(text).transform(function (node) {
     if (node.isAssignmentNode && node.object.isSymbolNode) {
@@ -869,9 +896,8 @@ function readTree(text) {
     return node;
   });
   return equalsFixed.transform(function (node, path, parent) {
-    const isFunctionName = parent && parent.isFunctionNode && path === "fn";   // the "sin" in sin(x)
     const isWord = node.isSymbolNode && /^[a-zA-Z]{2,}$/.test(node.name);
-    if (!isWord || isFunctionName || math[node.name] !== undefined) return node;
+    if (!isWord || isFunctionName(path, parent) || math[node.name] !== undefined) return node;
     // Split e.g. "xyr" into x * y * r. The "true" means the product is
     // written without a multiplication sign, so the preview shows "xyr".
     const letters = node.name.split("").map(function (ch) { return new math.SymbolNode(ch); });
@@ -886,12 +912,17 @@ function readTree(text) {
 function sliderLetters(tree) {
   const names = tree
     .filter(function (node, path, parent) {
-      return node.isSymbolNode && !(parent && parent.isFunctionNode && path === "fn");
+      return node.isSymbolNode && !isFunctionName(path, parent);
     })
     .map(function (node) { return node.name; });
   return [...new Set(names)].filter(function (name) {
     return name !== "x" && name !== "y" && math[name] === undefined;
   });
+}
+
+// True for the "sin" in sin(x): a name used as a function, not a variable.
+function isFunctionName(path, parent) {
+  return Boolean(parent && parent.isFunctionNode && path === "fn");
 }
 
 // Runs on every keystroke in the formula box.
@@ -929,7 +960,7 @@ function applyFormula() {
   for (const name in sliders) scope[name] = sliders[name].value;
 
   const mode = byId("formula-mode").value;
-  const paint = currentColour || 1;   // with the eraser chosen, paint colour 1
+  const paint = paintColour();
   let problem = "";
 
   cy.batch(function () {
@@ -968,10 +999,7 @@ function keepFormulaResult() {
     const before = beforeFormula[name] || 0, after = colourAt(x, y);
     if (before !== after) step.set(name, { before: before, after: after });
   });
-  if (step.size > 0) {
-    undoStack.push(step);
-    redoStack = [];
-  }
+  remember(step);
   beforeFormula = null;
 }
 
@@ -997,12 +1025,10 @@ function showSliders(names) {
   const holder = byId("sliders");
   holder.innerHTML = "";
   for (const name of names) {
-    if (!sliders[name]) sliders[name] = { value: 1, min: -10, max: 10, step: 0.1 };
+    if (!sliders[name]) sliders[name] = Object.assign({}, NEW_SLIDER);   // a fresh copy
     holder.appendChild(makeSlider(name, sliders[name]));
   }
 }
-
-const SMALLEST_STEP = 0.001;
 
 function makeSlider(name, s) {
   const row = document.createElement("div");
@@ -1081,10 +1107,6 @@ byId("formula-done").addEventListener("click", function () {
    10. CONNECTING THE BUTTONS ON THE PAGE
    ===================================================================== */
 
-function byId(id) { return document.getElementById(id); }
-
-function showMessage(text) { byId("tool-message").textContent = text; }
-
 // --- Tools: Paint / Move / Fit view ---------------------------------
 function chooseTool(name) {
   tool = name;
@@ -1095,7 +1117,7 @@ function chooseTool(name) {
 }
 byId("tool-paint").addEventListener("click", function () { chooseTool("paint"); });
 byId("tool-move").addEventListener("click", function () { chooseTool("move"); });
-byId("tool-fit").addEventListener("click", function () { cy.fit(cy.nodes(".cell"), 30); });
+byId("tool-fit").addEventListener("click", fitView);
 byId("tool-undo").addEventListener("click", undo);
 byId("tool-redo").addEventListener("click", redo);
 
@@ -1228,9 +1250,8 @@ byId("do-clear").addEventListener("click", function () {
   asOneStep(function () { forEachCell(function (x, y) { setColour(x, y, 0); }); });
 });
 byId("do-invert").addEventListener("click", function () {
-  const paint = currentColour || 1;   // with the eraser chosen, invert paints colour 1
   asOneStep(function () {
-    forEachCell(function (x, y) { setColour(x, y, colourAt(x, y) > 0 ? 0 : paint); });
+    forEachCell(function (x, y) { setColour(x, y, colourAt(x, y) > 0 ? 0 : paintColour()); });
   });
 });
 

@@ -15,8 +15,8 @@
      4. Ordinary page content (cards, headings, lists)
      5. Home page image area
      6. Toys n' Sims: the four-quadrant layout
-     7. Phones and narrow screens
-     8. Graph & domain tool (sims/graph-tool.html)
+     7. Graph & domain tool (sims/graph-tool.html)
+     8. Phones and narrow screens
    ===================================================================== */
 
 
@@ -198,7 +198,8 @@ a.card:hover {
        <li>Interfaces</li>
      </ul>
    The buttons inside <div class="filter-bar"> are made by
-   js/genre-filter.js, each as <button class="filter-button">.
+   js/genre-filter.js, each as <button class="filter-button">. The graph
+   tool's buttons (class="tool-button", section 7) share their look.
    --------------------------------------------------------------------- */
 
 /* The list of labels: a row that wraps, without bullet points. */
@@ -228,7 +229,8 @@ a.card:hover {
   margin-bottom: 24px;
 }
 
-.filter-button {
+.filter-button,
+.tool-button {
   font: inherit;            /* buttons don't use the page font by default */
   font-size: 0.9em;
   background: var(--color-surface);
@@ -239,12 +241,14 @@ a.card:hover {
   cursor: pointer;          /* the hand cursor, so it looks clickable */
 }
 
-.filter-button:hover {
+.filter-button:hover,
+.tool-button:hover {
   border-color: var(--color-accent);
 }
 
-/* The button for the genre currently shown. */
-.filter-button.selected {
+/* The chosen button: the genre currently shown, or the tool in use. */
+.filter-button.selected,
+.tool-button.selected {
   background: var(--color-accent);
   border-color: var(--color-accent);
   color: var(--color-surface);
@@ -333,33 +337,7 @@ a.card:hover {
 
 
 /* =====================================================================
-   7. Phones and narrow screens
-   ---------------------------------------------------------------------
-   Everything inside "@media (max-width: 760px) { ... }" only applies
-   when the window is 760px wide or less. It overrides the rules above.
-   ===================================================================== */
-@media (max-width: 760px) {
-
-  /* Let the top bar links scroll sideways instead of squashing. */
-  .topbar nav {
-    justify-content: flex-start;
-    overflow-x: auto;
-  }
-
-  /* Stack the four quadrants in one column, in this order. */
-  .quadrants {
-    grid-template-columns: 1fr;
-    grid-template-areas:
-      "sim"
-      "controls"
-      "stats"
-      "about";
-  }
-}
-
-
-/* =====================================================================
-   8. Graph & domain tool (sims/graph-tool.html)
+   7. Graph & domain tool (sims/graph-tool.html)
    ---------------------------------------------------------------------
    The buttons, colour palette, drawing box and settings on the tool's
    page. The drawing itself is styled in sims/graph-tool.js (section 3),
@@ -374,31 +352,16 @@ a.card:hover {
   margin-bottom: 10px;
 }
 
-#current-colour {
-  margin: 6px 0 8px;
-}
-
-/* A small rounded button, same look as the genre buttons. */
+/* The tool buttons look like the genre buttons (section 4), a bit
+   smaller. A button that can't be used right now is faded. */
 .tool-button {
-  font: inherit;
   font-size: 0.85em;
-  background: var(--color-surface);
-  color: var(--color-text);
-  border: 1px solid var(--color-border);
-  border-radius: 999px;
   padding: 3px 12px;
-  cursor: pointer;
 }
 
-.tool-button:hover {
-  border-color: var(--color-accent);
-}
-
-/* The tool currently in use (Paint or Move). */
-.tool-button.selected {
-  background: var(--color-accent);
-  border-color: var(--color-accent);
-  color: var(--color-surface);
+.tool-button:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
 
 /* The palette: a grid of colour squares 7 across (like OneNote or
@@ -439,9 +402,9 @@ a.card:hover {
   max-width: 280px;
 }
 
-.tool-button:disabled {
-  opacity: 0.4;
-  cursor: default;
+/* "Painting with colour 3." under the palette. */
+#current-colour {
+  margin: 6px 0 8px;
 }
 
 /* Present on the page (so the browser can open it) but not visible. */
@@ -586,9 +549,34 @@ a.card:hover {
   vertical-align: middle;
 }
 
-/* A shorter drawing area on phones. (This has to come after the
-   .graph-wrap rule above, otherwise that rule would win.) */
+
+
+/* =====================================================================
+   8. Phones and narrow screens
+   ---------------------------------------------------------------------
+   Everything inside "@media (max-width: 760px) { ... }" only applies
+   when the window is 760px wide or less. It comes last in the file so
+   that it overrides the rules above.
+   ===================================================================== */
 @media (max-width: 760px) {
+
+  /* Let the top bar links scroll sideways instead of squashing. */
+  .topbar nav {
+    justify-content: flex-start;
+    overflow-x: auto;
+  }
+
+  /* Stack the four quadrants in one column, in this order. */
+  .quadrants {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "sim"
+      "controls"
+      "stats"
+      "about";
+  }
+
+  /* A shorter drawing area in the graph tool. */
   .graph-wrap {
     height: 380px;
   }

@@ -21,7 +21,7 @@ algorithms), [math.js](https://mathjs.org) (reads typed formulas) and
 | `css/style.css` | The single stylesheet for every page |
 | `js/genre-filter.js` | Builds the genre buttons on `toys.html` and hides/shows cards |
 | `sims/graph-tool.html` | Graph & domain tool: paint a domain on a grid (pinned first on `toys.html`) |
-| `sims/graph-tool.js` | The graph tool's code (painting, torus, undo, save/load) |
+| `sims/graph-tool.js` | The graph tool's code (painting, torus, formula box, undo, save/load) |
 
 ## Common changes
 
