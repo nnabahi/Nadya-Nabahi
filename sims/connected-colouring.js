@@ -39,10 +39,10 @@ const OUTSIDE = "#ecebe7";    // around a custom domain (cells not in it)
 const TRACE_LENGTH = 400;     // how many points the "boundary edges" plot keeps
 
 // The speeds on the Speed slider, in moves per second.
-// Infinity means "as fast as the computer can". The default, 50 a
-// second, is about the old site's 1 move per screen refresh.
+// Infinity means "as fast as the computer can". The default is low, so
+// you can follow the moves; the Speed slider goes faster.
 const SPEEDS = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, Infinity];
-const DEFAULT_SPEED = SPEEDS.indexOf(50);
+const DEFAULT_SPEED = SPEEDS.indexOf(10);
 
 
 /* =====================================================================
