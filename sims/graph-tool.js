@@ -78,12 +78,12 @@ const OUTSIDE_GRID = "#f0f0f0";   // outside them (no cells there)
 const MINOR_LINE   = "#e4e4e4";   // every cell
 const MAJOR_LINE   = "#b4b4b4";   // every MAJOR_EVERY cells (dots view)
 const AXIS_LINE    = "#000000";   // the lines x = 0 and y = 0
-const LABEL_COLOR = "#333333";   // the numbers along the axes
+const LABEL_COLOR  = "#333333";   // the numbers along the axes
 const MAJOR_EVERY  = 5;           // also how often the axes get a number
 
 // Cells and dots. Dot sizes are in cells: 0.45 is just under half a cell.
 const OFF_DOT      = "#bdbdbd";   // an unpainted dot (dots view)
-const EDGE_COLOR  = "#333333";   // an edge between two painted dots
+const EDGE_COLOR   = "#333333";   // an edge between two painted dots
 const EDGE_WIDTH   = 3;           // its thickness, in Cytoscape units
 const OFF_DOT_SIZE = 0.2;         // width of an unpainted dot
 const DOT_SIZE     = 0.45;        // width of a painted dot
@@ -105,7 +105,7 @@ const SMALLEST_STEP = 0.001;
 const grid = {
   xmin: -10, xmax: 10,
   ymin: -10, ymax: 10,
-  neighbors: 4,       // 4 = share a side; 8 = sides or corners
+  neighbors: 4,        // 4 = share a side; 8 = sides or corners
   torus: false,        // true = right edge joins left, top joins bottom
 };
 
@@ -113,7 +113,7 @@ const grid = {
 // A cell that isn't listed is off (color 0).
 let colorOf = {};
 
-let currentColor = 1;   // the palette color you're painting with
+let currentColor = 1;    // the palette color you're painting with
 let tool = "paint";      // "paint" or "move"
 let view = "cells";      // "cells" or "dots"
 
@@ -122,7 +122,7 @@ let view = "cells";      // "cells" or "dots"
 let undoStack = [];
 let redoStack = [];
 let stroke = null;        // the stroke being drawn right now, or null
-let strokeColor = 0;     // the color this stroke paints
+let strokeColor = 0;      // the color this stroke paints
 let lastPoint = null;     // where the pointer was a moment ago
 
 // The formula box (section 9).
@@ -1310,7 +1310,7 @@ buildGrid();
    ---------------------------------------------------------------------
    A sim can show this tool inside its own page, in an <iframe> (a page
    inside a page), so you can draw its domain. Then:
-     - only the drawing and the options show (css/style.css, section 7,
+     - only the drawing and the options show (css/style.css, section 8,
        the "body.embedded" rules)
      - after every change the drawing is sent to the sim as a message
        (tellSim, called from updateStats in section 7), and so is this

@@ -98,7 +98,7 @@ function chainWorker() {
   let first = null;        // where each cell's neighbors start in nbr
   let nbr = null;          // all the neighbor lists, one after another
   let N = 0;               // number of colors
-  let color = null;       // color[v] = color of cell v, 0 .. N-1
+  let color = null;        // color[v] = color of cell v, 0 .. N-1
   let size = null;         // size[c] = number of cells of color c
   let between = null;      // between[i*N + j] (i < j) = edges joining colors i and j
   let pairs = 0;           // A(X): how many pairs of colors touch
@@ -440,6 +440,7 @@ function chainWorker() {
   let owed = 0;            // moves due but not yet made
   let lastTick = 0;
   let timer = null;
+  let lastReported = -1;   // the move count last sent to the page
   const TICK_BUDGET = 25;  // milliseconds of work between two reports
 
   self.onmessage = function (event) {
@@ -486,7 +487,7 @@ function chainWorker() {
     if (playing) timer = setTimeout(tick, 10);
   }
 
-  let lastReported = -1;
+  // Send the colors and the numbers to the page.
   function report() {
     if (proposed === lastReported) return;   // nothing new to show
     lastReported = proposed;

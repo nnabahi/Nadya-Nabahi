@@ -11,6 +11,8 @@
      - Hands everything to the walkers (random-walk-coloring-walk.js),
        which run in a second thread (a "Web Worker"), and draws every
        coloring they send back, with the statistics.
+   Small helpers used by every sim page (byId, chartPen, ...) are in
+   js/sim-page.js.
 
    The file is split into numbered sections:
      1. Settings you might want to change
@@ -36,7 +38,7 @@ const MAX_WALKERS = 30;           // the most walkers allowed
 const MAX_SIDE = 300;             // the biggest box or torus is 300 x 300
 const MAX_PICTURE_HEIGHT = 600;   // in screen pixels
 const BORDER = "#1e1e1e";         // the lines between colors
-const UNCOLORED = "#ffffff";     // cells no walker has reached yet
+const UNCOLORED = "#ffffff";      // cells no walker has reached yet
 const OUTSIDE = "#ecebe7";        // around a custom domain (cells not in it)
 const SMALLEST_BORDERED_CELL = 4; // cells smaller than this (in pixels) get no border lines
 const PAD = 8;                    // room above and below the picture, so walkers at the edge show
@@ -52,29 +54,28 @@ const DEFAULT_SPEED = SPEEDS.indexOf(5);
    2. WHAT THE PAGE REMEMBERS (the "state")
    ===================================================================== */
 
-let model = "discrete";     // "discrete" or "continuous"
-let domainKind = "torus";   // "box", "torus" or "custom": the domain in use
-let domain = null;          // the domain graph (js/sim-domains.js)
-let customDomain = null;    // the last custom domain drawn, if any
-let N = DEFAULTS.walkers;   // number of walkers
-let starts = [];            // starts[i] = the cell walker i starts on
-let colorNames = [];       // colorNames[i] = how color i is drawn, e.g. "#f2735a"
-let colorRGB = [];         // the same colors as [red, green, blue], 0..255
-let scroll = { x: 0, y: 0 };   // torus only: how far the picture is scrolled, in cells
-let showWalkers = true;
+let model = "discrete";         // "discrete" or "continuous"
+let domainKind = "torus";       // "box", "torus" or "custom": the domain in use
+let domain = null;              // the domain graph (js/sim-domains.js)
+let customDomain = null;        // the last custom domain drawn, if any
+let N = DEFAULTS.walkers;       // number of walkers
+let starts = [];                // starts[i] = the cell walker i starts on
+let colorNames = [];            // colorNames[i] = how color i is drawn, e.g. "#f2735a"
+let colorRGB = [];              // the same colors as [red, green, blue], 0..255
+let scroll = { x: 0, y: 0 };    // torus only: how far the picture is scrolled, in cells
+let showWalkers = true;         // the "Show walkers" box
 
-let playing = false;        // it starts paused; Play sets it going
+let playing = false;            // it starts paused; Play sets it going
 let speedIndex = DEFAULT_SPEED;
-let run = 0;                // counts restarts, so leftovers from an older run are ignored
+let run = 0;                    // counts restarts, so leftovers from an older run are ignored
 
 // The latest message from the walkers: the colors, where the walkers
 // are, and the numbers (see section 5 of random-walk-coloring-walk.js).
 // It also carries the run so far ("trace..."), for the plots over time.
 let latest = null;
 
-// Small helpers.
-function byId(id) { return document.getElementById(id); }
-function showMessage(text) { byId("sim-message").textContent = text; }
+// Small helpers for this page. (The ones every sim page uses are in
+// js/sim-page.js.)
 
 // "Has the run started?" Walkers can only be dragged before it has.
 function started() { return latest !== null && latest.time > 0; }
@@ -169,14 +170,10 @@ function spreadThroughRegion(d, count) {
    4. RUNNING THE WALKERS
    ---------------------------------------------------------------------
    The walkers are the function walkWorker() in
-   random-walk-coloring-walk.js. A Web Worker is normally made from a
-   file's address, which browsers refuse for pages opened straight from
-   the computer (file://). So the function's own text is wrapped in a
-   "Blob" (a file made in memory) and the worker is made from that; it
-   works both ways. (Same as in the connected coloring sim.)
+   random-walk-coloring-walk.js. startWorker (js/sim-page.js) runs it in
+   a second thread, a "Web Worker", so the page never freezes.
    ===================================================================== */
-const workerCode = new Blob(["(" + walkWorker.toString() + ")();"], { type: "text/javascript" });
-const worker = new Worker(URL.createObjectURL(workerCode));
+const worker = startWorker(walkWorker);
 
 worker.onmessage = function (event) {
   const message = event.data;
@@ -574,19 +571,6 @@ function showColorRows(regions) {
   byId("color-rows").innerHTML = rows;
 }
 
-// Make a chart canvas sharp at its size on screen; returns its pen.
-function chartPen(canvas) {
-  const ratio = window.devicePixelRatio || 1;
-  canvas.width = Math.round(canvas.clientWidth * ratio);
-  canvas.height = Math.round(canvas.clientHeight * ratio);
-  const pen = canvas.getContext("2d");
-  pen.setTransform(ratio, 0, 0, ratio, 0, 0);
-  pen.clearRect(0, 0, canvas.clientWidth, canvas.clientHeight);
-  pen.font = "11px sans-serif";
-  pen.fillStyle = "#6b6f78";
-  return pen;
-}
-
 // Lines over time. "lines" is a list of { color, values }, one value
 // per time in "times". The y axis runs from 0 to the largest value.
 function plotOverTime(canvas, times, lines) {
@@ -633,7 +617,7 @@ function drawSizesChart() {
 // The interface, over time.
 function drawInterfaceChart() {
   plotOverTime(byId("interface-chart"), latest.traceTimes,
-    [{ color: "#3a5a7a", values: Array.from(latest.traceInterface) }]);
+    [{ color: CHART_LINE, values: Array.from(latest.traceInterface) }]);
 }
 
 // How many regions there are of each size. Sizes go from 1 cell to
@@ -657,9 +641,9 @@ function drawAreasChart(regions) {
   pen.textAlign = "center";
   bins.forEach(function (count, b) {
     const barHeight = count === 0 ? 0 : Math.max(1, (bottom - top) * count / most);
-    pen.fillStyle = "#3a5a7a";
+    pen.fillStyle = CHART_LINE;
     pen.fillRect(b * barWidth + 1, bottom - barHeight, Math.max(1, barWidth - 2), barHeight);
-    pen.fillStyle = "#6b6f78";
+    pen.fillStyle = CHART_TEXT;
     pen.fillText(String(2 ** b), (b + 0.5) * barWidth, bottom + 2);
   });
 }
@@ -808,15 +792,6 @@ function useBox() {
   useDomain(torus ? "torus" : "box", boxDomain(width, height, neighbors, torus));
 }
 
-// A whole number from a box, kept between lo and hi (else "fallback").
-function readWhole(id, lo, hi, fallback) {
-  let v = Math.round(Number(byId(id).value));
-  if (!isFinite(v) || byId(id).value === "") v = fallback;
-  v = Math.min(Math.max(v, lo), hi);
-  byId(id).value = v;
-  return v;
-}
-
 function domainChoice() {
   return document.querySelector('input[name="domain"]:checked').value;
 }
@@ -901,11 +876,6 @@ byId("new-seed").addEventListener("click", function () {
   byId("seed").value = String(Math.floor(Math.random() * 100000));
   restart();
 });
-
-// The typeset formulas in the About quadrant, drawn by KaTeX.
-for (const element of document.querySelectorAll(".tex")) {
-  katex.render(element.textContent, element, { displayMode: element.tagName === "DIV", throwOnError: false });
-}
 
 
 // --- Start ------------------------------------------------------------

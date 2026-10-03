@@ -294,8 +294,11 @@
   <!-- The Simple / All the details tabs in the About box. -->
   <script src="../js/about-tabs.js"></script>
 
-  <!-- Domains and colors shared by the sims, then the walkers (they run
-       in a second thread), then this page's code. -->
+  <!-- Helpers shared by every sim page (they also typeset the formulas,
+       so they come after KaTeX), and domains and colors shared by the
+       sims. Then the walkers (they run in a second thread), then this
+       page's code. -->
+  <script src="../js/sim-page.js"></script>
   <script src="../js/sim-domains.js"></script>
   <script src="random-walk-coloring-walk.js"></script>
   <script src="random-walk-coloring.js"></script>

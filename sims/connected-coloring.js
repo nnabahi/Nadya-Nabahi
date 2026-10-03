@@ -4,17 +4,20 @@
    ---------------------------------------------------------------------
    What it does, in plain words:
      - Builds the domain: a box or torus of cells, or a custom one drawn
-       in the graph tool (shown inside this page).
+       in the graph tool (shown inside this page). The domain code is
+       shared with the other sims, in js/sim-domains.js.
      - Builds a starting coloring: an automatic one (N compact blocks)
        or one you draw yourself.
      - Hands both to the Markov chain (connected-coloring-chain.js),
        which runs in a second thread (a "Web Worker"), and draws every
        coloring it sends back, with the statistics.
+   Small helpers used by every sim page (byId, chartPen, ...) are in
+   js/sim-page.js.
 
    The file is split into numbered sections:
      1. Settings you might want to change
      2. What the page remembers (the "state")
-     3. Domains: boxes, tori, and drawn ones
+     3. Connected pieces
      4. The automatic start
      5. Running the chain
      6. Drawing the coloring
@@ -31,12 +34,12 @@
 // The default domain and number of colors.
 const DEFAULTS = { width: 24, height: 24, neighbors: 4, colors: 6, seed: "1" };
 
-const MAX_COLORS = 100;      // the most colors allowed
-const MAX_SIDE = 100;         // the biggest box or torus is 100 x 100
+const MAX_COLORS = 100;           // the most colors allowed
+const MAX_SIDE = 100;             // the biggest box or torus is 100 x 100
 const MAX_PICTURE_HEIGHT = 600;   // in screen pixels
-const BORDER = "#1e1e1e";     // the lines between colors
-const OUTSIDE = "#ecebe7";    // around a custom domain (cells not in it)
-const TRACE_LENGTH = 400;     // how many points the "boundary edges" plot keeps
+const BORDER = "#1e1e1e";         // the lines between colors
+const OUTSIDE = "#ecebe7";        // around a custom domain (cells not in it)
+const TRACE_LENGTH = 400;         // how many points the "boundary edges" plot keeps
 
 // The speeds on the Speed slider, in moves per second.
 // Infinity means "as fast as the computer can". The default is low, so
@@ -49,154 +52,31 @@ const DEFAULT_SPEED = SPEEDS.indexOf(10);
    2. WHAT THE PAGE REMEMBERS (the "state")
    ===================================================================== */
 
-let domainKind = "box";    // "box", "torus" or "custom": the domain in use
-let domain = null;         // the domain graph (section 3)
-let customDomain = null;   // the last custom domain drawn, if any
-let N = DEFAULTS.colors;  // number of colors
-let colorNames = [];      // colorNames[c] = how color c is drawn, e.g. "#c74440"
-let drawnStart = null;     // your own starting coloring, or null for the automatic one
-let startShape = "";       // what the start was: "rectangles", "blocks" or "yours"
+let domainKind = "box";        // "box", "torus" or "custom": the domain in use
+let domain = null;             // the domain graph (js/sim-domains.js)
+let customDomain = null;       // the last custom domain drawn, if any
+let N = DEFAULTS.colors;       // number of colors
+let colorNames = [];           // colorNames[c] = how color c is drawn, e.g. "#c74440"
+let drawnStart = null;         // your own starting coloring, or null for the automatic one
+let startShape = "";           // what the start was: "rectangles", "blocks" or "yours"
 let scroll = { x: 0, y: 0 };   // torus only: how far the picture is scrolled, in cells
 
-let playing = false;       // it starts paused, showing the start; Play sets it going
+let playing = false;           // it starts paused, showing the start; Play sets it going
 let speedIndex = DEFAULT_SPEED;
-let run = 0;               // counts restarts, so leftovers from an older run are ignored
+let run = 0;                   // counts restarts, so leftovers from an older run are ignored
 
 // The latest coloring and numbers from the chain.
-let colors = null;        // colors[v] = color of cell v
-let latest = null;         // { proposed, accepted, boundary, pairs }
-let trace = [];            // [moves tried, boundary edges] pairs, for the plot
-
-// Small helpers.
-function byId(id) { return document.getElementById(id); }
-function showMessage(text) { byId("sim-message").textContent = text; }
-
-// Wrap a number into lo..hi, for tori. E.g. lo = 0, hi = 9: 10 -> 0, -1 -> 9.
-function wrap(v, lo, hi) {
-  const n = hi - lo + 1;
-  return lo + (((v - lo) % n) + n) % n;
-}
-
-// How color c (of "count" colors) is drawn: the old site's colors.
-// Hues are spread evenly from red (0 degrees) round to magenta (300; going
-// all the way to 360 would come back to red), each color a little more
-// saturated than the last, all bright. Hue, saturation and brightness
-// ("HSV") are turned into the usual "#rrggbb".
-function defaultColor(c, count) {
-  const hue = c / Math.max(count, 1) * 300;
-  const saturation = count <= 1 ? 0.85 : 0.55 + 0.30 * c / (count - 1);
-  return hsvToHex(hue, saturation, 0.95);
-}
-
-function hsvToHex(hue, saturation, value) {
-  const chroma = value * saturation;
-  const x = chroma * (1 - Math.abs((hue / 60) % 2 - 1));
-  const m = value - chroma;
-  const [r, g, b] =
-    hue < 60  ? [chroma, x, 0] : hue < 120 ? [x, chroma, 0] : hue < 180 ? [0, chroma, x] :
-    hue < 240 ? [0, x, chroma] : hue < 300 ? [x, 0, chroma] : [chroma, 0, x];
-  return "#" + [r, g, b].map(function (t) {
-    return Math.round((t + m) * 255).toString(16).padStart(2, "0");
-  }).join("");
-}
+let colors = null;             // colors[v] = color of cell v
+let latest = null;             // { proposed, accepted, boundary, pairs }
+let trace = [];                // [moves tried, boundary edges] pairs, for the plot
 
 
 /* =====================================================================
-   3. DOMAINS: BOXES, TORI, AND DRAWN ONES
+   3. CONNECTED PIECES
    ---------------------------------------------------------------------
-   Every domain becomes the same kind of object:
-     n          number of cells, numbered 0 .. n-1
-     x[v], y[v] where cell v is (cell (x, y) is centered at (x, y), as in
-                the graph tool)
-     first, nbr the neighbors of v are nbr[first[v]] .. nbr[first[v+1] - 1]
-                (the compact list the chain uses; see its section 1)
-     wrap       for a torus, the x and y range that wraps around; else null
-     xmin .. ymax, cellAt   the smallest box around the cells, and which
-                cell sits at each place in it (-1 = none), for drawing
-     ids[v]     for a drawn domain, the graph tool's name "x,y" of cell v
+   The domains themselves (boxes, tori and drawn regions) are built by
+   js/sim-domains.js, which also describes what a domain object holds.
    ===================================================================== */
-
-function boxDomain(width, height, neighbors, torus) {
-  const xs = [], ys = [], edges = [];
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) { xs.push(x); ys.push(y); }
-  }
-  // As in the graph tool: each cell looks right and up (and, with 8
-  // neighbors, diagonally), wrapping around on a torus.
-  const steps = neighbors === 8 ? [[1, 0], [0, 1], [1, 1], [1, -1]] : [[1, 0], [0, 1]];
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      for (const [dx, dy] of steps) {
-        let nx = x + dx, ny = y + dy;
-        if (nx < 0 || nx >= width || ny < 0 || ny >= height) {
-          if (!torus) continue;
-          nx = wrap(nx, 0, width - 1);
-          ny = wrap(ny, 0, height - 1);
-        }
-        edges.push([y * width + x, ny * width + nx]);
-      }
-    }
-  }
-  const wrapRange = torus ? { xmin: 0, xmax: width - 1, ymin: 0, ymax: height - 1 } : null;
-  return makeDomain(xs, ys, edges, wrapRange, null);
-}
-
-// A domain drawn in the graph tool. "graph" is the tool's getGraph():
-// { vertices: [{id, x, y, color}, ...], edges: [[id, id], ...] }, and
-// "toolGrid" its grid settings (for the torus).
-function drawnDomain(graph, toolGrid) {
-  const index = new Map();
-  graph.vertices.forEach(function (v, k) { index.set(v.id, k); });
-  const edges = graph.edges.map(function (e) { return [index.get(e[0]), index.get(e[1])]; });
-  const wrapRange = toolGrid.torus
-    ? { xmin: toolGrid.xmin, xmax: toolGrid.xmax, ymin: toolGrid.ymin, ymax: toolGrid.ymax }
-    : null;
-  return makeDomain(graph.vertices.map(function (v) { return v.x; }),
-                    graph.vertices.map(function (v) { return v.y; }),
-                    edges, wrapRange, graph.vertices.map(function (v) { return v.id; }));
-}
-
-function makeDomain(xs, ys, edges, wrapRange, ids) {
-  const n = xs.length;
-
-  // Neighbor lists, each edge in both directions. A Set drops repeats
-  // (a torus 2 wide meets the same neighbor on both sides), and a cell
-  // is never its own neighbor.
-  const lists = [];
-  for (let v = 0; v < n; v++) lists.push(new Set());
-  for (const [a, b] of edges) {
-    if (a === b) continue;
-    lists[a].add(b);
-    lists[b].add(a);
-  }
-  const first = new Int32Array(n + 1), all = [];
-  for (let v = 0; v < n; v++) {
-    first[v] = all.length;
-    for (const w of lists[v]) all.push(w);
-  }
-  first[n] = all.length;
-
-  const d = {
-    n: n, x: Int32Array.from(xs), y: Int32Array.from(ys),
-    first: first, nbr: Int32Array.from(all), wrap: wrapRange, ids: ids,
-    xmin: Math.min(...xs), xmax: Math.max(...xs), ymin: Math.min(...ys), ymax: Math.max(...ys),
-  };
-  const boxWidth = d.xmax - d.xmin + 1;
-  d.cellAt = new Int32Array(boxWidth * (d.ymax - d.ymin + 1)).fill(-1);
-  for (let v = 0; v < n; v++) d.cellAt[(d.y[v] - d.ymin) * boxWidth + (d.x[v] - d.xmin)] = v;
-  return d;
-}
-
-// Which cell of domain d is at (x, y)? -1 if none. On a torus, (x, y)
-// is first wrapped back into the grid.
-function cellAt(d, x, y) {
-  if (d.wrap) {
-    x = wrap(x, d.wrap.xmin, d.wrap.xmax);
-    y = wrap(y, d.wrap.ymin, d.wrap.ymax);
-  }
-  if (x < d.xmin || x > d.xmax || y < d.ymin || y > d.ymax) return -1;
-  return d.cellAt[(y - d.ymin) * (d.xmax - d.xmin + 1) + (x - d.xmin)];
-}
 
 // How many connected pieces each color has. pieces[c] for c = 0 .. count-1.
 // (A coloring with every color 0 gives the pieces of the whole domain.)
@@ -246,7 +126,7 @@ function rectangleStart(d, count) {
   const across = d.xmax - d.xmin + 1, down = d.ymax - d.ymin + 1;
   const rows = Math.min(count, down, Math.max(1, Math.round(Math.sqrt(count * down / across))));
   const rowOf = bands(down, rows);              // row of each line of cells, counted from the top
-  const columnsOf = [], firstColorOf = [];     // for each row of rectangles
+  const columnsOf = [], firstColorOf = [];      // for each row of rectangles
   let color = 0;
   for (let r = 0; r < rows; r++) {
     const inRow = Math.floor(count / rows) + (r < count % rows ? 1 : 0);
@@ -283,7 +163,7 @@ function bands(total, parts) {
 // color is one connected piece.
 function blockStart(d, count) {
   const seeds = [];
-  let distance = stepsFrom(d, [0]);
+  let distance = stepsFrom(d, [0]);   // stepsFrom is in js/sim-domains.js
   for (let k = 0; k < count; k++) {
     let far = 0;
     for (let v = 1; v < d.n; v++) if (distance[v] > distance[far]) far = v;
@@ -304,33 +184,15 @@ function blockStart(d, count) {
   return colorOf;
 }
 
-// The number of steps from the nearest of the cells "starts" to every cell.
-function stepsFrom(d, starts) {
-  const steps = new Int32Array(d.n).fill(-1);
-  const queue = starts.slice();
-  for (const s of starts) steps[s] = 0;
-  for (let head = 0; head < queue.length; head++) {
-    const v = queue[head];
-    for (let e = d.first[v]; e < d.first[v + 1]; e++) {
-      const w = d.nbr[e];
-      if (steps[w] === -1) { steps[w] = steps[v] + 1; queue.push(w); }
-    }
-  }
-  return steps;
-}
-
 
 /* =====================================================================
    5. RUNNING THE CHAIN
    ---------------------------------------------------------------------
    The chain is the function chainWorker() in connected-coloring-chain.js.
-   A Web Worker is normally made from a file's address, which browsers
-   refuse for pages opened straight from the computer (file://). So the
-   function's own text is wrapped in a "Blob" (a file made in memory)
-   and the worker is made from that; it works both ways.
+   startWorker (js/sim-page.js) runs it in a second thread, a "Web
+   Worker", so the page never freezes.
    ===================================================================== */
-const workerCode = new Blob(["(" + chainWorker.toString() + ")();"], { type: "text/javascript" });
-const worker = new Worker(URL.createObjectURL(workerCode));
+const worker = startWorker(chainWorker);
 
 worker.onmessage = function (event) {
   const message = event.data;
@@ -389,7 +251,8 @@ function setPlaying(on) {
    the picture's box is cut off.
    ===================================================================== */
 let drawPending = false;
-const picture = document.createElement("canvas");
+const picture = document.createElement("canvas");   // the full-size picture, off screen
+const simCanvas = byId("sim-canvas");               // the canvas on the page
 
 // Draw at the browser's next screen refresh (at most once per refresh,
 // however many colorings arrive in between).
@@ -409,13 +272,12 @@ function drawSoon() {
 function scrollable() { return domainKind === "torus"; }
 
 function drawColoring() {
-  const canvas = byId("sim-canvas");
-  if (!domain || !colors || canvas.hidden) return;
+  if (!domain || !colors || simCanvas.hidden) return;
   const d = domain;
 
   // A cell size that fits the width (and at most MAX_PICTURE_HEIGHT tall).
   const across = d.xmax - d.xmin + 1, down = d.ymax - d.ymin + 1;
-  const cssWidth = canvas.clientWidth;
+  const cssWidth = simCanvas.clientWidth;
   const size = Math.min(cssWidth / across, MAX_PICTURE_HEIGHT / down);
   const width = Math.round(size * across), height = Math.round(size * down);
   const ratio = window.devicePixelRatio || 1;   // 2 on sharp screens
@@ -460,10 +322,10 @@ function drawColoring() {
   }
 
   // 2. Copy it onto the page, in the middle.
-  canvas.style.height = height + "px";
-  canvas.width = Math.round(cssWidth * ratio);
-  canvas.height = Math.round(height * ratio);
-  const screen = canvas.getContext("2d");
+  simCanvas.style.height = height + "px";
+  simCanvas.width = Math.round(cssWidth * ratio);
+  simCanvas.height = Math.round(height * ratio);
+  const screen = simCanvas.getContext("2d");
   screen.setTransform(ratio, 0, 0, ratio, 0, 0);
   const left = Math.round((cssWidth - width) / 2);
   if (!scrollable()) {
@@ -486,7 +348,6 @@ function drawColoring() {
 // Scrolling the torus. "Pointer" events cover the mouse, a pen and
 // fingers alike. The scroll is kept in cells, so it stays put when the
 // window is resized.
-const simCanvas = byId("sim-canvas");
 let dragFrom = null;   // where the pointer was a moment ago, while dragging
 
 function cellSizeOnScreen() {
@@ -530,6 +391,9 @@ window.addEventListener("resize", drawSoon);
 
 /* =====================================================================
    7. STATISTICS
+   ---------------------------------------------------------------------
+   The table of numbers, and two small charts. The charts get their
+   canvas ready, and their colors, from js/sim-page.js.
    ===================================================================== */
 function showStats() {
   if (!domain || !colors) return;
@@ -543,19 +407,6 @@ function showStats() {
   byId("stat-pairs").textContent = s.pairs;
   drawSizes();
   drawTrace();
-}
-
-// Make a chart canvas sharp at its size on screen; returns its pen.
-function chartPen(canvas) {
-  const ratio = window.devicePixelRatio || 1;
-  canvas.width = Math.round(canvas.clientWidth * ratio);
-  canvas.height = Math.round(canvas.clientHeight * ratio);
-  const pen = canvas.getContext("2d");
-  pen.setTransform(ratio, 0, 0, ratio, 0, 0);
-  pen.clearRect(0, 0, canvas.clientWidth, canvas.clientHeight);
-  pen.font = "11px sans-serif";
-  pen.fillStyle = "#6b6f78";
-  return pen;
 }
 
 // One bar per color, as tall as its number of cells.
@@ -596,7 +447,7 @@ function drawTrace() {
     const sy = bottom - (bottom - top) * (p[1] - low) / Math.max(1, high - low);
     if (k === 0) pen.moveTo(sx, sy); else pen.lineTo(sx, sy);
   });
-  pen.strokeStyle = "#3a5a7a";
+  pen.strokeStyle = CHART_LINE;
   pen.lineWidth = 1.5;
   pen.stroke();
 }
@@ -625,7 +476,7 @@ let wasPlaying = false;    // to carry on after Cancel
 function openTool() {
   wasPlaying = playing;
   if (playing) setPlaying(false);
-  byId("sim-canvas").hidden = true;
+  simCanvas.hidden = true;
   byId("custom-area").hidden = false;
   if (!frame.src) frame.src = "graph-tool.html?embed";    // the first time only
   else frame.contentWindow.postMessage({ type: "unlock" }, "*");
@@ -635,7 +486,7 @@ function openTool() {
 function closeTool() {
   toolStep = 0;
   byId("custom-area").hidden = true;
-  byId("sim-canvas").hidden = false;
+  simCanvas.hidden = false;
 }
 
 function showStep(step) {
@@ -797,15 +648,6 @@ function useBox() {
   if (toolWasOpen && wasPlaying) setPlaying(true);
 }
 
-// A whole number from a box, kept between lo and hi (else "fallback").
-function readWhole(id, lo, hi, fallback) {
-  let v = Math.round(Number(byId(id).value));
-  if (!isFinite(v) || byId(id).value === "") v = fallback;
-  v = Math.min(Math.max(v, lo), hi);
-  byId(id).value = v;
-  return v;
-}
-
 function domainChoice() {
   return document.querySelector('input[name="domain"]:checked').value;
 }
@@ -879,15 +721,11 @@ byId("new-seed").addEventListener("click", function () {
   restart();
 });
 
-// The typeset formulas in the About quadrant, drawn by KaTeX.
-for (const element of document.querySelectorAll(".tex")) {
-  katex.render(element.textContent, element, { displayMode: element.tagName === "DIV", throwOnError: false });
-}
-
 
 // --- Start ------------------------------------------------------------
 byId("set-width").value = DEFAULTS.width;
 byId("set-height").value = DEFAULTS.height;
+byId("set-width").max = byId("set-height").max = MAX_SIDE;
 byId("set-neighbors").value = String(DEFAULTS.neighbors);
 byId("seed").value = DEFAULTS.seed;
 byId("speed").max = SPEEDS.length - 1;

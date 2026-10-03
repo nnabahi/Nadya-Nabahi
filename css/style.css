@@ -16,8 +16,8 @@
      5. Home page image area
      6. Toys n' Sims: the four-quadrant layout
      7. Graph & domain tool (sims/graph-tool.html)
-     8. More for sim pages (random connected coloring; the graph
-        tool shown inside a sim)
+     8. More for sim pages (the sims, and the graph tool shown
+        inside a sim)
      9. Phones and narrow screens
    ===================================================================== */
 
@@ -43,6 +43,8 @@
   --color-topbar:       #ffffff;  /* background of the top bar         */
   --color-placeholder:  #ecebe7;  /* gray boxes where content will go  */
   --color-tag:          #e8edf2;  /* background of genre labels        */
+  --color-ok:           #2f7d3a;  /* "all fine" messages (green)       */
+  --color-problem:      #b3402f;  /* "something's wrong" messages (red) */
 
   /* Fonts: the browser uses the first one it has, else the next. */
   --font-body:     "Helvetica Neue", Arial, sans-serif;
@@ -196,8 +198,8 @@ a.card:hover {
    ---------------------------------------------------------------------
    HTML shape of the labels on each card:
      <ul class="tags">
-       <li>Growth</li>
-       <li>Interfaces</li>
+       <li>Coloring</li>
+       <li>Random walk</li>
      </ul>
    The buttons inside <div class="filter-bar"> are made by
    js/genre-filter.js, each as <button class="filter-button">. The graph
@@ -261,7 +263,8 @@ a.card:hover {
    5. Home page image area
    ---------------------------------------------------------------------
    A wide box on index.html where a picture (or a rotating set of
-   pictures) will go later. For now it's an empty gray box.
+   pictures) will go later. For now it's a gray box with a link to
+   Toys n' Sims in the middle.
    ===================================================================== */
 .hero {
   background: var(--color-placeholder);
@@ -508,10 +511,6 @@ a.card:hover {
   font-style: italic;
 }
 
-.slider-range {
-  flex: 1 1 120px;         /* the slider takes the spare width */
-}
-
 .slider-row input[type="number"] {
   width: 4.5em;
   font: inherit;
@@ -552,16 +551,18 @@ a.card:hover {
 }
 
 
-
 /* =====================================================================
    8. More for sim pages
    ---------------------------------------------------------------------
-   Used by sims/connected-coloring.html, and by the graph tool when a
-   sim shows it inside its own page (graph-tool.html?embed).
+   Used by the sim pages (like sims/random-walk-coloring.html), and by
+   the graph tool when a sim shows it inside its own page
+   (graph-tool.html?embed).
    ===================================================================== */
 
-/* A slider that takes the spare width of its row. */
-.wide-range {
+/* A slider that takes the spare width of its row: the sims' sliders,
+   and the formula box's sliders in the graph tool (section 7). */
+.wide-range,
+.slider-range {
   flex: 1 1 120px;
 }
 
@@ -591,8 +592,8 @@ a.card:hover {
   font-size: 0.9em;
 }
 
-.step-status.ok      { color: #2f7d3a; }
-.step-status.problem { color: #b3402f; }
+.step-status.ok      { color: var(--color-ok); }
+.step-status.problem { color: var(--color-problem); }
 
 /* A torus picture can be dragged: show the "hand" cursor, and on phones
    let a finger drag it instead of scrolling the page. */

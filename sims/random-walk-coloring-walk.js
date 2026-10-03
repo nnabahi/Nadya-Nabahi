@@ -55,7 +55,7 @@
    The whole thing is one function, walkWorker(). The sim page
    (random-walk-coloring.js) turns it into a "Web Worker": a second
    thread, so the page never freezes. The page and the worker talk by
-   sending each other messages (section 4).
+   sending each other messages (section 5).
 
    The file is split into numbered sections, all inside walkWorker():
      1. The state of the walkers
@@ -81,9 +81,9 @@ function walkWorker() {
   let N = 0;               // number of walkers
   let model = "discrete";  // "discrete" or "continuous"
   let position = null;     // position[i] = the cell walker i is on
-  let color = null;       // color[v] = color of cell v, or -1 if not colored yet
+  let color = null;        // color[v] = color of cell v, or -1 if not colored yet
   let sizes = null;        // sizes[i] = number of cells of color i
-  let colored = 0;        // number of colored cells
+  let colored = 0;         // number of colored cells
   let interfaceEdges = 0;  // edges joining two cells of different colors
   let time = 0;            // discrete: steps so far; continuous: the time t
   let moves = 0;           // single walker steps so far
@@ -265,6 +265,7 @@ function walkWorker() {
   let owed = 0;            // steps due but not yet made
   let lastTick = 0;
   let timer = null;
+  let lastReported = -1;   // the time last sent to the page
   const TICK_BUDGET = 25;  // milliseconds of work between two reports
 
   self.onmessage = function (event) {
@@ -311,7 +312,7 @@ function walkWorker() {
     if (playing) timer = setTimeout(tick, 10);
   }
 
-  let lastReported = -1;
+  // Send the colors, the walkers and the numbers to the page.
   function report() {
     if (time === lastReported && time > 0) return;   // nothing new to show
     lastReported = time;

@@ -26,7 +26,7 @@ const filterBar = document.getElementById("genre-filters");
 const cards = document.querySelectorAll(".card-grid .card");
 
 
-// Read the genre names off one card, e.g. ["Growth", "Interfaces"].
+// Read the genre names off one card, e.g. ["Coloring", "Random walk"].
 function genresOf(card) {
   const tagItems = card.querySelectorAll(".tags li");
   const names = [];
@@ -38,7 +38,7 @@ function genresOf(card) {
 
 
 // Step 1: count how many cards have each genre.
-// "counts" ends up looking like { "Growth": 2, "Fractals": 2, ... }.
+// "counts" ends up looking like { "Coloring": 2, "Random walk": 1 }.
 const counts = {};
 for (const card of cards) {
   for (const genre of genresOf(card)) {

@@ -73,8 +73,8 @@
           <label><input type="radio" name="domain" value="custom"> Custom (draw it)</label>
         </div>
         <div class="option-row" id="size-row">
-          Size <input type="number" id="set-width" min="2" max="100" step="1">
-          &times; <input type="number" id="set-height" min="2" max="100" step="1">
+          Size <input type="number" id="set-width" min="2" step="1">
+          &times; <input type="number" id="set-height" min="2" step="1">
         </div>
         <div class="option-row" id="neighbors-row">
           Neighbors
@@ -274,7 +274,12 @@
   <!-- The Simple / All the details tabs in the About box. -->
   <script src="../js/about-tabs.js"></script>
 
-  <!-- The chain (it runs in a second thread), then this page's code. -->
+  <!-- Helpers shared by every sim page (they also typeset the formulas,
+       so they come after KaTeX), and domains and colors shared by the
+       sims. Then the chain (it runs in a second thread), then this
+       page's code. -->
+  <script src="../js/sim-page.js"></script>
+  <script src="../js/sim-domains.js"></script>
   <script src="connected-coloring-chain.js"></script>
   <script src="connected-coloring.js"></script>
 

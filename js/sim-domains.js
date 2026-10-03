@@ -3,8 +3,8 @@
    ---------------------------------------------------------------------
    Every sim that lives on cells (a box, a torus, or a region drawn in
    the graph tool) turns its domain into the same kind of object, built
-   here. The code is the same as in the connected coloring sim; that sim
-   will switch to this file too, so it is written in one place only.
+   here, so the code is written in one place only. A sim page loads this
+   file before its own code.
 
    A domain is an object with:
      n          number of cells, numbered 0 .. n-1
@@ -24,7 +24,7 @@
      drawnDomain(...)         a region drawn in the graph tool
      cellAt(d, x, y)          which cell is at (x, y)
      stepsFrom(d, starts)     distances through the domain
-     defaultColor(c, count)  the old site's colors
+     defaultColor(c, count)   the old site's colors
    ===================================================================== */
 
 
@@ -76,6 +76,8 @@ function drawnDomain(graph, toolGrid) {
                     edges, wrapRange, graph.vertices.map(function (v) { return v.id; }));
 }
 
+// Build the domain object described at the top of this file, from the
+// cells' coordinates (xs, ys) and the edges as pairs of cell numbers.
 function makeDomain(xs, ys, edges, wrapRange, ids) {
   const n = xs.length;
 
