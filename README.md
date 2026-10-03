@@ -2,8 +2,10 @@
 
 Plain HTML, CSS and JavaScript. No build step: open any `.html` file in a
 browser and it works. Everything runs in the visitor's browser; there is no
-server. The one outside library is [Cytoscape.js](https://js.cytoscape.org)
-(graph drawing and graph algorithms), loaded from a CDN by the graph tool.
+server. Outside libraries, all loaded from a CDN by the graph tool:
+[Cytoscape.js](https://js.cytoscape.org) (graph drawing and graph
+algorithms), [math.js](https://mathjs.org) (reads typed formulas) and
+[KaTeX](https://katex.org) (shows them as typeset maths).
 
 ## What's where
 

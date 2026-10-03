@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Graph &amp; domain tool — Toys n' Sims</title>
   <link rel="stylesheet" href="../css/style.css">
+  <!-- KaTeX's styles, for the typeset formula preview. -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/katex.min.css">
 </head>
 <body>
 
@@ -96,6 +98,26 @@
           <label><input type="radio" name="view" value="dots"> Dots and edges</label>
         </div>
 
+        <h3 class="option-heading">Formula</h3>
+        <!-- Type a condition in x and y; graph-tool.js (section 9) paints
+             the cells that satisfy it, live, and adds a slider for every
+             other letter. -->
+        <input type="text" class="formula-input" id="formula"
+               placeholder="e.g.  x^2 + y^2 <= r^2" spellcheck="false" autocomplete="off">
+        <div class="formula-preview" id="formula-preview"></div>
+        <div class="option-row">
+          Mode
+          <select id="formula-mode">
+            <option value="replace">Replace</option>
+            <option value="add">Add (union)</option>
+            <option value="remove">Remove (difference)</option>
+            <option value="keep">Keep only (intersection)</option>
+          </select>
+          <button class="tool-button" id="formula-done" title="Keep what the formula drew">Done</button>
+        </div>
+        <div id="sliders"></div>
+        <p class="muted" id="formula-message"></p>
+
         <h3 class="option-heading">Whole grid</h3>
         <div class="option-row">
           <button class="tool-button" id="do-fill" title="Paint every cell in the current colour">Fill all</button>
@@ -173,6 +195,18 @@
           the real grid. Painting a copy paints the real cell.
         </p>
         <p>
+          <strong>Formula.</strong> Type a condition such as
+          <code>x^2 + y^2 &lt;= r^2</code> or <code>4 &lt;= x^2 + y^2 &lt;= 25</code>;
+          each cell whose centre (x, y) satisfies it is painted, and the grid
+          follows the formula live as you type or move a slider. Every letter
+          besides x and y gets a slider. As in Desmos, <code>xy</code> means
+          x&middot;y and <code>=</code> means equals; use <code>abs(x)</code> for
+          |x|, and <code>and</code>, <code>or</code>, <code>not</code> to combine
+          conditions. <em>Replace</em> shows only the region; <em>Add</em>,
+          <em>Remove</em> and <em>Keep only</em> combine it with what's already
+          drawn. <em>Done</em> (or painting) keeps the result as one Undo step.
+        </p>
+        <p>
           <strong>Colours.</strong> Each colour reaches a simulation as its number
           (1, 2, 3, &hellip;); 0 means off.
         </p>
@@ -193,6 +227,11 @@
        and the graph work like counting connected pieces. The version
        number is fixed so an update can never change the site by surprise. -->
   <script src="https://cdn.jsdelivr.net/npm/cytoscape@3.34.3/dist/cytoscape.min.js"></script>
+
+  <!-- math.js (https://mathjs.org) reads the typed formula, and KaTeX
+       (https://katex.org) shows it as typeset maths. -->
+  <script src="https://cdn.jsdelivr.net/npm/mathjs@15.2.0/lib/browser/math.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/katex.min.js"></script>
 
   <!-- This tool's own code. -->
   <script src="graph-tool.js"></script>
