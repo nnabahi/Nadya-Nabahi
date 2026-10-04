@@ -42,27 +42,27 @@ repeat for the same seed) and, on the check pages,
 | `sims/random-mountain.html` | Random mountain sim (blocks pile up on a line or grid; any tile, any domain) |
 | `sims/random-mountain.js` | That sim's page: the clickable tile grid and presets, domains, drawing, statistics, the custom domain |
 | `sims/random-mountain-growth.js` | That sim's growth rule, and the code that runs it in a Web Worker |
-| `sims/random-mountain-check.html`, `.js` | Tests of that growth rule (against nadya's Python, exact odds, invariants); not linked from the site |
+| `sims/random-mountain-check.html`, `.js` | Tests of that growth rule (against nadya's Python, exact odds, invariants); opens from the sim's "model check" button |
 | `sims/sequential-packing.html` | Random sequential packing sim (continuous space): random points grow tiles until they touch the edge of S or an earlier tile, with any typed domain, tile and density |
 | `sims/sequential-packing.js` | That sim's page: the typed formulas and their sliders, play, drawing, statistics |
 | `sims/sequential-packing-growth.js` | That sim's math (growing each tile until it meets the edge of S or an earlier tile), run in a Web Worker |
-| `sims/sequential-packing-check.html`, `.js` | Tests of that math (against nadya's gasket formula, known answers, invariants); linked from the sim's About box |
+| `sims/sequential-packing-check.html`, `.js` | Tests of that math (against nadya's gasket formula, known answers, invariants); opens from the sim's "model check" button and its About box |
 | `sims/tile-packing.html` | Random tile packing sim (rectangles pack a box, torus or drawn domain, with or without gaps; every packing equally likely) |
 | `sims/tile-packing.js` | That sim's page: domains, the tiles and presets, drawing, statistics, the custom domain |
 | `sims/tile-packing-chain.js` | That sim's Markov chain (uniform over all packings), run in a Web Worker |
-| `sims/tile-packing-check.html`, `.js` | Tests of that chain (every packing equally likely, counting tilings, the arctic circle); not linked from the site |
+| `sims/tile-packing-check.html`, `.js` | Tests of that chain (every packing equally likely, counting tilings, the arctic circle); opens from the sim's "model check" button |
 | `sims/random-sine.html` | Random sine function sim (roots at random gaps from a typed set; f, its lobes and their histograms) |
 | `sims/random-sine.js` | That sim's page: the typed set and its sliders, drawing the graph, statistics, many samples |
 | `sims/random-sine-roots.js` | That sim's math (placing the roots, f, peaks and lobes), run in the page itself |
-| `sims/random-sine-check.html` | Tests of that math (Euler's sine product, stationarity, a picture to compare with nadya's Python); not linked from the site |
+| `sims/random-sine-check.html` | Tests of that math (Euler's sine product, stationarity, a picture to compare with nadya's Python); opens from the sim's "model check" button |
 | `sims/sandpiles.html` | Sandpiles sim (the abelian sandpile on a box, torus or drawn table, with storms, avalanches and the identity) |
 | `sims/sandpiles.js` | That sim's page: tables, the start, colors, drawing, clicking cells, statistics, the custom table |
 | `sims/sandpiles-pile.js` | That sim's toppling rule (with undo, the identity and the recurrence test), run in a Web Worker |
-| `sims/sandpiles-check.html`, `.js` | Tests of that rule (against nadya's Python, the abelian property, the identity, no sink); not linked from the site |
+| `sims/sandpiles-check.html`, `.js` | Tests of that rule (against nadya's Python, the abelian property, the identity, no sink); opens from the sim's "model check" button |
 | `sims/random-matrix-products.html` | Random matrix products toy (random 2x2 matrices, picked with weights, multiply a cloud of vectors) |
 | `sims/random-matrix-products-page.js` | That toy's page: the matrix boxes and their sliders, play, the cloud, histogram and one-run views, statistics |
 | `sims/random-matrix-products.js` | That toy's math (reading the matrices, the runs, the growth rate, the eigenvalues), run in the page itself |
-| `sims/random-matrix-products-check.html`, `.js` | Tests of that math (exact odds, averages, invariants, the growth rate); not linked from the site |
+| `sims/random-matrix-products-check.html`, `.js` | Tests of that math (exact odds, averages, invariants, the growth rate); opens from the sim's "model check" button |
 
 ## Common changes
 

@@ -568,6 +568,21 @@ a.card:hover {
   flex: 1 1 120px;
 }
 
+/* The Options heading with the small "model check" button pushed to
+   the right end of the same line (it opens the sim's check page). */
+.heading-with-button {
+  display: flex;
+  justify-content: space-between;   /* heading on the left, button on the right */
+  align-items: center;
+  gap: 8px;
+}
+
+.model-check {
+  font-size: 0.7em;
+  font-weight: normal;
+  text-decoration: none;            /* a link that looks like a button */
+}
+
 /* Smaller gray notes under the options. */
 .small {
   font-size: 0.85em;
