@@ -10,6 +10,7 @@
      4. Talking to the worker
      5. How many attempts are shown, Play and speed
      6. Drawing the packing
+     6b. Moving and zooming the picture
      7. Statistics and charts
      8. Pointing at a tile
      9. Connecting the buttons
@@ -134,6 +135,7 @@ function usePreset(key) {
   byId("formula-T").value = p.T;
   byId("formula-f").value = p.f;
   [windowBox.xmin, windowBox.xmax, windowBox.ymin, windowBox.ymax] = p.window;
+  resetZoom();
   showWindow();
   for (const letter in p.sliders || {}) sliders[letter] = Object.assign({}, p.sliders[letter]);
   readFormulas();
@@ -150,6 +152,7 @@ function readWindow() {
   for (const side of ["xmin", "xmax", "ymin", "ymax"]) box[side] = Number(byId("window-" + side).value);
   if (Object.values(box).every(isFinite) && box.xmin < box.xmax && box.ymin < box.ymax) {
     windowBox = box;
+    resetZoom();
     sendSetup();
   } else {
     byId("formula-message").textContent = "The window needs x from < x to, and y from < y to.";
@@ -281,10 +284,19 @@ function showSpeed() {
    The window is drawn to fill the picture's width. Tiles never move
    once placed, and never overlap, so new tiles are simply drawn on top
    (drawNew); the whole picture is redrawn (drawAll) only when n goes
-   down, the colors change, or the page is resized. Each tile is T's
-   polygon, scaled by R and moved to C.
+   down, the colors change, the picture is moved or zoomed (section
+   6b), or the page is resized. Each tile is T's polygon, scaled by R
+   and moved to C.
+
+   Zoomed in, the picture shows a smaller part of the window, around the
+   point "look" (in x and y), "zoom" times bigger. Zoom 1 with "look" at
+   the middle of the window shows the whole window, as at the start.
+   Tiles smaller than a pixel are skipped, so zooming in shows tiles
+   that were too small to see before.
    ===================================================================== */
-let pen = null, scale = 1;    // scale: pixels per unit of x and y
+let pen = null, scale = 1;    // scale: canvas pixels per unit of x and y (with the zoom)
+let zoom = 1;                 // 2 = everything twice as big
+let look = { x: 0, y: 0 };    // the point of the plane in the middle of the picture
 
 function sizeCanvas() {
   const ratio = window.devicePixelRatio || 1;
@@ -294,14 +306,17 @@ function sizeCanvas() {
   simCanvas.style.height = height + "px";
   simCanvas.width = Math.round(width * ratio);
   simCanvas.height = Math.round(height * ratio);
-  scale = Math.min(simCanvas.width / (windowBox.xmax - windowBox.xmin),
-                   simCanvas.height / (windowBox.ymax - windowBox.ymin));
+  scale = zoom * Math.min(simCanvas.width / (windowBox.xmax - windowBox.xmin),
+                          simCanvas.height / (windowBox.ymax - windowBox.ymin));
   pen = simCanvas.getContext("2d");
 }
 
-// Canvas pixels for the point (x, y).
-function pixelX(x) { return (x - windowBox.xmin) * scale; }
-function pixelY(y) { return (windowBox.ymax - y) * scale; }
+// Canvas pixels for the point (x, y), and back: the point (x, y) at
+// canvas pixel (px, py). ("look" is in the middle of the canvas.)
+function pixelX(x) { return simCanvas.width / 2 + (x - look.x) * scale; }
+function pixelY(y) { return simCanvas.height / 2 - (y - look.y) * scale; }
+function pointX(px) { return look.x + (px - simCanvas.width / 2) / scale; }
+function pointY(py) { return look.y - (py - simCanvas.height / 2) / scale; }
 
 // Which of the PALETTE colors tile k gets (section 9 of the page sets "colorBy").
 function colorOf(k) {
@@ -317,7 +332,9 @@ function colorOf(k) {
 function drawTile(k) {
   const r = tiles.r[k] * scale;
   if (r * shapeReach < 0.15) return;                 // smaller than a pixel: invisible anyway
-  pen.setTransform(r, 0, 0, -r, pixelX(tiles.cx[k]), pixelY(tiles.cy[k]));
+  const px = pixelX(tiles.cx[k]), py = pixelY(tiles.cy[k]), reach = r * shapeReach;
+  if (px + reach < 0 || px - reach > simCanvas.width || py + reach < 0 || py - reach > simCanvas.height) return;   // off the picture
+  pen.setTransform(r, 0, 0, -r, px, py);
   pen.fillStyle = colorOf(k);
   pen.fill(tileShape);
 }
@@ -365,6 +382,103 @@ function drawNew() {
 }
 
 window.addEventListener("resize", drawAll);
+
+
+/* =====================================================================
+   6b. MOVING AND ZOOMING THE PICTURE
+   ---------------------------------------------------------------------
+   As in the other sims (and like a graph in Desmos):
+     drag                         move it
+     mouse wheel, or pinch        zoom in or out, around the pointer
+     the + / − / Reset buttons    zoom in, zoom out, show the whole window
+   The cell sims share this in js/sim-view.js; this sim draws shapes
+   instead of cells, so it has its own short version. Each move or zoom
+   redraws the whole picture, at most once per screen refresh.
+   ("Pointer" events cover the mouse, a pen and fingers alike.)
+   ===================================================================== */
+const MAX_ZOOM = 1e6;          // a million times closer: deep into the small tiles
+const ZOOM_STEP = 1.5;         // one click on + or −
+let redrawPending = false;
+const pointers = new Map();    // the pointers pressed on the picture: id -> {x, y}
+
+function redrawSoon() {
+  if (redrawPending) return;
+  redrawPending = true;
+  requestAnimationFrame(function () { redrawPending = false; drawAll(); });
+}
+
+// Back to the whole window (also when the window changes).
+function resetZoom() {
+  zoom = 1;
+  look = { x: (windowBox.xmin + windowBox.xmax) / 2, y: (windowBox.ymin + windowBox.ymax) / 2 };
+}
+
+// Zoom by "factor" around the canvas pixel (px, py): the point under it
+// stays under it. Zoom stays between 1 (the whole window) and MAX_ZOOM.
+function zoomAround(factor, px, py) {
+  const x = pointX(px), y = pointY(py);
+  const newZoom = Math.min(Math.max(zoom * factor, 1), MAX_ZOOM);
+  scale *= newZoom / zoom;
+  zoom = newZoom;
+  look.x = x - (px - simCanvas.width / 2) / scale;
+  look.y = y + (py - simCanvas.height / 2) / scale;
+  if (zoom === 1) resetZoom();
+  redrawSoon();
+}
+
+// Canvas pixels for a pointer event (the canvas has more pixels than
+// screen pixels on sharp screens).
+function canvasSpot(event) {
+  const box = simCanvas.getBoundingClientRect(), ratio = simCanvas.width / box.width;
+  return { x: (event.clientX - box.left) * ratio, y: (event.clientY - box.top) * ratio };
+}
+
+simCanvas.addEventListener("wheel", function (event) {
+  event.preventDefault();                                  // don't scroll the page
+  const pixels = event.deltaY * (event.deltaMode === 1 ? 16 : 1);   // some mice count lines
+  const spot = canvasSpot(event);
+  zoomAround(Math.exp(-pixels * (event.ctrlKey ? 0.01 : 0.002)), spot.x, spot.y);
+}, { passive: false });   // "passive: false" lets preventDefault stop the page scrolling
+
+byId("zoom-in").addEventListener("click", function () { zoomAround(ZOOM_STEP, simCanvas.width / 2, simCanvas.height / 2); });
+byId("zoom-out").addEventListener("click", function () { zoomAround(1 / ZOOM_STEP, simCanvas.width / 2, simCanvas.height / 2); });
+byId("zoom-reset").addEventListener("click", function () { resetZoom(); redrawSoon(); });
+
+// Dragging with one pointer moves the picture; two fingers also zoom as
+// they spread apart or pinch together.
+simCanvas.style.touchAction = "none";      // on phones, a finger drags the picture, not the page
+simCanvas.addEventListener("pointerdown", function (event) {
+  pointers.set(event.pointerId, canvasSpot(event));
+  simCanvas.setPointerCapture(event.pointerId);   // keep getting moves even off the canvas
+  simCanvas.style.cursor = "grabbing";
+});
+simCanvas.addEventListener("pointermove", function (event) {
+  if (!pointers.has(event.pointerId)) { simCanvas.style.cursor = "grab"; return; }
+  const before = middleOfPointers();
+  pointers.set(event.pointerId, canvasSpot(event));
+  const after = middleOfPointers();
+  if (zoom > 1) {
+    look.x -= (after.x - before.x) / scale;
+    look.y += (after.y - before.y) / scale;
+  }
+  if (pointers.size >= 2 && before.apart > 0) zoomAround(after.apart / before.apart, after.x, after.y);
+  else if (zoom > 1) redrawSoon();          // at zoom 1 the whole window shows: nothing to move
+});
+function releasePointer(event) {
+  pointers.delete(event.pointerId);
+  if (pointers.size === 0) simCanvas.style.cursor = "grab";
+}
+simCanvas.addEventListener("pointerup", releasePointer);
+simCanvas.addEventListener("pointercancel", releasePointer);
+
+// The point between the pressed pointers, and how far apart they are
+// (0 for one pointer).
+function middleOfPointers() {
+  const p = Array.from(pointers.values());
+  if (p.length === 1) return { x: p[0].x, y: p[0].y, apart: 0 };
+  return { x: (p[0].x + p[1].x) / 2, y: (p[0].y + p[1].y) / 2,
+           apart: Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y) };
+}
 
 
 /* =====================================================================
@@ -507,9 +621,8 @@ function insideShape(u, v) {
 
 simCanvas.addEventListener("mousemove", function (event) {
   if (!tileShape) return;
-  const box = simCanvas.getBoundingClientRect(), ratio = simCanvas.width / box.width;
-  const x = windowBox.xmin + (event.clientX - box.left) * ratio / scale;
-  const y = windowBox.ymax - (event.clientY - box.top) * ratio / scale;
+  const spot = canvasSpot(event);
+  const x = pointX(spot.x), y = pointY(spot.y);
   for (let k = 0; k < shown; k++) {
     const r = tiles.r[k];
     if (Math.abs(x - tiles.cx[k]) > r * shapeReach || Math.abs(y - tiles.cy[k]) > r * shapeReach) continue;

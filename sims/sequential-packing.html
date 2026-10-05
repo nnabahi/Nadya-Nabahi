@@ -35,7 +35,16 @@
         <h2>Simulation</h2>
         <!-- The picture. sequential-packing.js sets its height to match
              the window's shape. Point at a tile to see its numbers. -->
-        <canvas id="sim-canvas"></canvas>
+        <!-- The picture, with the zoom buttons in its top right corner
+             (section 6b of sequential-packing.js). -->
+        <div class="sim-picture">
+          <canvas id="sim-canvas"></canvas>
+          <div class="zoom-buttons">
+            <button class="tool-button" id="zoom-in" title="Zoom in">+</button>
+            <button class="tool-button" id="zoom-out" title="Zoom out">&minus;</button>
+            <button class="tool-button" id="zoom-reset" title="Show the whole window once again">Reset</button>
+          </div>
+        </div>
         <p class="muted small" id="hover-info">Point at a tile to see its numbers.</p>
         <!-- Messages, e.g. a formula that can't be read. -->
         <p class="muted" id="sim-message"></p>
@@ -168,7 +177,9 @@
           <strong>Things to try:</strong> press Play; drag the number of
           attempts; pick another start from the list; type your own domain,
           tile or density (any extra letter, like <span class="tex">s</span>,
-          gets a slider); or change the colors.
+          gets a slider); or change the colors. Zoom in with the mouse wheel,
+          a pinch, or the + and &minus; buttons to see the tiny tiles, and drag to
+          look around.
         </p>
         </div>
 
