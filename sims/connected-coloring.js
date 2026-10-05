@@ -292,7 +292,7 @@ function drawColoring() {
   drawBorders(view, pen, shown, BORDER);
 }
 
-// Dragging and pinching the torus (js/sim-view.js).
+// Dragging and pinching the picture (js/sim-view.js).
 simCanvas.addEventListener("pointerdown", function (event) { pressPointer(view, event); });
 simCanvas.addEventListener("pointermove", function (event) { movePointer(view, event); });
 simCanvas.addEventListener("pointerup", function (event) { releasePointer(view, event); });
@@ -532,7 +532,7 @@ function useDomain(kind, d, start, names) {
   N = start ? names.length : Math.min(Math.max(N, 2), most);
   colorNames = start ? names : [];
   for (let c = colorNames.length; c < N; c++) colorNames.push(defaultColor(c, N));
-  useTorus(view, Boolean(domain.wrap));   // moving and zooming only on a torus (js/sim-view.js)
+  useTorus(view, Boolean(domain.wrap));   // moving and zooming; zooming out past the whole picture only on a torus (js/sim-view.js)
   byId("set-colors").max = byId("colors-slider").max = most;
   byId("set-colors").value = byId("colors-slider").value = N;
   showDomainChoice();

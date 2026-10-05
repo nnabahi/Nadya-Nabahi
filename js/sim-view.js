@@ -1,15 +1,17 @@
 /* =====================================================================
-   sim-view.js  —  where a sim's picture goes, and moving and zooming
-   it on a torus
+   sim-view.js  —  where a sim's picture goes, and moving and zooming it
    ---------------------------------------------------------------------
    The sims draw their domain (js/sim-domains.js) as one square per
-   cell, in a box in the middle of their canvas, as big as fits. On a
-   torus (or a region drawn on one) the picture can also be moved and
-   zoomed, like a graph in Desmos:
+   cell, in a box in the middle of their canvas, as big as fits. The
+   picture can also be moved and zoomed, like a graph in Desmos, to see
+   the small details:
      drag it                          move it
      mouse wheel, or pinch            zoom in or out, around the pointer
      the + / − / Reset buttons        zoom in, zoom out, show it all again
-   Zoomed out, the torus shows several times side by side.
+   On a box (or a drawn region) the picture zooms in down to single
+   cells, and can't be zoomed out past the whole box, or moved off it.
+   On a torus (or a region drawn on one) it can also be zoomed out, and
+   then the torus shows several times side by side.
 
    This file does all of that for every sim, so it is written once. A
    sim page makes one "view" for its canvas: an object that remembers
@@ -23,6 +25,8 @@
    It passes its pointer events on to pressPointer, movePointer and
    releasePointer (so a sim can drag other things too, like the random
    walk sim's walkers), and calls useTorus when the domain changes.
+   (A picture that shouldn't move at all, like the random mountain's 1D
+   side view, passes movable = false to useTorus.)
    pointerSpot and cellUnder say which cell is under the pointer (to
    click a cell, or drop a walker on it).
 
@@ -32,14 +36,14 @@
        <div class="zoom-buttons" id="zoom-buttons" hidden>
          <button class="tool-button" id="zoom-in" title="Zoom in">+</button>
          <button class="tool-button" id="zoom-out" title="Zoom out">&minus;</button>
-         <button class="tool-button" id="zoom-reset" title="Show the whole torus once again">Reset</button>
+         <button class="tool-button" id="zoom-reset" title="Show the whole picture once again">Reset</button>
        </div>
      </div>
 
    Contents:
      makeView(...)               a new view (with the wheel and buttons)
-     useTorus(view, on)          a new domain: moving and zooming on or off
-     showZoomButtons(view)       show the buttons only on a torus
+     useTorus(view, on, movable) a new domain: a torus or not, and movable or not
+     showZoomButtons(view)       show the buttons when the picture can move
      fitPicture(view, d, ...)    place the picture and size the canvas
      cellsShown(view, d)         which cell is on each square that shows
      squareLeft, squareTop       where the sides of the squares are
@@ -50,9 +54,10 @@
    ===================================================================== */
 
 
-// Zooming. Zoom 1 shows the whole torus once.
-const MIN_ZOOM = 0.25;            // zoomed out: the torus 4 times across
-const MAX_ZOOM = 8;               // zoomed in: cells 8 times bigger
+// Zooming. Zoom 1 shows the whole box or torus once.
+const MIN_ZOOM = 0.25;            // zoomed out (torus only): the torus 4 times across
+const MAX_CELL_PIXELS = 400;      // zoomed in: a cell at most this many pixels big
+const MAX_ZOOM = 8;               // ... but always allowed to zoom in at least 8 times
 const MIN_CELL_PIXELS = 2;        // but zoomed out, cells stay at least this big
 const ZOOM_STEP = 1.5;            // how much one click on + or − zooms
 
@@ -82,8 +87,11 @@ function makeView(canvas, redraw, top, wholeCells) {
     // "cell" pixels big (the size with the zoom).
     cell: 1, firstI: 0, lastI: -1, firstK: 0, lastK: -1, cols: 0, rows: 0,
 
-    // Moving and zooming: on a torus only. Elsewhere they stay 0 and 1.
+    // Moving and zooming. "torus" is true when the picture wraps around
+    // (then it can also zoom out past zoom 1), and "movable" is false
+    // for a picture that doesn't move or zoom at all.
     torus: false,
+    movable: true,
     scroll: { x: 0, y: 0 },   // how far the picture is moved, in cells
     zoom: 1,                  // 2 = cells twice as big, 0.5 = half as big
     pointers: new Map(),      // the pointers pressed on the picture: id -> {x, y}
@@ -93,7 +101,7 @@ function makeView(canvas, redraw, top, wholeCells) {
   // pinch on a trackpad, which the browser reports as the wheel with the
   // Ctrl key held (and small steps, so it counts for more).
   canvas.addEventListener("wheel", function (event) {
-    if (!view.torus) return;
+    if (!view.movable) return;
     event.preventDefault();                              // don't scroll the page
     const pixels = event.deltaY * (event.deltaMode === 1 ? 16 : 1);   // some mice count lines
     const box = canvas.getBoundingClientRect();
@@ -114,20 +122,22 @@ function makeView(canvas, redraw, top, wholeCells) {
 }
 
 // A new domain. "on" is true on a torus (including a region drawn on
-// one), where the picture can be moved and zoomed. Either way it starts
-// from the whole picture, at zoom 1. (The "scrollable" class gives the
-// canvas the hand cursor: section 8 of css/style.css.)
-function useTorus(view, on) {
+// one). "movable" is false for a picture that shouldn't move or zoom at
+// all (it is true when left out). Either way it starts from the whole
+// picture, at zoom 1. (The "scrollable" class gives the canvas the hand
+// cursor: section 8 of css/style.css.)
+function useTorus(view, on, movable) {
   view.torus = on;
+  view.movable = (movable !== false);
   view.scroll = { x: 0, y: 0 };
   view.zoom = 1;
-  view.canvas.classList.toggle("scrollable", on);
+  view.canvas.classList.toggle("scrollable", view.movable);
   showZoomButtons(view);
 }
 
-// The + / − / Reset buttons show only on a torus, with its picture.
+// The + / − / Reset buttons show whenever the picture can move.
 function showZoomButtons(view) {
-  byId("zoom-buttons").hidden = !view.torus || view.canvas.hidden;
+  byId("zoom-buttons").hidden = !view.movable || view.canvas.hidden;
 }
 
 
@@ -237,29 +247,46 @@ function drawBorders(view, pen, shown, color) {
 function zoomBy(view, factor, px, py) {
   const before = cellSize(view);
   // Zoomed out, cells stay at least MIN_CELL_PIXELS big (but the whole
-  // torus, zoom 1, is always allowed, even with smaller cells).
-  const least = Math.min(1, Math.max(MIN_ZOOM, MIN_CELL_PIXELS / view.size));
-  view.zoom = Math.min(Math.max(view.zoom * factor, least), MAX_ZOOM);
+  // torus, zoom 1, is always allowed, even with smaller cells). A box
+  // doesn't zoom out past the whole box.
+  const least = view.torus ? Math.min(1, Math.max(MIN_ZOOM, MIN_CELL_PIXELS / view.size)) : 1;
+  // Zoomed in, a cell grows to at most MAX_CELL_PIXELS (a big domain
+  // with tiny cells can zoom in a long way, to see the fine details).
+  const most = Math.max(MAX_ZOOM, MAX_CELL_PIXELS / view.size);
+  view.zoom = Math.min(Math.max(view.zoom * factor, least), most);
   const after = cellSize(view);
   view.scroll.x += px / after - px / before;
   view.scroll.y += py / after - py / before;
+  keepInBox(view);
   view.redraw();
 }
 
-// Back to the whole torus, once, as at the start.
+// Off a torus, the picture can't be moved off its box: an edge of the
+// domain never comes in past the edge of the picture's box. "across"
+// and "down" are the domain's size in cells; zoomed in, the box shows
+// only across / zoom of them, so the picture can move that far less.
+function keepInBox(view) {
+  if (view.torus) return;
+  const across = view.width / view.size, down = view.height / view.size;
+  const shownAcross = view.width / cellSize(view), shownDown = view.height / cellSize(view);
+  view.scroll.x = Math.min(0, Math.max(shownAcross - across, view.scroll.x));
+  view.scroll.y = Math.min(0, Math.max(shownDown - down, view.scroll.y));
+}
+
+// Back to the whole box or torus, once, as at the start.
 function resetView(view) {
   view.zoom = 1;
   view.scroll = { x: 0, y: 0 };
   view.redraw();
 }
 
-// Moving the torus with the mouse or fingers: the page passes its
+// Moving the picture with the mouse or fingers: the page passes its
 // pointer events on to these three. ("Pointer" events cover the mouse,
 // a pen and fingers alike.) With one finger (or the mouse) down, the
 // picture follows it. With two fingers, it follows the point between
 // them and zooms as they spread apart or pinch together.
 function pressPointer(view, event) {
-  if (!view.torus) return;
+  if (!view.movable) return;
   view.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
   view.canvas.setPointerCapture(event.pointerId);   // keep getting moves even off the canvas
   view.canvas.classList.add("dragging");
@@ -273,6 +300,7 @@ function movePointer(view, event) {
   const size = cellSize(view);
   view.scroll.x += (after.x - before.x) / size;
   view.scroll.y += (after.y - before.y) / size;
+  keepInBox(view);
   if (view.pointers.size >= 2 && before.apart > 0) {
     const box = view.canvas.getBoundingClientRect();
     zoomBy(view, after.apart / before.apart, after.x - box.left - view.left, after.y - box.top - view.top);

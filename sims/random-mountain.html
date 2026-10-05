@@ -34,14 +34,14 @@
       <section class="quad quad-sim">
         <h2>Simulation</h2>
 
-        <!-- The picture. random-mountain.js sets its height. On a 2D
-             torus, the zoom buttons sit in its top right corner. -->
+        <!-- The picture. random-mountain.js sets its height. In 2D, the
+             zoom buttons sit in its top right corner. -->
         <div class="sim-picture">
           <canvas id="sim-canvas"></canvas>
           <div class="zoom-buttons" id="zoom-buttons" hidden>
             <button class="tool-button" id="zoom-in" title="Zoom in">+</button>
             <button class="tool-button" id="zoom-out" title="Zoom out">&minus;</button>
-            <button class="tool-button" id="zoom-reset" title="Show the whole torus once again">Reset</button>
+            <button class="tool-button" id="zoom-reset" title="Show the whole picture once again">Reset</button>
           </div>
         </div>
 
@@ -182,9 +182,9 @@
           gap, like {&minus;2, +1}; 2D with 4 or 8 neighbors; a tile of your own,
           clicked in the grid; a thin ring, which spreads more than it stacks;
           or a small domain, where the base soon fills it and
-          the mountain only gets taller. On a 2D torus, drag the picture to
-          slide it around, and zoom with the mouse wheel, a pinch, or the + and
-          &minus; buttons; zoomed out, the torus shows several times side by
+          the mountain only gets taller. In 2D, zoom with the mouse wheel, a
+          pinch, or the + and &minus; buttons, and drag the picture to look
+          around; on a torus, zoomed out, it shows several times side by
           side.
         </p>
         </div>
@@ -267,7 +267,7 @@
 
   <!-- Helpers shared by the sims (sim-page.js also typesets the
        formulas, so it comes after KaTeX), and the picture's view
-       (moving and zooming a 2D torus). Then the growth rule (it runs in
+       (moving and zooming the 2D picture). Then the growth rule (it runs in
        a second thread), then this page's code. -->
   <script src="../js/sim-page.js"></script>
   <script src="../js/sim-domains.js"></script>

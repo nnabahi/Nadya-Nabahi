@@ -35,14 +35,13 @@
         <h2>Simulation</h2>
 
         <!-- The picture. Its height is set so the cells come out square
-             (js/sim-view.js). On a torus, the zoom buttons sit in its top
-             right corner. -->
+             (js/sim-view.js). The zoom buttons sit in its top right corner. -->
         <div class="sim-picture">
           <canvas id="sim-canvas"></canvas>
           <div class="zoom-buttons" id="zoom-buttons" hidden>
             <button class="tool-button" id="zoom-in" title="Zoom in">+</button>
             <button class="tool-button" id="zoom-out" title="Zoom out">&minus;</button>
-            <button class="tool-button" id="zoom-reset" title="Show the whole torus once again">Reset</button>
+            <button class="tool-button" id="zoom-reset" title="Show the whole picture once again">Reset</button>
           </div>
         </div>
 
@@ -252,8 +251,8 @@
           <strong>Things to try:</strong> slide n for the center pile with
           "Jump to the end whenever a setting changes" ticked; start a storm
           and watch the avalanches; draw your own table and show its
-          identity. On the torus, drag the picture to slide it around, and
-          zoom with the mouse wheel, a pinch, or the + and &minus; buttons.
+          identity. Zoom in on the fractal with the mouse wheel, a pinch, or the
+          + and &minus; buttons, and drag the picture to look around.
         </p>
         </div>
 
@@ -376,7 +375,7 @@
 
   <!-- Helpers shared by every sim page (they also typeset the formulas,
        so they come after KaTeX), the domains and colors shared by the
-       sims, and the picture's view (moving and zooming the torus). Then
+       sims, and the picture's view (moving and zooming it). Then
        the toppling rule (it runs in a second thread), then this page's
        code. -->
   <script src="../js/sim-page.js"></script>

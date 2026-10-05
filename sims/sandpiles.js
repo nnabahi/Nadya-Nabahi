@@ -366,11 +366,11 @@ simCanvas.addEventListener("pointerdown", function (event) {
   pressed.add(event.pointerId);
   if (pressed.size > 1) dragged = true;           // two fingers: a pinch, not a click
   simCanvas.setPointerCapture(event.pointerId);   // keep getting moves even off the canvas
-  pressPointer(view, event);                      // on a torus: drag and pinch (js/sim-view.js)
+  pressPointer(view, event);                      // drag and pinch the picture (js/sim-view.js)
 });
 
 simCanvas.addEventListener("pointermove", function (event) {
-  simCanvas.style.cursor = view.torus ? (pressed.size > 0 ? "grabbing" : "grab") : "pointer";
+  simCanvas.style.cursor = pressed.size > 0 ? "grabbing" : "grab";
   if (!pressed.has(event.pointerId)) return;
   if (Math.hypot(event.clientX - pressedAt.x, event.clientY - pressedAt.y) >= CLICK_DISTANCE) dragged = true;
   movePointer(view, event);
@@ -559,7 +559,7 @@ function useDomain(kind, d, n) {
   domainKind = kind;
   domain = d;
   neighbors = n;
-  useTorus(view, Boolean(d.wrap));   // moving and zooming only on a torus (js/sim-view.js)
+  useTorus(view, Boolean(d.wrap));   // moving and zooming; zooming out past the whole picture only on a torus (js/sim-view.js)
   makeHeightColors();
   showDomainChoice();
   chooseSink();

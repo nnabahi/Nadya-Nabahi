@@ -10,7 +10,7 @@
        runs in a second thread (a "Web Worker"), and draws every
        mountain it sends back, with the statistics.
    Small helpers used by every sim page (byId, chartPen, ...) are in
-   js/sim-page.js, and moving and zooming a 2D torus is in
+   js/sim-page.js, and moving and zooming the 2D picture is in
    js/sim-view.js (shared with the coloring sims).
 
    The file is split into numbered sections:
@@ -20,7 +20,7 @@
      4. The domain
      5. Running the mountain
      6. Drawing the mountain
-     6b. Moving and zooming a 2D torus
+     6b. Moving and zooming the 2D picture
      7. Statistics
      8. Custom domains: the graph tool inside this page
      9. Connecting the buttons on the page
@@ -69,7 +69,7 @@ const DEFAULT_SEED = "1";
 const PICTURE_HEIGHT = 480;
 const EMPTY = "#c9c6bf";          // available sites with no block yet
 const OUTSIDE = "#ffffff";        // everything else
-// (How far a 2D torus zooms in and out is set in js/sim-view.js.)
+// (How far the 2D picture zooms in and out is set in js/sim-view.js.)
 
 // The speeds on the Speed slider, in blocks per second. Infinity means
 // "as fast as the computer can". The default is slow, so you can watch
@@ -233,9 +233,9 @@ function showDomainChoice() {
     });
     row.appendChild(label);
   }
-  // A new domain starts with the whole picture; on a 2D torus it can be
-  // moved and zoomed (section 6b).
-  useTorus(view, torusRange() !== null);
+  // A new domain starts with the whole picture; in 2D it can be moved
+  // and zoomed (section 6b), and zoomed out further on a torus.
+  useTorus(view, torusRange() !== null, dim === 2);   // the 1D side view doesn't move
   const bounded = (domainKind === "box" || domainKind === "torus");
   byId("size-row").hidden = !bounded;
   byId("size-label").textContent = dim === 1 ? "Sites" : "Size";
@@ -354,7 +354,7 @@ function setPlaying(on) {
    ===================================================================== */
 let drawPending = false;
 const simCanvas = byId("sim-canvas");
-const view = makeView(simCanvas, drawSoon);      // where the picture goes, and the 2D torus's zoom (js/sim-view.js)
+const view = makeView(simCanvas, drawSoon);      // where the picture goes, and the 2D picture's zoom (js/sim-view.js)
 const tiny = document.createElement("canvas");   // 2D: one pixel per cell
 
 // Draw at the browser's next screen refresh (at most once per refresh,
@@ -496,7 +496,7 @@ function drawGrid() {
   // Which squares show. Square (i, k) is column i from the left and row
   // k from the top of the picture (k = 0 is the top row, y = ymax: rows
   // go up the screen as y goes up). view.scroll moves the squares, in
-  // cells, and view.zoom sizes them; off a torus they stay 0 and 1.
+  // cells, and view.zoom sizes them (js/sim-view.js).
   const size = cellSize(view);
   const scroll = view.scroll;
   const firstI = Math.floor(-scroll.x) - 1, lastI = Math.ceil(view.width / size - scroll.x);
@@ -543,11 +543,12 @@ function drawGrid() {
 
 
 /* =====================================================================
-   6b. MOVING AND ZOOMING A 2D TORUS
+   6b. MOVING AND ZOOMING THE 2D PICTURE
    ---------------------------------------------------------------------
-   On a 2D torus (the Torus domain, or a domain drawn on a torus in the
-   graph tool) the picture can be moved and zoomed, as in the coloring
-   sims (and like a graph in Desmos):
+   In 2D the picture can be moved and zoomed, as in the coloring sims
+   (and like a graph in Desmos). On a torus (the Torus domain, or a
+   domain drawn on a torus in the graph tool) it can also be zoomed out
+   to show the torus several times:
      drag                         move it
      mouse wheel, or pinch        zoom in or out, around the pointer
      the + / − / Reset buttons    zoom in, zoom out, show it all again

@@ -384,11 +384,11 @@ function walkerUnder(spot) {
 // The "hand" cursor where something can be dragged.
 function showCursor(spot) {
   simCanvas.style.cursor = (dragWalker >= 0 || view.pointers.size > 0) ? "grabbing"
-    : (walkerUnder(spot) >= 0 || view.torus) ? "grab" : "default";
+    : (walkerUnder(spot) >= 0 || view.movable) ? "grab" : "default";
 }
 
 // A press on a walker drags the walker. Anywhere else, the pointer
-// moves the torus (pressPointer and the rest are in js/sim-view.js).
+// moves the picture (pressPointer and the rest are in js/sim-view.js).
 simCanvas.addEventListener("pointerdown", function (event) {
   const spot = pointerSpot(view, event);
   if (dragWalker < 0 && view.pointers.size === 0) {
@@ -681,7 +681,7 @@ byId("tool-cancel").addEventListener("click", function () {
 function useDomain(kind, d) {
   domainKind = kind;
   domain = d;
-  useTorus(view, Boolean(d.wrap));   // moving and zooming only on a torus (js/sim-view.js)
+  useTorus(view, Boolean(d.wrap));   // moving and zooming; zooming out past the whole picture only on a torus (js/sim-view.js)
   showDomainChoice();
   setWalkerCount(N);
 }

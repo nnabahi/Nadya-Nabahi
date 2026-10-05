@@ -35,14 +35,13 @@
         <h2>Simulation</h2>
 
         <!-- The picture. Its height is set so the cells come out square
-             (js/sim-view.js). On a torus, the zoom buttons sit in its top
-             right corner. -->
+             (js/sim-view.js). The zoom buttons sit in its top right corner. -->
         <div class="sim-picture">
           <canvas id="sim-canvas"></canvas>
           <div class="zoom-buttons" id="zoom-buttons" hidden>
             <button class="tool-button" id="zoom-in" title="Zoom in">+</button>
             <button class="tool-button" id="zoom-out" title="Zoom out">&minus;</button>
-            <button class="tool-button" id="zoom-reset" title="Show the whole torus once again">Reset</button>
+            <button class="tool-button" id="zoom-reset" title="Show the whole picture once again">Reset</button>
           </div>
         </div>
 
@@ -192,10 +191,10 @@
         <p>
           <strong>Things to try:</strong> drag the walkers to new starting
           places, then press Play; switch between the two models; change N; or
-          pick Custom to draw your own region. On the torus, drag the empty
-          space to slide the picture around, and zoom with the mouse wheel, a
-          pinch, or the + and &minus; buttons; zoomed out, the torus shows
-          several times side by side.
+          pick Custom to draw your own region. Zoom with the mouse wheel, a
+          pinch, or the + and &minus; buttons, and drag the empty space to look
+          around; on the torus, zoomed out, it shows several times side by
+          side.
         </p>
         </div>
 
@@ -307,7 +306,7 @@
 
   <!-- Helpers shared by every sim page (they also typeset the formulas,
        so they come after KaTeX), the domains and colors shared by the
-       sims, and the picture's view (moving and zooming the torus). Then
+       sims, and the picture's view (moving and zooming it). Then
        the walkers (they run in a second thread), then this page's code. -->
   <script src="../js/sim-page.js"></script>
   <script src="../js/sim-domains.js"></script>

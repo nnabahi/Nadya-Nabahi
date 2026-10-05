@@ -35,14 +35,13 @@
         <h2>Simulation</h2>
 
         <!-- The picture. Its height is set so the cells come out square
-             (js/sim-view.js). On the torus, the zoom buttons sit in its top
-             right corner. -->
+             (js/sim-view.js). The zoom buttons sit in its top right corner. -->
         <div class="sim-picture">
           <canvas id="sim-canvas"></canvas>
           <div class="zoom-buttons" id="zoom-buttons" hidden>
             <button class="tool-button" id="zoom-in" title="Zoom in">+</button>
             <button class="tool-button" id="zoom-out" title="Zoom out">&minus;</button>
-            <button class="tool-button" id="zoom-reset" title="Show the whole torus once again">Reset</button>
+            <button class="tool-button" id="zoom-reset" title="Show the whole picture once again">Reset</button>
           </div>
         </div>
 
@@ -168,9 +167,10 @@
         </p>
         <p>
           <strong>Things to try:</strong> press Play (or Step, for one move at a
-          time); change N; switch to the torus (drag it and it wraps around; zoom
-          with the mouse wheel, a pinch, or the + and &minus; buttons); or pick
-          Custom to draw your own region and even your own starting colors.
+          time); change N; zoom in on the borders with the mouse wheel, a pinch,
+          or the + and &minus; buttons, and drag to look around; switch to the
+          torus (drag it and it wraps around); or pick Custom to draw your own
+          region and even your own starting colors.
         </p>
         </div>
 
@@ -287,7 +287,7 @@
 
   <!-- Helpers shared by every sim page (they also typeset the formulas,
        so they come after KaTeX), the domains and colors shared by the
-       sims, and the picture's view (moving and zooming the torus). Then
+       sims, and the picture's view (moving and zooming it). Then
        the chain (it runs in a second thread), then this page's code. -->
   <script src="../js/sim-page.js"></script>
   <script src="../js/sim-domains.js"></script>
