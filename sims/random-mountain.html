@@ -7,6 +7,18 @@
   <link rel="stylesheet" href="../css/style.css">
   <!-- KaTeX's styles, for the typeset formulas. -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/katex.min.css">
+  <!-- Where the 3D library three.js lives on the internet, for the 3D
+       view (js/sim-3d.js). It is only loaded when you switch to 3D. The
+       version number is fixed so an update can never change the site by
+       surprise. -->
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.186.1/examples/jsm/"
+      }
+    }
+  </script>
 </head>
 <body>
 
@@ -43,6 +55,12 @@
             <button class="tool-button" id="zoom-out" title="Zoom out">&minus;</button>
             <button class="tool-button" id="zoom-reset" title="Show the whole picture once again">Reset</button>
           </div>
+          <!-- The 3D view (2D mountains only): js/sim-3d.js puts its
+               picture in here, with a button to look from the start again. -->
+          <div class="sim-3d" id="sim-3d" hidden></div>
+          <div class="zoom-buttons" id="view3d-buttons" hidden>
+            <button class="tool-button" id="view3d-reset" title="Look from the starting angle again">Reset view</button>
+          </div>
         </div>
 
         <!-- Shown instead of the picture while you draw a custom domain:
@@ -78,6 +96,26 @@
         <div class="option-row">
           <label><input type="radio" name="dimension" value="1" checked> 1D (a line)</label>
           <label><input type="radio" name="dimension" value="2"> 2D (a grid)</label>
+        </div>
+
+        <!-- 2D only: the picture from above, or in 3D. -->
+        <div id="view-rows" hidden>
+          <h3 class="option-heading">View</h3>
+          <div class="option-row">
+            <label><input type="radio" name="view" value="flat" checked> From above</label>
+            <label><input type="radio" name="view" value="3d"> 3D</label>
+          </div>
+          <div class="option-row" id="blocks-row" hidden>
+            Blocks
+            <label><input type="radio" name="blocks" value="cubes" checked> cubes</label>
+            <label><input type="radio" name="blocks" value="coins"> coins</label>
+          </div>
+          <div class="option-row" id="stretch-row" hidden>
+            Heights <input type="range" id="stretch" min="-4" max="4" step="1" value="0">
+            <span class="muted" id="stretch-label"></span>
+          </div>
+          <p class="muted small" id="view3d-help" hidden>Drag to turn it around, use the
+            mouse wheel or a pinch to zoom, and right-drag (or two fingers) to slide it.</p>
         </div>
 
         <h3 class="option-heading">Tile T</h3>
@@ -185,7 +223,8 @@
           the mountain only gets taller. In 2D, zoom with the mouse wheel, a
           pinch, or the + and &minus; buttons, and drag the picture to look
           around; on a torus, zoomed out, it shows several times side by
-          side.
+          side. Or switch the 2D view to 3D, to see each site's blocks as a
+          stack of cubes or coins, and turn the mountain around.
         </p>
         </div>
 

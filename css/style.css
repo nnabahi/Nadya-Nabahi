@@ -632,6 +632,17 @@ a.card:hover {
   position: relative;
 }
 
+/* The 3D view (js/sim-3d.js) draws on a canvas inside this box. Like
+   the 2D pictures, it has a gray background; "touch-action: none" lets
+   fingers turn the picture instead of scrolling the page. */
+.sim-3d canvas {
+  display: block;
+  background: var(--color-placeholder);
+  border-radius: calc(var(--corner-radius) / 2);
+  touch-action: none;
+  cursor: grab;
+}
+
 .zoom-buttons {
   position: absolute;
   top: 8px;

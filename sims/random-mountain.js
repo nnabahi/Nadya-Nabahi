@@ -10,8 +10,9 @@
        runs in a second thread (a "Web Worker"), and draws every
        mountain it sends back, with the statistics.
    Small helpers used by every sim page (byId, chartPen, ...) are in
-   js/sim-page.js, and moving and zooming the 2D picture is in
-   js/sim-view.js (shared with the coloring sims).
+   js/sim-page.js, moving and zooming the 2D picture is in
+   js/sim-view.js (shared with the coloring sims), and the 3D view is
+   in js/sim-3d.js.
 
    The file is split into numbered sections:
      1. Settings you might want to change
@@ -21,6 +22,7 @@
      5. Running the mountain
      6. Drawing the mountain
      6b. Moving and zooming the 2D picture
+     6c. The 3D view
      7. Statistics
      8. Custom domains: the graph tool inside this page
      9. Connecting the buttons on the page
@@ -70,6 +72,8 @@ const PICTURE_HEIGHT = 480;
 const EMPTY = "#c9c6bf";          // available sites with no block yet
 const OUTSIDE = "#ffffff";        // everything else
 // (How far the 2D picture zooms in and out is set in js/sim-view.js.)
+// The 3D view's floor is OUTSIDE too; its other settings (how many
+// blocks are drawn one by one, the camera) are in js/sim-3d.js.
 
 // The speeds on the Speed slider, in blocks per second. Infinity means
 // "as fast as the computer can". The default is slow, so you can watch
@@ -89,6 +93,9 @@ let customDomain = null;     // the last custom domain drawn (js/sim-domains.js)
 let playing = false;         // it starts paused; Play sets it going
 let speedIndex = DEFAULT_SPEED;
 let run = 0;                 // counts restarts, so leftovers from an older run are ignored
+let show3D = false;          // 2D only: the 3D view instead of the view from above (section 6c)
+let blockShape = "cubes";    // the 3D view's blocks: "cubes" or "coins"
+let stretchLevel = 0;        // the 3D view's Heights slider: -4 (flatter) .. 4 (taller)
 
 // The latest message from the mountain (see part 2 of
 // random-mountain-growth.js): the sites, their heights, the numbers.
@@ -403,8 +410,10 @@ function pictureRange() {
 }
 
 function drawMountain() {
-  if (!latest || !latest.x || latest.dim !== dim || simCanvas.hidden) return;   // nothing yet, or from before a switch to 1D / 2D
-  if (dim === 1) drawLine(); else drawGrid();
+  if (!latest || !latest.x || latest.dim !== dim || toolOpen) return;   // nothing yet, or from before a switch to 1D / 2D
+  if (dim === 2 && show3D) draw3D();     // section 6c
+  else if (dim === 1) drawLine();
+  else drawGrid();
 }
 
 // 1D: bars.
@@ -564,6 +573,95 @@ simCanvas.addEventListener("pointercancel", function (event) { releasePointer(vi
 
 
 /* =====================================================================
+   6c. THE 3D VIEW
+   ---------------------------------------------------------------------
+   In 2D, the View option can show the mountain in 3D: each site's
+   blocks as a stack of cubes or coins, colored from the bottom up with
+   the same colors as the view from above (so seen from straight above,
+   it looks like the 2D picture). Gray tiles are the available sites
+   with no block yet. The 3D code is shared, in js/sim-3d.js; it loads
+   the 3D library three.js from the internet the first time 3D is
+   switched on.
+
+   Heights: a block starts as a cube. Once the mountain gets taller than
+   half its width, the blocks are squashed to keep it that tall, so the
+   whole mountain stays in the picture; the Heights slider makes it
+   taller or flatter.
+   ===================================================================== */
+let sim3d = null;            // the 3D code, once loaded (js/sim-3d.js)
+let view3d = null;           // the 3D picture
+let loading3D = false;
+
+// Which picture shows: the view from above, the 3D view (2D mountains
+// only), or neither while the graph tool is open.
+function showPictureKind() {
+  const in3D = (dim === 2 && show3D);
+  simCanvas.hidden = toolOpen || in3D;
+  byId("sim-3d").hidden = byId("view3d-buttons").hidden = toolOpen || !in3D;
+  byId("view-rows").hidden = (dim !== 2);
+  byId("blocks-row").hidden = byId("stretch-row").hidden = byId("view3d-help").hidden = !in3D;
+  showZoomButtons(view);
+  if (in3D && !view3d) start3D();
+  drawSoon();
+}
+
+// Load the 3D code (the first time only) and make the 3D picture.
+async function start3D() {
+  if (loading3D) return;
+  loading3D = true;
+  showMessage("Loading the 3D view...");
+  try {
+    sim3d = await import("../js/sim-3d.js");
+  } catch (error) {
+    loading3D = false;
+    show3D = false;
+    document.querySelector('input[name="view"][value="flat"]').checked = true;
+    showPictureKind();
+    showMessage("The 3D view couldn't load. It needs the library three.js from the " +
+                "internet, so check the connection and try again.");
+    return;
+  }
+  view3d = sim3d.make3DView(byId("sim-3d"), PICTURE_HEIGHT);
+  showMessage("");
+  drawSoon();
+}
+
+function draw3D() {
+  if (!view3d) return;
+  const s = latest;
+  // The floor: the domain's cells for a drawn domain, otherwise the
+  // same box as the view from above.
+  const floor = domainKind === "custom"
+    ? { x: Array.from(customDomain.x), y: Array.from(customDomain.y) }
+    : pictureRange();
+  sim3d.drawStacks(view3d, {
+    x: s.x, y: s.y, height: s.height, floor: floor,
+    shape: blockShape, stretch: Math.pow(2, stretchLevel / 2),
+    color: heatColor, empty: hexToRGB(EMPTY), ground: hexToRGB(OUTSIDE),
+  });
+}
+
+// The View, Blocks and Heights options.
+for (const radio of document.querySelectorAll('input[name="view"]')) {
+  radio.addEventListener("change", function () { show3D = (radio.value === "3d"); showPictureKind(); });
+}
+for (const radio of document.querySelectorAll('input[name="blocks"]')) {
+  radio.addEventListener("change", function () { blockShape = radio.value; drawSoon(); });
+}
+function showStretch() {
+  const factor = Math.pow(2, stretchLevel / 2);
+  byId("stretch-label").textContent = stretchLevel === 0 ? "normal"
+    : (factor > 1 ? factor.toFixed(1) + " times taller" : (1 / factor).toFixed(1) + " times flatter");
+}
+byId("stretch").addEventListener("input", function () {
+  stretchLevel = Number(this.value);
+  showStretch();
+  drawSoon();
+});
+byId("view3d-reset").addEventListener("click", function () { if (view3d) sim3d.resetCamera(view3d); });
+
+
+/* =====================================================================
    7. STATISTICS
    ---------------------------------------------------------------------
    All for the run on the screen. The growth rule keeps the numbers up
@@ -614,9 +712,8 @@ function openTool() {
   wasPlaying = playing;
   if (playing) setPlaying(false);
   toolOpen = true;
-  simCanvas.hidden = true;
   byId("custom-area").hidden = false;
-  showZoomButtons(view);
+  showPictureKind();
   if (!frame.src) frame.src = "graph-tool.html?embed";    // the first time only
   checkTool();
 }
@@ -624,8 +721,7 @@ function openTool() {
 function closeTool() {
   toolOpen = false;
   byId("custom-area").hidden = true;
-  simCanvas.hidden = false;
-  showZoomButtons(view);
+  showPictureKind();
 }
 
 // The tool sends its drawing every time it changes (js/sim-page.js).
@@ -673,6 +769,7 @@ function setDimension(value) {
   byId("set-width").max = byId("set-height").max = MAX_SIZE[dim];
   showPresets();
   showDomainChoice();
+  showPictureKind();
   setTile(PRESETS[dim][0].tile);
 }
 for (const radio of document.querySelectorAll('input[name="dimension"]')) {
@@ -722,5 +819,6 @@ byId("goto-steps").value = 1000;
 byId("speed").max = SPEEDS.length - 1;
 byId("speed").value = speedIndex;
 showSpeed();
+showStretch();
 setDimension(1);
 setPlaying(false);   // paused: press Play
