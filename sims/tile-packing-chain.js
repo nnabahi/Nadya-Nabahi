@@ -14,6 +14,15 @@
      over all such packings: in the long run, every packing is equally
      likely.
 
+     WEIGHTS (nadya, 2026-10-05). Each tile may also get a weight, a
+     number >= 0 (1 when not given). Then the long-run probability of a
+     packing is proportional to the product of the weights of its tiles:
+     with weights 2 and 1, a packing with three tiles of the first kind
+     is 2^3 = 8 times as likely as one with none. All weights 1 is the
+     uniform distribution above. A tile of weight 0 is left out of the
+     tile list altogether (as if it weren't there, so "maximal" doesn't
+     count the places where it would fit).
+
    One move of the chain (agreed with nadya, 2026-10-03):
      1. Drop a disk: its center is a uniformly random point of the domain,
         its radius is exponentially distributed with a small mean.
@@ -24,18 +33,28 @@
           (a) the packing is still valid (full cover, or maximal),
           (b) every new tile touches the disk, and
           (c) every empty cell left in the region touches the disk.
-     4. Pick one refill from that list uniformly at random. The old
-        packing is always on the list, so the list is never empty.
+     4. Pick one refill from that list at random, each with probability
+        proportional to its weight (the product of its tiles' weights;
+        uniformly when all weights are 1). The old packing is always on
+        the list, so the list is never empty.
 
    Why the result is exactly uniform. Checks (b) and (c) say: dropping
    the SAME disk on the new packing deletes exactly the new tiles and
    frees exactly the same region, so it gives exactly the same list.
    So for each disk the packings fall into groups (same region, same
-   tiles outside it), and the move picks uniformly inside the group.
-   Going from P to Q then has the same probability as going from Q to
-   P: the chain is symmetric, so the uniform distribution satisfies
-   "detailed balance" and stays put (Levin, Peres & Wilmer, "Markov
-   Chains and Mixing Times", 2nd ed., AMS 2017, Proposition 1.20).
+   tiles outside it), and the move picks inside the group. With all
+   weights 1 it picks uniformly: going from P to Q then has the same
+   probability as going from Q to P, the chain is symmetric, and the
+   uniform distribution satisfies "detailed balance" and stays put
+   (Levin, Peres & Wilmer, "Markov Chains and Mixing Times", 2nd ed.,
+   AMS 2017, Proposition 1.20). With weights, write w(P) for the product
+   of the weights of P's tiles. Inside a group, the move goes to Q with
+   probability w(Q) / S, where S is the sum of the weights of the
+   refills (the tiles outside the region are the same for the whole
+   group, so they cancel). So
+       w(P) * (chance of P -> Q) = w(P) w(Q) / S = w(Q) * (chance of Q -> P),
+   which is detailed balance for the distribution proportional to w
+   (the "heat-bath" move, same book, Section 3.3).
    A disk that covers the whole domain has a small but positive chance
    (the exponential radius has no upper limit); then the list is every
    packing, so any packing can reach any other, and the old packing is
@@ -62,7 +81,13 @@
    order. Every refill is found exactly once. While listing, one refill
    is kept, chosen uniformly ("reservoir sampling": keep the k-th refill
    found with probability 1/k; J. S. Vitter, ACM Trans. Math. Software
-   11 (1985) 37), so the list itself is never stored.
+   11 (1985) 37), so the list itself is never stored. With weights, the
+   refill found is kept with probability (its weight) / (the total
+   weight of the refills found so far), which keeps each one with
+   probability proportional to its weight (P. S. Efraimidis & P. G.
+   Spirakis, "Weighted random sampling", Encyclopedia of Algorithms,
+   2008, call this the weighted version of the same idea). The weights
+   are multiplied as logarithms, so big products can't overflow.
 
    The starting packing (section 4):
      - Gaps on: go through all tile positions in random order and place
@@ -131,7 +156,8 @@ function tilePacking() {
 
   // The tile orientations: orientation o is orientW[o] wide and orientH[o]
   // tall, and comes from tile number orientTile[o] of the list given.
-  let orientW = [], orientH = [], orientTile = [];
+  // orientLogWeight[o] is the logarithm of that tile's weight.
+  let orientW = [], orientH = [], orientTile = [], orientLogWeight = [];
 
   // The placements, numbered 0 .. P-1. Placement p covers the cells
   // plCell[plStart[p]] .. plCell[plStart[p + 1] - 1], has orientation
@@ -163,7 +189,8 @@ function tilePacking() {
   let startMoves = 0;         // the move count when the heat map was last reset
 
   // Read the settings and list all placements. Returns an error message,
-  // or "" if all is well. "s" has: domain, tiles ([{w, h}, ...]),
+  // or "" if all is well. "s" has: domain, tiles ([{w, h, weight}, ...],
+  // weight optional, 1 if left out),
   // rotations, gaps, meanRadius, sizeLimit, workLimit, seed, and,
   // for the check page only, touchChecks and randomFunction.
   function setup(s) {
@@ -189,16 +216,20 @@ function tilePacking() {
     // Orientations: each tile, and with rotations also the tile turned a
     // quarter turn. The same size twice is kept once (a 2x2 turned is
     // still a 2x2), otherwise one picture would count as two packings.
-    orientW = []; orientH = []; orientTile = [];
+    // A tile of weight 0 is left out (see WEIGHTS at the top).
+    orientW = []; orientH = []; orientTile = []; orientLogWeight = [];
     const seenSizes = new Set();
     s.tiles.forEach(function (t, k) {
+      const weight = (t.weight === undefined) ? 1 : t.weight;
+      if (!(weight > 0)) return;
       const sizes = s.rotations ? [[t.w, t.h], [t.h, t.w]] : [[t.w, t.h]];
       for (const [w, h] of sizes) {
         if (seenSizes.has(w + "x" + h)) continue;
         seenSizes.add(w + "x" + h);
-        orientW.push(w); orientH.push(h); orientTile.push(k);
+        orientW.push(w); orientH.push(h); orientTile.push(k); orientLogWeight.push(Math.log(weight));
       }
     });
+    if (orientW.length === 0) return "Every tile has weight 0: give at least one tile a weight above 0.";
 
     listPlacements();
 
@@ -384,7 +415,7 @@ function tilePacking() {
     regionTotal += regionCells.length;
     if (regionCells.length > MAX_REGION) { skipped++; return; }
 
-    // Step 3: list the refills, keeping one chosen uniformly.
+    // Step 3: list the refills, keeping one chosen at random by weight.
     const mayStayEmpty = function (c) { return !touchChecks || touches(c, cx, cy, r); };
     const tileAllowed = function (p) {
       if (!touchChecks) return true;
@@ -424,8 +455,9 @@ function tilePacking() {
      onRefill      optional: if given, onRefill(list of placements) is
                    called for every refill (the check page lists them all)
      Returns { count, kept, stopped }: how many refills there are, one of
-     them chosen uniformly (a list of placements), and whether a limit
-     was hit (then count and kept mean nothing).
+     them chosen at random by weight (a list of placements; uniformly
+     when all weights are 1), and whether a limit was hit (then count and
+     kept mean nothing).
 
      MAXIMAL PACKINGS. With gaps on, a refill is only valid if no tile
      fits in the gaps afterwards. Before the move no tile fitted, and
@@ -450,6 +482,7 @@ function tilePacking() {
     // blockersAt[k]: blockers whose last region cell is cell k, each as the
     // list of positions of its region cells.
     const startsAt = [], blockersAt = [];
+    const logWeightOf = function (p) { return orientLogWeight[plOrient[p]]; };
     for (let k = 0; k < m; k++) { startsAt.push([]); blockersAt.push([]); }
     for (let k = 0; k < m; k++) {
       const c = cells[k];
@@ -470,7 +503,7 @@ function tilePacking() {
           }
         }
         if (allInside && tileAllowed(p)) {
-          startsAt[Math.min(...inside)].push({ p: p, cells: inside });
+          startsAt[Math.min(...inside)].push({ p: p, cells: inside, logWeight: logWeightOf(p) });
         }
         if (gaps && othersEmpty && allMayBeEmpty) {
           blockersAt[Math.max(...inside)].push(inside);
@@ -479,19 +512,24 @@ function tilePacking() {
     }
 
     // The search itself. state[k]: 0 = not decided, 1 = covered, 2 = empty.
+    // logWeight is the logarithm of the weight of the tiles chosen so far,
+    // and logTotal the logarithm of the total weight of the refills found.
     const state = new Int8Array(m);
     const chosen = [];
     let count = 0, work = 0, stopped = false, kept = null;
+    let logWeight = 0, logTotal = -Infinity;
 
     function search(k) {
       if (++work > maxWork) { stopped = true; return; }
       while (k < m && state[k] !== 0) k++;
       if (k === m) {
-        // A complete refill: keep it with probability 1/count.
+        // A complete refill: keep it with probability (its weight) / (the
+        // total weight so far). With all weights 1 that is 1/count.
         count++;
         if (count > maxCount) { stopped = true; return; }
+        logTotal = addLogs(logTotal, logWeight);
         if (onRefill) onRefill(chosen.slice());
-        else if (random() * count < 1) kept = chosen.slice();
+        else if (random() < Math.exp(logWeight - logTotal)) kept = chosen.slice();
         return;
       }
       // Cover cell k with each allowed tile that starts there and fits.
@@ -499,7 +537,9 @@ function tilePacking() {
         if (!t.cells.every(function (j) { return state[j] === 0; })) continue;
         for (const j of t.cells) state[j] = 1;
         chosen.push(t.p);
+        logWeight += t.logWeight;
         search(k + 1);
+        logWeight -= t.logWeight;
         chosen.pop();
         for (const j of t.cells) state[j] = 0;
         if (stopped) return;
@@ -516,6 +556,13 @@ function tilePacking() {
     }
     search(0);
     return { count: count, kept: kept, stopped: stopped };
+  }
+
+  // log(e^a + e^b), without overflowing: take out the bigger one first.
+  function addLogs(a, b) {
+    const big = Math.max(a, b);
+    if (big === -Infinity) return -Infinity;
+    return big + Math.log(Math.exp(a - big) + Math.exp(b - big));
   }
 
 
@@ -720,8 +767,8 @@ function tilePacking() {
     return result.stopped ? -1 : count;
   }
 
-  // Refill the given cells (exactly the cells of some tiles) uniformly
-  // among all their exact tilings. Used by the check page to test
+  // Refill the given cells (exactly the cells of some tiles) at random
+  // among all their exact tilings (uniformly when all weights are 1). Used by the check page to test
   // nadya's random-walk version of the move (tiling_mcmc.py).
   function refillUniform(cells) {
     const old = [];

@@ -321,7 +321,7 @@ function showStats() {
   drawTrace();
 }
 
-// One bar per color, as tall as its number of cells.
+// One bar per color, as tall as its number of cells, largest first.
 function drawSizes() {
   const canvas = byId("sizes-chart");
   const pen = chartPen(canvas);
@@ -331,12 +331,17 @@ function drawSizes() {
   const biggest = Math.max(...sizes);
   pen.textBaseline = "top";
   pen.fillText("largest: " + biggest + " cells", 0, 0);
+  // The bars go from the largest on the left to the smallest on the
+  // right; each keeps its own color, so you can follow a color as it
+  // grows and shrinks.
+  const order = sizes.map(function (size, c) { return c; });
+  order.sort(function (a, b) { return sizes[b] - sizes[a] || a - b; });
   const top = 16, barWidth = w / N;
-  for (let c = 0; c < N; c++) {
+  order.forEach(function (c, place) {
     const barHeight = Math.max(1, (h - top) * sizes[c] / biggest);
     pen.fillStyle = colorNames[c];
-    pen.fillRect(c * barWidth + 1, h - barHeight, Math.max(1, barWidth - 2), barHeight);
-  }
+    pen.fillRect(place * barWidth + 1, h - barHeight, Math.max(1, barWidth - 2), barHeight);
+  });
 }
 
 // The number of boundary edges against the number of moves tried.
