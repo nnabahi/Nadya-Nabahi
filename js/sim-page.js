@@ -16,6 +16,8 @@
      chartPen(canvas)                 get a small chart ready to draw on
      plotOverTime(...)                a small chart of numbers over time
      histogram(...)                   a small histogram
+     chartZoom(canvas, redraw),       zoom a chart in time (wheel, pinch,
+       shownTimes(zoom, first, last)    drag, double-click for all of it)
      niceStep, shortLabel, niceNumber numbers for axes and tables
 
    It also typesets the formulas in the About quadrant (see the end of
@@ -177,6 +179,88 @@ function histogram(canvas, values, trimmed) {
     const barHeight = (bottom - top) * c / biggest;
     if (c > 0) p.fillRect(i * barWidth, bottom - Math.max(1, barHeight), Math.max(1, barWidth - 1), Math.max(1, barHeight));
   });
+}
+
+// Zooming a chart in time, like the pictures: on the chart,
+//   mouse wheel, or pinch   zoom in or out around the pointer
+//   drag                    move along in time
+//   double-click            show the whole run again
+// chartZoom(canvas, redraw) remembers which stretch of time is shown;
+// "redraw" draws the chart again. When drawing, the chart asks
+// shownTimes(zoom, first, last), where first .. last is the whole run,
+// for the stretch to draw, and sets zoom.left and zoom.right to where
+// time 'from' and time 'to' go on the canvas (in screen pixels).
+// While the chart shows the whole run, it keeps growing with the run;
+// zoomed in, it stays on the same stretch of time.
+function chartZoom(canvas, redraw) {
+  const zoom = {
+    from: null, to: null,    // the stretch shown; null = the whole run
+    first: 0, last: 1,       // the whole run (set by shownTimes)
+    left: 0, right: 1,       // where the stretch goes on the canvas
+    pointers: new Map(),     // the mouse or fingers pressed on the chart
+  };
+  canvas.classList.add("zoomable");
+
+  // The time under a spot on the canvas, x pixels from its left side.
+  function timeAt(x) {
+    const [from, to] = shownTimes(zoom, zoom.first, zoom.last);
+    return from + (to - from) * (x - zoom.left) / Math.max(1, zoom.right - zoom.left);
+  }
+  // Zoom by "factor" (below 1 zooms in) around the spot x pixels in.
+  function zoomAround(factor, x) {
+    const [from, to] = shownTimes(zoom, zoom.first, zoom.last);
+    const t = timeAt(x);
+    const width = Math.max((to - from) * factor, 1e-9);
+    if (width >= zoom.last - zoom.first) { zoom.from = zoom.to = null; }   // all of it
+    else { zoom.from = t - (t - from) * factor; zoom.to = zoom.from + width; }
+    redraw();
+  }
+  function canvasX(event) { return event.clientX - canvas.getBoundingClientRect().left; }
+  function spread() {      // the middle of the pressed pointers, and how far apart they are
+    const p = Array.from(zoom.pointers.values());
+    if (p.length === 1) return { x: p[0], apart: 0 };
+    return { x: (p[0] + p[1]) / 2, apart: Math.abs(p[0] - p[1]) };
+  }
+
+  canvas.addEventListener("wheel", function (event) {
+    event.preventDefault();                        // don't scroll the page
+    zoomAround(Math.exp(event.deltaY * 0.002), canvasX(event));
+  }, { passive: false });
+  canvas.addEventListener("dblclick", function () { zoom.from = zoom.to = null; redraw(); });
+  canvas.addEventListener("pointerdown", function (event) {
+    zoom.pointers.set(event.pointerId, canvasX(event));
+    canvas.setPointerCapture(event.pointerId);     // keep getting moves even off the chart
+  });
+  canvas.addEventListener("pointermove", function (event) {
+    if (!zoom.pointers.has(event.pointerId)) return;
+    const before = spread();
+    zoom.pointers.set(event.pointerId, canvasX(event));
+    const after = spread();
+    if (after.apart > 0 && before.apart > 0) zoomAround(before.apart / after.apart, after.x);   // pinch
+    // Drag: the time under the pointer stays under the pointer.
+    const [from, to] = shownTimes(zoom, zoom.first, zoom.last);
+    if (zoom.from === null || after.x === before.x) return;
+    const shift = (before.x - after.x) * (to - from) / Math.max(1, zoom.right - zoom.left);
+    zoom.from = from + shift;
+    zoom.to = to + shift;
+    redraw();
+  });
+  for (const type of ["pointerup", "pointercancel"]) {
+    canvas.addEventListener(type, function (event) { zoom.pointers.delete(event.pointerId); });
+  }
+  return zoom;
+}
+
+// The stretch of time [from, to] to draw, for a run from "first" to
+// "last": the whole run, or the zoomed-in stretch, kept inside the run.
+function shownTimes(zoom, first, last) {
+  zoom.first = first;
+  zoom.last = last;
+  if (zoom.from === null || !(last > first)) return [first, Math.max(last, first + 1e-9)];
+  const width = Math.min(zoom.to - zoom.from, last - first);
+  zoom.from = Math.min(Math.max(zoom.from, first), last - width);
+  zoom.to = zoom.from + width;
+  return [zoom.from, zoom.to];
 }
 
 // The nicest of 1, 2, 5, 10, 20, 50, ... (times a power of 10) that is

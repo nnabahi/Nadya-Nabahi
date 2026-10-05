@@ -659,6 +659,19 @@ a.card:hover {
   height: 90px;
 }
 
+/* A chart you can click (e.g. the coloring sim's color sizes: a click
+   highlights that color). */
+.chart.clickable {
+  cursor: pointer;
+}
+
+/* A chart you can zoom and drag in time (chartZoom in js/sim-page.js).
+   "touch-action: none" lets fingers pinch the chart instead of the page. */
+.chart.zoomable {
+  cursor: grab;
+  touch-action: none;
+}
+
 .chart-heading {
   margin-top: 16px;
 }

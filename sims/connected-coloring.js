@@ -40,7 +40,13 @@ const MAX_SIDE = 100;             // the biggest box or torus is 100 x 100
 const MAX_PICTURE_HEIGHT = 600;   // in screen pixels
 const BORDER = "#1e1e1e";         // the lines between colors
 const OUTSIDE = "#ecebe7";        // around a custom domain (cells not in it)
-const TRACE_LENGTH = 400;         // how many points the "boundary edges" plot keeps
+const TRACE_POINTS = 4000;        // the most points the "boundary edges" chart keeps (section 7)
+// With one color highlighted, every other color is mixed with this much
+// white (0 = unchanged, 1 = white), so the highlighted region stands out.
+const FADE = 0.8;
+// A press that moves less than this many screen pixels is a click (it
+// highlights a color); a longer one drags the picture.
+const CLICK_DISTANCE = 5;
 
 // The speeds on the Speed slider, in moves per second.
 // Infinity means "as fast as the computer can". The default is low, so
@@ -68,7 +74,10 @@ let run = 0;                   // counts restarts, so leftovers from an older ru
 // The latest coloring and numbers from the chain.
 let colors = null;             // colors[v] = color of cell v
 let latest = null;             // { proposed, accepted, boundary, pairs }
-let trace = [];                // [moves tried, boundary edges] pairs, for the plot
+let trace = [];                // [moves tried, boundary edges] pairs, for the chart
+let traceEvery = 1;            // the chart keeps one message in this many (section 7)
+let messages = 0;              // messages from the chain in this run
+let highlighted = -1;          // the color shown highlighted, or -1 for none (section 6b)
 
 
 /* =====================================================================
@@ -199,8 +208,7 @@ worker.onmessage = function (event) {
   if (message.type !== "state" || message.run !== run) return;   // from an older run
   colors = message.colors;
   latest = message;
-  trace.push([message.proposed, message.boundary]);
-  if (trace.length > TRACE_LENGTH) trace.shift();
+  keepForChart(message);
   drawSoon();
 };
 
@@ -216,6 +224,9 @@ function restart() {
   if (drawnStart) startShape = "yours";
   colors = drawnStart ? drawnStart.slice() : automaticStart(domain, N);
   trace = [];
+  traceEvery = 1;
+  messages = 0;
+  traceZoom.from = traceZoom.to = null;   // the chart shows the whole new run
   latest = null;
   worker.postMessage({
     type: "setup", run: run,
@@ -274,7 +285,8 @@ function drawColoring() {
   // The color on each square that shows (-1 where it isn't the domain).
   const shown = cellsShown(view, domain).map(function (v) { return v === -1 ? -1 : colors[v]; });
 
-  // The squares.
+  // The squares. With a color highlighted, the others are faded.
+  const paint = colorNames.map(function (name, c) { return shade(c); });
   pen.fillStyle = OUTSIDE;
   pen.fillRect(view.left, 0, view.width, view.height);
   for (let k = 0; k < view.rows; k++) {
@@ -283,7 +295,7 @@ function drawColoring() {
       if (c === -1) continue;
       const x0 = squareLeft(view, view.firstI + i), x1 = squareLeft(view, view.firstI + i + 1);
       const y0 = squareTop(view, view.firstK + k), y1 = squareTop(view, view.firstK + k + 1);
-      pen.fillStyle = colorNames[c];
+      pen.fillStyle = paint[c];
       pen.fillRect(x0, y0, x1 - x0, y1 - y0);
     }
   }
@@ -292,13 +304,78 @@ function drawColoring() {
   drawBorders(view, pen, shown, BORDER);
 }
 
-// Dragging and pinching the picture (js/sim-view.js).
-simCanvas.addEventListener("pointerdown", function (event) { pressPointer(view, event); });
-simCanvas.addEventListener("pointermove", function (event) { movePointer(view, event); });
-simCanvas.addEventListener("pointerup", function (event) { releasePointer(view, event); });
-simCanvas.addEventListener("pointercancel", function (event) { releasePointer(view, event); });
-
 window.addEventListener("resize", drawSoon);
+
+
+/* =====================================================================
+   6b. HIGHLIGHTING ONE COLOR
+   ---------------------------------------------------------------------
+   Click a cell in the picture (or a bar in the "Size of each color"
+   chart) to highlight its color: every other color fades, so the whole
+   region of that color is easy to see, even where it winds around.
+   Clicking the same color again, or outside the cells, shows every
+   color again. The highlight stays on while the chain runs.
+
+   A press that barely moves is a click; one that moves further drags
+   the picture, as before (js/sim-view.js).
+   ===================================================================== */
+
+// How color c is painted: its own color, or faded if another color is
+// highlighted.
+function shade(c) {
+  if (highlighted === -1 || c === highlighted) return colorNames[c];
+  return rgbToHex(hexToRGB(colorNames[c]).map(function (t) { return t + (255 - t) * FADE; }));
+}
+
+// Highlight color c (-1: none), or turn it off if it is already on.
+function highlight(c) {
+  highlighted = (c === highlighted) ? -1 : c;
+  showHighlightInfo();
+  drawSoon();
+}
+
+// The line under the picture: how to highlight, or what is highlighted.
+function showHighlightInfo() {
+  if (highlighted >= N) highlighted = -1;       // fewer colors now
+  const line = byId("highlight-info");
+  if (highlighted === -1 || !colors) {
+    line.textContent = "Click a color in the picture, or its bar under Statistics, to highlight it.";
+    return;
+  }
+  let cells = 0;
+  for (let v = 0; v < colors.length; v++) if (colors[v] === highlighted) cells++;
+  line.textContent = "Highlighted: color " + (highlighted + 1) + ", " + cells + " cells. " +
+                     "Click it again, or outside the cells, to show every color.";
+}
+
+// Pressing, moving and letting go of the picture.
+const pressed = new Set();     // the pointers (mouse, fingers) pressed down right now
+let pressedAt = null;          // where the first one went down
+let dragged = false;           // has this press moved far enough to be a drag?
+
+simCanvas.addEventListener("pointerdown", function (event) {
+  if (pressed.size === 0) { pressedAt = { x: event.clientX, y: event.clientY }; dragged = false; }
+  pressed.add(event.pointerId);
+  if (pressed.size > 1) dragged = true;           // two fingers: a pinch, not a click
+  pressPointer(view, event);                      // drag and pinch the picture (js/sim-view.js)
+});
+
+simCanvas.addEventListener("pointermove", function (event) {
+  if (!pressed.has(event.pointerId)) return;
+  if (Math.hypot(event.clientX - pressedAt.x, event.clientY - pressedAt.y) >= CLICK_DISTANCE) dragged = true;
+  movePointer(view, event);
+});
+
+function stopPointer(event, isClick) {
+  if (!pressed.delete(event.pointerId)) return;
+  releasePointer(view, event);
+  if (!isClick || pressed.size > 0 || dragged || !colors) return;
+  const v = cellUnder(view, domain, pointerSpot(view, event));
+  if (v === -1) { if (highlighted !== -1) highlight(-1); }   // outside the cells: show every color
+  else highlight(colors[v]);
+}
+simCanvas.addEventListener("pointerup", function (event) { stopPointer(event, true); });
+simCanvas.addEventListener("pointercancel", function (event) { stopPointer(event, false); });
 
 
 /* =====================================================================
@@ -317,8 +394,24 @@ function showStats() {
     (s.proposed > 0 ? " (" + (100 * s.accepted / s.proposed).toFixed(1) + "%)" : "");
   byId("stat-boundary").textContent = s.boundary;
   byId("stat-pairs").textContent = s.pairs;
+  showHighlightInfo();
   drawSizes();
   drawTrace();
+}
+
+// The number of cells of each color.
+function colorSizes() {
+  const sizes = new Array(N).fill(0);
+  for (let v = 0; v < colors.length; v++) sizes[colors[v]]++;
+  return sizes;
+}
+
+// The colors from the largest to the smallest (ties: the lower color
+// number first). This is the order of the bars in the chart.
+function largestFirst(sizes) {
+  const order = sizes.map(function (size, c) { return c; });
+  order.sort(function (a, b) { return sizes[b] - sizes[a] || a - b; });
+  return order;
 }
 
 // One bar per color, as tall as its number of cells, largest first.
@@ -326,47 +419,94 @@ function drawSizes() {
   const canvas = byId("sizes-chart");
   const pen = chartPen(canvas);
   const w = canvas.clientWidth, h = canvas.clientHeight;
-  const sizes = new Array(N).fill(0);
-  for (let v = 0; v < colors.length; v++) sizes[colors[v]]++;
+  const sizes = colorSizes();
   const biggest = Math.max(...sizes);
   pen.textBaseline = "top";
   pen.fillText("largest: " + biggest + " cells", 0, 0);
   // The bars go from the largest on the left to the smallest on the
   // right; each keeps its own color, so you can follow a color as it
-  // grows and shrinks.
-  const order = sizes.map(function (size, c) { return c; });
-  order.sort(function (a, b) { return sizes[b] - sizes[a] || a - b; });
+  // grows and shrinks. A highlighted color's bar stays bright.
   const top = 16, barWidth = w / N;
-  order.forEach(function (c, place) {
+  largestFirst(sizes).forEach(function (c, place) {
     const barHeight = Math.max(1, (h - top) * sizes[c] / biggest);
-    pen.fillStyle = colorNames[c];
+    pen.fillStyle = shade(c);
     pen.fillRect(place * barWidth + 1, h - barHeight, Math.max(1, barWidth - 2), barHeight);
   });
 }
 
-// The number of boundary edges against the number of moves tried.
+// Clicking a bar highlights its color (section 6b).
+byId("sizes-chart").addEventListener("click", function (event) {
+  if (!colors) return;
+  const box = this.getBoundingClientRect();
+  const place = Math.floor((event.clientX - box.left) / (box.width / N));
+  const order = largestFirst(colorSizes());
+  if (place >= 0 && place < N) highlight(order[place]);
+});
+
+// The "boundary edges" chart keeps the whole run. Each message from the
+// chain is one point; when there are TRACE_POINTS of them, every other
+// point is dropped and from then on only one message in twice as many
+// is kept. So the points stay evenly spread over the whole run, however
+// long it gets.
+function keepForChart(message) {
+  messages++;
+  if ((messages - 1) % traceEvery !== 0) return;
+  trace.push([message.proposed, message.boundary]);
+  if (trace.length >= TRACE_POINTS) {
+    trace = trace.filter(function (p, k) { return k % 2 === 0; });
+    traceEvery *= 2;
+  }
+}
+
+// The number of boundary edges against the number of moves tried. It
+// shows the whole run, rescaled to fit as the run goes on; zoom in with
+// the mouse wheel or a pinch, drag to move along, and double-click to
+// see the whole run again (chartZoom, js/sim-page.js).
+const traceZoom = chartZoom(byId("trace-chart"), drawTrace);
+
 function drawTrace() {
   const canvas = byId("trace-chart");
   const pen = chartPen(canvas);
   const w = canvas.clientWidth, h = canvas.clientHeight;
   if (trace.length < 2) return;
-  const values = trace.map(function (p) { return p[1]; });
-  const low = Math.min(...values), high = Math.max(...values);
-  const from = trace[0][0], to = trace[trace.length - 1][0];
-  const left = 34, top = 6, bottom = h - 6;
+  const [from, to] = shownTimes(traceZoom, trace[0][0], trace[trace.length - 1][0]);
+
+  // The points in the stretch shown, plus one on each side, so the line
+  // runs all the way to both edges. The numbers on the left are the
+  // lowest and highest of these points.
+  let firstK = 0, lastK = trace.length - 1;
+  while (firstK + 1 < trace.length && trace[firstK + 1][0] <= from) firstK++;
+  while (lastK - 1 >= 0 && trace[lastK - 1][0] >= to) lastK--;
+  const points = trace.slice(firstK, lastK + 1);
+  let low = Infinity, high = -Infinity;
+  for (const p of points) { low = Math.min(low, p[1]); high = Math.max(high, p[1]); }
+
+  const left = 40, top = 6, bottom = h - 16;
+  traceZoom.left = left;
+  traceZoom.right = w;
   pen.textAlign = "right";
   pen.textBaseline = "middle";
   pen.fillText(String(high), left - 6, top);
   pen.fillText(String(low), left - 6, bottom);
+  pen.textBaseline = "bottom";
+  pen.fillText("moves " + Math.round(to).toLocaleString(), w, h);
+  pen.textAlign = "left";
+  pen.fillText(Math.round(from).toLocaleString(), left, h);
+
+  pen.save();
   pen.beginPath();
-  trace.forEach(function (p, k) {
-    const sx = left + (w - left) * (p[0] - from) / Math.max(1, to - from);
+  pen.rect(left, 0, w - left, bottom + 1);
+  pen.clip();                                   // keep the line off the numbers
+  pen.beginPath();
+  points.forEach(function (p, k) {
+    const sx = left + (w - left) * (p[0] - from) / Math.max(1e-9, to - from);
     const sy = bottom - (bottom - top) * (p[1] - low) / Math.max(1, high - low);
     if (k === 0) pen.moveTo(sx, sy); else pen.lineTo(sx, sy);
   });
   pen.strokeStyle = CHART_LINE;
   pen.lineWidth = 1.5;
   pen.stroke();
+  pen.restore();
 }
 
 
@@ -533,6 +673,7 @@ function useDomain(kind, d, start, names) {
   domainKind = kind;
   domain = d;
   drawnStart = start;
+  highlighted = -1;                       // a new domain starts with every color shown
   const most = Math.min(MAX_COLORS, domain.n);
   N = start ? names.length : Math.min(Math.max(N, 2), most);
   colorNames = start ? names : [];
