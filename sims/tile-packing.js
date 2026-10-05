@@ -588,7 +588,8 @@ function useBox() {
 
 // The Aztec diamond (aztecDiamond is in js/sim-domains.js). Choosing it
 // switches to dominoes with no gaps, the tiling of the arctic circle
-// theorem; both can be changed afterwards.
+// theorem, colored by direction and checkerboard (the 4 colors of the
+// arctic circle pictures); all can be changed afterwards.
 function useAztec(switchTiles) {
   if (toolOpen) closeTool();
   const order = readWhole("set-order", 1, MAX_ORDER, DEFAULTS.order);
@@ -596,6 +597,7 @@ function useAztec(switchTiles) {
     usePreset("dominoes");
     byId("gaps").checked = false;
     showGapsInfo();
+    byId("color-by").value = "checker";
   }
   useDomain("aztec", aztecDiamond(order));
 }
