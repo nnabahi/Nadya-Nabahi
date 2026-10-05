@@ -22,16 +22,17 @@
     </p>
     <p id="invariant-status" class="check-pass">Invariants: no problems seen yet.</p>
 
-    <!-- 1. Every packing equally often. Filled in by tile-packing-check.js. -->
+    <!-- 1. Every packing equally often (or by weight). Filled in by tile-packing-check.js. -->
     <section class="check">
-      <h2>1. Is every packing equally likely?</h2>
+      <h2>1. Is every packing equally likely (or as likely as its weight says)?</h2>
       <p>
         Each test is a tiny domain whose packings can all be listed. The chain runs for many moves,
         and every few moves the page notes which packing it is in. One bar per packing shows how
-        often it was seen, divided by how often it should be seen if all were equally likely, so a
-        uniform chain gives bars all near the line at 1. Pearson's chi-square test (K. Pearson,
+        often it was seen, divided by how often it should be seen: equally often for all packings,
+        or, in the tests with tile weights, in proportion to the product of its tiles' weights. A
+        correct chain gives bars all near the line at 1. Pearson's chi-square test (K. Pearson,
         <i>Phil. Mag.</i> 50 (1900) 157) sums up how uneven the bars are: p is the chance of bars at
-        least this uneven if the chain were uniform. Below 0.001 counts as "NOT uniform".
+        least this uneven if the chain were right. Below 0.001 counts as "NOT right".
         Notes taken only a few moves apart are alike, which makes p too small, so leave enough moves
         between notes; a short run can also flag a correct chain by chance.
       </p>

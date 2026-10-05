@@ -5,7 +5,8 @@
    Web Worker), a little at a time so the page never freezes.
 
    Sections:
-     1. Every packing equally often (tiny domains, several versions)
+     1. Every packing equally often (tiny domains, several versions), or,
+        with tile weights, as often as its weight says
      2. Counting domino tilings (compared with Kasteleyn's formula)
      3. The arctic circle on an Aztec diamond
    The invariants (no overlaps, full cover or maximal) are checked every
@@ -70,6 +71,22 @@ const TESTS = [
     domain: function () { return boxDomain(4, 4, 4, true); },
     tiles: [{ w: 2, h: 1 }], rotations: true, gaps: false,
     versions: ["rule", "bigDisk"] },
+  { name: "Weights: 3 x 3 box, 2x2 of weight 2 and 1x1 of weight 1",
+    note: "5 tilings: all 1x1 (weight 1), or one 2x2 in any of 4 places (weight 2 each). " +
+          "So all 1x1 should come up 1/9 of the time, and each of the others 2/9.",
+    domain: function () { return boxDomain(3, 3, 4, false); },
+    tiles: [{ w: 2, h: 2, weight: 2 }, { w: 1, h: 1, weight: 1 }], rotations: true, gaps: true,
+    versions: ["rule", "bigDisk"] },
+  { name: "Weights: 5 x 5 box, 2x2 of weight 1 and 3x3 of weight 3, gaps on",
+    note: "Your model on a tiny box, with each 3x3 tile counting 3 times.",
+    domain: function () { return boxDomain(5, 5, 4, false); },
+    tiles: [{ w: 2, h: 2, weight: 1 }, { w: 3, h: 3, weight: 3 }], rotations: true, gaps: true,
+    versions: ["rule", "bigDisk"] },
+  { name: "Weights: 4 x 4 box, dominoes, horizontal weight 0.5 and vertical weight 1, gaps off",
+    note: "No rotations: the 2x1 and the 1x2 are separate tiles with their own weights.",
+    domain: function () { return boxDomain(4, 4, 4, false); },
+    tiles: [{ w: 2, h: 1, weight: 0.5 }, { w: 1, h: 2, weight: 1 }], rotations: false, gaps: false,
+    versions: ["rule", "bigDisk"] },
 ];
 
 // Build the list of tests, each with a Run button and a place for results.
@@ -109,11 +126,24 @@ function runVersion(test, versionName, moves, every, results, whenDone) {
   results.appendChild(canvas);
   if (made.error) { line.textContent = version.label + ": " + made.error; whenDone(); return; }
 
-  // Every packing, numbered.
+  // Every packing, numbered, and its share: the product of its tiles'
+  // weights, divided by the sum of those products over all packings
+  // (with no weights, every packing gets the same share).
   const keys = chain.allPackings();
   const number = new Map();
   keys.forEach(function (key, i) { number.set(key, i); });
   const seen = new Array(keys.length).fill(0);
+  const pl = chain.placements();
+  const weights = keys.map(function (key) {
+    let w = 1;
+    for (const p of key.split(",").filter(Boolean)) {
+      const tile = test.tiles[pl.orientTile[pl.orient[Number(p)]]];
+      w *= (tile.weight === undefined) ? 1 : tile.weight;
+    }
+    return w;
+  });
+  const totalWeight = weights.reduce(function (a, b) { return a + b; }, 0);
+  const share = weights.map(function (w) { return w / totalWeight; });
   let notes = 0, done = 0;
   const step = version.walk ? walkMove(chain, domain, new Math.seedrandom("walk")) : chain.oneMove;
 
@@ -135,19 +165,19 @@ function runVersion(test, versionName, moves, every, results, whenDone) {
     }
     // chi-square: the sum of (seen - expected)^2 / expected over the
     // packings, and p: the chance of bars at least this uneven if the
-    // chain were uniform (and the notes independent), from the
-    // chi-square distribution in the library jStat.
-    const expected = notes / keys.length;
+    // chain had the right distribution (and the notes were independent),
+    // from the chi-square distribution in the library jStat.
+    const expected = share.map(function (f) { return f * notes; });
     let chi = 0;
-    for (const s of seen) chi += (s - expected) * (s - expected) / expected;
+    seen.forEach(function (s, i) { chi += (s - expected[i]) * (s - expected[i]) / expected[i]; });
     const df = keys.length - 1;
     const p = df > 0 ? 1 - jStat.chisquare.cdf(chi, df) : 1;
     const finished = done >= moves;
-    const uniform = p >= 0.001;
+    const right = p >= 0.001;
     line.innerHTML = "<b>" + version.label + "</b>: " + keys.length + " packings, " +
       done.toLocaleString() + " moves, chi&sup2;/df = " + (df > 0 ? chi / df : 0).toFixed(2) +
       ", p = " + p.toPrecision(2) + " &rarr; " +
-      (finished ? "<span class='" + (uniform ? "check-pass'>looks uniform" : "check-fail'>NOT uniform") + "</span>"
+      (finished ? "<span class='" + (right ? "check-pass'>looks right" : "check-fail'>NOT right") + "</span>"
                 : "running...");
     drawBars(canvas, seen, expected);
     if (!finished) setTimeout(chunk, 0);
@@ -155,7 +185,8 @@ function runVersion(test, versionName, moves, every, results, whenDone) {
   })();
 }
 
-// One bar per packing: seen / expected. The line marks 1.
+// One bar per packing: seen / expected (expected is a list, one number
+// per packing). The line marks 1.
 function drawBars(canvas, seen, expected) {
   const pen = chartPen(canvas);
   const width = canvas.clientWidth, height = canvas.clientHeight;
@@ -163,7 +194,7 @@ function drawBars(canvas, seen, expected) {
   const barWidth = width / seen.length;
   pen.fillStyle = CHART_LINE;
   seen.forEach(function (s, i) {
-    const ratio = expected > 0 ? Math.min(s / expected, top) : 0;
+    const ratio = expected[i] > 0 ? Math.min(s / expected[i], top) : 0;
     const h = ratio / top * (height - 12);
     pen.fillRect(i * barWidth, height - h, Math.max(barWidth - 1, 1), h);
   });
@@ -278,23 +309,7 @@ const ARCTIC_COLORS = [[214, 69, 65], [240, 190, 50], [60, 110, 200], [70, 160, 
 
 let arctic = null;   // { chain, domain, order, timer }
 
-// The Aztec diamond of order N: the cells (x, y), x and y from -N to N-1,
-// whose centers satisfy |x + 1/2| + |y + 1/2| <= N.
-function aztecDiamond(N) {
-  const xs = [], ys = [], edges = [], index = new Map();
-  for (let y = -N; y < N; y++) {
-    for (let x = -N; x < N; x++) {
-      if (Math.abs(x + 0.5) + Math.abs(y + 0.5) <= N) { index.set(x + "," + y, xs.length); xs.push(x); ys.push(y); }
-    }
-  }
-  for (let v = 0; v < xs.length; v++) {
-    for (const [dx, dy] of [[1, 0], [0, 1]]) {
-      const w = index.get((xs[v] + dx) + "," + (ys[v] + dy));
-      if (w !== undefined) edges.push([v, w]);
-    }
-  }
-  return makeDomain(xs, ys, edges, null, null);
-}
+// (aztecDiamond(N), the domain, is in js/sim-domains.js.)
 
 function arcticSetup() {
   const N = readWhole("arctic-order", 2, 60, 12);

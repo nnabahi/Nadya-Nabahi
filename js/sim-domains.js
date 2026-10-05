@@ -22,6 +22,7 @@
      wrap(v, lo, hi)          wrap a whole number around, for tori
      wrapNumber(v, size)      the same for any number
      boxDomain(...)           a box or torus of cells
+     aztecDiamond(N)          the Aztec diamond of order N
      drawnDomain(...)         a region drawn in the graph tool
      cellAt(d, x, y)          which cell is at (x, y)
      stepsFrom(d, starts)     distances through the domain
@@ -67,6 +68,26 @@ function boxDomain(width, height, neighbors, torus) {
   }
   const wrapRange = torus ? { xmin: 0, xmax: width - 1, ymin: 0, ymax: height - 1 } : null;
   return makeDomain(xs, ys, edges, wrapRange, null);
+}
+
+// The Aztec diamond of order N: the cells (x, y), x and y from -N to N-1,
+// whose centers (x + 1/2, y + 1/2) satisfy |x + 1/2| + |y + 1/2| <= N.
+// Its rows have 2, 4, ..., 2N, 2N, ..., 4, 2 cells, 2N(N + 1) in all.
+// Each cell's neighbors are the 4 cells next to it.
+function aztecDiamond(N) {
+  const xs = [], ys = [], edges = [], index = new Map();
+  for (let y = -N; y < N; y++) {
+    for (let x = -N; x < N; x++) {
+      if (Math.abs(x + 0.5) + Math.abs(y + 0.5) <= N) { index.set(x + "," + y, xs.length); xs.push(x); ys.push(y); }
+    }
+  }
+  for (let v = 0; v < xs.length; v++) {
+    for (const [dx, dy] of [[1, 0], [0, 1]]) {
+      const w = index.get((xs[v] + dx) + "," + (ys[v] + dy));
+      if (w !== undefined) edges.push([v, w]);
+    }
+  }
+  return makeDomain(xs, ys, edges, null, null);
 }
 
 // A domain drawn in the graph tool. "graph" is the tool's getGraph():
