@@ -2,10 +2,10 @@
    tile-packing.js  —  the page of the "Random tile packing" sim
    ---------------------------------------------------------------------
    What it does, in plain words:
-     - Builds the domain: a box or torus of cells, or a custom one drawn
-       in the graph tool (shown inside this page). The domain code is
-       shared with the other sims, in js/sim-domains.js.
-     - Reads the tiles (rectangles) and the options.
+     - Builds the domain: a box or torus of cells, an Aztec diamond, or
+       a custom one drawn in the graph tool (shown inside this page). The
+       domain code is shared with the other sims, in js/sim-domains.js.
+     - Reads the tiles (rectangles, each with a weight) and the options.
      - Hands everything to the chain (tile-packing-chain.js), which runs
        in a second thread (a "Web Worker"), and draws every packing it
        sends back, with the statistics.
@@ -18,7 +18,7 @@
      3. Running the chain
      4. Colors
      5. Drawing the packing
-     6. Dragging the torus
+     6. Moving and zooming the picture
      7. Statistics
      8. Custom domains: the graph tool inside this page
      9. The tiles
@@ -30,8 +30,9 @@
    1. SETTINGS YOU MIGHT WANT TO CHANGE
    ===================================================================== */
 
-// The default domain (a 24 x 24 box), mean radius, refill limit and seed.
-const DEFAULTS = { width: 24, height: 24, radius: 1.5, limit: 10000, seed: "1" };
+// The default domain (a 24 x 24 box), Aztec diamond order, mean radius,
+// refill limit and seed.
+const DEFAULTS = { width: 24, height: 24, order: 20, radius: 1.5, limit: 10000, seed: "1" };
 
 // The tile presets: lists of [width, height].
 const PRESETS = {
@@ -42,6 +43,8 @@ const PRESETS = {
 const DEFAULT_PRESET = "squares";
 
 const MAX_SIDE = 200;             // the biggest box or torus is 200 x 200
+const MAX_ORDER = 100;            // the biggest Aztec diamond (20,200 cells)
+const MAX_WEIGHT_SLIDER = 5;      // the weight sliders go from 0 to 5 (the boxes take any number >= 0)
 const MAX_TILE_SIDE = 20;         // tiles at most 20 x 20
 const WORK_LIMIT = 200000;        // search steps per move before it is skipped (see the chain)
 const MAX_PICTURE_HEIGHT = 600;   // in screen pixels
@@ -62,11 +65,10 @@ const DEFAULT_SPEED = SPEEDS.indexOf(5);
    2. WHAT THE PAGE REMEMBERS (the "state")
    ===================================================================== */
 
-let domainKind = "box";         // "box", "torus" or "custom": the domain in use
+let domainKind = "box";         // "box", "torus", "aztec" or "custom": the domain in use
 let domain = null;              // the domain (js/sim-domains.js)
 let customDomain = null;        // the last custom domain drawn, if any
-let tiles = [];                 // the tiles: [{ w, h }, ...]
-let scroll = { x: 0, y: 0 };    // torus only: how far the picture is scrolled, in cells
+let tiles = [];                 // the tiles: [{ w, h, weight }, ...]
 
 let playing = false;            // it starts paused; Play sets it going
 let speedIndex = DEFAULT_SPEED;
@@ -136,6 +138,13 @@ function sendMoveSettings() {
   });
 }
 
+// New weights while it runs: the chain carries on with them, like a
+// Desmos slider. (A weight going to or from 0 changes which tiles are
+// used, so then it restarts instead: see section 9.)
+function sendWeights() {
+  worker.postMessage({ type: "weights", weights: tiles.map(function (t) { return t.weight; }) });
+}
+
 function readRadius() {
   let r = Number(byId("set-radius").value);
   if (!isFinite(r) || r <= 0) r = DEFAULTS.radius;
@@ -189,26 +198,31 @@ function classOf(p, classes) {
 /* =====================================================================
    5. DRAWING THE PACKING
    ---------------------------------------------------------------------
-   As in the coloring sims: the packing is first drawn one pixel per
-   cell (an "image" whose pixels we set one by one), then blown up onto
-   a hidden canvas, "picture", with smoothing off so the cells stay
-   crisp squares. When cells are big enough, a dark line goes along
-   every side where two different tiles meet (an empty cell counts as
-   different), or where the domain ends. Then the picture is copied onto
-   the canvas on the page, and the last move's disk is drawn on top.
+   As in the other sims, the picture goes in a box in the middle of the
+   canvas, and can be moved and zoomed (js/sim-view.js): drag it, use
+   the mouse wheel or a pinch, or the + / − / Reset buttons. On a torus
+   it wraps around, and zoomed out it shows several times.
+
+   The view says which cell is on each screen square that shows
+   (cellsShown). The packing is drawn one pixel per square (an "image"
+   whose pixels we set one by one), then blown up into the picture's
+   box with smoothing off, so the cells stay crisp squares. When cells
+   are big enough on screen (zoomed in, or a small domain), a dark line
+   goes along every side where two different tiles meet (an empty cell
+   counts as different), or where the domain ends. Then the last move's
+   disk is drawn on top.
 
    "Average over time" colors each cell by mixing the class colors, each
    weighted by the share of the time the cell spent in that class (the
    chain's heat map), with no lines.
-
-   On a torus the picture can be scrolled: it is copied four times,
-   shifted, and whatever falls outside the picture's box is cut off.
    ===================================================================== */
 let drawPending = false;
-const tiny = document.createElement("canvas");      // one pixel per cell
-const picture = document.createElement("canvas");   // the full-size picture
+const tiny = document.createElement("canvas");      // one pixel per screen square
 const simCanvas = byId("sim-canvas");
-let view = null;   // where the picture went on screen: { left, size, width, height, shiftX, shiftY }
+// Where the picture goes, and how far it is moved and zoomed. Cells at
+// least SMALLEST_BORDERED_CELL pixels big get a whole number of pixels,
+// so the lines sit exactly on the cell edges.
+const view = makeView(simCanvas, drawSoon, 0, SMALLEST_BORDERED_CELL);
 
 // Draw at the browser's next screen refresh (at most once per refresh,
 // however many messages arrive in between).
@@ -222,42 +236,31 @@ function drawSoon() {
   });
 }
 
-// True when the picture can be scrolled: on a torus.
-function scrollable() { return Boolean(domain && domain.wrap); }
-
 function drawPacking() {
   if (!domain || !latest || !placements || simCanvas.hidden) return;
   const d = domain, owner = latest.owner;
   const average = showingAverage() && latest.heat;
   const colors = classColors(), classes = colors.length;
 
-  // The size of a cell on screen: as big as fits the width (and at most
-  // MAX_PICTURE_HEIGHT tall). Cells with border lines get a whole number
-  // of pixels, so the lines sit exactly on the cell edges.
-  const across = d.xmax - d.xmin + 1, down = d.ymax - d.ymin + 1;
-  const cssWidth = simCanvas.clientWidth;
-  let size = Math.min(cssWidth / across, MAX_PICTURE_HEIGHT / down);
-  const bordered = !average && size >= SMALLEST_BORDERED_CELL;
-  if (bordered) size = Math.floor(size);
-  const width = size * across, height = size * down;
-  const ratio = window.devicePixelRatio || 1;   // 2 on sharp screens
+  // 1. Size the canvas and place the picture's box (js/sim-view.js), and
+  //    find which cell is on each screen square (-1 = none).
+  const pen = fitPicture(view, d, MAX_PICTURE_HEIGHT);
+  const shown = cellsShown(view, d);
+  const cols = view.cols, rows = view.rows;
 
-  // 1. One pixel per cell. Row 0 of the image is the top of the
-  //    picture, which is the largest y (y goes up the screen).
-  tiny.width = across;
-  tiny.height = down;
+  // 2. One pixel per square. Row 0 of the image is the top row of squares.
+  tiny.width = cols;
+  tiny.height = rows;
   const tinyPen = tiny.getContext("2d");
-  const image = tinyPen.createImageData(across, down);
+  const image = tinyPen.createImageData(cols, rows);
   const pixels = image.data;                  // 4 numbers per pixel: red, green, blue, opacity
   const outside = hexToRGB(OUTSIDE);
-  for (let p = 0; p < across * down; p++) {
-    pixels[4 * p] = outside[0]; pixels[4 * p + 1] = outside[1]; pixels[4 * p + 2] = outside[2];
-    pixels[4 * p + 3] = 255;
-  }
-  for (let v = 0; v < d.n; v++) {
-    const p = (d.ymax - d.y[v]) * across + (d.x[v] - d.xmin);
+  for (let q = 0; q < cols * rows; q++) {
+    const v = shown[q];
     let rgb;
-    if (average) {
+    if (v === -1) {
+      rgb = outside;
+    } else if (average) {
       rgb = [0, 0, 0];
       for (let c = 0; c < classes; c++) {
         const share = latest.heat[v * classes + c];
@@ -266,128 +269,68 @@ function drawPacking() {
     } else {
       rgb = colors[classOf(owner[v], classes)];
     }
-    pixels[4 * p] = rgb[0]; pixels[4 * p + 1] = rgb[1]; pixels[4 * p + 2] = rgb[2];
+    pixels[4 * q] = rgb[0]; pixels[4 * q + 1] = rgb[1]; pixels[4 * q + 2] = rgb[2];
+    pixels[4 * q + 3] = 255;
   }
   tinyPen.putImageData(image, 0, 0);
 
-  // 2. Blow it up, with smoothing off so the cells stay sharp squares.
-  picture.width = Math.round(width * ratio);
-  picture.height = Math.round(height * ratio);
-  const pen = picture.getContext("2d");
-  pen.setTransform(ratio, 0, 0, ratio, 0, 0);   // draw in screen pixels from here on
+  // 3. Blow it up into the picture's box, with smoothing off so the
+  //    cells stay sharp squares.
   pen.imageSmoothingEnabled = false;
-  pen.drawImage(tiny, 0, 0, width, height);
+  const left = squareLeft(view, view.firstI), top = squareTop(view, view.firstK);
+  pen.drawImage(tiny, left, top, squareLeft(view, view.lastI + 1) - left, squareTop(view, view.lastK + 1) - top);
 
-  // 3. The lines around the tiles, all collected into one path and drawn at once.
-  if (bordered) {
-    function edgeX(x) { return (x - d.xmin) * size; }        // left side of column x
-    function edgeY(y) { return (d.ymax - y + 1) * size; }    // bottom side of row y
-    // Does a line go between cell v and the place (x, y) next to it?
-    function differs(v, x, y) {
-      const w = cellAt(d, x, y);
-      return w === -1 || owner[w] !== owner[v];
-    }
-    pen.beginPath();
-    for (let v = 0; v < d.n; v++) {
-      const x = d.x[v], y = d.y[v];
-      const x0 = edgeX(x), x1 = edgeX(x + 1), y0 = edgeY(y + 1), y1 = edgeY(y);
-      if (differs(v, x + 1, y)) { pen.moveTo(x1, y0); pen.lineTo(x1, y1); }   // right side
-      if (differs(v, x - 1, y)) { pen.moveTo(x0, y0); pen.lineTo(x0, y1); }   // left side
-      if (differs(v, x, y + 1)) { pen.moveTo(x0, y0); pen.lineTo(x1, y0); }   // top side
-      if (differs(v, x, y - 1)) { pen.moveTo(x0, y1); pen.lineTo(x1, y1); }   // bottom side
-    }
-    pen.strokeStyle = BORDER;
-    pen.lineWidth = Math.max(1, Math.min(2.5, size / 10));
-    pen.lineCap = "square";
-    pen.stroke();
+  // 4. The lines around the tiles: between two squares covered by
+  //    different tiles. Each square gets the number of the tile on it;
+  //    empty cells are -1 (so two empty cells side by side get no line)
+  //    and the outside is -2 (so the domain's edge always gets one).
+  if (!average && view.cell >= SMALLEST_BORDERED_CELL) {
+    const tileOn = Array.from(shown, function (v) { return v === -1 ? -2 : owner[v]; });
+    drawBorders(view, pen, tileOn, BORDER);
   }
 
-  // 4. Copy it onto the page, in the middle (on a torus, shifted by the
-  //    scroll and wrapped around), and draw the disk on top.
-  simCanvas.style.height = height + "px";
-  simCanvas.width = Math.round(cssWidth * ratio);
-  simCanvas.height = Math.round(height * ratio);
-  const screen = simCanvas.getContext("2d");
-  screen.setTransform(ratio, 0, 0, ratio, 0, 0);
-  const left = Math.round((cssWidth - width) / 2);
-  let shiftX = 0, shiftY = 0;
-  if (scrollable()) {
-    shiftX = wrapNumber(Math.round(scroll.x * size), width);
-    shiftY = wrapNumber(Math.round(scroll.y * size), height);
-  }
-  view = { left: left, size: size, width: width, height: height, shiftX: shiftX, shiftY: shiftY };
-
-  screen.save();
-  screen.beginPath();
-  screen.rect(left, 0, width, height);
-  screen.clip();                                   // nothing outside the picture's box
-  const copies = scrollable() ? [[shiftX - width, shiftY - height], [shiftX, shiftY - height],
-                                 [shiftX - width, shiftY], [shiftX, shiftY]] : [[0, 0]];
-  for (const [dx, dy] of copies) screen.drawImage(picture, left + dx, dy, width, height);
+  // 5. The disk. Cell (x, y) has its middle (x - xmin + 1/2) cells from
+  //    the left of the domain's box and (ymax - y + 1/2) from its top. On
+  //    a torus it is drawn again one torus over, in every direction, as
+  //    far as the picture shows.
   if (byId("show-disk").checked && !average && latest.stats.lastDisk) {
     const disk = latest.stats.lastDisk;
-    // The disk's center on screen: cell (x, y) has its middle at
-    // (x - xmin + 1/2, ymax - y + 1/2) cells from the top left.
-    const cx = (disk.x - d.xmin + 0.5) * size, cy = (d.ymax - disk.y + 0.5) * size;
-    screen.strokeStyle = DISK;
-    screen.lineWidth = 2;
-    for (const [dx, dy] of copies) {
-      // On a torus, also one torus-width to each side, so a disk across
-      // the edge shows on both sides.
-      const extra = scrollable() ? [-1, 0, 1] : [0];
-      for (const i of extra) {
-        for (const j of extra) {
-          screen.beginPath();
-          screen.arc(left + dx + cx + i * width, dy + cy + j * height, Math.max(disk.r * size, 1), 0, 2 * Math.PI);
-          screen.stroke();
-        }
+    const i = disk.x - d.xmin + 0.5, k = d.ymax - disk.y + 0.5;
+    const W = d.wrap ? d.wrap.xmax - d.wrap.xmin + 1 : 0, H = d.wrap ? d.wrap.ymax - d.wrap.ymin + 1 : 0;
+    const shiftsX = [0], shiftsY = [0];
+    if (W) {
+      for (let a = Math.floor((view.firstI - i - disk.r) / W); a <= Math.ceil((view.lastI - i + disk.r) / W); a++) if (a !== 0) shiftsX.push(a * W);
+      for (let b = Math.floor((view.firstK - k - disk.r) / H); b <= Math.ceil((view.lastK - k + disk.r) / H); b++) if (b !== 0) shiftsY.push(b * H);
+    }
+    pen.strokeStyle = DISK;
+    pen.lineWidth = 2;
+    for (const sx of shiftsX) {
+      for (const sy of shiftsY) {
+        pen.beginPath();
+        pen.arc(view.left + (i + sx + view.scroll.x) * view.cell, (k + sy + view.scroll.y) * view.cell,
+                Math.max(disk.r * view.cell, 1), 0, 2 * Math.PI);
+        pen.stroke();
       }
     }
   }
-  screen.restore();
+  pen.restore();
 }
 
 window.addEventListener("resize", drawSoon);
 
 
 /* =====================================================================
-   6. DRAGGING THE TORUS
+   6. MOVING AND ZOOMING THE PICTURE
    ---------------------------------------------------------------------
-   On a torus, dragging the picture scrolls it, and so does the mouse
-   wheel (as in the coloring sims). "Pointer" events cover the mouse, a
-   pen and fingers alike.
+   The code is shared with the other sims, in js/sim-view.js: the view
+   made in section 5 handles the mouse wheel and the zoom buttons, and
+   this page passes its pointer events on to it. ("Pointer" events
+   cover the mouse, a pen and fingers alike.)
    ===================================================================== */
-let dragFrom = null;   // while scrolling: where the pointer was a moment ago
-
-simCanvas.addEventListener("pointerdown", function (event) {
-  if (!scrollable()) return;
-  dragFrom = { x: event.clientX, y: event.clientY };
-  simCanvas.setPointerCapture(event.pointerId);   // keep getting moves even off the canvas
-  simCanvas.style.cursor = "grabbing";
-});
-
-simCanvas.addEventListener("pointermove", function (event) {
-  simCanvas.style.cursor = dragFrom ? "grabbing" : scrollable() ? "grab" : "default";
-  if (!dragFrom || !view) return;
-  scroll.x += (event.clientX - dragFrom.x) / view.size;
-  scroll.y += (event.clientY - dragFrom.y) / view.size;
-  dragFrom = { x: event.clientX, y: event.clientY };
-  drawSoon();
-});
-
-function stopDragging() { dragFrom = null; }
-simCanvas.addEventListener("pointerup", stopDragging);
-simCanvas.addEventListener("pointercancel", stopDragging);
-
-// The mouse wheel, or two fingers on a trackpad, scroll the torus like
-// a page (instead of scrolling the page) while the pointer is over it.
-simCanvas.addEventListener("wheel", function (event) {
-  if (!scrollable() || !view) return;
-  event.preventDefault();
-  scroll.x -= event.deltaX / view.size;
-  scroll.y -= event.deltaY / view.size;
-  drawSoon();
-}, { passive: false });   // "passive: false" lets preventDefault stop the page scrolling
+simCanvas.addEventListener("pointerdown", function (event) { pressPointer(view, event); });
+simCanvas.addEventListener("pointermove", function (event) { movePointer(view, event); });
+simCanvas.addEventListener("pointerup", function (event) { releasePointer(view, event); });
+simCanvas.addEventListener("pointercancel", function (event) { releasePointer(view, event); });
 
 
 /* =====================================================================
@@ -500,6 +443,7 @@ function openTool() {
   toolOpen = true;
   simCanvas.hidden = true;
   byId("custom-area").hidden = false;
+  showZoomButtons(view);
   if (!frame.src) frame.src = "graph-tool.html?embed";    // the first time only
   checkTool();
 }
@@ -508,6 +452,7 @@ function closeTool() {
   toolOpen = false;
   byId("custom-area").hidden = true;
   simCanvas.hidden = false;
+  showZoomButtons(view);
 }
 
 // The tool sends its drawing every time it changes (js/sim-page.js).
@@ -541,8 +486,11 @@ byId("tool-cancel").addEventListener("click", function () {
 /* =====================================================================
    9. THE TILES
    ---------------------------------------------------------------------
-   One row per tile: its width and height, and a button to remove it.
-   Changing anything restarts the chain (a new starting packing).
+   One row per tile: its width and height, a button to remove it, and
+   under them its weight, as a number box and a slider. Changing a size
+   restarts the chain (a new starting packing). Moving a weight lets the
+   chain carry on with the new weight, like a Desmos slider, unless the
+   weight goes to or from 0 (that adds or removes the tile: a restart).
    ===================================================================== */
 function showTileRows() {
   let html = "";
@@ -552,13 +500,28 @@ function showTileRows() {
       '<input type="number" min="1" max="' + MAX_TILE_SIDE + '" step="1" value="' + t.w + '" data-tile="' + k + '" data-side="w">' +
       ' &times; <input type="number" min="1" max="' + MAX_TILE_SIDE + '" step="1" value="' + t.h + '" data-tile="' + k + '" data-side="h">' +
       (tiles.length > 1 ? ' <button class="tool-button" data-remove="' + k + '" title="Remove this tile">Remove</button>' : "") +
-      "</div>";
+      "</div>" +
+      '<div class="option-row">weight <input type="number" min="0" step="0.05" value="' + t.weight + '" data-weight-box="' + k + '">' +
+      ' <input type="range" class="wide-range" min="0" max="' + MAX_WEIGHT_SLIDER + '" step="0.05" value="' +
+      Math.min(t.weight, MAX_WEIGHT_SLIDER) + '" data-weight-slider="' + k + '"></div>';
   });
   byId("tile-rows").innerHTML = html;
 }
 
+// Use a new weight for tile k (from its box or its slider).
+function setWeight(k, weight) {
+  if (!isFinite(weight) || weight < 0) weight = 1;
+  const before = tiles[k].weight;
+  tiles[k].weight = weight;
+  const row = byId("tile-rows");
+  row.querySelector('[data-weight-box="' + k + '"]').value = weight;
+  row.querySelector('[data-weight-slider="' + k + '"]').value = Math.min(weight, MAX_WEIGHT_SLIDER);
+  if ((before > 0) !== (weight > 0)) restart();   // the tile comes in or goes out
+  else sendWeights();
+}
+
 function usePreset(name) {
-  tiles = PRESETS[name].map(function (t) { return { w: t[0], h: t[1] }; });
+  tiles = PRESETS[name].map(function (t) { return { w: t[0], h: t[1], weight: 1 }; });
   byId("preset").value = name;
   showTileRows();
 }
@@ -570,8 +533,13 @@ function tilesEdited() {
   restart();
 }
 
+byId("tile-rows").addEventListener("input", function (event) {
+  const slider = event.target.dataset.weightSlider;
+  if (slider !== undefined) setWeight(Number(slider), Number(event.target.value));
+});
 byId("tile-rows").addEventListener("change", function (event) {
   const box = event.target;
+  if (box.dataset.weightBox !== undefined) { setWeight(Number(box.dataset.weightBox), Number(box.value)); return; }
   if (!box.dataset.tile) return;
   let v = Math.round(Number(box.value));
   if (!isFinite(v) || v < 1) v = 1;
@@ -585,7 +553,7 @@ byId("tile-rows").addEventListener("click", function (event) {
   tilesEdited();
 });
 byId("add-tile").addEventListener("click", function () {
-  tiles.push({ w: 2, h: 1 });
+  tiles.push({ w: 2, h: 1, weight: 1 });
   tilesEdited();
 });
 byId("preset").addEventListener("change", function () {
@@ -603,7 +571,7 @@ byId("preset").addEventListener("change", function () {
 function useDomain(kind, d) {
   domainKind = kind;
   domain = d;
-  scroll = { x: 0, y: 0 };
+  useTorus(view, Boolean(d.wrap));   // the whole picture again; zooming out past it only on a torus (js/sim-view.js)
   showDomainChoice();
   restart();
 }
@@ -618,11 +586,26 @@ function useBox() {
   useDomain(torus ? "torus" : "box", boxDomain(width, height, 4, torus));
 }
 
+// The Aztec diamond (aztecDiamond is in js/sim-domains.js). Choosing it
+// switches to dominoes with no gaps, the tiling of the arctic circle
+// theorem; both can be changed afterwards.
+function useAztec(switchTiles) {
+  if (toolOpen) closeTool();
+  const order = readWhole("set-order", 1, MAX_ORDER, DEFAULTS.order);
+  if (switchTiles) {
+    usePreset("dominoes");
+    byId("gaps").checked = false;
+    showGapsInfo();
+  }
+  useDomain("aztec", aztecDiamond(order));
+}
+
 // Show the options that fit the domain in use, and tick its radio button.
 function showDomainChoice() {
   document.querySelector('input[name="domain"][value="' + domainKind + '"]').checked = true;
   const custom = (domainKind === "custom");
-  byId("size-row").hidden = custom;
+  byId("size-row").hidden = custom || domainKind === "aztec";
+  byId("order-row").hidden = domainKind !== "aztec";
   byId("custom-row").hidden = !custom;
   if (custom && customDomain) {
     byId("custom-info").textContent = "Your region: " + customDomain.n + " cells" +
@@ -637,14 +620,16 @@ function showGapsInfo() {
     : "No gaps: every cell covered. The start is built without a search, so some domains can't get one.";
 }
 
-// Domain: Box / Torus / Custom.
+// Domain: Box / Torus / Aztec diamond / Custom.
 for (const radio of document.querySelectorAll('input[name="domain"]')) {
   radio.addEventListener("change", function () {
     if (radio.value === "custom") openTool();
+    else if (radio.value === "aztec") useAztec(true);
     else useBox();
   });
 }
 for (const id of ["set-width", "set-height"]) byId(id).addEventListener("change", useBox);
+byId("set-order").addEventListener("change", function () { useAztec(false); });
 byId("edit-custom").addEventListener("click", openTool);
 
 // Rotations and gaps: a new start.
@@ -707,6 +692,8 @@ byId("new-seed").addEventListener("click", function () {
 byId("set-width").value = DEFAULTS.width;
 byId("set-height").value = DEFAULTS.height;
 byId("set-width").max = byId("set-height").max = MAX_SIDE;
+byId("set-order").value = DEFAULTS.order;
+byId("set-order").max = MAX_ORDER;
 byId("set-radius").value = byId("radius-slider").value = DEFAULTS.radius;
 byId("set-limit").value = DEFAULTS.limit;
 byId("seed").value = DEFAULTS.seed;

@@ -558,6 +558,15 @@ function tilePacking() {
     return { count: count, kept: kept, stopped: stopped };
   }
 
+  // New weights while it runs (weights[k] for tile number k), like a
+  // Desmos slider: the chain carries on from the packing it has, now
+  // heading for the new distribution. Only for weights above 0; a tile
+  // going to or from weight 0 changes the tile list, so the page
+  // restarts instead.
+  function setWeights(weights) {
+    for (let o = 0; o < orientTile.length; o++) orientLogWeight[o] = Math.log(weights[orientTile[o]]);
+  }
+
   // log(e^a + e^b), without overflowing: take out the bigger one first.
   function addLogs(a, b) {
     const big = Math.max(a, b);
@@ -866,6 +875,8 @@ function tilePacking() {
     } else if (message.type === "settings") {
       meanRadius = message.meanRadius;
       sizeLimit = message.sizeLimit;
+    } else if (message.type === "weights") {
+      setWeights(message.weights);
     } else if (message.type === "heat") {
       sendHeat = message.on;
       report();

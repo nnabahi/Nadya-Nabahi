@@ -612,9 +612,10 @@ a.card:hover {
 .step-status.ok      { color: var(--color-ok); }
 .step-status.problem { color: var(--color-problem); }
 
-/* A torus picture can be dragged: show the "hand" cursor, and on phones
+/* A sim's picture can be dragged: show the "hand" cursor, and on phones
    let a finger drag it instead of scrolling the page. (js/sim-view.js
-   adds the classes "scrollable" on a torus, "dragging" while dragged.) */
+   adds the classes "scrollable" when it can move, "dragging" while
+   dragged.) */
 #sim-canvas.scrollable {
   cursor: grab;
   touch-action: none;
@@ -624,7 +625,7 @@ a.card:hover {
   cursor: grabbing;
 }
 
-/* The torus's zoom buttons (+, −, Reset) sit in the top right corner of
+/* The zoom buttons (+, −, Reset) sit in the top right corner of
    the picture, as in Desmos. "position: relative" on the box around the
    picture lets "position: absolute" place the buttons inside it. */
 .sim-picture {

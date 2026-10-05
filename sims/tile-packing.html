@@ -34,9 +34,16 @@
       <section class="quad quad-sim">
         <h2>Simulation</h2>
 
-        <!-- The picture. tile-packing.js sets its height so the cells come
-             out square. -->
-        <canvas id="sim-canvas"></canvas>
+        <!-- The picture. Its height is set so the cells come out square
+             (js/sim-view.js). The zoom buttons sit in its top right corner. -->
+        <div class="sim-picture">
+          <canvas id="sim-canvas"></canvas>
+          <div class="zoom-buttons" id="zoom-buttons" hidden>
+            <button class="tool-button" id="zoom-in" title="Zoom in">+</button>
+            <button class="tool-button" id="zoom-out" title="Zoom out">&minus;</button>
+            <button class="tool-button" id="zoom-reset" title="Show the whole picture once again">Reset</button>
+          </div>
+        </div>
 
         <!-- Shown instead of the picture while you draw a custom domain:
              the graph tool itself, in an <iframe> (a page inside this page),
@@ -69,11 +76,17 @@
         <div class="option-row">
           <label><input type="radio" name="domain" value="box" checked> Box</label>
           <label><input type="radio" name="domain" value="torus"> Torus</label>
+          <label><input type="radio" name="domain" value="aztec"> Aztec diamond</label>
           <label><input type="radio" name="domain" value="custom"> Custom (draw it)</label>
         </div>
         <div class="option-row" id="size-row">
           Size <input type="number" id="set-width" min="1" step="1">
           &times; <input type="number" id="set-height" min="1" step="1">
+        </div>
+        <!-- The Aztec diamond's order N: its widest rows have 2N cells. -->
+        <div class="option-row" id="order-row" hidden>
+          Order <input type="number" id="set-order" min="1" step="1">
+          <span class="muted small">(choosing it switches to dominoes with no gaps; you can change both)</span>
         </div>
         <div class="option-row" id="custom-row" hidden>
           <span id="custom-info"></span>
@@ -90,7 +103,8 @@
             <option value="mine" hidden>My own tiles</option>
           </select>
         </div>
-        <!-- One row per tile (width x height), filled in by tile-packing.js. -->
+        <!-- One row per tile (width x height, and its weight with a slider),
+             filled in by tile-packing.js. -->
         <div id="tile-rows"></div>
         <div class="option-row">
           <button class="tool-button" id="add-tile">+ Add a tile</button>
@@ -100,6 +114,10 @@
           <label><input type="checkbox" id="gaps" checked> Allow gaps</label>
         </div>
         <p class="muted small" id="gaps-info"></p>
+        <p class="muted small">
+          Weights: a packing's chance is proportional to the product of its tiles' weights.
+          All 1 = uniform. Weight 0 leaves the tile out.
+        </p>
 
         <h3 class="option-heading">The move</h3>
         <div class="option-row">
@@ -194,11 +212,19 @@
           many moves, the packing looks like a uniform one.
         </p>
         <p>
+          Each tile can also get a <strong>weight</strong>. Then a packing's chance
+          is proportional to the product of its tiles' weights: a heavier tile shows
+          up more often. All weights 1 is the uniform packing.
+        </p>
+        <p>
           <strong>Things to try:</strong> switch between the presets; turn gaps off;
           make the mean radius bigger or smaller (the picture it ends up near stays
           the same, only the speed changes); color by direction; or switch to
-          "Average over time". On the torus, drag the picture (or scroll over it)
-          to slide it around.
+          "Average over time". Slide a tile's weight while it runs and watch that
+          tile take over or die out. Pick the Aztec diamond and look at the
+          average to see the arctic circle. Zoom in with the mouse wheel, a pinch,
+          or the + and &minus; buttons, and drag to look around; on the torus,
+          zoomed out, it shows several times side by side.
         </p>
         </div>
 
@@ -265,13 +291,31 @@
           whole-domain disk.)
         </p>
         <p>
+          <strong>Weights.</strong> Each tile <span class="tex">t</span> may have a
+          weight <span class="tex">\lambda_t \ge 0</span>. A tile of weight 0 is
+          removed from the tile list. The target is then
+          <span class="tex">\pi(\sigma) \propto w(\sigma) = \prod_{\text{tiles } t \in \sigma} \lambda_t</span>,
+          and step 4 moves to <span class="tex">\tau \in S(\sigma, B)</span> with
+          probability <span class="tex">w(\tau) / \sum_{\rho \in S(\sigma, B)} w(\rho)</span>
+          (a heat-bath move [1, Section 3.3]). The tiles outside
+          <span class="tex">R</span> are the same for the whole block, so only the
+          tiles inside <span class="tex">R</span> matter. Since the block and its
+          sum are the same from <span class="tex">\sigma</span> and from
+          <span class="tex">\tau</span>,
+          <span class="tex">w(\sigma) P(\sigma, \tau) = w(\tau) P(\tau, \sigma)</span>:
+          detailed balance for <span class="tex">\pi</span>. All weights 1 is the
+          uniform case above.
+        </p>
+        <p>
           <strong>Listing the refills.</strong> <span class="tex">S(\sigma, B)</span> is
           listed by a backtracking exact-cover search over the cells of
           <span class="tex">R</span> in a fixed order, Algorithm X [2]: at the first
           undecided cell, try each allowed tile covering it, or leave it empty if
           allowed. Maximality only has to be checked for tile positions using a cell
           of <span class="tex">R</span>. One refill is kept by reservoir sampling
-          [3], so the list is never stored.
+          [3] (with weights: the <span class="tex">k</span>-th refill found replaces
+          the kept one with probability its weight over the total weight so far),
+          so the list is never stored.
         </p>
         <p>
           <strong>The start.</strong> With gaps, the tile positions are tried in a
@@ -283,7 +327,7 @@
         </p>
         <p>
           <strong>Checks.</strong> On tiny domains every packing is listed and the
-          chain visits each about equally often; domino counts agree with Kasteleyn's
+          chain visits each about equally often (or in proportion to its weight); domino counts agree with Kasteleyn's
           formula [5]; and dominoes on an Aztec diamond show the arctic circle [6].
           These tests are on a separate check page.
         </p>
@@ -323,10 +367,11 @@
 
   <!-- Helpers shared by every sim page (they also typeset the formulas,
        so they come after KaTeX), and domains and colors shared by the
-       sims. Then the chain (it runs in a second thread), then this
-       page's code. -->
+       sims, and the picture's view (moving and zooming it). Then the
+       chain (it runs in a second thread), then this page's code. -->
   <script src="../js/sim-page.js"></script>
   <script src="../js/sim-domains.js"></script>
+  <script src="../js/sim-view.js"></script>
   <script src="tile-packing-chain.js"></script>
   <script src="tile-packing.js"></script>
 
