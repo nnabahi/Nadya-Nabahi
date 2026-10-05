@@ -29,6 +29,7 @@ repeat for the same seed) and, on the check pages,
 | `js/sim-page.js` | Small helpers every sim page uses (the second thread, the drawing tool inside a sim, small charts, typesetting the formulas) |
 | `js/sim-view.js` | Where a sim's picture of cells goes, and moving and zooming it (any box or torus), shared by the sims |
 | `js/sim-domains.js` | Domains (box, torus, Aztec diamond, drawn region), the old site's colors and color conversions, shared by the sims |
+| `js/sim-3d.js` | The 3D view (stacks of cubes or coins, turned with the mouse), built on three.js and loaded only when a sim switches to 3D |
 | `js/formulas.js` | Typed formulas and their sliders, like Desmos (the graph tool and the sims that take formulas) |
 | `js/check-page.js` | The results table and "Run the checks" button shared by the check pages |
 | `sims/graph-tool.html` | Graph & domain tool: paint a domain on a grid (pinned first on `toys.html`) |
