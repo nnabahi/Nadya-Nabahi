@@ -111,17 +111,16 @@ function showToolStatus(problem, good, buttons) {
    (a "resize" event), and the sim asks pictureHeight how tall to draw.
    --------------------------------------------------------------------- */
 
-// The button's icon: a square with two arrows pointing out to its
-// corners (and pointing in, to close the popup). It is drawn in SVG
-// (shapes written as text), in a 24 by 24 square.
+// The button's icon: two arrows pointing out to the corners (and, to
+// close the popup, two arrows pointing in), inside the round button.
+// It is drawn in SVG (shapes written as text), in a 24 by 24 square.
 const FULL_SCREEN_ICONS = {
-  open: "M14 6h4v4M18 6l-5 5M10 18H6v-4M6 18l5-5",
-  close: "M17 11h-4V7M13 11l5-5M7 13h4v4M11 13l-5 5",
+  open: "M14 4h6v6M20 4l-6 6M10 20H4v-6M4 20l6-6",
+  close: "M14 4v6h6M14 10l6-6M10 20v-6H4M10 14l-6 6",
 };
 function fullScreenIcon(which) {
   return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
-    'stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" ' +
-    'height="20" rx="3"/><path d="' + FULL_SCREEN_ICONS[which] + '"/></svg>';
+    'stroke-linecap="round" stroke-linejoin="round"><path d="' + FULL_SCREEN_ICONS[which] + '"/></svg>';
 }
 
 // The picture's box that is open as a popup right now (null if none).
