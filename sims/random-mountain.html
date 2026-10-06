@@ -61,6 +61,10 @@
           <div class="zoom-buttons" id="view3d-buttons" hidden>
             <button class="tool-button" id="view3d-reset" title="Look from the starting angle again">Reset view</button>
           </div>
+          <!-- On a graph, seen from above: back to the start in the middle. -->
+          <div class="zoom-buttons" id="disk-buttons" hidden>
+            <button class="tool-button" id="disk-reset" title="Put the start back in the middle">Back to the start</button>
+          </div>
         </div>
 
         <!-- Shown instead of the picture while you draw a custom domain:
@@ -96,6 +100,24 @@
         <div class="option-row">
           <label><input type="radio" name="dimension" value="1" checked> 1D (a line)</label>
           <label><input type="radio" name="dimension" value="2"> 2D (a grid)</label>
+          <label><input type="radio" name="dimension" value="graph"> Hyperbolic plane or tree</label>
+        </div>
+
+        <!-- Graph only: which graph. -->
+        <div id="graph-rows" hidden>
+          <h3 class="option-heading">Graph</h3>
+          <div class="option-row" id="graph-presets"></div>
+          <div class="option-row">
+            <label><input type="radio" name="graph-kind" value="tiling" checked> Tiling {p, q}:</label>
+            p <input type="number" id="set-p" min="3" max="12" step="1" value="7">
+            q <input type="number" id="set-q" min="3" max="12" step="1" value="3">
+          </div>
+          <div class="option-row">
+            <label><input type="radio" name="graph-kind" value="tree"> Tree, degree</label>
+            <input type="number" id="set-degree" min="3" max="12" step="1" value="3">
+          </div>
+          <p class="muted small" id="graph-info"></p>
+          <p class="muted small" id="graph-built"></p>
         </div>
 
         <!-- 2D only: the picture from above, or in 3D. -->
@@ -119,6 +141,18 @@
         </div>
 
         <h3 class="option-heading">Tile T</h3>
+        <!-- Graph only: the tile is every cell within distance r. -->
+        <div id="ball-tile" hidden>
+          <div class="option-row">
+            Every cell within distance r =
+            <input type="number" id="set-radius" min="1" max="4" step="1" value="1">
+          </div>
+          <p class="muted small">A graph has no offsets like (1, 0), so the tile is a
+            "ball": a block landing on a new site makes every cell within r steps of
+            it available. r = 1 means the cells sharing a side with it.</p>
+        </div>
+        <!-- 1D and 2D: the tile is a set of offsets. -->
+        <div id="offset-tile">
         <div class="option-row" id="tile-presets"></div>
         <p class="muted small">Click cells to add them to the tile or take them out.
           The dark cell in the middle is the site itself.</p>
@@ -134,6 +168,7 @@
           <button class="tool-button" id="make-ring">Make</button>
         </div>
         <p class="muted small" id="tile-info"></p>
+        </div>
 
         <h3 class="option-heading">Domain</h3>
         <div class="option-row" id="domain-choice"></div>
@@ -226,6 +261,14 @@
           side. Or switch the 2D view to 3D, to see each site's blocks as a
           stack of cubes or coins, and turn the mountain around.
         </p>
+        <p>
+          <strong>Hyperbolic plane or tree.</strong> The same mountain on a tiling
+          of the hyperbolic plane, or on a tree, drawn in a disk where the
+          cells shrink toward the edge (the edge is infinitely far away). Drag
+          to travel across the plane. There, every patch of cells has a long
+          edge compared to its size, so the base spreads fast and the mountain
+          stays low: compare {7, 3} with the 2D grid.
+        </p>
         </div>
 
         <div data-panel="details" hidden>
@@ -282,6 +325,58 @@
           seeded generator seedrandom [2], and the same seed gives the same
           <span class="tex">u_n</span> whatever the tile and domain.
         </p>
+        <p>
+          <strong>On a graph.</strong> With "Hyperbolic plane or tree", the sites
+          are the cells of a graph <span class="tex">G</span>: the tiling
+          <span class="tex">\{p, q\}</span> of the hyperbolic plane by regular
+          <span class="tex">p</span>-gons, <span class="tex">q</span> at each corner,
+          which exists exactly when <span class="tex">1/p + 1/q &lt; 1/2</span> [3]
+          (cells are neighbors when they share a side), or the regular tree of
+          degree <span class="tex">d</span>, drawn as the tiling by ideal
+          <span class="tex">d</span>-gons. The tile is the ball
+          <span class="tex">T(x) = \{y \ne x : \mathrm{dist}_G(x, y) \le r\}</span>,
+          and the rule is the same: <span class="tex">S_n = \{o\} \cup \bigcup_{x \in D_n} T(x)</span>.
+          On the line and the square grid, <span class="tex">r = 1</span> gives
+          exactly the 1D and 2D mountains with
+          <span class="tex">T = \{-1, +1\}</span> and the 4 neighbors (the check
+          page grows both from the same <span class="tex">u_n</span> and compares
+          them block for block).
+        </p>
+        <p>
+          <strong>Why the mountain stays low there.</strong> These graphs are
+          non-amenable: there is a <span class="tex">c &gt; 0</span> with
+          <span class="tex">|\partial K| \ge c |K|</span> for every finite set of
+          cells <span class="tex">K</span>, where
+          <span class="tex">\partial K</span> is the set of cells next to
+          <span class="tex">K</span> but not in it [4]. With
+          <span class="tex">r = 1</span>, the available sites are
+          <span class="tex">D_n \cup \partial D_n</span>, so each step lands on a
+          new site with probability
+          <span class="tex">|\partial D_n| / (|D_n| + |\partial D_n|) \ge c/(1+c)</span>,
+          whatever happened before. So on average at least a fraction
+          <span class="tex">c/(1+c)</span> of the steps widen the base, which
+          grows in proportion to <span class="tex">n</span>, unlike on the line,
+          where the base after <span class="tex">n</span> steps is only of order
+          <span class="tex">\sqrt{n}</span> wide.
+        </p>
+        <p>
+          <strong>How the cells are made.</strong> The mountain's branches reach
+          far from the start (the base is spread out like a tree), further than
+          the computer's numbers can tell neighboring cells apart by their
+          positions: at distance 30 two neighbors differ only in about the 14th
+          digit. So the page builds the graph from its combinatorics instead.
+          Every cell has a kind, read off from which of its neighbors are
+          closer to the start, as close, or farther, and how the cells around
+          its corners sit. A hyperbolic tiling has only finitely many such kinds
+          (its "cone types" [5]), and a cell's kind decides its children's. The
+          page learns the kinds from the cells near the start, where positions
+          are precise, checks them against geometry 14 units out, and then
+          builds every cell from them with whole numbers only. For a few large
+          tilings (big <span class="tex">p</span> and <span class="tex">q</span>)
+          there are too many cells near the start to learn from, and the page
+          builds them by position, which works up to about distance 23; it says
+          so under the graph's options.
+        </p>
         <p><strong>References</strong></p>
         <ol class="references">
           <li>M. Eden, &ldquo;A two-dimensional growth process&rdquo;, in
@@ -290,6 +385,12 @@
             Press, 1961, 223&ndash;239.</li>
           <li>D. Bau, seedrandom.js,
             <a href="https://github.com/davidbau/seedrandom">github.com/davidbau/seedrandom</a>.</li>
+          <li>H. S. M. Coxeter, <em>Regular Polytopes</em>, 3rd ed., Dover, 1973.</li>
+          <li>R. Lyons and Y. Peres, <em>Probability on Trees and Networks</em>,
+            Cambridge University Press, 2016, Chapter 6.</li>
+          <li>J. W. Cannon, &ldquo;The combinatorial structure of cocompact discrete
+            hyperbolic groups&rdquo;, <em>Geometriae Dedicata</em> 16 (1984),
+            123&ndash;148.</li>
         </ol>
         </div>
       </section>
@@ -306,11 +407,13 @@
 
   <!-- Helpers shared by the sims (sim-page.js also typesets the
        formulas, so it comes after KaTeX), and the picture's view
-       (moving and zooming the 2D picture). Then the growth rule (it runs in
-       a second thread), then this page's code. -->
+       (moving and zooming the 2D picture), and the hyperbolic tilings and
+       trees. Then the growth rule (it runs in a second thread), then this
+       page's code. -->
   <script src="../js/sim-page.js"></script>
   <script src="../js/sim-domains.js"></script>
   <script src="../js/sim-view.js"></script>
+  <script src="../js/sim-graphs.js"></script>
   <script src="random-mountain-growth.js"></script>
   <script src="random-mountain.js"></script>
 

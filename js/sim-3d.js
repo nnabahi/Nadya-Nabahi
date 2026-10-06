@@ -197,10 +197,14 @@ function toThree(rgb) {
 //               numbers; y goes "north", away from where you start)
 //   height      how many blocks each cell has (0: an empty cell, drawn
 //               as a thin gray tile)
-//   width       (optional) each cell's width; 1 if left out
-//   floor       the floor: a box { xmin, xmax, ymin, ymax } of cells, or
-//               a list of cells { x: [...], y: [...] } (e.g. a drawn
-//               domain), drawn under everything
+//   width       (optional) each cell's width; 1 if left out. A cell's
+//               blocks are as much taller or shorter as the cell is
+//               wider or narrower (so on the Poincare disk, where cells
+//               shrink toward the edge, whole stacks shrink with them).
+//   floor       the floor: a box { xmin, xmax, ymin, ymax } of cells, a
+//               list of cells { x: [...], y: [...] } (e.g. a drawn
+//               domain), or a round floor { disk: radius } centered at
+//               (0, 0), drawn under everything
 //   shape       "cubes" or "coins"
 //   stretch     how tall the stacks look: 1 is normal, 2 twice as tall
 //   color(t)    the color [r, g, b] (0..255) of a block: block k (the
@@ -218,16 +222,20 @@ export function drawStacks(view3d, stacks) {
   if (view3d.box.clientWidth && view3d.box.clientWidth !== view3d.width) fitToBox(view3d);   // the box changed size
   const widthOf = function (i) { return stacks.width ? stacks.width[i] : 1; };
 
-  // The size of the floor, and the tallest stack.
+  // The size of the floor, the most blocks on a cell, and the tallest
+  // stack (in cell widths: a block on a cell of width w is w tall).
   const floor = floorBox(stacks);
-  const across = Math.max(floor.xmax - floor.xmin + 1, floor.ymax - floor.ymin + 1);
-  let tallest = 0, blocks = 0, emptyCells = 0;
+  const across = stacks.floor.disk ? 2 * stacks.floor.disk
+    : Math.max(floor.xmax - floor.xmin + 1, floor.ymax - floor.ymin + 1);
+  let tallest = 0, tallestStack = 0, blocks = 0, emptyCells = 0;
   for (let i = 0; i < n; i++) {
     tallest = Math.max(tallest, stacks.height[i]);
+    tallestStack = Math.max(tallestStack, stacks.height[i] * widthOf(i));
     blocks += stacks.height[i];
     if (stacks.height[i] === 0) emptyCells++;
   }
-  const block = stacks.stretch * Math.min(1, across / 2 / Math.max(tallest, 1));   // one block's height
+  // One block's height on a cell of width 1.
+  const block = stacks.stretch * Math.min(1, across / 2 / Math.max(tallestStack, 1));
 
   // The colors, worked out once per level (not once per block):
   // levelColor[k] is the color of the (k+1)-th block from the bottom.
@@ -241,11 +249,11 @@ export function drawStacks(view3d, stacks) {
   for (let i = 0; i < n; i++) {
     const h = stacks.height[i];
     if (h === 0) continue;
-    const x = stacks.x[i], z = -stacks.y[i], w = BLOCK_WIDTH * widthOf(i);
+    const x = stacks.x[i], z = -stacks.y[i], w = BLOCK_WIDTH * widthOf(i), tall = block * widthOf(i);
     if (oneByOne) {
-      for (let k = 0; k < h; k++) placeCopy(blockMesh, copy++, x, k * block, z, w, BLOCK_HEIGHT * block, levelColor[k]);
+      for (let k = 0; k < h; k++) placeCopy(blockMesh, copy++, x, k * tall, z, w, BLOCK_HEIGHT * tall, levelColor[k]);
     } else {
-      placeCopy(blockMesh, copy++, x, 0, z, w, h * block, levelColor[h - 1]);
+      placeCopy(blockMesh, copy++, x, 0, z, w, h * tall, levelColor[h - 1]);
     }
   }
   blockMesh.instanceMatrix.needsUpdate = blockMesh.instanceColor.needsUpdate = true;
@@ -260,12 +268,15 @@ export function drawStacks(view3d, stacks) {
   }
   emptyMesh.instanceMatrix.needsUpdate = emptyMesh.instanceColor.needsUpdate = true;
 
-  // The floor: flat square tiles, a little below the blocks.
+  // The floor: flat square tiles, a little below the blocks, or one
+  // flat round coin for a round floor.
   const floorCells = stacks.floor.x ? stacks.floor : null;
   const floorCount = floorCells ? floorCells.x.length : 1;
-  const floorMesh = useMesh(view3d, "floor", "cubes", floorCount);
+  const floorMesh = useMesh(view3d, "floor", stacks.floor.disk ? "coins" : "cubes", floorCount);
   const groundColor = toThree(stacks.ground);
-  if (floorCells) {
+  if (stacks.floor.disk) {
+    placeCopy(floorMesh, 0, 0, -0.04, 0, 2 * stacks.floor.disk, 0.04, groundColor);
+  } else if (floorCells) {
     for (let i = 0; i < floorCount; i++) placeCopy(floorMesh, i, floorCells.x[i], -0.04, -floorCells.y[i], 1, 0.04, groundColor);
   } else {
     // One big flat box under the whole floor (it is stretched to size).
@@ -280,10 +291,10 @@ export function drawStacks(view3d, stacks) {
   // Shrink the whole picture to fit: the floor's middle at the center,
   // and the floor (or the tallest stack, if it is taller) PICTURE_SIZE
   // across.
-  const size = Math.max(across, tallest * block);
+  const size = Math.max(across, tallestStack * block);
   const scale = PICTURE_SIZE / size;
   view3d.world.scale.setScalar(scale);
-  view3d.world.position.set(-scale * (floor.xmin + floor.xmax) / 2, -scale * tallest * block / 4,
+  view3d.world.position.set(-scale * (floor.xmin + floor.xmax) / 2, -scale * tallestStack * block / 4,
                             scale * (floor.ymin + floor.ymax) / 2);
   render(view3d);
 }
@@ -291,6 +302,7 @@ export function drawStacks(view3d, stacks) {
 // The smallest box { xmin, xmax, ymin, ymax } around the floor.
 function floorBox(stacks) {
   const f = stacks.floor;
+  if (f.disk) return { xmin: -f.disk, xmax: f.disk, ymin: -f.disk, ymax: f.disk };
   if (!f.x) return f;
   let xmin = Infinity, xmax = -Infinity, ymin = Infinity, ymax = -Infinity;
   for (let i = 0; i < f.x.length; i++) {

@@ -6,6 +6,9 @@
        site; the preset and Make buttons fill the grid in), and the
        domain from the Domain options (a custom domain is drawn in the
        graph tool, shown inside this page).
+     - Or, for "Hyperbolic plane or tree": the graph (a tiling {p,q} or
+       a tree, built as needed by js/sim-graphs.js) and the radius r of
+       the tile "every cell within distance r".
      - Hands them to the growth rule (random-mountain-growth.js), which
        runs in a second thread (a "Web Worker"), and draws every
        mountain it sends back, with the statistics.
@@ -23,6 +26,7 @@
      6. Drawing the mountain
      6b. Moving and zooming the 2D picture
      6c. The 3D view
+     6d. The hyperbolic plane or a tree, seen from above
      7. Statistics
      8. Custom domains: the graph tool inside this page
      9. Connecting the buttons on the page
@@ -61,8 +65,23 @@ const DOMAINS = {
   1: [["whole", "Whole line"], ["box", "Segment"], ["torus", "Cycle"]],
   2: [["whole", "Whole plane"], ["box", "Box"], ["torus", "Torus"], ["custom", "Custom (draw it)"]],
 };
-const DEFAULT_SIZE = { 1: 101, 2: 41 };
-const MAX_SIZE = { 1: 2001, 2: 301 };
+const DEFAULT_SIZE = { 1: 101, 2: 41, graph: 6 };
+const MAX_SIZE = { 1: 2001, 2: 301, graph: 12 };
+
+// "Hyperbolic plane or tree": the graph presets (js/sim-graphs.js makes
+// them; q = Infinity is the tree whose cells meet p at a time), its
+// domains (a ball is every cell within R steps of the start), and the
+// largest r for the tile "every cell within distance r".
+const GRAPH_PRESETS = [
+  { name: "{7, 3}", graph: { kind: "tiling", p: 7, q: 3 } },
+  { name: "{5, 4}", graph: { kind: "tiling", p: 5, q: 4 } },
+  { name: "{4, 5}", graph: { kind: "tiling", p: 4, q: 5 } },
+  { name: "{3, 7}", graph: { kind: "tiling", p: 3, q: 7 } },
+  { name: "Tree, degree 3", graph: { kind: "tiling", p: 3, q: Infinity } },
+  { name: "Tree, degree 4", graph: { kind: "tiling", p: 4, q: Infinity } },
+];
+DOMAINS.graph = [["whole", "The whole plane (or tree)"], ["ball", "A ball"]];
+const MAX_GRAPH_RADIUS = 4;
 
 const DEFAULT_SEED = "1";
 // The picture always has the same size (the quadrant's width, and this
@@ -96,6 +115,8 @@ let run = 0;                 // counts restarts, so leftovers from an older run 
 let show3D = false;          // 2D only: the 3D view instead of the view from above (section 6c)
 let blockShape = "cubes";    // the 3D view's blocks: "cubes" or "coins"
 let stretchLevel = 0;        // the 3D view's Heights slider: -4 (flatter) .. 4 (taller)
+let graphSpec = GRAPH_PRESETS[0].graph;   // "Hyperbolic plane or tree": the graph
+let diskMotion = [1, 0, 0, 0];            // ... and how far the view of it has been moved (section 6d)
 
 // The latest message from the mountain (see part 2 of
 // random-mountain-growth.js): the sites, their heights, the numbers.
@@ -243,10 +264,10 @@ function showDomainChoice() {
   // A new domain starts with the whole picture; in 2D it can be moved
   // and zoomed (section 6b), and zoomed out further on a torus.
   useTorus(view, torusRange() !== null, dim === 2);   // the 1D side view doesn't move
-  const bounded = (domainKind === "box" || domainKind === "torus");
+  const bounded = (domainKind === "box" || domainKind === "torus" || domainKind === "ball");
   byId("size-row").hidden = !bounded;
-  byId("size-label").textContent = dim === 1 ? "Sites" : "Size";
-  byId("height-part").hidden = (dim === 1);
+  byId("size-label").textContent = dim === 1 ? "Sites" : dim === 2 ? "Size" : "Every cell within R =";
+  byId("height-part").hidden = (dim !== 2);
   byId("custom-row").hidden = (domainKind !== "custom");
   if (domainKind === "custom" && customDomain) {
     byId("custom-info").textContent = "Your domain: " + customDomain.n + " cells" +
@@ -263,6 +284,11 @@ function centered(size) {
 
 // The domain and the start site, as the growth rule wants them.
 function domainSettings() {
+  if (dim === "graph") {       // the start is always the graph's first cell
+    return { domain: domainKind === "ball"
+      ? { kind: "ball", layers: readWhole("set-width", 1, MAX_SIZE.graph, DEFAULT_SIZE.graph) }
+      : { kind: "whole" } };
+  }
   if (domainKind === "whole") {
     return { domain: { kind: "whole" }, start: dim === 1 ? [0] : [0, 0] };
   }
@@ -301,11 +327,18 @@ function customStart(d) {
    with newMountain() copied in. startWorker (js/sim-page.js) runs it in
    a second thread, so the page never freezes.
    ===================================================================== */
-const worker = startWorker(mountainWorker, [newMountain]);
+const worker = startWorker(mountainWorker,
+  [newMountain, newGraphMountain, makeGraph, tilingShape, motionTimes, motionApply, halfTurn, coshFromStart,
+   learnedRules, tilingByGeometry, tilingByRules, tilingRules, testRules, hashTable, ballAround]);
 
 worker.onmessage = function (event) {
   const message = event.data;
   if (message.type !== "state" || message.run !== run) return;   // from an older run
+  if (message.places) keepPlaces(message);                        // on a graph (section 6d)
+  if (message.dim === "graph") {
+    byId("graph-built").textContent = message.exact ? "" : "This tiling has too many cells near the start " +
+      "for the page to learn its rules, so it is built by geometry, which only reaches about distance 23 from the start.";
+  }
   latest = message;
   showMessage(message.problem);
   if (message.atMax && playing) {
@@ -329,11 +362,19 @@ function restart(keepStep) {
   const steps = (keepStep && latest && latest.steps) ? latest.steps : 0;
   const where = domainSettings();
   run++;
-  worker.postMessage({
-    type: "setup", run: run, dim: dim, tile: tile,
-    domain: where.domain, start: where.start,
-    seed: byId("seed").value, steps: steps,
-  });
+  if (dim === "graph") {
+    worker.postMessage({
+      type: "setup", run: run, dim: "graph", graph: graphSpec,
+      radius: readWhole("set-radius", 1, MAX_GRAPH_RADIUS, 1),
+      domain: where.domain, seed: byId("seed").value, steps: steps,
+    });
+  } else {
+    worker.postMessage({
+      type: "setup", run: run, dim: dim, tile: tile,
+      domain: where.domain, start: where.start,
+      seed: byId("seed").value, steps: steps,
+    });
+  }
   if (playing) worker.postMessage({ type: "play", speed: SPEEDS[speedIndex] });
 }
 
@@ -410,10 +451,11 @@ function pictureRange() {
 }
 
 function drawMountain() {
-  if (!latest || !latest.x || latest.dim !== dim || toolOpen) return;   // nothing yet, or from before a switch to 1D / 2D
-  if (dim === 2 && show3D) draw3D();     // section 6c
+  if (!latest || !latest.height || latest.dim !== dim || toolOpen) return;   // nothing yet, or from before a switch of dimension
+  if (dim !== 1 && show3D) draw3D();     // section 6c
   else if (dim === 1) drawLine();
-  else drawGrid();
+  else if (dim === 2) drawGrid();
+  else drawDisk();                       // section 6d
 }
 
 // 1D: bars.
@@ -575,7 +617,8 @@ simCanvas.addEventListener("pointercancel", function (event) { releasePointer(vi
 /* =====================================================================
    6c. THE 3D VIEW
    ---------------------------------------------------------------------
-   In 2D, the View option can show the mountain in 3D: each site's
+   In 2D (and on a graph, section 6d), the View option can show the
+   mountain in 3D: each site's
    blocks as a stack of cubes or coins, colored from the bottom up with
    the same colors as the view from above (so seen from straight above,
    it looks like the 2D picture). Gray tiles are the available sites
@@ -592,13 +635,14 @@ let sim3d = null;            // the 3D code, once loaded (js/sim-3d.js)
 let view3d = null;           // the 3D picture
 let loading3D = false;
 
-// Which picture shows: the view from above, the 3D view (2D mountains
-// only), or neither while the graph tool is open.
+// Which picture shows: the view from above, the 3D view (not in 1D),
+// or neither while the graph tool is open.
 function showPictureKind() {
-  const in3D = (dim === 2 && show3D);
+  const in3D = (dim !== 1 && show3D);
   simCanvas.hidden = toolOpen || in3D;
   byId("sim-3d").hidden = byId("view3d-buttons").hidden = toolOpen || !in3D;
-  byId("view-rows").hidden = (dim !== 2);
+  byId("disk-buttons").hidden = toolOpen || in3D || dim !== "graph";
+  byId("view-rows").hidden = (dim === 1);
   byId("blocks-row").hidden = byId("stretch-row").hidden = byId("view3d-help").hidden = !in3D;
   showZoomButtons(view);
   if (in3D && !view3d) start3D();
@@ -628,6 +672,7 @@ async function start3D() {
 
 function draw3D() {
   if (!view3d) return;
+  if (dim === "graph") { draw3DOnDisk(); return; }   // section 6d
   const s = latest;
   // The floor: the domain's cells for a drawn domain, otherwise the
   // same box as the view from above.
@@ -662,6 +707,214 @@ byId("view3d-reset").addEventListener("click", function () { if (view3d) sim3d.r
 
 
 /* =====================================================================
+   6d. THE HYPERBOLIC PLANE OR A TREE, SEEN FROM ABOVE
+   ---------------------------------------------------------------------
+   The picture is the Poincare disk (see the top of js/sim-graphs.js):
+   the whole hyperbolic plane inside a circle, with cells shrinking
+   toward the edge. Each site is drawn as its cell, colored by height
+   like the 2D picture; tiny cells near the edge are single dots.
+
+   Dragging moves you around the plane: the point you grab follows the
+   pointer, and the whole picture moves by the hyperbolic motion that
+   carries one to the other (so cells change size as they move, but
+   never shape). "Back to the start" puts the first cell back in the
+   middle. The 3D view stands the stacks on the same picture.
+
+   The worker sends each site's place once (its motion [a, b], see
+   js/sim-graphs.js); the page keeps them all in "places".
+   ===================================================================== */
+let places = new Float64Array(4 * 1024);   // site i's motion is places[4i .. 4i+3]
+let diskBox = null;                        // where the disk is on the canvas: { cx, cy, radius }
+
+// Keep the places sent with a message (from site number placesFrom on).
+function keepPlaces(message) {
+  const end = 4 * message.placesFrom + message.places.length;
+  if (end > places.length) {
+    const bigger = new Float64Array(Math.max(end, 2 * places.length));
+    bigger.set(places);
+    places = bigger;
+  }
+  places.set(message.places, 4 * message.placesFrom);
+}
+
+// The shape of the current graph's first cell (js/sim-graphs.js),
+// worked out again only when the graph changes.
+let shapeFor = null, shape = null;
+function currentShape() {
+  if (shapeFor !== graphSpec) { shapeFor = graphSpec; shape = tilingShape(graphSpec.p, graphSpec.q); }
+  return shape;
+}
+
+// Where site i is in the picture: its motion, moved by the view.
+function siteMotion(i) {
+  return motionTimes(diskMotion, [places[4 * i], places[4 * i + 1], places[4 * i + 2], places[4 * i + 3]]);
+}
+
+function drawDisk() {
+  const s = latest, cellShape = currentShape();
+  const width = simCanvas.clientWidth, height = PICTURE_HEIGHT;
+  const ratio = window.devicePixelRatio || 1;   // 2 on sharp screens
+  simCanvas.style.height = height + "px";
+  simCanvas.width = Math.round(width * ratio);
+  simCanvas.height = Math.round(height * ratio);
+  const pen = simCanvas.getContext("2d");
+  pen.setTransform(ratio, 0, 0, ratio, 0, 0);   // draw in screen pixels from here on
+
+  // The disk: the whole plane.
+  diskBox = { cx: width / 2, cy: height / 2, radius: Math.min(width, height) / 2 - 4 };
+  const { cx, cy, radius } = diskBox;
+  pen.beginPath();
+  pen.arc(cx, cy, radius, 0, 2 * Math.PI);
+  pen.fillStyle = OUTSIDE;
+  pen.fill();
+  pen.strokeStyle = EMPTY;
+  pen.stroke();
+
+  // The cells. A point (x, y) of the disk is at (cx + x radius,
+  // cy - y radius) on the screen (y goes up).
+  const highest = Math.max(s.maxHeight, 1), outline = cellShape.outline;
+  pen.lineWidth = 0.5;
+  pen.strokeStyle = "rgba(0, 0, 0, 0.25)";
+  for (let i = 0; i < s.height.length; i++) {
+    const A = siteMotion(i);
+    const [mx, my] = motionApply(A, 0, 0);                  // the cell's middle
+    // How big it looks: the motion shrinks things near the middle
+    // point m by 1 - |m|^2.
+    const size = radius * cellShape.middle * (1 - mx * mx - my * my);
+    pen.fillStyle = s.height[i] === 0 ? EMPTY : cssColor(heatColor(s.height[i] / highest));
+    if (size < 0.7) {                                      // tiny: a dot
+      pen.fillRect(cx + mx * radius - 0.5, cy - my * radius - 0.5, 1, 1);
+      continue;
+    }
+    // Its outline (for small cells, every 4th point of it is plenty).
+    const every = size < 5 ? 4 : 1;
+    pen.beginPath();
+    for (let k = 0; k < outline.length; k += every) {
+      const [x, y] = motionApply(A, outline[k][0], outline[k][1]);
+      if (k === 0) pen.moveTo(cx + x * radius, cy - y * radius); else pen.lineTo(cx + x * radius, cy - y * radius);
+    }
+    pen.closePath();
+    pen.fill();
+    if (size > 4) pen.stroke();
+  }
+}
+
+// The 3D view on a graph: the disk is the floor, and each site's stack
+// stands on its cell, as wide as the cell (sim-3d.js makes its blocks
+// as much shorter as they are narrower). Cells too small to see are
+// left out.
+function draw3DOnDisk() {
+  const s = latest, cellShape = currentShape();
+  const unit = 1 / (2 * cellShape.middle);    // so the first cell, in the middle, is 1 wide
+  const x = [], y = [], height = [], width = [];
+  for (let i = 0; i < s.height.length; i++) {
+    const [mx, my] = motionApply(siteMotion(i), 0, 0);
+    const w = 1 - mx * mx - my * my;           // how much smaller than the first cell it looks
+    if (w < 0.004) continue;
+    x.push(mx * unit); y.push(my * unit); height.push(s.height[i]); width.push(w);
+  }
+  sim3d.drawStacks(view3d, {
+    x: x, y: y, height: height, width: width, floor: { disk: unit },
+    shape: blockShape, stretch: Math.pow(2, stretchLevel / 2),
+    color: heatColor, empty: hexToRGB(EMPTY), ground: hexToRGB(OUTSIDE),
+  });
+}
+
+// Dragging the disk. The motion carrying the point "from" to the point
+// "to" (and turning nothing): move "from" to 0, then 0 to "to". (The
+// motion moving c to 0 is a = 1/s, b = -c/s, with s = sqrt(1 - |c|^2).)
+let dragFrom = null;
+function diskPoint(event) {
+  const box = simCanvas.getBoundingClientRect();
+  const x = (event.clientX - box.left - diskBox.cx) / diskBox.radius;
+  const y = -(event.clientY - box.top - diskBox.cy) / diskBox.radius;
+  const r = Math.hypot(x, y), most = 0.97;      // very near the edge, a tiny drag would move far
+  return r > most ? [x * most / r, y * most / r] : [x, y];
+}
+function moveBetween(from, to) {
+  const s0 = Math.sqrt(1 - from[0] * from[0] - from[1] * from[1]);
+  const s1 = Math.sqrt(1 - to[0] * to[0] - to[1] * to[1]);
+  return motionTimes([1 / s1, 0, to[0] / s1, to[1] / s1], [1 / s0, 0, -from[0] / s0, -from[1] / s0]);
+}
+simCanvas.addEventListener("pointerdown", function (event) {
+  if (dim !== "graph" || !diskBox) return;
+  dragFrom = diskPoint(event);
+  simCanvas.setPointerCapture(event.pointerId);
+});
+simCanvas.addEventListener("pointermove", function (event) {
+  if (dim !== "graph" || !dragFrom) return;
+  const to = diskPoint(event);
+  const M = motionTimes(moveBetween(dragFrom, to), diskMotion);
+  const norm = Math.sqrt(M[0] * M[0] + M[1] * M[1] - M[2] * M[2] - M[3] * M[3]);   // keep |a|^2 - |b|^2 = 1
+  const moved = M.map(function (t) { return t / norm; });
+  // The view goes at most distance 20 from the start: farther out the
+  // picture's numbers get too rough to place cells well.
+  if (coshFromStart(moved) < Math.cosh(20)) diskMotion = moved;
+  dragFrom = to;
+  drawSoon();
+});
+for (const type of ["pointerup", "pointercancel"]) {
+  simCanvas.addEventListener(type, function () { dragFrom = null; });
+}
+byId("disk-reset").addEventListener("click", function () { diskMotion = [1, 0, 0, 0]; drawSoon(); });
+
+// The graph options: the presets, p and q, or a tree's degree.
+function showGraphOptions() {
+  const row = byId("graph-presets");
+  row.innerHTML = "";
+  for (const preset of GRAPH_PRESETS) {
+    const button = document.createElement("button");
+    button.className = "tool-button";
+    button.textContent = preset.name;
+    button.addEventListener("click", function () {
+      const g = preset.graph;
+      document.querySelector('input[name="graph-kind"][value="' + (g.q === Infinity ? "tree" : "tiling") + '"]').checked = true;
+      if (g.q === Infinity) byId("set-degree").value = g.p;
+      else { byId("set-p").value = g.p; byId("set-q").value = g.q; }
+      useGraph();
+    });
+    row.appendChild(button);
+  }
+}
+
+// Read the graph from the options into graphSpec, and say what it is.
+// Returns false (and leaves graphSpec alone) if it isn't hyperbolic.
+function readGraph() {
+  const info = byId("graph-info");
+  let next;
+  if (checked("graph-kind") === "tree") {
+    const d = readWhole("set-degree", 3, 12, 3);
+    next = { kind: "tiling", p: d, q: Infinity };
+    info.textContent = "The tree where every cell has " + d + " neighbors, drawn as ideal " + d +
+      "-gons (their corners are on the edge of the disk, infinitely far away).";
+  } else {
+    const p = readWhole("set-p", 3, 12, 7), q = readWhole("set-q", 3, 12, 3);
+    if (1 / p + 1 / q >= 1 / 2) {
+      info.textContent = "{" + p + ", " + q + "} isn't hyperbolic: that needs 1/p + 1/q < 1/2. " +
+        (1 / p + 1 / q === 1 / 2 ? "It tiles the flat plane." : "It tiles a sphere.");
+      return false;
+    }
+    next = { kind: "tiling", p: p, q: q };
+    info.textContent = "Every cell is a regular " + p + "-gon, " + q + " of them meet at every corner, " +
+      "and each cell has " + p + " neighbors.";
+  }
+  if (next.p !== graphSpec.p || next.q !== graphSpec.q) graphSpec = next;
+  return true;
+}
+
+// A new graph from the options: start again on it, with the first cell
+// in the middle of the picture.
+function useGraph() {
+  if (!readGraph()) return;
+  diskMotion = [1, 0, 0, 0];
+  restart(true);
+}
+for (const id of ["set-p", "set-q", "set-degree"]) byId(id).addEventListener("change", useGraph);
+for (const radio of document.querySelectorAll('input[name="graph-kind"]')) radio.addEventListener("change", useGraph);
+byId("set-radius").addEventListener("change", function () { restart(true); });
+
+
+/* =====================================================================
    7. STATISTICS
    ---------------------------------------------------------------------
    All for the run on the screen. The growth rule keeps the numbers up
@@ -670,7 +923,7 @@ byId("view3d-reset").addEventListener("click", function () { if (view3d) sim3d.r
    ===================================================================== */
 function showStats() {
   const s = latest;
-  if (!s || !s.x || s.dim !== dim) return;
+  if (!s || !s.height || s.dim !== dim) return;
   byId("stat-steps").textContent = s.steps.toLocaleString();
   byId("stat-blocks").textContent = s.blocks.toLocaleString();
   byId("stat-base").textContent = s.baseSize.toLocaleString();
@@ -767,13 +1020,20 @@ function setDimension(value) {
   domainKind = "whole";
   byId("set-width").value = byId("set-height").value = DEFAULT_SIZE[dim];
   byId("set-width").max = byId("set-height").max = MAX_SIZE[dim];
-  showPresets();
+  const onGraph = (dim === "graph");
+  byId("graph-rows").hidden = byId("ball-tile").hidden = !onGraph;
+  byId("offset-tile").hidden = onGraph;
   showDomainChoice();
   showPictureKind();
-  setTile(PRESETS[dim][0].tile);
+  if (onGraph) {
+    useGraph();
+  } else {
+    showPresets();
+    setTile(PRESETS[dim][0].tile);
+  }
 }
 for (const radio of document.querySelectorAll('input[name="dimension"]')) {
-  radio.addEventListener("change", function () { setDimension(Number(radio.value)); });
+  radio.addEventListener("change", function () { setDimension(radio.value === "graph" ? "graph" : Number(radio.value)); });
 }
 
 // The size of a segment, cycle, box or torus.
@@ -820,5 +1080,6 @@ byId("speed").max = SPEEDS.length - 1;
 byId("speed").value = speedIndex;
 showSpeed();
 showStretch();
+showGraphOptions();
 setDimension(1);
 setPlaying(false);   // paused: press Play
