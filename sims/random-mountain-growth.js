@@ -480,6 +480,13 @@ function mountainWorker() {
     const count = m.siteNode.length, from = placesSent;
     const places = new Float64Array(4 * (count - from));
     for (let i = from; i < count; i++) places.set(m.graph.place(m.siteNode[i]), 4 * (i - from));
+    // On a tree (built by rules), where each site goes in the page's
+    // "spread out" picture too: its depth and angle (spreadPlace).
+    let spread;
+    if (m.graph.shape && m.graph.shape.q === Infinity && m.graph.parent) {
+      spread = new Float64Array(2 * (count - from));
+      for (let i = from; i < count; i++) spread.set(spreadPlace(m.graph, m.siteNode[i]), 2 * (i - from));
+    }
     placesSent = count;
     const h = Int32Array.from(m.height);
     self.postMessage({
@@ -494,7 +501,7 @@ function mountainWorker() {
       // mountain, without learning them again (see learnedRules).
       rules: from === 0 && m.graph.shape
         ? { name: m.graph.shape.p + "," + m.graph.shape.q, kinds: learnedRules(m.graph.shape) } : undefined,
-      height: h, placesFrom: from, places: places,
+      height: h, placesFrom: from, places: places, spread: spread,
       start: m.start,
       steps: m.steps, blocks: m.blocks, baseSize: m.baseSize,
       available: m.available.length, maxHeight: m.maxHeight,

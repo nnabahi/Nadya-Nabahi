@@ -120,12 +120,19 @@
           <p class="muted small" id="graph-built"></p>
         </div>
 
-        <!-- 2D only: the picture from above, or in 3D. -->
+        <!-- 2D and graphs: the picture from above, or in 3D. -->
         <div id="view-rows" hidden>
           <h3 class="option-heading">View</h3>
           <div class="option-row">
             <label><input type="radio" name="view" value="flat" checked> From above</label>
             <label><input type="radio" name="view" value="3d"> 3D</label>
+          </div>
+          <!-- Hyperbolic plane or tree, from above: which picture. -->
+          <div class="option-row" id="picture-row" hidden>
+            Drawn in
+            <label><input type="radio" name="picture" value="disk" checked> the disk</label>
+            <label><input type="radio" name="picture" value="half"> the half-plane</label>
+            <label id="spread-choice"><input type="radio" name="picture" value="spread"> spread out</label>
           </div>
           <div class="option-row" id="blocks-row" hidden>
             Blocks
@@ -267,7 +274,10 @@
           cells shrink toward the edge (the edge is infinitely far away). Drag
           to travel across the plane. There, every patch of cells has a long
           edge compared to its size, so the base spreads fast and the mountain
-          stays low: compare {7, 3} with the 2D grid.
+          stays low: compare {7, 3} with the 2D grid. The whole tiling (or tree)
+          is drawn in thin gray underneath. Besides the disk, the plane can be
+          drawn as the half-plane above a line, and a tree can be spread out,
+          with the start in the middle and each step away on the next ring.
         </p>
         </div>
 
@@ -377,6 +387,17 @@
           builds them by position, which works up to about distance 23; it says
           so under the graph's options.
         </p>
+        <p>
+          <strong>The pictures.</strong> The Poincar&eacute; disk
+          <span class="tex">\{|z| &lt; 1\}</span> and the upper half-plane
+          <span class="tex">\{\operatorname{Im} w &gt; 0\}</span> are two pictures
+          of the same plane: <span class="tex">w = i(1+z)/(1-z)</span> carries one
+          onto the other, taking hyperbolic lengths to hyperbolic lengths [6]. The
+          spread-out picture of a tree is the usual radial drawing: the cells at
+          distance <span class="tex">k</span> from the start sit on the circle of
+          radius <span class="tex">k</span>, and every cell's children share its
+          slice of the circle equally.
+        </p>
         <p><strong>References</strong></p>
         <ol class="references">
           <li>M. Eden, &ldquo;A two-dimensional growth process&rdquo;, in
@@ -391,6 +412,8 @@
           <li>J. W. Cannon, &ldquo;The combinatorial structure of cocompact discrete
             hyperbolic groups&rdquo;, <em>Geometriae Dedicata</em> 16 (1984),
             123&ndash;148.</li>
+          <li>A. F. Beardon, <em>The Geometry of Discrete Groups</em>, Springer,
+            1983, Chapter 7.</li>
         </ol>
         </div>
       </section>

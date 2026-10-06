@@ -67,13 +67,14 @@
      tilingRules(shape, cells)   the kinds of cells of a tiling
      testRules(shape, kinds)     checks them against geometry
      coshFromStart(motion)       how far a cell is from the start
+     spreadPlace(graph, v)       where a tree's cell goes in the "spread out" picture
      hashTable()                 a fast table from pairs of numbers
      ballAround(graph, v, r)     the cells within distance r of v
    ===================================================================== */
 
 
 // The first cell of the tiling {p,q} (q = Infinity for a tree): its
-// inradius r (hyperbolic), where the middle of each side is in the disk
+// inradius r and circumradius (hyperbolic), where the middle of each side is in the disk
 // (sides[k] = [x, y]), and its outline as a list of points [x, y] in
 // the disk, going around it (each side bent along its circle arc).
 function tilingShape(p, q) {
@@ -100,7 +101,9 @@ function tilingShape(p, q) {
       outline.push([x * Math.cos(angle) - y * Math.sin(angle), x * Math.sin(angle) + y * Math.cos(angle)]);
     }
   }
-  return { p: p, q: q, inradius: inradius, middle: middle, sides: sides, outline: outline };
+  // The circumradius (middle to a corner): infinite for a tree.
+  const circumradius = q === Infinity ? Infinity : Math.acosh(1 / (Math.tan(Math.PI / p) * Math.tan(Math.PI / q)));
+  return { p: p, q: q, inradius: inradius, circumradius: circumradius, middle: middle, sides: sides, outline: outline };
 }
 
 // Motions are kept as [a.re, a.im, b.re, b.im]. Doing motion B first,
@@ -358,6 +361,9 @@ function tilingByRules(graph, kinds, maxCells) {
   }
 
   makeCell(0, [1, 0, 0, 0]);                   // cell 0: the first cell, centered at 0 (kind 0)
+  // The parent of cell v (v > 0), and which of the parent's sides v is
+  // across: [parent, side].
+  graph.parent = function (v) { return [across[v * p], facing[v * p]]; };
   graph.neighbors = function (v) {
     const found = [];
     for (let i = 0; i < p; i++) {
@@ -618,6 +624,34 @@ function testRules(shape, kinds) {
       v = farther[Math.floor(random() * farther.length)];
     }
   }
+}
+
+// Where cell v of a tree goes in the "spread out" picture of the tree
+// (a page's third way to draw a tree, besides the disk and the half-
+// plane): [depth, angle], with depth its number of steps from the start
+// (it goes on the circle of that radius) and angle in turns (0 to 1).
+// The start's p children share the whole circle equally, and every
+// other cell's p - 1 children share its slice of the circle equally,
+// in order counterclockwise (the usual "radial" drawing of a tree).
+// Only for a tree built by rules (graph.parent). Each cell's depth and
+// slice are kept in graph.spread, worked out from its parent's.
+function spreadPlace(graph, v) {
+  const p = graph.shape.p;
+  if (!graph.spread) graph.spread = { depth: [0], low: [0], width: [1] };
+  const kept = graph.spread;
+  // Go up to the nearest cell already worked out, then back down.
+  const chain = [];
+  for (let u = v; kept.depth[u] === undefined; u = graph.parent(u)[0]) chain.push(u);
+  while (chain.length > 0) {
+    const u = chain.pop();
+    const [parent, side] = graph.parent(u);
+    const share = parent === 0 ? 1 / p : kept.width[parent] / (p - 1);
+    const slot = parent === 0 ? side : side - 1;      // side 0 of every cell but the start faces its parent
+    kept.depth[u] = kept.depth[parent] + 1;
+    kept.low[u] = kept.low[parent] + slot * share;
+    kept.width[u] = share;
+  }
+  return [kept.depth[v], kept.low[v] + kept.width[v] / 2];
 }
 
 // A table from pairs of whole numbers (i, j) to cell numbers, for
