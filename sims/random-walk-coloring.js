@@ -3,9 +3,11 @@
    sim
    ---------------------------------------------------------------------
    What it does, in plain words:
-     - Builds the domain: a box or torus of cells, or a custom one drawn
-       in the graph tool (shown inside this page). The domain code is
-       shared with the other sims, in js/sim-domains.js.
+     - Builds the domain: a box or torus of cells, a custom one drawn
+       in the graph tool (shown inside this page), or a ball of a
+       hyperbolic tiling or a tree. The domain code is shared with the
+       other sims, in js/sim-domains.js and (hyperbolic tilings and
+       trees, and their pictures) js/sim-hyperbolic.js.
      - Places the N walkers: spread out evenly to begin with, and you can
        drag them to other cells before the run starts.
      - Hands everything to the walkers (random-walk-coloring-walk.js),
@@ -44,6 +46,17 @@ const OUTSIDE = "#ecebe7";        // around a custom domain (cells not in it)
 const SMALLEST_BORDERED_CELL = 4; // cells smaller than this (in pixels) get no border lines
 const PAD = 8;                    // room above and below the picture, so walkers at the edge show
 
+// Hyperbolic plane or tree: the ball's default and largest radius R,
+// the most cells a ball may have (a ball of a hyperbolic tiling grows
+// exponentially with R), the picture's height in screen pixels, and the
+// color of an uncolored cell in the spread-out picture (white dots
+// wouldn't show there).
+const DEFAULT_BALL_RADIUS = 5;
+const MAX_BALL_RADIUS = 20;
+const MAX_BALL_CELLS = 20000;
+const DISK_HEIGHT = 480;
+const UNCOLORED_DOT = "#c9c6bf";
+
 // The speeds on the Speed slider, in steps per second (one step = one
 // unit of time, in both models). Infinity means "as fast as the
 // computer can". The default is slow, so you can watch every step.
@@ -56,14 +69,20 @@ const DEFAULT_SPEED = SPEEDS.indexOf(5);
    ===================================================================== */
 
 let model = "discrete";         // "discrete" or "continuous"
-let domainKind = "torus";       // "box", "torus" or "custom": the domain in use
-let domain = null;              // the domain graph (js/sim-domains.js)
+let domainKind = "torus";       // "box", "torus", "custom" or "graph": the domain in use
+let domain = null;              // the domain graph (js/sim-domains.js), or a ball (makeBall, js/sim-hyperbolic.js)
 let customDomain = null;        // the last custom domain drawn, if any
 let N = DEFAULTS.walkers;       // number of walkers
 let starts = [];                // starts[i] = the cell walker i starts on
 let colorNames = [];            // colorNames[i] = how color i is drawn, e.g. "#f2735a"
 let colorRGB = [];              // the same colors as [red, green, blue], 0..255
 let showWalkers = true;         // the "Show walkers" box
+
+// Hyperbolic plane or tree: which graph, how it is drawn, and how far
+// the view has been moved (js/sim-hyperbolic.js); and the graph itself
+// (js/sim-graphs.js), made again only when the graph changes.
+const disk = makeDiskView(byId("sim-canvas"));
+let graph = null, graphFor = null;
 
 let playing = false;            // it starts paused; Play sets it going
 let speedIndex = DEFAULT_SPEED;
@@ -103,9 +122,14 @@ function showTime(t) {
    Custom domains: the same idea with the region's own cells, the
    distance being the number of steps through the region, starting from
    the cell nearest the top left.
+
+   Hyperbolic plane or tree: the same, starting from the start cell in
+   the middle of the ball.
    ===================================================================== */
 function defaultStarts(d, count) {
-  return domainKind === "custom" ? spreadThroughRegion(d, count) : gridStarts(d, count);
+  if (domainKind === "graph") return spreadThroughRegion(d, count, 0);
+  if (domainKind === "custom") return spreadThroughRegion(d, count, topLeftCell(d));
+  return gridStarts(d, count);
 }
 
 function gridStarts(d, count) {
@@ -139,13 +163,19 @@ function gridStarts(d, count) {
   return picked.map(function (p) { return cellAt(d, p.x, p.y); });
 }
 
-function spreadThroughRegion(d, count) {
-  // The cell nearest the top left of the region's box.
+// The cell nearest the top left of a region's box.
+function topLeftCell(d) {
   let corner = 0;
   for (let v = 1; v < d.n; v++) {
     if ((d.x[v] - d.xmin) + (d.ymax - d.y[v]) < (d.x[corner] - d.xmin) + (d.ymax - d.y[corner])) corner = v;
   }
-  const picked = [corner];
+  return corner;
+}
+
+// "count" cells, the first one "firstCell", then each time the cell
+// farthest (in steps) from all those picked so far.
+function spreadThroughRegion(d, count, firstCell) {
+  const picked = [firstCell];
   let steps = stepsFrom(d, picked);
   while (picked.length < count) {
     let far = 0;
@@ -245,6 +275,7 @@ function drawSoon() {
 
 function drawColoring() {
   if (!domain || !latest || simCanvas.hidden) return;
+  if (domainKind === "graph") { drawOnGraph(); return; }
   const colors = latest.colors;
   const pen = fitPicture(view, domain, MAX_PICTURE_HEIGHT);
   const cells = cellsShown(view, domain);
@@ -283,15 +314,37 @@ function drawColoring() {
   if (showWalkers) drawWalkers(pen);   // walkers on the edge show whole
 }
 
+// Hyperbolic plane or tree: the ball's cells in their colors, with the
+// rest of the tiling (or tree) in thin gray (js/sim-hyperbolic.js), and
+// the walkers on top.
+function drawOnGraph() {
+  const height = pictureHeight(DISK_HEIGHT), colors = latest.colors;
+  let pen;
+  if (disk.picture === "spread") {
+    pen = drawSpreadTree(disk, height, domain.n,
+      function (v) { return domain.depth[v]; }, function (v) { return domain.angle[v]; },
+      function (v) { return colors[v] === -1 ? UNCOLORED_DOT : colorNames[colors[v]]; });
+  } else {
+    pen = diskPen(disk, height);
+    drawDiskFrame(disk, pen, height, OUTSIDE, UNDER_COLOR);
+    drawOnDisk(disk, pen, graph, domain.n, function (v) { return ballPlace(domain, v); },
+      function (v) { return colors[v] === -1 ? UNCOLORED : colorNames[colors[v]]; });
+  }
+  if (showWalkers) drawWalkers(pen);
+}
+
 // The size of a walker's marker, in screen pixels.
 function walkerRadius() { return Math.max(5, Math.min(14, view.cell * 0.7)); }
 
-// Where walker i is drawn on the screen: the middle of its cell, in
-// every copy of the torus that shows (just once on a box). Only spots
-// inside the picture's box count, so at zoom 1 each walker shows once.
-// y counts from the top of the picture, PAD below the canvas top.
+// Where walker i is drawn on the screen, and how big: the middle of its
+// cell, in every copy of the torus that shows (just once on a box). Only
+// spots inside the picture's box count, so at zoom 1 each walker shows
+// once. y counts from the top of the picture, PAD below the canvas top.
+// On a hyperbolic tiling or tree, the middle of its cell (y from the
+// canvas top), a bit smaller where cells are small.
 function walkerSpots(i) {
   const d = domain, v = latest.positions[i];
+  if (domainKind === "graph") return graphSpots(v);
   let columns = [d.x[v] - d.xmin], rows = [d.ymax - d.y[v]];   // its square (column, row)
   if (d.wrap) {
     columns = repeatsBetween(columns[0], d.wrap.xmax - d.wrap.xmin + 1, view.firstI, view.lastI);
@@ -301,10 +354,25 @@ function walkerSpots(i) {
   for (const column of columns) {
     for (const row of rows) {
       const x = (column + 0.5 + view.scroll.x) * view.cell, y = (row + 0.5 + view.scroll.y) * view.cell;
-      if (x >= 0 && x < view.width && y >= 0 && y < view.height) spots.push({ x: view.left + x, y: y });
+      if (x >= 0 && x < view.width && y >= 0 && y < view.height) spots.push({ x: view.left + x, y: y, r: walkerRadius() });
     }
   }
   return spots;
+}
+
+function graphSpots(v) {
+  let x, y, size;
+  if (disk.picture === "spread") {
+    [x, y] = spreadSpot(disk, domain.depth[v], domain.angle[v]);
+    size = 1.5 * spreadDot(disk, domain.depth[v]);
+  } else {
+    const A = seenFrom(disk, ballPlace(domain, v));
+    const [mx, my] = motionApply(A, 0, 0);
+    [x, y] = diskToScreen(disk, mx, my);
+    size = cellPixels(disk, mx, my);
+  }
+  if (x < 0 || x > simCanvas.clientWidth || y < 0 || y > simCanvas.clientHeight) return [];
+  return [{ x: x, y: y, r: Math.max(4, Math.min(10, size)) }];
 }
 
 // The numbers t, t + period, t - period, t + 2 period, ... between lo and
@@ -319,12 +387,12 @@ function repeatsBetween(t, period, lo, hi) {
 // edge so it shows up even on its own color, and its number when there
 // is room for it.
 function drawWalkers(pen) {
-  const r = walkerRadius();
   pen.textAlign = "center";
   pen.textBaseline = "middle";
-  pen.font = "bold " + Math.round(r * 1.1) + "px sans-serif";
   for (let i = 0; i < N; i++) {
     for (const spot of walkerSpots(i)) {
+      const r = spot.r;
+      pen.font = "bold " + Math.round(r * 1.1) + "px sans-serif";
       pen.beginPath();
       pen.arc(spot.x, spot.y, r, 0, 2 * Math.PI);
       pen.fillStyle = colorNames[i];
@@ -361,6 +429,8 @@ window.addEventListener("resize", drawSoon);
      drag (anywhere but a walker)     move it
      mouse wheel, or pinch            zoom in or out, around the pointer
      the + / − / Reset buttons        zoom in, zoom out, show it all again
+   On a hyperbolic tiling or tree, dragging (anywhere but a walker) moves
+   around the plane instead (js/sim-hyperbolic.js).
    "Pointer" events cover the mouse, a pen and fingers alike.
    ===================================================================== */
 let dragWalker = -1;          // the walker being dragged, or -1
@@ -375,22 +445,33 @@ function walkerUnder(spot) {
   if (!latest || !showWalkers || playing || started()) return -1;
   for (let i = N - 1; i >= 0; i--) {
     for (const w of walkerSpots(i)) {
-      if (Math.hypot(w.x - spot.x, w.y - spot.y) <= walkerRadius() + 3) return i;
+      if (Math.hypot(w.x - spot.x, w.y - spot.y) <= w.r + 3) return i;
     }
   }
   return -1;
 }
 
+// Where the pointer is, in the same pixels as walkerSpots: from the top
+// of the picture (pointerSpot, js/sim-view.js), or on a hyperbolic tiling
+// or tree from the top of the canvas.
+function spotOf(event) {
+  if (domainKind !== "graph") return pointerSpot(view, event);
+  const box = simCanvas.getBoundingClientRect();
+  return { x: event.clientX - box.left, y: event.clientY - box.top };
+}
+
 // The "hand" cursor where something can be dragged.
 function showCursor(spot) {
-  simCanvas.style.cursor = (dragWalker >= 0 || view.pointers.size > 0) ? "grabbing"
-    : (walkerUnder(spot) >= 0 || view.movable) ? "grab" : "default";
+  const movable = domainKind === "graph" ? disk.picture !== "spread" : view.movable;
+  simCanvas.style.cursor = (dragWalker >= 0 || view.pointers.size > 0 || disk.dragFrom) ? "grabbing"
+    : (walkerUnder(spot) >= 0 || movable) ? "grab" : "default";
 }
 
 // A press on a walker drags the walker. Anywhere else, the pointer
-// moves the picture (pressPointer and the rest are in js/sim-view.js).
+// moves the picture (pressPointer and the rest are in js/sim-view.js,
+// pressDisk and the rest in js/sim-hyperbolic.js).
 simCanvas.addEventListener("pointerdown", function (event) {
-  const spot = pointerSpot(view, event);
+  const spot = spotOf(event);
   if (dragWalker < 0 && view.pointers.size === 0) {
     dragWalker = walkerUnder(spot);                   // a walker, if there's one under the pointer
     if (dragWalker >= 0) {
@@ -398,18 +479,23 @@ simCanvas.addEventListener("pointerdown", function (event) {
       simCanvas.setPointerCapture(event.pointerId);   // keep getting moves even off the canvas
     }
   }
-  if (dragWalker < 0) pressPointer(view, event);
+  if (dragWalker < 0) {
+    if (domainKind === "graph") pressDisk(disk, event);
+    else pressPointer(view, event);
+  }
   showCursor(spot);
 });
 
 simCanvas.addEventListener("pointermove", function (event) {
-  const spot = pointerSpot(view, event);
+  const spot = spotOf(event);
   if (dragWalker >= 0 && event.pointerId === walkerPointer) {
-    const cell = cellUnder(view, domain, spot);
+    const cell = domainKind === "graph" ? ballCellUnder(disk, domain, event) : cellUnder(view, domain, spot);
     if (cell !== -1 && cell !== starts[dragWalker]) {
       starts[dragWalker] = cell;
       restart();
     }
+  } else if (domainKind === "graph") {
+    if (moveDisk(disk, event)) drawSoon();
   } else {
     movePointer(view, event);
   }
@@ -419,7 +505,8 @@ simCanvas.addEventListener("pointermove", function (event) {
 function stopDragging(event) {
   if (event.pointerId === walkerPointer) { dragWalker = -1; walkerPointer = -1; }
   releasePointer(view, event);
-  showCursor(pointerSpot(view, event));
+  releaseDisk(disk);
+  showCursor(spotOf(event));
 }
 simCanvas.addEventListener("pointerup", stopDragging);
 simCanvas.addEventListener("pointercancel", stopDragging);
@@ -625,6 +712,7 @@ function openTool() {
   toolOpen = true;
   simCanvas.hidden = true;
   showZoomButtons(view);
+  byId("disk-buttons").hidden = true;
   byId("custom-area").hidden = false;
   if (!frame.src) frame.src = "graph-tool.html?embed";    // the first time only
   checkTool();
@@ -681,7 +769,10 @@ byId("tool-cancel").addEventListener("click", function () {
 function useDomain(kind, d) {
   domainKind = kind;
   domain = d;
-  useTorus(view, Boolean(d.wrap));   // moving and zooming; zooming out past the whole picture only on a torus (js/sim-view.js)
+  // Moving and zooming; zooming out past the whole picture only on a
+  // torus (js/sim-view.js). On a hyperbolic tiling or tree, dragging
+  // moves around the plane instead.
+  useTorus(view, Boolean(d.wrap), kind !== "graph");
   showDomainChoice();
   setWalkerCount(N);
 }
@@ -697,12 +788,32 @@ function useBox() {
   useDomain(torus ? "torus" : "box", boxDomain(width, height, neighbors, torus));
 }
 
+// A ball of a hyperbolic tiling or a tree, from the options on the
+// page (js/sim-hyperbolic.js), with the start cell in the middle of the
+// picture. (Choosing one while the graph tool is open closes it.)
+function useGraph() {
+  if (toolOpen) closeTool();
+  if (!readGraphOptions(disk)) { showDomainChoice(); return; }
+  if (graphFor !== disk.spec) { graph = makeGraph(disk.spec); graphFor = disk.spec; }
+  const R = readWhole("set-ball-radius", 1, MAX_BALL_RADIUS, DEFAULT_BALL_RADIUS);
+  const ball = makeBall(graph, R, MAX_BALL_CELLS);
+  byId("set-ball-radius").value = ball.R;
+  byId("ball-info").textContent = ball.n.toLocaleString() + " cells." + (ball.R < R
+    ? " A ball of radius " + R + " would have more than " + MAX_BALL_CELLS.toLocaleString() +
+      " cells, the most this page uses, so R is " + ball.R + "."
+    : "");
+  backToStart(disk);
+  useDomain("graph", ball);
+}
+
 // Show the options that fit the domain in use, and tick its radio button.
 function showDomainChoice() {
   document.querySelector('input[name="domain"][value="' + domainKind + '"]').checked = true;
-  const custom = (domainKind === "custom");
-  byId("size-row").hidden = byId("neighbors-row").hidden = custom;
+  const custom = (domainKind === "custom"), onGraph = (domainKind === "graph");
+  byId("size-row").hidden = byId("neighbors-row").hidden = custom || onGraph;
   byId("custom-row").hidden = !custom;
+  byId("graph-rows").hidden = !onGraph;
+  byId("disk-buttons").hidden = !onGraph || disk.picture === "spread" || simCanvas.hidden;
   if (custom && customDomain) {
     byId("custom-info").textContent = "Your region: " + customDomain.n + " cells" +
       (customDomain.wrap ? ", on a torus." : ".");
@@ -728,10 +839,11 @@ for (const radio of document.querySelectorAll('input[name="model"]')) {
   });
 }
 
-// Domain: Box / Torus / Custom.
+// Domain: Box / Torus / Custom / Hyperbolic plane or tree.
 for (const radio of document.querySelectorAll('input[name="domain"]')) {
   radio.addEventListener("change", function () {
     if (radio.value === "custom") openTool();
+    else if (radio.value === "graph") useGraph();
     else useBox();
   });
 }
@@ -739,6 +851,20 @@ for (const id of ["set-width", "set-height", "set-neighbors"]) {
   byId(id).addEventListener("change", useBox);
 }
 byId("edit-custom").addEventListener("click", openTool);
+
+// Hyperbolic plane or tree: the graph, the ball's radius, and the
+// picture ("Drawn in"). "Back to the start" puts the start cell back in
+// the middle.
+for (const id of ["set-p", "set-q", "set-degree", "set-ball-radius"]) byId(id).addEventListener("change", useGraph);
+for (const radio of document.querySelectorAll('input[name="graph-kind"]')) radio.addEventListener("change", useGraph);
+for (const radio of document.querySelectorAll('input[name="picture"]')) {
+  radio.addEventListener("change", function () {
+    disk.picture = radio.value;
+    showDomainChoice();
+    drawSoon();
+  });
+}
+byId("disk-reset").addEventListener("click", function () { backToStart(disk); drawSoon(); });
 
 // N: the slider and the number box move together, and the run restarts
 // live while you drag, like a Desmos slider.
@@ -784,6 +910,9 @@ byId("set-width").value = DEFAULTS.width;
 byId("set-height").value = DEFAULTS.height;
 byId("set-width").max = byId("set-height").max = MAX_SIDE;
 byId("set-neighbors").value = String(DEFAULTS.neighbors);
+byId("set-ball-radius").value = DEFAULT_BALL_RADIUS;
+byId("set-ball-radius").max = MAX_BALL_RADIUS;
+showGraphPresets(useGraph);
 byId("set-walkers").max = byId("walkers-slider").max = MAX_WALKERS;
 byId("seed").value = DEFAULTS.seed;
 byId("speed").max = SPEEDS.length - 1;
