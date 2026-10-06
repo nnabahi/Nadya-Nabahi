@@ -84,7 +84,18 @@ let latest = null;
 /* =====================================================================
    3. COLORS
    ---------------------------------------------------------------------
-   nadya's own colors, from her Sandpiles.js. Two ways to use them:
+   Three ways to color the heights:
+     "White to red, then viridis" (the default, nadya's pick): heights
+                             0 up to the threshold (4 on the square grid)
+                             go white, yellow, orange, light red, dark
+                             red (colors from ColorBrewer's "YlOrRd",
+                             Brewer, colorbrewer2.org). Taller cells, which
+                             are about to topple, go from green to dark
+                             purple at the tallest cell: the "viridis"
+                             colors (van der Walt and Smith, matplotlib,
+                             2015) with their yellow end cut off, so they
+                             never look like the low heights.
+   and nadya's own colors, from her Sandpiles.js:
      "One color per height"  height 0 gets the first color, 1 the
                              second, and so on; 9 or more grains get
                              the last one (black).
@@ -99,17 +110,35 @@ let latest = null;
 const HEIGHT_COLORS = ["#ffffff", "#fcaf14", "#cc2020", "#02b51c", "#3305b0",
                        "#e012ad", "#12e0dd", "#eff216", "#b34c04", "#000000"];
 const TOPPLES_DARKEST = [30, 60, 140];   // dark blue
+const LOW_COLORS = ["#ffffff", "#fed976", "#fd8d3c", "#e31a1c", "#800026"];   // white, yellow, orange, light red, dark red
+const TALL_COLORS = ["#440154", "#482475", "#414487", "#355f8d",            // viridis at 0, 0.1, ..., 0.7: dark
+                     "#2a788e", "#21918c", "#22a884", "#44bf70"];           // purple to green (no yellow)
+
+const LOW_RGB = LOW_COLORS.map(hexToRGB), TALL_RGB = TALL_COLORS.map(hexToRGB);   // as [r, g, b]
+
+// The color a fraction t (0 to 1) of the way along a list of [r, g, b]
+// colors, mixed in red, green and blue between the two nearest.
+function alongColors(list, t) {
+  const at = t * (list.length - 1), k = Math.min(Math.floor(at), list.length - 2), f = at - k;
+  const a = list[k], b = list[k + 1];
+  return [0, 1, 2].map(function (i) { return Math.round(a[i] + f * (b[i] - a[i])); });
+}
 
 // The color of each height 0 .. top (top = the threshold), as [r, g, b].
 // Heights above top use the color of top. The colors are mixed in hue,
 // saturation and brightness with hexToHSV and hsvToHex, and turned into
 // [r, g, b] with hexToRGB (all three in js/sim-domains.js).
 let heightRGB = [];
+let palette = "smooth";   // the Colors menu's choice
+let tallest = 0;          // the tallest cell right now (set by drawPile), for the viridis colors
 function makeHeightColors() {
   const top = neighbors;
+  palette = byId("palette").value;
   heightRGB = [];
   for (let h = 0; h <= Math.max(top, HEIGHT_COLORS.length - 1); h++) {
-    if (byId("palette").value === "list") {
+    if (palette === "smooth") {
+      heightRGB.push(alongColors(LOW_RGB, Math.min(h / top, 1)));
+    } else if (palette === "list") {
       heightRGB.push(hexToRGB(HEIGHT_COLORS[Math.min(h, HEIGHT_COLORS.length - 1)]));
     } else if (h < 1) {
       heightRGB.push(hexToRGB(HEIGHT_COLORS[0]));
@@ -121,7 +150,14 @@ function makeHeightColors() {
     }
   }
 }
-function colorOfHeight(h) { return heightRGB[Math.min(h, heightRGB.length - 1)]; }
+function colorOfHeight(h) {
+  if (palette === "smooth" && h > neighbors) {
+    // Above the threshold: green just above it, dark purple at the tallest.
+    const t = tallest > neighbors + 1 ? (tallest - h) / (tallest - neighbors - 1) : 1;
+    return alongColors(TALL_RGB, Math.max(0, Math.min(1, t)));
+  }
+  return heightRGB[Math.min(h, heightRGB.length - 1)];
+}
 
 // Topples: white for 0, then lighter to darker blue up to "most".
 function colorOfTopples(k, most) {
@@ -248,6 +284,8 @@ function drawPile() {
   const showTopples = checked("show") === "topples";
   let mostTopples = 0;
   if (showTopples) for (let v = 0; v < d.n; v++) mostTopples = Math.max(mostTopples, odometer[v]);
+  tallest = 0;
+  for (let v = 0; v < d.n; v++) if (heights[v] > tallest && !sinks.includes(v)) tallest = heights[v];
 
   // The picture's box: as big as fits the width (and at most
   // MAX_PICTURE_HEIGHT tall), in the middle of the canvas. Then the cell
