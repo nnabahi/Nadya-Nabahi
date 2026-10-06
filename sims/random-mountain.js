@@ -68,18 +68,9 @@ const DOMAINS = {
 const DEFAULT_SIZE = { 1: 101, 2: 41, graph: 6 };
 const MAX_SIZE = { 1: 2001, 2: 301, graph: 12 };
 
-// "Hyperbolic plane or tree": the graph presets (js/sim-graphs.js makes
-// them; q = Infinity is the tree whose cells meet p at a time), its
-// domains (a ball is every cell within R steps of the start), and the
-// largest r for the tile "every cell within distance r".
-const GRAPH_PRESETS = [
-  { name: "{7, 3}", graph: { kind: "tiling", p: 7, q: 3 } },
-  { name: "{5, 4}", graph: { kind: "tiling", p: 5, q: 4 } },
-  { name: "{4, 5}", graph: { kind: "tiling", p: 4, q: 5 } },
-  { name: "{3, 7}", graph: { kind: "tiling", p: 3, q: 7 } },
-  { name: "Tree, degree 3", graph: { kind: "tiling", p: 3, q: Infinity } },
-  { name: "Tree, degree 4", graph: { kind: "tiling", p: 4, q: Infinity } },
-];
+// "Hyperbolic plane or tree": its domains (a ball is every cell within
+// R steps of the start), and the largest r for the tile "every cell
+// within distance r". (The graph presets are in js/sim-hyperbolic.js.)
 DOMAINS.graph = [["whole", "The whole plane (or tree)"], ["ball", "A ball"]];
 const MAX_GRAPH_RADIUS = 4;
 
@@ -116,9 +107,6 @@ let run = 0;                 // counts restarts, so leftovers from an older run 
 let show3D = false;          // 2D only: the 3D view instead of the view from above (section 6c)
 let blockShape = "cubes";    // the 3D view's blocks: "cubes" or "coins"
 let stretchLevel = 0;        // the 3D view's Heights slider: -4 (flatter) .. 4 (taller)
-let graphSpec = GRAPH_PRESETS[0].graph;   // "Hyperbolic plane or tree": the graph
-let diskMotion = [1, 0, 0, 0];            // ... and how far the view of it has been moved (section 6d)
-let graphPicture = "disk";                // ... and how it is drawn: "disk", "half" (the half-plane) or "spread" (trees)
 
 // The latest message from the mountain (see part 2 of
 // random-mountain-growth.js): the sites, their heights, the numbers.
@@ -367,7 +355,7 @@ function restart(keepStep) {
   run++;
   if (dim === "graph") {
     worker.postMessage({
-      type: "setup", run: run, dim: "graph", graph: graphSpec,
+      type: "setup", run: run, dim: "graph", graph: disk.spec,
       radius: readWhole("set-radius", 1, MAX_GRAPH_RADIUS, 1),
       domain: where.domain, seed: byId("seed").value, steps: steps,
     });
@@ -406,6 +394,9 @@ function setPlaying(on) {
 let drawPending = false;
 const simCanvas = byId("sim-canvas");
 const view = makeView(simCanvas, drawSoon);      // where the picture goes, and the 2D picture's zoom (js/sim-view.js)
+// "Hyperbolic plane or tree": the graph, how it is drawn, and how far
+// the plane has been moved (js/sim-hyperbolic.js, section 6d).
+const disk = makeDiskView(simCanvas, view);
 const tiny = document.createElement("canvas");   // 2D: one pixel per cell
 
 // Draw at the browser's next screen refresh (at most once per refresh,
@@ -469,7 +460,7 @@ function drawMountain() {
   if (dim !== 1 && show3D) draw3D();     // section 6c
   else if (dim === 1) drawLine();
   else if (dim === 2) drawGrid();
-  else if (graphPicture === "spread") drawSpread();   // section 6d
+  else if (disk.picture === "spread") drawSpread();   // section 6d
   else drawHyperbolic();
 }
 
@@ -629,12 +620,13 @@ function drawGrid() {
    ===================================================================== */
 simCanvas.addEventListener("pointerdown", function (event) {
   pressPointer(view, event);
-  startPlaneDrag();
+  startDrag();
 });
 simCanvas.addEventListener("pointermove", function (event) {
-  if (dragFrom && view.pointers.has(event.pointerId)) {
+  if (disk.dragFrom && view.pointers.has(event.pointerId)) {
     view.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });   // where a second finger starts from
-    dragPlane(event.clientX, event.clientY);
+    dragPlane(disk, event.clientX, event.clientY);
+    drawSoon();
   } else {
     movePointer(view, event);
   }
@@ -642,8 +634,13 @@ simCanvas.addEventListener("pointermove", function (event) {
 for (const type of ["pointerup", "pointercancel"]) {
   simCanvas.addEventListener(type, function (event) {
     releasePointer(view, event);
-    startPlaneDrag();
+    startDrag();
   });
+}
+// On a graph, one pointer drags across the plane (js/sim-hyperbolic.js).
+function startDrag() {
+  if (dim === "graph") startPlaneDrag(disk);
+  else disk.dragFrom = null;
 }
 
 
@@ -674,7 +671,7 @@ function showPictureKind() {
   const in3D = (dim !== 1 && show3D);
   simCanvas.hidden = toolOpen || in3D;
   byId("sim-3d").hidden = byId("view3d-buttons").hidden = toolOpen || !in3D;
-  byId("disk-reset").hidden = dim !== "graph" || graphPicture === "spread";   // with the zoom buttons
+  byId("disk-reset").hidden = dim !== "graph" || disk.picture === "spread";   // with the zoom buttons
   byId("picture-row").hidden = in3D || dim !== "graph";
   byId("view-rows").hidden = (dim === 1);
   byId("stretch-row").hidden = byId("view3d-help").hidden = !in3D;
@@ -746,31 +743,13 @@ byId("view3d-reset").addEventListener("click", function () { if (view3d) sim3d.r
 /* =====================================================================
    6d. THE HYPERBOLIC PLANE OR A TREE, SEEN FROM ABOVE
    ---------------------------------------------------------------------
-   Three pictures (the "Drawn in" option):
-     disk        the Poincare disk (see the top of js/sim-graphs.js): the
-                 whole hyperbolic plane inside a circle, with cells
-                 shrinking toward the edge
-     half-plane  the upper half-plane: the same plane above a line, with
-                 cells shrinking toward the line. It is the disk moved
-                 by w = i (1 + z) / (1 - z) (Beardon, Chapter 7), which
-                 takes the disk's middle to i and its edge to the line.
-     spread out  trees only: the start in the middle, the cells k steps
-                 away on the circle of radius k, and each cell's
-                 children sharing its slice of the circle
-                 (spreadPlace, js/sim-graphs.js)
-   Each site is drawn as its cell (a dot in the spread-out picture),
-   colored by height like the 2D picture; tiny cells are single dots.
-   Under it all, the whole tiling (or tree) is drawn in thin gray.
-
-   In the disk and the half-plane, dragging moves you around the plane:
-   the point you grab follows the pointer, and the whole picture moves
-   by the hyperbolic motion that carries one to the other (so cells
-   change size as they move, but never shape). "Back to the start" puts
-   the first cell back in the middle. All three pictures also zoom (and
-   the spread-out one slides) like the grid, with the view of section 6b:
-   it zooms and moves the whole picture (the function zoomed), and the
-   drawing leaves out what is off the screen. The 3D view stands the
-   stacks on the disk.
+   The disk, the half-plane, or a tree spread out (the "Drawn in"
+   option), each site drawn as its cell colored by height (on a tree, a
+   coin on its vertex), over the whole tiling (or tree) in thin gray.
+   Dragging moves across the plane, and the pictures zoom like the grid.
+   The drawing, the dragging and the zoom are shared with the other sims
+   on these graphs, in js/sim-hyperbolic.js. The 3D view stands the
+   stacks on the disk, with the tiling drawn on its floor.
 
    The worker sends each site's place once (its motion [a, b], see
    js/sim-graphs.js), and on a tree its depth and angle for the
@@ -778,10 +757,6 @@ byId("view3d-reset").addEventListener("click", function () { if (view3d) sim3d.r
    ===================================================================== */
 let places = new Float64Array(4 * 1024);   // site i's motion is places[4i .. 4i+3]
 let spreads = new Float64Array(2 * 1024);  // on a tree: site i's depth and angle are spreads[2i], spreads[2i + 1]
-// Where the picture is on the canvas: for the disk { cx, cy, radius },
-// for the half-plane { cx, base, unit } (the line is "base" pixels down,
-// and a length of 1 is "unit" pixels).
-let pictureBox = null;
 
 // Keep the places sent with a message (from site number placesFrom on).
 function keepPlaces(message) {
@@ -800,275 +775,42 @@ function keepAlong(kept, more, at) {
   return kept;
 }
 
-// The shape of the current graph's first cell (js/sim-graphs.js),
-// worked out again only when the graph changes.
-let shapeFor = null, shape = null;
-function currentShape() {
-  if (shapeFor !== graphSpec) { shapeFor = graphSpec; shape = tilingShape(graphSpec.p, graphSpec.q); }
-  return shape;
+// Where site i is: its motion.
+function sitePlace(i) { return places.subarray(4 * i, 4 * i + 4); }
+
+// The color of site i: by its height, gray with no block yet.
+function siteColor(i) {
+  const h = latest.height[i];
+  return h === 0 ? EMPTY : cssColor(heightColor(h, Math.max(latest.maxHeight, 1)));
 }
 
-// Where site i is in the picture: its motion, moved by the view.
-function siteMotion(i) {
-  return motionTimes(diskMotion, [places[4 * i], places[4 * i + 1], places[4 * i + 2], places[4 * i + 3]]);
-}
-
-// The point w = i (1 + z) / (1 - z) of the half-plane that the point
-// z = (x, y) of the disk goes to, as [re, im]. (Worked out:
-// re = -2y / D, im = (1 - x^2 - y^2) / D, with D = (1 - x)^2 + y^2.)
-function toHalfPlane(x, y) {
-  const D = Math.max((1 - x) * (1 - x) + y * y, 1e-12);   // the edge point z = 1 goes infinitely far up
-  return [-2 * y / D, (1 - x * x - y * y) / D];
-}
-
-// Where a point (x, y) of the disk lands on the screen. In the disk:
-// at (cx + x radius, cy - y radius) (y goes up). In the half-plane: its
-// point w, "unit" pixels per length 1, with the line at "base".
-function toScreen(x, y) {
-  const b = pictureBox;
-  if (graphPicture === "disk") return [b.cx + x * b.radius, b.cy - y * b.radius];
-  const [re, im] = toHalfPlane(x, y);
-  // (Far off the screen, kept to a size the canvas can handle.)
-  return [b.cx + Math.max(-1e5, Math.min(1e5, re * b.unit)), b.base - Math.min(1e5, im * b.unit)];
-}
-
-// How big a cell looks, in pixels (about its inradius), if its middle is
-// at the point (x, y) of the disk. The disk shrinks lengths near (x, y)
-// by 1 - x^2 - y^2, and the half-plane near w by Im(w) (Beardon,
-// Chapter 7; the two agree for the cell in the middle of each).
-function cellPixels(x, y) {
-  const b = pictureBox, middle = currentShape().middle;
-  if (graphPicture === "disk") return b.radius * middle * (1 - x * x - y * y);
-  return 2 * b.unit * middle * toHalfPlane(x, y)[1];
-}
-
-// Whether a cell whose middle is at the point (x, y) of the disk could
-// show on the screen: everything within hyperbolic distance R of its
-// middle, with R the cell's circumradius (for a tree, its inradius:
-// the tree's lines and the coins stay that close).
-// In the disk, a hyperbolic circle is a Euclidean circle (Beardon,
-// Chapter 7); worked out from its middle and radius there, it stays
-// within (1 - |z|^2) t / (1 - t) of z, with t = tanh(R / 2).
-// In the half-plane, the points within distance R of w are between
-// heights Im(w) e^-R and Im(w) e^R, and at most Im(w) sinh(R) to
-// either side (Beardon, Chapter 7).
-function onScreen(x, y) {
-  const shape = currentShape(), b = pictureBox;
-  const R = shape.q === Infinity ? shape.inradius : shape.circumradius;
-  if (graphPicture === "disk") {
-    const t = Math.tanh(R / 2), reach = b.radius * (1 - x * x - y * y) * t / (1 - t);
-    const [sx, sy] = toScreen(x, y);
-    return sx + reach > 0 && sx - reach < b.width && sy + reach > 0 && sy - reach < b.height;
-  }
-  const [re, im] = toHalfPlane(x, y);
-  const left = -b.cx / b.unit, right = (b.width - b.cx) / b.unit;      // the screen's sides, as Re(w)
-  const top = b.base / b.unit, bottom = (b.base - b.height) / b.unit;  // its top and bottom, as Im(w)
-  return im * Math.exp(-R) < top && im * Math.exp(R) > bottom &&
-         re + im * Math.sinh(R) > left && re - im * Math.sinh(R) < right;
-}
-
-// Add the outline of the cell with motion A to the pen's path (for
-// small cells, every 4th point of it is plenty).
-// "place" (toScreen if left out) says where a point of the disk goes.
-function traceOutline(pen, A, size, place) {
-  const outline = currentShape().outline, every = size < 5 ? 4 : 1;
-  for (let k = 0; k < outline.length; k += every) {
-    const [x, y] = (place || toScreen)(...motionApply(A, outline[k][0], outline[k][1]));
-    if (k === 0) pen.moveTo(x, y); else pen.lineTo(x, y);
-  }
-  pen.closePath();
-}
-
-// Add the lines from the middle of the cell with motion A to the middle
-// of each of its sides. On a tree, those lines from all the cells are
-// the tree itself: each edge runs from one cell's middle, through the
-// side the two cells share, to the other's. (Each half is a straight
-// line through the middle of the first cell, moved by A, so it is a
-// hyperbolic straight line: a circle arc in the disk.) "place" is as in
-// traceOutline.
-function traceSpokes(pen, A, place) {
-  const POINTS = 6;
-  for (const [sx, sy] of currentShape().sides) {
-    for (let j = 0; j <= POINTS; j++) {
-      const [x, y] = (place || toScreen)(...motionApply(A, sx * j / POINTS, sy * j / POINTS));
-      if (j === 0) pen.moveTo(x, y); else pen.lineTo(x, y);
-    }
-  }
-}
-
-// Make the canvas the picture's size and return its pen, ready to draw
-// in screen pixels.
-function graphPen() {
-  const width = simCanvas.clientWidth, height = pictureHeight(PICTURE_HEIGHT);
-  const ratio = window.devicePixelRatio || 1;   // 2 on sharp screens
-  simCanvas.style.height = height + "px";
-  simCanvas.width = Math.round(width * ratio);
-  simCanvas.height = Math.round(height * ratio);
-  const pen = simCanvas.getContext("2d");
-  pen.setTransform(ratio, 0, 0, ratio, 0, 0);   // draw in screen pixels from here on
-  // The view (js/sim-view.js) zooms and moves these pictures as it does
-  // the grid: its box is the whole canvas, measured in "cells" a 60th of
-  // the canvas's shorter side (so it zooms in up to about 50 times).
-  view.left = 0;
-  view.top = 0;
-  view.width = width;
-  view.height = height;
-  view.size = Math.min(width, height) / 60;
-  return pen;
-}
-
-// Where the point (px, py) of the whole, unzoomed picture is on the
-// screen, with the view's zoom and move.
-function zoomed(px, py) {
-  return [(px + view.scroll.x * view.size) * view.zoom, (py + view.scroll.y * view.size) * view.zoom];
-}
-
-// The disk or the half-plane.
+// The disk or the half-plane: the sites, over the whole tiling (or
+// tree) in thin gray (js/sim-hyperbolic.js).
 function drawHyperbolic() {
-  const s = latest, pen = graphPen();
-  const width = simCanvas.clientWidth, height = pictureHeight(PICTURE_HEIGHT);
-  // (Unzoomed, as the whole picture; then zoomed and moved by the view.)
-  if (graphPicture === "disk") {
-    // The disk: the whole plane.
-    const [cx, cy] = zoomed(width / 2, height / 2);
-    pictureBox = { cx: cx, cy: cy, radius: (Math.min(width, height) / 2 - 4) * view.zoom,
-                   width: width, height: height };
-    pen.beginPath();
-    pen.arc(pictureBox.cx, pictureBox.cy, pictureBox.radius, 0, 2 * Math.PI);
-  } else {
-    // The half-plane: everything above the line near the bottom, with
-    // the start's middle (w = i) a third of the way up.
-    const [cx, base] = zoomed(width / 2, height - 12);
-    pictureBox = { cx: cx, base: base, unit: (height - 12) / 3 * view.zoom, width: width, height: height };
-    pen.beginPath();
-    pen.rect(0, 0, width, base);
-  }
-  pen.fillStyle = OUTSIDE;
-  pen.fill();
-  pen.strokeStyle = EMPTY;
-  pen.stroke();
-
-  // The tiling (or the tree's lines) under the mountain.
-  drawUnder(pen);
-
-  // The sites, each colored by its height: on a tiling, the whole cell;
-  // on a tree, a coin on its vertex, a bit over half way to the middle
-  // of each edge, so the tree's lines show between the coins. Tiny ones
-  // are single dots.
-  const tree = graphSpec.q === Infinity;
-  const highest = Math.max(s.maxHeight, 1);
-  pen.lineWidth = 0.5;
-  pen.strokeStyle = "rgba(0, 0, 0, 0.25)";
-  for (let i = 0; i < s.height.length; i++) {
-    const A = siteMotion(i);
-    const [mx, my] = motionApply(A, 0, 0);                  // the cell's middle
-    if (!onScreen(mx, my)) continue;
-    const size = cellPixels(mx, my);
-    pen.fillStyle = s.height[i] === 0 ? EMPTY : cssColor(heightColor(s.height[i], highest));
-    if (size < 0.7) {
-      const [x, y] = toScreen(mx, my);
-      pen.fillRect(x - 0.5, y - 0.5, 1, 1);
-      continue;
-    }
-    pen.beginPath();
-    if (tree) {
-      const [x, y] = toScreen(mx, my);
-      pen.arc(x, y, 0.55 * size, 0, 2 * Math.PI);
-    } else {
-      traceOutline(pen, A, size);
-    }
-    pen.fill();
-    if (size > 4) pen.stroke();
-  }
+  const height = pictureHeight(PICTURE_HEIGHT);
+  const pen = diskPen(disk, height);
+  drawDiskFrame(disk, pen, height, OUTSIDE, EMPTY);
+  drawOnDisk(disk, pen, graphUnder(), latest.height.length, sitePlace, siteColor);
 }
 
-// The spread-out picture of a tree: the start in the middle, the cells
-// k steps away on the circle of radius k (in rings "gap" pixels apart),
-// each cell's children sharing its slice of the circle. Under the sites,
-// the tree itself in thin gray lines, out to one ring past the
-// mountain, leaving out cells packed closer than about 2 pixels (and
-// branches off the screen).
+// A tree spread out (js/sim-hyperbolic.js).
 function drawSpread() {
-  const s = latest, pen = graphPen(), p = graphSpec.p;
-  const width = simCanvas.clientWidth, height = pictureHeight(PICTURE_HEIGHT);
-  const [cx, cy] = zoomed(width / 2, height / 2);    // the middle, with the view's zoom and move
-  const radius = (Math.min(width, height) / 2 - 8) * view.zoom;
-  let deepest = 0;
-  for (let i = 0; i < s.height.length; i++) deepest = Math.max(deepest, spreads[2 * i]);
-  const gap = radius / (deepest + 1);
-  // Whether a dot at (x, y), "r" pixels across, could show.
-  const shows = function (x, y, r) { return x + r > 0 && x - r < width && y + r > 0 && y - r < height; };
-  // Where depth k and angle a (in turns) are on the screen.
-  const at = function (k, a) {
-    return [cx + k * gap * Math.cos(2 * Math.PI * a), cy - k * gap * Math.sin(2 * Math.PI * a)];
-  };
-  // The share of the circle each cell at depth k gets.
-  const share = function (k) { return k === 0 ? 1 : 1 / (p * Math.pow(p - 1, k - 1)); };
-
-  // The tree, cell by cell from the start: a line from each cell to
-  // each of its children.
-  pen.beginPath();
-  (function branch(k, low, w) {
-    if (k > deepest) return;
-    const kids = k === 0 ? p : p - 1;
-    // Children packed closer than 2 pixels on their circle: left out.
-    if ((k + 1) * gap * 2 * Math.PI * (w / kids) < 2) return;
-    // A thin slice wholly off the screen: left out. (Its branches stay
-    // between rings k and deepest + 1, and between its two sides, so
-    // inside the box around its four corners, made a little bigger for
-    // the bulge of the outer circle.)
-    if (w < 1 / 8) {
-      const corners = [at(k, low), at(k, low + w), at(deepest + 1, low), at(deepest + 1, low + w)];
-      const xs = corners.map(function (c) { return c[0]; }), ys = corners.map(function (c) { return c[1]; });
-      const bulge = (deepest + 1) * gap * (1 - Math.cos(Math.PI * w));
-      if (Math.max(...xs) + bulge < 0 || Math.min(...xs) - bulge > width ||
-          Math.max(...ys) + bulge < 0 || Math.min(...ys) - bulge > height) return;
-    }
-    const [x0, y0] = at(k, low + w / 2);
-    for (let j = 0; j < kids; j++) {
-      const childLow = low + j * w / kids;
-      pen.moveTo(x0, y0);
-      pen.lineTo(...at(k + 1, childLow + w / kids / 2));
-      branch(k + 1, childLow, w / kids);
-    }
-  })(0, 0, 1);
-  pen.lineWidth = 0.6;
-  pen.strokeStyle = UNDER_COLOR;
-  pen.stroke();
-
-  // The sites: dots, as big as there is room for on their circle.
-  const highest = Math.max(s.maxHeight, 1);
-  for (let i = 0; i < s.height.length; i++) {
-    const k = spreads[2 * i], [x, y] = at(k, spreads[2 * i + 1]);
-    const room = k === 0 ? gap : k * gap * 2 * Math.PI * share(k);   // the arc each cell at depth k gets
-    const dot = Math.max(1.2, Math.min(0.35 * gap, 0.45 * room));
-    if (!shows(x, y, dot)) continue;
-    pen.fillStyle = s.height[i] === 0 ? EMPTY : cssColor(heightColor(s.height[i], highest));
-    pen.beginPath();
-    pen.arc(x, y, dot, 0, 2 * Math.PI);
-    pen.fill();
-  }
+  drawSpreadTree(disk, pictureHeight(PICTURE_HEIGHT), latest.height.length,
+    function (i) { return spreads[2 * i]; }, function (i) { return spreads[2 * i + 1]; }, siteColor);
 }
 
-/* The whole tiling (or tree) under the mountain, in thin gray lines:
-   every cell big enough to see, around wherever the view is, whether or
-   not the mountain has reached it. A tiling is drawn as the outlines of
-   its cells; a tree as its edges (traceSpokes).
-   The page builds its own copy of the graph for this, the same way the
-   mountain's thread does (js/sim-graphs.js), from the rules that thread
-   learned and sent with its first message, so the page never has to
-   learn them again. It numbers cells in its own order; it only says
-   where cells are, not which ones are sites. */
-const UNDER_COLOR = "#b4b1aa";     // the gray of the lines
-const UNDER_COLOR_3D = "#8a877f";   // the same lines on the 3D floor, a little darker (they are only 1 pixel wide there)
-const SMALLEST_UNDER = 1.2;        // cells smaller than this (inradius, in pixels) aren't drawn
-const MOST_UNDER = 40000;          // and at most this many cells are
+/* The page builds its own copy of the graph for the gray lines, the
+   same way the mountain's thread does (js/sim-graphs.js), from the rules
+   that thread learned and sent with its first message, so the page never
+   has to learn them again. It numbers cells in its own order; it only
+   says where cells are, not which ones are sites. */
+const UNDER_COLOR_3D = "#8a877f";   // the gray lines on the 3D floor, a little darker (they are only 1 pixel wide there)
 
 let underGraph = null, underFor = null;
 function graphUnder() {
-  const name = graphSpec.p + "," + graphSpec.q;
+  const name = disk.spec.p + "," + disk.spec.q;
   if (!learnedRules.kept || !learnedRules.kept.has(name)) return null;   // the rules haven't come yet
-  if (underFor !== graphSpec) { underFor = graphSpec; underGraph = makeGraph(graphSpec); }
+  if (underFor !== disk.spec) { underFor = disk.spec; underGraph = makeGraph(disk.spec); }
   return underGraph;
 }
 
@@ -1078,68 +820,6 @@ function keepRules(rules) {
   learnedRules.kept.set(rules.name, rules.kinds);
 }
 
-// A breadth-first search from the cell nearest the middle of the
-// screen, going out until cells are too small to see, or off the
-// screen. (Where cells are big enough to see, and the screen, are both
-// in one piece, so every cell big enough that shows is reached.) For the
-// 3D floor, "place" and "pixels" (toScreen and cellPixels if left out)
-// say where a point of the disk goes and how big a cell there looks;
-// there, the search starts from the middle of the disk, and goes out
-// until cells are too small.
-function drawUnder(pen, place, pixels) {
-  const graph = graphUnder();
-  if (!graph) return;
-  const tree = graphSpec.q === Infinity;
-  // (The middle of the screen, kept 12 pixels in from the edge of the
-  // disk or above the line, where cells are big enough to see.)
-  const middle = place ? [0, 0] : diskPointAt(pictureBox.width / 2, pictureBox.height / 2, 12);
-  const first = cellNearest(graph, middle);
-  const seen = new Set([first]), queue = [first];
-  pen.beginPath();
-  for (let n = 0; n < queue.length && n < MOST_UNDER; n++) {
-    const A = motionTimes(diskMotion, graph.place(queue[n]));
-    const [mx, my] = motionApply(A, 0, 0);
-    const size = (pixels || cellPixels)(mx, my);
-    // (The first cell always goes on to its neighbors, even if too small
-    // or just off the screen.)
-    if (n > 0 && (size < SMALLEST_UNDER || (!place && !onScreen(mx, my)))) continue;
-    if (tree) traceSpokes(pen, A, place);
-    else { pen.moveTo(...(place || toScreen)(mx, my)); traceOutline(pen, A, size, place); }
-    for (const w of graph.neighbors(queue[n])) {
-      if (!seen.has(w)) { seen.add(w); queue.push(w); }
-    }
-  }
-  pen.lineWidth = 0.6;
-  pen.strokeStyle = UNDER_COLOR;
-  pen.stroke();
-}
-
-// The cell nearest the point c of the disk: start at the first cell
-// and keep stepping to whichever neighbor is nearer c, until none is.
-// (cosh of the hyperbolic distance from z to c is
-// 1 + 2 |z - c|^2 / ((1 - |z|^2) (1 - |c|^2)) (Beardon, Chapter 7), so
-// the cell whose middle z has the smallest |z - c|^2 / (1 - |z|^2) is
-// the nearest. For c = 0 that is coshFromStart of the cell's motion
-// moved by the view, which stays exact even far out.)
-function cellNearest(graph, c) {
-  const away = function (v) {
-    const A = motionTimes(diskMotion, graph.place(v));
-    if (c[0] === 0 && c[1] === 0) return coshFromStart(A);
-    const [x, y] = motionApply(A, 0, 0);
-    return ((x - c[0]) * (x - c[0]) + (y - c[1]) * (y - c[1])) / Math.max(1 - x * x - y * y, 1e-15);
-  };
-  let v = 0, best = away(0);
-  for (;;) {
-    let next = -1;
-    for (const w of graph.neighbors(v)) {
-      const d = away(w);
-      if (d < best) { best = d; next = w; }
-    }
-    if (next === -1) return v;
-    v = next;
-  }
-}
-
 // The 3D view on a graph: the disk is the floor, with the tiling (or
 // the tree) drawn on it in thin lines, and each site's stack of coins
 // stands on its cell, as wide as the cell (on a tree, a bit over half
@@ -1147,12 +827,12 @@ function cellNearest(graph, c) {
 // equally thick, so a stack's height shows its count however small its
 // cell. Cells too small to see are left out.
 function draw3DOnDisk() {
-  const s = latest, cellShape = currentShape();
+  const s = latest, cellShape = diskShape(disk);
   const unit = 1 / (2 * cellShape.middle);    // so the first cell, in the middle, is 1 wide
-  const thinner = graphSpec.q === Infinity ? 0.6 : 1;
+  const thinner = isTree(disk.spec) ? 0.6 : 1;
   const x = [], y = [], height = [], width = [];
   for (let i = 0; i < s.height.length; i++) {
-    const [mx, my] = motionApply(siteMotion(i), 0, 0);
+    const [mx, my] = motionApply(seenFrom(disk, sitePlace(i)), 0, 0);
     const w = 1 - mx * mx - my * my;           // how much smaller than the first cell it looks
     if (w < 0.004) continue;
     x.push(mx * unit); y.push(my * unit); height.push(s.height[i]); width.push(thinner * w);
@@ -1172,7 +852,7 @@ function draw3DOnDisk() {
 // changes, so the last ones are kept and reused.
 let floorLinesFor = "", floorLinesKept = [];
 function floorLines(unit) {
-  const key = graphSpec.p + "," + graphSpec.q + " " + diskMotion.join(",") + " " + Boolean(graphUnder());
+  const key = disk.spec.p + "," + disk.spec.q + " " + disk.motion.join(",") + " " + Boolean(graphUnder());
   if (key === floorLinesFor) return floorLinesKept;
   const lines = [];
   let first = null, last = null;
@@ -1182,140 +862,32 @@ function floorLines(unit) {
     lineTo: function (x, y) { lines.push(last[0], last[1], x, y); last = [x, y]; },
     closePath: function () { lines.push(last[0], last[1], first[0], first[1]); last = first; },
   };
-  const middle = currentShape().middle;
-  drawUnder(notes, function (x, y) { return [x * unit, y * unit]; },
+  const middle = diskShape(disk).middle;
+  drawUnder(disk, notes, graphUnder(), function (x, y) { return [x * unit, y * unit]; },
             function (x, y) { return PICTURE_HEIGHT / 2 * middle * (1 - x * x - y * y); });   // about its size on the screen
   floorLinesFor = key;
   floorLinesKept = lines;
   return lines;
 }
 
-// Dragging the plane (the disk or the half-plane; section 6b passes the
-// pointer events on). While exactly one pointer is pressed, "dragFrom"
-// is the point of the disk it last was on, and each move carries that
-// point to the new one. (With two fingers, the picture slides and zooms
-// instead, as in the grid.)
-let dragFrom = null;
-function startPlaneDrag() {
-  const pressed = Array.from(view.pointers.values());
-  const dragsPlane = dim === "graph" && graphPicture !== "spread" && pictureBox !== null;
-  dragFrom = (dragsPlane && pressed.length === 1) ? diskPoint(pressed[0].x, pressed[0].y) : null;
-}
-function dragPlane(clientX, clientY) {
-  const to = diskPoint(clientX, clientY);
-  const M = motionTimes(moveBetween(dragFrom, to), diskMotion);
-  const norm = Math.sqrt(M[0] * M[0] + M[1] * M[1] - M[2] * M[2] - M[3] * M[3]);   // keep |a|^2 - |b|^2 = 1
-  const moved = M.map(function (t) { return t / norm; });
-  // The view goes at most distance 20 from the start: farther out the
-  // picture's numbers get too rough to place cells well.
-  if (coshFromStart(moved) < Math.cosh(20)) diskMotion = moved;
-  dragFrom = to;
-  drawSoon();
-}
-
-// The point of the disk under the pointer at (clientX, clientY), kept
-// at least 7 pixels in from the edge of the disk (or above the line),
-// where a tiny drag would move very far.
-function diskPoint(clientX, clientY) {
-  const box = simCanvas.getBoundingClientRect();
-  return diskPointAt(clientX - box.left, clientY - box.top, 7);
-}
-
-// The point of the disk at (px, py) on the canvas, kept at least "edge"
-// pixels in from the edge of the disk (or above the line). In the
-// half-plane, it is the point of the disk that goes there:
-// z = (w - i) / (w + i).
-function diskPointAt(px, py, edge) {
-  const b = pictureBox;
-  if (graphPicture === "disk") {
-    const x = (px - b.cx) / b.radius, y = -(py - b.cy) / b.radius;
-    const r = Math.hypot(x, y), most = 1 - edge / b.radius;
-    return r > most ? [x * most / r, y * most / r] : [x, y];
-  }
-  const re = (px - b.cx) / b.unit;
-  const im = Math.max((b.base - py) / b.unit, edge / b.unit);
-  // (re + i (im - 1)) / (re + i (im + 1)), worked out:
-  const D = re * re + (im + 1) * (im + 1);
-  return [(re * re + im * im - 1) / D, -2 * re / D];
-}
-
-// The motion carrying the point "from" to the point "to" (and turning
-// nothing): move "from" to 0, then 0 to "to". (The motion moving c to 0
-// is a = 1/s, b = -c/s, with s = sqrt(1 - |c|^2).)
-function moveBetween(from, to) {
-  const s0 = Math.sqrt(1 - from[0] * from[0] - from[1] * from[1]);
-  const s1 = Math.sqrt(1 - to[0] * to[0] - to[1] * to[1]);
-  return motionTimes([1 / s1, 0, to[0] / s1, to[1] / s1], [1 / s0, 0, -from[0] / s0, -from[1] / s0]);
-}
-byId("disk-reset").addEventListener("click", function () { diskMotion = [1, 0, 0, 0]; drawSoon(); });
+byId("disk-reset").addEventListener("click", function () { backToStart(disk); drawSoon(); });
 
 // The "Drawn in" option: the disk, the half-plane, or (trees) spread out.
 for (const radio of document.querySelectorAll('input[name="picture"]')) {
   radio.addEventListener("change", function () {
-    graphPicture = radio.value;
+    disk.picture = radio.value;
     resetView(view);      // a new picture starts unzoomed
     showPictureKind();
   });
 }
 
-// The graph options: the presets, p and q, or a tree's degree.
-function showGraphOptions() {
-  const row = byId("graph-presets");
-  row.innerHTML = "";
-  for (const preset of GRAPH_PRESETS) {
-    const button = document.createElement("button");
-    button.className = "tool-button";
-    button.textContent = preset.name;
-    button.addEventListener("click", function () {
-      const g = preset.graph;
-      document.querySelector('input[name="graph-kind"][value="' + (g.q === Infinity ? "tree" : "tiling") + '"]').checked = true;
-      if (g.q === Infinity) byId("set-degree").value = g.p;
-      else { byId("set-p").value = g.p; byId("set-q").value = g.q; }
-      useGraph();
-    });
-    row.appendChild(button);
-  }
-}
-
-// Read the graph from the options into graphSpec, and say what it is.
-// Returns false (and leaves graphSpec alone) if it isn't hyperbolic.
-function readGraph() {
-  const info = byId("graph-info");
-  let next;
-  if (checked("graph-kind") === "tree") {
-    const d = readWhole("set-degree", 3, 12, 3);
-    next = { kind: "tiling", p: d, q: Infinity };
-    info.textContent = "The tree where every cell has " + d + " neighbors, drawn as ideal " + d +
-      "-gons (their corners are on the edge of the disk, infinitely far away).";
-  } else {
-    const p = readWhole("set-p", 3, 12, 7), q = readWhole("set-q", 3, 12, 3);
-    if (1 / p + 1 / q >= 1 / 2) {
-      info.textContent = "{" + p + ", " + q + "} isn't hyperbolic: that needs 1/p + 1/q < 1/2. " +
-        (1 / p + 1 / q === 1 / 2 ? "It tiles the flat plane." : "It tiles a sphere.");
-      return false;
-    }
-    next = { kind: "tiling", p: p, q: q };
-    info.textContent = "Every cell is a regular " + p + "-gon, " + q + " of them meet at every corner, " +
-      "and each cell has " + p + " neighbors.";
-  }
-  if (next.p !== graphSpec.p || next.q !== graphSpec.q) graphSpec = next;
-  // "Spread out" is for trees only.
-  const tree = (next.q === Infinity);
-  byId("spread-choice").hidden = !tree;
-  if (!tree && graphPicture === "spread") {
-    graphPicture = "disk";
-    document.querySelector('input[name="picture"][value="disk"]').checked = true;
-    showPictureKind();
-  }
-  return true;
-}
-
 // A new graph from the options: start again on it, with the first cell
 // in the middle of the picture.
 function useGraph() {
-  if (!readGraph()) return;
-  diskMotion = [1, 0, 0, 0];
+  if (!readGraphOptions(disk)) return;
+  backToStart(disk);
   resetView(view);
+  showPictureKind();
   restart(true);
 }
 for (const id of ["set-p", "set-q", "set-degree"]) byId(id).addEventListener("change", useGraph);
@@ -1489,6 +1061,6 @@ byId("speed").max = SPEEDS.length - 1;
 byId("speed").value = speedIndex;
 showSpeed();
 showStretch();
-showGraphOptions();
+showGraphPresets(useGraph);
 setDimension(1);
 setPlaying(false);   // paused: press Play

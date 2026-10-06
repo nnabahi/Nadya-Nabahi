@@ -42,10 +42,8 @@
             <button class="tool-button" id="zoom-in" title="Zoom in">+</button>
             <button class="tool-button" id="zoom-out" title="Zoom out">&minus;</button>
             <button class="tool-button" id="zoom-reset" title="Show the whole picture once again">Reset</button>
-          </div>
-          <!-- On a hyperbolic tiling or tree: back to the start in the middle. -->
-          <div class="zoom-buttons" id="disk-buttons" hidden>
-            <button class="tool-button" id="disk-reset" title="Put the start back in the middle">Back to the start</button>
+            <!-- On a hyperbolic tiling or tree's disk or half-plane: put the start back in the middle. -->
+            <button class="tool-button" id="disk-reset" title="Put the start back in the middle" hidden>Back to the start</button>
           </div>
         </div>
 
@@ -235,7 +233,8 @@
           on a ball of a hyperbolic tiling or of a tree: every cell within
           R steps of a start cell. The ball is drawn in the Poincar&eacute; disk
           or the half-plane (drag to move around the plane), or, for a tree,
-          spread out in rings. The rest of the tiling is drawn in thin gray.
+          spread out in rings, and all three zoom like the box. The rest of
+          the tiling is drawn in thin gray.
         </p>
         </div>
 
