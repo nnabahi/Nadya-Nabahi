@@ -898,12 +898,14 @@ function drawHyperbolic() {
   pen.strokeStyle = EMPTY;
   pen.stroke();
 
-  // The tiling under the mountain (a tree's lines go on top instead,
-  // below, so the sites' colors don't hide them).
-  const tree = graphSpec.q === Infinity;
-  if (!tree) drawUnder(pen);
+  // The tiling (or the tree's lines) under the mountain.
+  drawUnder(pen);
 
-  // The sites, each colored by its height; tiny ones are single dots.
+  // The sites, each colored by its height: on a tiling, the whole cell;
+  // on a tree, a coin on its vertex, a bit over half way to the middle
+  // of each edge, so the tree's lines show between the coins. Tiny ones
+  // are single dots.
+  const tree = graphSpec.q === Infinity;
   const highest = Math.max(s.maxHeight, 1);
   pen.lineWidth = 0.5;
   pen.strokeStyle = "rgba(0, 0, 0, 0.25)";
@@ -918,11 +920,15 @@ function drawHyperbolic() {
       continue;
     }
     pen.beginPath();
-    traceOutline(pen, A, size);
+    if (tree) {
+      const [x, y] = toScreen(mx, my);
+      pen.arc(x, y, 0.55 * size, 0, 2 * Math.PI);
+    } else {
+      traceOutline(pen, A, size);
+    }
     pen.fill();
     if (size > 4) pen.stroke();
   }
-  if (tree) drawUnder(pen);
 }
 
 // The spread-out picture of a tree: the start in the middle, the cells
