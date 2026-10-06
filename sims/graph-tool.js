@@ -951,7 +951,7 @@ function loadEdgeList(text) {
    It works "live", like Desmos: every change to the formula, a slider
    or the mode recomputes the grid from how it looked before the formula
    started changing it ("beforeFormula"). Painting by hand, or pressing
-   Done, keeps the result, and the whole formula session becomes one
+   Accept (or Enter in the formula box), keeps the result, and the whole formula session becomes one
    Undo step. (Its state, "formula", "beforeFormula" and "sliders", is
    in section 2.)
    ===================================================================== */
@@ -1022,7 +1022,7 @@ function applyFormula() {
   updateStats();
   showFormulaMessage(problem
     ? "Problem: " + problem
-    : "Live: the grid follows the formula. Press Done, or paint, to keep it.");
+    : "Live: the grid follows the formula. Press Accept (or Enter), or paint, to keep it.");
 }
 
 // Keep what the formula drew, as one Undo step.
@@ -1067,9 +1067,14 @@ function showSliders(names) {
 
 byId("formula").addEventListener("input", readFormula);
 byId("formula-mode").addEventListener("change", applyFormula);
-byId("formula-done").addEventListener("click", function () {
+// Accept: keep what the formula drew. Enter in the formula box does the same.
+function acceptFormula() {
   keepFormulaResult();
   showFormulaMessage("Kept. Changing the formula now starts again from the current grid.");
+}
+byId("formula-accept").addEventListener("click", acceptFormula);
+byId("formula").addEventListener("keydown", function (event) {
+  if (event.key === "Enter") acceptFormula();
 });
 
 
