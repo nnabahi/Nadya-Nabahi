@@ -29,6 +29,12 @@
         E. H. Lieb, Proc. R. Soc. A 322 (1971) 251-280; R. M. Ziff,
         S. R. Finch and V. S. Adamchik, Phys. Rev. Lett. 79 (1997)
         3447-3450).
+     9. On a ball of a tree, the start's cluster reaches the edge with
+        the exact probability from the branching-process recursion
+        (R. Lyons and Y. Peres, "Probability on Trees and Networks",
+        2016, Chapter 5), for site and bond. Tests 1 and 3 also run on
+        small balls of a tree and of the {7, 3} tiling, where "crosses"
+        means the start's cluster reaches the edge.
 
    Random numbers come from the library seedrandom, with fixed seeds,
    so the tests do the same thing every time.
@@ -106,7 +112,15 @@ function testDomains() {
     { name: "9 x 7 torus, 4 neighbors", d: boxDomain(9, 7, 4, true) },
     { name: "6 x 6 torus, 8 neighbors", d: boxDomain(6, 6, 8, true) },
     { name: "Aztec diamond of order 4", d: aztecDiamond(4) },
+    { name: "ball of radius 3 of the tree of degree 3", d: treeBall(3, 3) },
+    { name: "ball of radius 2 of the {7, 3} tiling", d: ballForPercolation(makeBall(makeGraph({ kind: "tiling", p: 7, q: 3 }), 2, 1e6)) },
   ];
+}
+
+// The ball of radius R of the tree of degree "degree" (js/sim-graphs.js
+// and js/sim-hyperbolic.js), ready for percolation.
+function treeBall(degree, R) {
+  return ballForPercolation(makeBall(makeGraph({ kind: "tiling", p: degree, q: Infinity }), R, 1e6));
 }
 
 
@@ -128,7 +142,7 @@ function testClusters(kind) {
     }
   }
   addRow(kind + ": clusters match a plain search", !bad,
-         bad ? "different clusters on the " + bad : samples + " samples on 5 domains, every cluster the same.");
+         bad ? "different clusters on the " + bad : samples + " samples on " + testDomains().length + " domains, every cluster the same.");
 }
 
 function testWrapping(kind) {
@@ -377,6 +391,41 @@ function testClustersPerCell() {
 }
 
 
+/* ---------------------------------------------------------------------
+   9. A ball of a tree: reaching the edge
+   ---------------------------------------------------------------------
+   Below the start, every cell has degree - 1 children. For bond, f_k is
+   the chance that a cell is joined to the cells k levels below it:
+   f_0 = 1, f_k = 1 - (1 - p f_{k-1})^(degree - 1), and the start
+   reaches the edge with chance 1 - (1 - p f_{R-1})^degree. For site,
+   g_k is the chance that a cell is open and joined k levels down:
+   g_0 = p, g_k = p (1 - (1 - g_{k-1})^(degree - 1)), and the start
+   reaches the edge with chance p (1 - (1 - g_{R-1})^degree).
+   --------------------------------------------------------------------- */
+function reachEdgeExact(kind, degree, R, p) {
+  let f = kind === "site" ? p : 1;
+  for (let k = 1; k < R; k++) {
+    f = kind === "site" ? p * (1 - Math.pow(1 - f, degree - 1)) : 1 - Math.pow(1 - p * f, degree - 1);
+  }
+  return kind === "site" ? p * (1 - Math.pow(1 - f, degree)) : 1 - Math.pow(1 - p * f, degree);
+}
+
+function testTreeBall(kind, degree, R, p) {
+  const d = treeBall(degree, R), edges = edgesOf(d);
+  const exact = reachEdgeExact(kind, degree, R, p), trials = 4000;
+  let reached = 0;
+  for (let k = 0; k < trials; k++) {
+    const U = uniformNumbers(kind === "site" ? d.n : edges.count, "tree " + kind + k);
+    if (percolate(d, kind, p, U, edges).crossed) reached++;
+  }
+  const z = (reached - trials * exact) / Math.sqrt(trials * exact * (1 - exact));
+  addRow(kind + ": reaching the edge of a tree's ball", d.xmax === R && Math.abs(z) < 4,
+         "Tree of degree " + degree + ", ball of radius " + R + " (" + d.n + " cells), p = " + p + ": the start's cluster reaches " +
+         "the edge in " + reached + " of " + trials + " samples (" + (reached / trials).toFixed(3) + "); the exact chance is " +
+         exact.toFixed(4) + ", " + Math.abs(z).toFixed(2) + " standard deviations away (pass below 4).");
+}
+
+
 runChecksOnClick(function () {
   return [
     function () { testClusters("site"); }, function () { testClusters("bond"); },
@@ -385,5 +434,6 @@ runChecksOnClick(function () {
     function () { testOpenFraction("site"); }, function () { testOpenFraction("bond"); },
     function () { testCoupling("site"); }, function () { testCoupling("bond"); },
     testHex, testDuality, testHalf, testClustersPerCell,
+    function () { testTreeBall("site", 3, 6, 0.65); }, function () { testTreeBall("bond", 4, 5, 0.4); },
   ];
 });

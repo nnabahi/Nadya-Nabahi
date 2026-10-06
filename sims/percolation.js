@@ -6,9 +6,11 @@
    (data-kind="site" or data-kind="bond"), and this script reads that.
 
    What it does, in plain words:
-     - Builds the domain: a box or torus of cells, or a region drawn in
-       the graph tool (shown inside this page). The domain code is
-       shared with the other sims, in js/sim-domains.js.
+     - Builds the domain: a box or torus of cells, a region drawn in
+       the graph tool (shown inside this page), or a ball of a
+       hyperbolic tiling or a tree. The domain code is shared with the
+       other sims, in js/sim-domains.js and (hyperbolic tilings and
+       trees, and their pictures) js/sim-hyperbolic.js.
      - Gives every cell (site) or every edge (bond) its own random
        number U, from the seed. At the p on the slider, the ones with
        U < p are open (percolation-clusters.js finds the clusters).
@@ -53,9 +55,18 @@ const SMALLEST_BORDERED_CELL = 4; // cells smaller than this (in pixels) get no 
 const SMALLEST_EDGE_CELL = 6;     // bond: cells at least this big are drawn as dots and edges
 const CLICK_DISTANCE = 5;         // a press that moves less than this (in pixels) is a click
 
+// Hyperbolic plane or tree: the ball's default and largest radius R,
+// the most cells a ball may have (a ball of a hyperbolic tiling grows
+// exponentially with R), and the open edges' color (bond).
+const DEFAULT_BALL_RADIUS = 6;
+const MAX_BALL_RADIUS = 20;
+const MAX_BALL_CELLS = 20000;
+const BALL_EDGE = "rgba(30, 30, 30, 0.7)";
+
 // The critical point p_c on the square grid, where an infinite cluster
 // first appears (see "All the details" for where these come from).
-// null where no exact or well-established value is known.
+// null where no exact or well-established value is known. (On a tree,
+// see criticalPoint.)
 const CRITICAL = KIND === "site" ? { 4: 0.592746, 8: 1 - 0.592746 } : { 4: 0.5, 8: null };
 
 // Play raises p by this much per second (the Speed slider).
@@ -68,8 +79,9 @@ const STEP = 0.01;                // how much one press of Step raises p
    2. WHAT THE PAGE REMEMBERS (the "state")
    ===================================================================== */
 
-let domainKind = "box";     // "box", "torus" or "custom": the domain in use
-let domain = null;          // the domain graph (js/sim-domains.js)
+let domainKind = "box";     // "box", "torus", "custom" or "graph": the domain in use
+let domain = null;          // the domain graph (js/sim-domains.js), or a ball (makeBall, js/sim-hyperbolic.js)
+const made = {};            // hyperbolic plane or tree: the graph itself (js/sim-graphs.js), made again only when it changes
 let customDomain = null;    // the last custom domain drawn, if any
 let edges = null;           // every edge once (edgesOf in percolation-clusters.js)
 let entryEdge = null;       // entryEdge[e] = the edge of neighbor entry e (domain.nbr[e])
@@ -171,9 +183,20 @@ function rgbOfRoot(r) {
 
    The "view" (js/sim-view.js) says where the picture goes and which
    squares show; it also moves and zooms it (section 6).
+
+   On a hyperbolic tiling or tree, each cell is drawn in its cluster's
+   color in the disk, the half-plane or (a tree) spread out in rings
+   (drawBall, js/cell-picture.js); bond percolation adds a line for
+   each open edge between cells big enough to see. A ring marks the
+   start cell.
    ===================================================================== */
 const simCanvas = byId("sim-canvas");
 const view = makeView(simCanvas, drawSoon, 0, SMALLEST_BORDERED_CELL);
+
+// Hyperbolic plane or tree: which graph, how it is drawn, and how far
+// the plane has been moved (js/sim-hyperbolic.js). The view above zooms
+// and slides its pictures too.
+const disk = makeDiskView(simCanvas, view);
 let drawPending = false;
 
 // Draw at the browser's next screen refresh (at most once per refresh).
@@ -189,6 +212,7 @@ function drawSoon() {
 
 function drawPicture() {
   if (!domain || !result || simCanvas.hidden) return;
+  if (domainKind === "graph") { drawOnBall(); return; }
   const pen = fitPicture(view, domain, MAX_PICTURE_HEIGHT);
   if (KIND === "bond" && view.size * view.zoom >= SMALLEST_EDGE_CELL) {
     drawEdges(pen);
@@ -262,6 +286,38 @@ function drawEdges(pen) {
   }
 }
 
+// Hyperbolic plane or tree: the cells in their clusters' colors, the
+// open edges (bond), and a ring around the start.
+function drawOnBall() {
+  const pen = drawBall(disk, made.graph, domain, function (v) {
+    return rgbToHex(rgbOfRoot(inCluster(v) ? result.root[v] : -1));
+  });
+  // Where each cell is on the screen (null if off it), worked out once.
+  const spots = [];
+  for (let v = 0; v < domain.n; v++) spots.push(ballSpot(disk, domain, v));
+  if (KIND === "bond") {
+    pen.beginPath();
+    for (let e = 0; e < edges.count; e++) {
+      if (!(U[e] < p)) continue;
+      const a = spots[edges.a[e]], b = spots[edges.b[e]];
+      if (a === null || b === null || Math.min(a.size, b.size) < SMALLEST_EDGE_CELL / 2) continue;
+      pen.moveTo(a.x, a.y);
+      pen.lineTo(b.x, b.y);
+    }
+    pen.strokeStyle = BALL_EDGE;
+    pen.lineWidth = 1.2;
+    pen.stroke();
+  }
+  const start = spots[0];
+  if (start !== null) {
+    pen.beginPath();
+    pen.arc(start.x, start.y, Math.max(4, Math.min(12, 0.5 * start.size)), 0, 2 * Math.PI);
+    pen.strokeStyle = BORDER;
+    pen.lineWidth = 2;
+    pen.stroke();
+  }
+}
+
 window.addEventListener("resize", drawSoon);
 
 
@@ -273,6 +329,9 @@ window.addEventListener("resize", drawSoon);
    click instead: clicking a cell in a cluster highlights that cluster
    (the others fade), and it stays highlighted as p changes and it
    grows. Clicking it again, or a white cell, clears it.
+   On a hyperbolic tiling or tree, one pointer drags across the plane
+   instead (startPlaneDrag and dragPlane, js/sim-hyperbolic.js), and two
+   fingers slide and zoom the picture; a click works the same.
    ===================================================================== */
 const pressed = new Set();    // the pointers pressed on the picture
 let pressedAt = null;         // where the first one went down
@@ -285,17 +344,35 @@ simCanvas.addEventListener("pointerdown", function (event) {
   pressed.add(event.pointerId);
   if (pressed.size > 1) dragged = true;
   pressPointer(view, event);
+  startDrag();
 });
 simCanvas.addEventListener("pointermove", function (event) {
   simCanvas.style.cursor = pressed.size > 0 ? "grabbing" : "pointer";
   if (!pressed.has(event.pointerId)) return;
   if (Math.hypot(event.clientX - pressedAt.x, event.clientY - pressedAt.y) >= CLICK_DISTANCE) dragged = true;
-  movePointer(view, event);
+  if (disk.dragFrom && view.pointers.has(event.pointerId)) {
+    view.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });   // where a second finger starts from
+    dragPlane(disk, event.clientX, event.clientY);
+    drawSoon();
+  } else {
+    movePointer(view, event);
+  }
 });
 function stopPointer(event, isClick) {
   if (!pressed.delete(event.pointerId)) return;
   releasePointer(view, event);
-  if (isClick && pressed.size === 0 && !dragged) clickCell(cellUnder(view, domain, pointerSpot(view, event)));
+  startDrag();
+  if (isClick && pressed.size === 0 && !dragged) {
+    clickCell(domainKind === "graph" ? ballCellUnder(disk, domain, event)
+                                     : cellUnder(view, domain, pointerSpot(view, event)));
+  }
+}
+
+// On a hyperbolic tiling or tree, exactly one pointer pressed drags
+// across the plane.
+function startDrag() {
+  if (domainKind === "graph") startPlaneDrag(disk);
+  else disk.dragFrom = null;
 }
 simCanvas.addEventListener("pointerup", function (event) { stopPointer(event, true); });
 simCanvas.addEventListener("pointercancel", function (event) { stopPointer(event, false); });
@@ -315,7 +392,7 @@ function showStats() {
   const n = domain.n;
   const largest = result.largestRoot === -1 ? 0 : result.size[result.largestRoot];
   const total = KIND === "site" ? n : edges.count;
-  const word = domain.wrap ? "wraps around" : "crosses";
+  const onGraph = domainKind === "graph";
 
   byId("stat-cells").textContent = n.toLocaleString();
   byId("stat-edges").textContent = edges.count.toLocaleString();
@@ -324,11 +401,14 @@ function showStats() {
     " (" + (100 * result.openCount / Math.max(total, 1)).toFixed(1) + "%)";
   byId("stat-clusters").textContent = result.clusters.toLocaleString();
   byId("stat-largest").textContent = largest.toLocaleString() + " cells (" + (100 * largest / n).toFixed(1) + "% of all cells)";
-  byId("stat-cross-name").textContent = domain.wrap
-    ? "Some cluster wraps around the torus" : "Some cluster crosses from the left side to the right";
+  // (On a ball, "crosses" means the start's cluster reaches the edge:
+  // see ballForPercolation in percolation-clusters.js.)
+  byId("stat-cross-name").textContent = onGraph ? "The start's cluster reaches the edge of the ball"
+    : domain.wrap ? "Some cluster wraps around the torus" : "Some cluster crosses from the left side to the right";
   byId("stat-cross").textContent = result.crossed ? "yes" : "no";
   byId("stat-cross-at").textContent = swept.crossAt === null ? "never" : "p = " + swept.crossAt.toFixed(4);
-  byId("stat-cross-at-name").textContent = "First " + word + " at";
+  byId("stat-cross-at-name").textContent = onGraph ? "First reaches the edge at"
+    : domain.wrap ? "First wraps around at" : "First crosses at";
   byId("stat-selected").textContent = selected === -1 ? "none (click a cluster)"
     : result.size[result.root[selected]].toLocaleString() + " cells";
 
@@ -420,10 +500,14 @@ function drawSizesChart() {
   });
 }
 
-// The critical point for the domain in use: only for a box or torus,
-// where the cells sit on the square grid with 4 or 8 neighbors.
+// The critical point for the domain in use: for a box or torus, where
+// the cells sit on the square grid with 4 or 8 neighbors, and for a
+// tree of degree d, where it is 1/(d - 1) for both site and bond
+// percolation (see "All the details"). No exact value is known for the
+// hyperbolic tilings.
 function criticalPoint() {
   if (domainKind === "custom") return null;
+  if (domainKind === "graph") return isTree(disk.spec) ? 1 / (disk.spec.p - 1) : null;
   return CRITICAL[byId("set-neighbors").value];
 }
 
@@ -506,19 +590,36 @@ function useBox() {
   useDomain(torus ? "torus" : "box", boxDomain(width, height, neighbors, torus));
 }
 
+// A ball of a hyperbolic tiling or a tree, from the options on the page
+// (ballFromOptions, js/cell-picture.js), with the start cell in the
+// middle of the picture. (Choosing one while the graph tool is open
+// closes it.)
+function useGraph() {
+  if (toolOpen) closeTool();
+  const ball = ballFromOptions(disk, made, DEFAULT_BALL_RADIUS, MAX_BALL_RADIUS, MAX_BALL_CELLS);
+  if (ball === null) { showDomainChoice(); return; }
+  useDomain("graph", ballForPercolation(ball));
+}
+
 // Show the options that fit the domain in use, and tick its radio button.
 function showDomainChoice() {
   document.querySelector('input[name="domain"][value="' + domainKind + '"]').checked = true;
-  const custom = (domainKind === "custom");
-  byId("size-row").hidden = byId("neighbors-row").hidden = custom;
+  const custom = (domainKind === "custom"), onGraph = (domainKind === "graph");
+  byId("size-row").hidden = byId("neighbors-row").hidden = custom || onGraph;
   byId("custom-row").hidden = !custom;
+  byId("graph-rows").hidden = !onGraph;
+  byId("disk-reset").hidden = !onGraph || disk.picture === "spread";   // with the zoom buttons
   if (custom && customDomain) {
     byId("custom-info").textContent = "Your region: " + customDomain.n + " cells" +
       (customDomain.wrap ? ", on a torus." : ".");
   }
   const pc = criticalPoint();
   byId("critical-row").hidden = (pc === null);
-  if (pc !== null) byId("critical-value").textContent = pc === 0.5 ? "1/2" : "≈ " + pc.toFixed(4);
+  if (pc !== null) {
+    byId("critical-value").textContent = onGraph ? "= 1/" + (disk.spec.p - 1)
+      : pc === 0.5 ? "= 1/2" : "≈ " + pc.toFixed(4);
+    byId("critical-where").textContent = onGraph ? "tree" : "grid";
+  }
 }
 
 // A new p, from the slider, the box, Play or Step.
@@ -550,15 +651,30 @@ function playFrame(now) {
   else requestAnimationFrame(playFrame);
 }
 
-// Domain: Box / Torus / Custom.
+// Domain: Box / Torus / Custom / Hyperbolic plane or tree.
 for (const radio of document.querySelectorAll('input[name="domain"]')) {
   radio.addEventListener("change", function () {
     if (radio.value === "custom") openTool();
+    else if (radio.value === "graph") useGraph();
     else useBox();
   });
 }
 for (const id of ["set-width", "set-height", "set-neighbors"]) byId(id).addEventListener("change", useBox);
 byId("edit-custom").addEventListener("click", openTool);
+
+// Hyperbolic plane or tree: the graph, the ball's radius, and the
+// picture ("Drawn in"). "Back to the start" puts the start cell back in
+// the middle.
+for (const id of ["set-p", "set-q", "set-degree", "set-ball-radius"]) byId(id).addEventListener("change", useGraph);
+for (const radio of document.querySelectorAll('input[name="graph-kind"]')) radio.addEventListener("change", useGraph);
+for (const radio of document.querySelectorAll('input[name="picture"]')) {
+  radio.addEventListener("change", function () {
+    disk.picture = radio.value;
+    showDomainChoice();
+    resetView(view);      // a new picture starts unzoomed
+  });
+}
+byId("disk-reset").addEventListener("click", function () { backToStart(disk); drawSoon(); });
 
 // p: the slider and the box move together, and the picture follows
 // live while you drag, like a Desmos slider.
@@ -603,6 +719,9 @@ byId("set-width").value = DEFAULTS.width;
 byId("set-height").value = DEFAULTS.height;
 byId("set-width").max = byId("set-height").max = MAX_SIDE;
 byId("set-neighbors").value = String(DEFAULTS.neighbors);
+byId("set-ball-radius").value = DEFAULT_BALL_RADIUS;
+byId("set-ball-radius").max = MAX_BALL_RADIUS;
+showGraphPresets(useGraph);
 byId("seed").value = DEFAULTS.seed;
 byId("speed").max = SPEEDS.length - 1;
 byId("speed").value = speedIndex;
