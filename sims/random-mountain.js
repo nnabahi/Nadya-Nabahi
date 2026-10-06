@@ -649,7 +649,10 @@ function showPictureKind() {
   byId("sim-3d").hidden = byId("view3d-buttons").hidden = toolOpen || !in3D;
   byId("disk-buttons").hidden = toolOpen || in3D || dim !== "graph";
   byId("view-rows").hidden = (dim === 1);
-  byId("blocks-row").hidden = byId("stretch-row").hidden = byId("view3d-help").hidden = !in3D;
+  byId("stretch-row").hidden = byId("view3d-help").hidden = !in3D;
+  // Cubes or coins: on a graph only coins (cells there aren't squares,
+  // and cubes on cells of different sizes bump into each other).
+  byId("blocks-row").hidden = !in3D || dim === "graph";
   showZoomButtons(view);
   if (in3D && !view3d) start3D();
   drawSoon();
@@ -806,9 +809,9 @@ function drawDisk() {
 }
 
 // The 3D view on a graph: the disk is the floor, and each site's stack
-// stands on its cell, as wide as the cell (sim-3d.js makes its blocks
-// as much shorter as they are narrower). Cells too small to see are
-// left out.
+// of coins stands on its cell, as wide as the cell (every coin is
+// equally thick, so a stack's height shows its count however small its
+// cell). Cells too small to see are left out.
 function draw3DOnDisk() {
   const s = latest, cellShape = currentShape();
   const unit = 1 / (2 * cellShape.middle);    // so the first cell, in the middle, is 1 wide
@@ -821,7 +824,7 @@ function draw3DOnDisk() {
   }
   sim3d.drawStacks(view3d, {
     x: x, y: y, height: height, width: width, floor: { disk: unit },
-    shape: blockShape, stretch: Math.pow(2, stretchLevel / 2),
+    shape: "coins", stretch: Math.pow(2, stretchLevel / 2),
     color: heightColor, empty: hexToRGB(EMPTY), ground: hexToRGB(OUTSIDE),
   });
 }
