@@ -220,6 +220,10 @@ function toThree(rgb) {
 //               "tallest" blocks; the top of each stack has the color a
 //               top view gives that stack
 //   empty, ground   colors [r, g, b] of the empty cells and of the floor
+//   lines, lineColor    (optional) thin lines on the floor, e.g. the
+//               tiling under a mountain: a list [x1, y1, x2, y2, ...],
+//               one line from (x1, y1) to (x2, y2) and so on, and their
+//               color [r, g, b]
 //
 // Heights: a block starts out as tall as a cell of width 1 is wide (a
 // cube). Once the tallest
@@ -295,6 +299,7 @@ export function drawStacks(view3d, stacks) {
     floorMesh.instanceColor.array.set(groundColor, 0);
   }
   floorMesh.instanceMatrix.needsUpdate = floorMesh.instanceColor.needsUpdate = true;
+  drawLines(view3d, stacks.lines || NO_LINES, stacks.lineColor);
 
   // Shrink the whole picture to fit: the floor's middle at the center,
   // and the floor (or the tallest stack, if it is taller) PICTURE_SIZE
@@ -305,6 +310,32 @@ export function drawStacks(view3d, stacks) {
   view3d.world.position.set(-scale * (floor.xmin + floor.xmax) / 2, -scale * tallest * block / 4,
                             scale * (floor.ymin + floor.ymax) / 2);
   render(view3d);
+}
+
+// The thin lines on the floor, just above it. three.js draws them as
+// "LineSegments": a list of points, joined two by two. They are built
+// again only when the list of lines is a new one.
+const NO_LINES = [];
+function drawLines(view3d, lines, rgb) {
+  if (!view3d.lines) {
+    view3d.lines = new THREE.LineSegments(new THREE.BufferGeometry(), new THREE.LineBasicMaterial());
+    view3d.lines.frustumCulled = false;
+    view3d.world.add(view3d.lines);
+  }
+  const segments = view3d.lines;
+  segments.visible = lines.length > 0;
+  if (segments.userData.from === lines) return;
+  segments.userData.from = lines;
+  const points = new Float32Array(3 * lines.length / 2);    // (x, height, z) for each end
+  for (let k = 0; k < lines.length / 2; k++) {
+    points[3 * k] = lines[2 * k];
+    points[3 * k + 1] = 0.002;
+    points[3 * k + 2] = -lines[2 * k + 1];
+  }
+  segments.geometry.dispose();
+  segments.geometry = new THREE.BufferGeometry();
+  segments.geometry.setAttribute("position", new THREE.BufferAttribute(points, 3));
+  if (rgb) segments.material.color.setRGB(rgb[0] / 255, rgb[1] / 255, rgb[2] / 255, THREE.SRGBColorSpace);
 }
 
 // The smallest box { xmin, xmax, ymin, ymax } around the floor.

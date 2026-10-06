@@ -838,10 +838,11 @@ function onScreen(x, y) {
 
 // Add the outline of the cell with motion A to the pen's path (for
 // small cells, every 4th point of it is plenty).
-function traceOutline(pen, A, size) {
+// "place" (toScreen if left out) says where a point of the disk goes.
+function traceOutline(pen, A, size, place) {
   const outline = currentShape().outline, every = size < 5 ? 4 : 1;
   for (let k = 0; k < outline.length; k += every) {
-    const [x, y] = toScreen(...motionApply(A, outline[k][0], outline[k][1]));
+    const [x, y] = (place || toScreen)(...motionApply(A, outline[k][0], outline[k][1]));
     if (k === 0) pen.moveTo(x, y); else pen.lineTo(x, y);
   }
   pen.closePath();
@@ -852,12 +853,13 @@ function traceOutline(pen, A, size) {
 // the tree itself: each edge runs from one cell's middle, through the
 // side the two cells share, to the other's. (Each half is a straight
 // line through the middle of the first cell, moved by A, so it is a
-// hyperbolic straight line: a circle arc in the disk.)
-function traceSpokes(pen, A) {
+// hyperbolic straight line: a circle arc in the disk.) "place" is as in
+// traceOutline.
+function traceSpokes(pen, A, place) {
   const POINTS = 6;
   for (const [sx, sy] of currentShape().sides) {
     for (let j = 0; j <= POINTS; j++) {
-      const [x, y] = toScreen(...motionApply(A, sx * j / POINTS, sy * j / POINTS));
+      const [x, y] = (place || toScreen)(...motionApply(A, sx * j / POINTS, sy * j / POINTS));
       if (j === 0) pen.moveTo(x, y); else pen.lineTo(x, y);
     }
   }
@@ -993,6 +995,7 @@ function drawSpread() {
    learn them again. It numbers cells in its own order; it only says
    where cells are, not which ones are sites. */
 const UNDER_COLOR = "#b4b1aa";     // the gray of the lines
+const UNDER_COLOR_3D = "#8a877f";   // the same lines on the 3D floor, a little darker (they are only 1 pixel wide there)
 const SMALLEST_UNDER = 1.2;        // cells smaller than this (inradius, in pixels) aren't drawn
 const MOST_UNDER = 40000;          // and at most this many cells are
 
@@ -1013,8 +1016,10 @@ function keepRules(rules) {
 // A breadth-first search from the cell nearest the middle of the
 // picture, going out until cells are too small to see, or (in the
 // half-plane) off the screen. Cells only get smaller farther out, so
-// every cell big enough is reached.
-function drawUnder(pen) {
+// every cell big enough is reached. For the 3D floor, "place" and
+// "pixels" (toScreen and cellPixels if left out) say where a point of
+// the disk goes and how big a cell there looks.
+function drawUnder(pen, place, pixels) {
   const graph = graphUnder();
   if (!graph) return;
   const tree = graphSpec.q === Infinity;
@@ -1024,10 +1029,10 @@ function drawUnder(pen) {
   for (let n = 0; n < queue.length && n < MOST_UNDER; n++) {
     const A = motionTimes(diskMotion, graph.place(queue[n]));
     const [mx, my] = motionApply(A, 0, 0);
-    const size = cellPixels(mx, my);
-    if (size < SMALLEST_UNDER || !onScreen(mx, my)) continue;
-    if (tree) traceSpokes(pen, A);
-    else { pen.moveTo(...toScreen(mx, my)); traceOutline(pen, A, size); }
+    const size = (pixels || cellPixels)(mx, my);
+    if (size < SMALLEST_UNDER || (!place && !onScreen(mx, my))) continue;
+    if (tree) traceSpokes(pen, A, place);
+    else { pen.moveTo(...(place || toScreen)(mx, my)); traceOutline(pen, A, size, place); }
     for (const w of graph.neighbors(queue[n])) {
       if (!seen.has(w)) { seen.add(w); queue.push(w); }
     }
@@ -1055,25 +1060,54 @@ function cellNearestMiddle(graph) {
   }
 }
 
-// The 3D view on a graph: the disk is the floor, and each site's stack
-// of coins stands on its cell, as wide as the cell (every coin is
+// The 3D view on a graph: the disk is the floor, with the tiling (or
+// the tree) drawn on it in thin lines, and each site's stack of coins
+// stands on its cell, as wide as the cell (on a tree, a bit over half
+// as wide, so the tree's lines show between the stacks). Every coin is
 // equally thick, so a stack's height shows its count however small its
-// cell). Cells too small to see are left out.
+// cell. Cells too small to see are left out.
 function draw3DOnDisk() {
   const s = latest, cellShape = currentShape();
   const unit = 1 / (2 * cellShape.middle);    // so the first cell, in the middle, is 1 wide
+  const thinner = graphSpec.q === Infinity ? 0.6 : 1;
   const x = [], y = [], height = [], width = [];
   for (let i = 0; i < s.height.length; i++) {
     const [mx, my] = motionApply(siteMotion(i), 0, 0);
     const w = 1 - mx * mx - my * my;           // how much smaller than the first cell it looks
     if (w < 0.004) continue;
-    x.push(mx * unit); y.push(my * unit); height.push(s.height[i]); width.push(w);
+    x.push(mx * unit); y.push(my * unit); height.push(s.height[i]); width.push(thinner * w);
   }
   sim3d.drawStacks(view3d, {
     x: x, y: y, height: height, width: width, floor: { disk: unit },
     shape: "coins", stretch: Math.pow(2, stretchLevel / 2),
     color: heightColor, empty: hexToRGB(EMPTY), ground: hexToRGB(OUTSIDE),
+    lines: floorLines(unit), lineColor: hexToRGB(UNDER_COLOR_3D),
   });
+}
+
+// The tiling (or the tree) on the 3D floor: the same lines drawUnder
+// draws from above, written down as line segments [x1, y1, x2, y2, ...]
+// on the floor (the disk, "unit" times bigger) by a "pen" that only
+// takes notes. They only change when the view moves or the graph
+// changes, so the last ones are kept and reused.
+let floorLinesFor = "", floorLinesKept = [];
+function floorLines(unit) {
+  const key = graphSpec.p + "," + graphSpec.q + " " + diskMotion.join(",") + " " + Boolean(graphUnder());
+  if (key === floorLinesFor) return floorLinesKept;
+  const lines = [];
+  let first = null, last = null;
+  const notes = {
+    beginPath: function () {}, stroke: function () {},
+    moveTo: function (x, y) { first = last = [x, y]; },
+    lineTo: function (x, y) { lines.push(last[0], last[1], x, y); last = [x, y]; },
+    closePath: function () { lines.push(last[0], last[1], first[0], first[1]); last = first; },
+  };
+  const middle = currentShape().middle;
+  drawUnder(notes, function (x, y) { return [x * unit, y * unit]; },
+            function (x, y) { return PICTURE_HEIGHT / 2 * middle * (1 - x * x - y * y); });   // about its size on the screen
+  floorLinesFor = key;
+  floorLinesKept = lines;
+  return lines;
 }
 
 // Dragging the disk. The motion carrying the point "from" to the point
