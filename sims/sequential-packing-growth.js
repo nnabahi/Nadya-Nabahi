@@ -83,6 +83,7 @@
      packingCore() returns an object with
        setup(options)   new S, T, f, window and seed; clears all tiles
        attempt()        do the next attempt (draw C_n, grow its tile)
+       addClick(x, y)   the next attempt with a center you clicked
        placeAt(x, y)    the same with a given center (for the checks)
        tiles            the placed tiles (see section 6)
      It uses no library itself; the page passes in its formulas as
@@ -370,6 +371,8 @@ function packingCore() {
   let squares = null;         // the grid squares that can hold C_n: index j * nx + i
   let ceilingOf = null;       // each one's ceiling M
   let ceilingSum = null;      // running totals of the ceilings
+  let total = 0;              // all the ceilings added up
+  let rowEnd = null;          // where each row of squares ends in the list
   let ceilingMisses = 0;      // times f was found above its ceiling
   let negativeF = false;      // f < 0 somewhere (it is then treated as 0)
 
@@ -420,21 +423,48 @@ function packingCore() {
     squares = Int32Array.from(list);
     ceilingOf = Float64Array.from(ceilings);
     ceilingSum = new Float64Array(list.length);
-    let total = 0;
+    total = 0;
     for (let k = 0; k < list.length; k++) { total += ceilingOf[k]; ceilingSum[k] = total; }
+    // Where each row of squares ends in the list (the list goes row by row).
+    const ends = [];
+    for (let k = 0; k < list.length; k++) {
+      if (k === list.length - 1 || Math.floor(list[k + 1] / nx) !== Math.floor(list[k] / nx)) ends.push(k);
+    }
+    rowEnd = Int32Array.from(ends);
     ceilingMisses = 0;
   }
 
+  // Keep a leftover inside [0, 1) (rounding can push it a hair out).
+  function inUnit(t) { return Math.min(Math.max(t, 0), 1 - 1e-12); }
+
   // One center C_n, drawn from f on S with the random numbers "random".
+  //
+  // Like reading a CDF backwards, one direction at a time: the first
+  // number u picks a row of squares (in proportion to the row's total
+  // ceiling), and how far u went past the rows below it ("leftover",
+  // uniform on [0, 1) once the row is picked) gives y inside that row.
+  // The second number picks a square in the row the same way, and its
+  // leftover gives x. So when a slider changes f a little, the ceilings
+  // change a little and each center slides a little, instead of jumping
+  // somewhere else. That is what keeps the picture moving smoothly
+  // while you drag a slider.
   function drawCenter(random) {
-    const total = ceilingSum[ceilingSum.length - 1];
     for (;;) {
-      // Pick a square: the first one whose running total passes u.
+      // The row: the first one whose running total passes u.
       const u = random() * total;
-      let lo = 0, hi = ceilingSum.length - 1;
-      while (lo < hi) { const mid = (lo + hi) >> 1; if (ceilingSum[mid] > u) hi = mid; else lo = mid + 1; }
+      let lo = 0, hi = rowEnd.length - 1;
+      while (lo < hi) { const mid = (lo + hi) >> 1; if (ceilingSum[rowEnd[mid]] > u) hi = mid; else lo = mid + 1; }
+      const first = lo > 0 ? rowEnd[lo - 1] + 1 : 0, last = rowEnd[lo];
+      const below = first > 0 ? ceilingSum[first - 1] : 0;
+      const yLeft = (u - below) / (ceilingSum[last] - below);
+      // The square in that row: the first one whose running total passes v.
+      const v = below + random() * (ceilingSum[last] - below);
+      lo = first; hi = last;
+      while (lo < hi) { const mid = (lo + hi) >> 1; if (ceilingSum[mid] > v) hi = mid; else lo = mid + 1; }
+      const before = lo > 0 ? ceilingSum[lo - 1] : 0;
+      const xLeft = (v - before) / ceilingOf[lo];
       const i = squares[lo] % nx, j = Math.floor(squares[lo] / nx);
-      const x = x0 + (i + random()) * h, y = y0 + (j + random()) * h;
+      const x = x0 + (i + inUnit(xLeft)) * h, y = y0 + (j + inUnit(yLeft)) * h;
       const test = random() * ceilingOf[lo];
       if (!inSW(x, y)) continue;
       const f = fAt(x, y);
@@ -704,6 +734,7 @@ function packingCore() {
   let attempts = 0;
   let edgeChildren = 0;          // tiles whose parent is the edge of S
   let seed = "1", makeRandom = null;
+  let clicks = {};               // attempt n -> [x, y]: centers you clicked
 
   function clearTiles() {
     for (const key of Object.keys(tiles)) if (key !== "count") tiles[key] = [];
@@ -733,11 +764,24 @@ function packingCore() {
     return t;
   }
 
-  // The next attempt n: its own random numbers, a center, a tile.
+  // The next attempt n: its own random numbers, a center, a tile. If
+  // you clicked a point for attempt n (see "clicks" in setup), that
+  // point is the center instead of a random one.
   function attempt() {
+    const clicked = clicks[attempts + 1];
+    if (clicked) return placeAt(clicked[0], clicked[1]);
     const random = makeRandom(seed + "/" + (attempts + 1));
     const [cx, cy] = drawCenter(random);
     return placeAt(cx, cy);
+  }
+
+  // A center you clicked, used as the next attempt if a tile fits there.
+  // Returns true if a tile was placed. If not (the point is inside a
+  // tile or outside S), nothing changes: the attempt is not used up.
+  function addClick(x, y) {
+    if (placeAt(x, y) < 0) { attempts--; return false; }
+    clicks[attempts] = [x, y];
+    return true;
   }
 
 
@@ -751,6 +795,8 @@ function packingCore() {
        seed                   any text or number
        makeRandom(text)       returns a random-number function for that text
                               (seedrandom's alea)
+       clicks                 { n: [x, y], ... }: attempts whose center you
+                              clicked (leave out for none)
        useMesh                false to check every obstacle (default true)
      Returns facts about the shapes, for the page to show.
      =================================================================== */
@@ -762,6 +808,7 @@ function packingCore() {
     density = options.density || function () { return 1; };
     seed = String(options.seed);
     makeRandom = options.makeRandom;
+    clicks = Object.assign({}, options.clicks);
     useMesh = options.useMesh !== false;
     buildShape(options.inT);
     buildEdge(win);
@@ -776,7 +823,7 @@ function packingCore() {
   }
 
   return {
-    setup, attempt, placeAt, drawCenter, tiles, g,
+    setup, attempt, addClick, placeAt, drawCenter, tiles, g,
     get attempts() { return attempts; },
     get edgeChildren() { return edgeChildren; },
     get ceilingMisses() { return ceilingMisses; },
@@ -797,14 +844,18 @@ function packingCore() {
    the page. They talk by messages:
 
    page -> worker
-     { type: "setup", run, S, T, f, values, window, seed, target }
+     { type: "setup", run, S, T, f, values, window, seed, clicks, target }
          S, T, f: the typed formulas, already tidied by readTree (in
          js/formulas.js) and written out with every "*" shown; values:
-         the sliders, e.g. { s: 0.5 }. Starts again from no tiles, and
-         works until "target" attempts are done.
+         the sliders, e.g. { s: 0.5 }; clicks: the centers you clicked
+         ({ n: [x, y] }). Starts again from no tiles, and works until
+         "target" attempts are done.
      { type: "target", target }       work until this many attempts
+     { type: "click", x, y, at }      a clicked center, as attempt at + 1
+                                      (only if exactly "at" are done)
    worker -> page
      { type: "ready", run, info, segments, shapeX, shapeY }
+     { type: "clicked", run, placed, ready, x, y, at }   did the clicked tile fit?
          after a setup: facts about S and T, the edge of S (4 numbers
          per segment) and T's polygon (128 corners), for drawing.
      { type: "tiles", run, attempts, ceilingMisses, cx, cy, r, parent, generation, attempt }
@@ -895,6 +946,7 @@ function packingWorker() {
           window: m.window,
           seed: m.seed,
           makeRandom: alea,
+          clicks: m.clicks,
         });
         core = packing;
         // T's polygon, 128 of its corners, for drawing.
@@ -908,6 +960,14 @@ function packingWorker() {
     } else if (m.type === "target") {
       target = m.target;
       startWorking();
+    } else if (m.type === "click") {
+      // Only when the worker is exactly at attempt "at" (the page then
+      // asks for the next attempt). Otherwise the page starts a new setup.
+      const ready = core && core.attempts === m.at && target === m.at;
+      const placed = ready && core.addClick(m.x, m.y);
+      if (placed) target = m.at + 1;
+      postMessage({ type: "clicked", run: run, placed: placed, ready: ready, x: m.x, y: m.y, at: m.at });
+      if (placed) startWorking();
     }
   };
 }

@@ -54,6 +54,8 @@ let worker = null;
 let run = 0;                  // numbers each setup sent to the worker
 let setupBusy = false;        // a setup is being worked on by the worker
 let setupWaiting = false;     // another one is wanted after it
+let fresh = false;            // a new setup's tiles are coming in, but the old picture still shows
+let clicks = {};              // attempt n -> [x, y]: centers you clicked (section 8b)
 
 let sliders = {};             // letter -> { value, min, max, step }
 let formulas = null;          // the three formulas, ready for the worker: { S, T, f }
@@ -131,6 +133,7 @@ function readFormulas() {
 // Fill in a preset's formulas, window and sliders.
 function usePreset(key) {
   const p = PRESETS[key];
+  forgetClicks();
   byId("formula-S").value = p.S;
   byId("formula-T").value = p.T;
   byId("formula-f").value = p.f;
@@ -139,6 +142,36 @@ function usePreset(key) {
   showWindow();
   for (const letter in p.sliders || {}) sliders[letter] = Object.assign({}, p.sliders[letter]);
   readFormulas();
+}
+
+// The small pictures of S and T that pop up by their formulas (the CSS
+// in css/style.css shows them). They show the shapes the worker last
+// read, so a half-typed formula keeps the last good picture.
+const PREVIEW_SIZE = 120;   // CSS pixels, as in css/style.css
+function drawPreview() {
+  const ratio = window.devicePixelRatio || 1, size = PREVIEW_SIZE * ratio, margin = 8 * ratio;
+  for (const name of ["S", "T"]) {
+    const canvas = byId("picture-" + name);
+    canvas.width = size; canvas.height = size;
+    const p = canvas.getContext("2d");
+    p.strokeStyle = CHART_LINE; p.fillStyle = CHART_LINE; p.lineWidth = 1.5 * ratio;
+    if (name === "S") {
+      // The edge of S, with the window fitted into the picture.
+      const k = (size - 2 * margin) / Math.max(windowBox.xmax - windowBox.xmin, windowBox.ymax - windowBox.ymin);
+      const cx = (windowBox.xmin + windowBox.xmax) / 2, cy = (windowBox.ymin + windowBox.ymax) / 2;
+      p.beginPath();
+      for (let i = 0; i < segments.length; i += 4) {
+        p.moveTo(size / 2 + (segments[i] - cx) * k, size / 2 - (segments[i + 1] - cy) * k);
+        p.lineTo(size / 2 + (segments[i + 2] - cx) * k, size / 2 - (segments[i + 3] - cy) * k);
+      }
+      p.stroke();
+    } else {
+      // T's polygon, filled, as big as fits, with its center (0, 0) in the middle.
+      const k = (size / 2 - margin) / shapeReach;
+      p.setTransform(k, 0, 0, -k, size / 2, size / 2);
+      p.fill(tileShape);
+    }
+  }
 }
 
 function showWindow() {
@@ -166,8 +199,14 @@ function readWindow() {
    The worker is made from packingWorker() and packingCore() (both in
    sequential-packing-growth.js). A setup takes the worker a moment
    (it traces the edge of S), so while one is being worked on, newer
-   changes wait, and only the latest is sent after it. That keeps
-   dragging a slider smooth.
+   changes wait, and only the latest is sent after it.
+
+   To keep dragging a slider smooth, the old picture stays up while the
+   new tiles come in ("fresh"), and the new picture replaces it in one
+   go, once the worker has caught up with n (or after FRESH_WAIT
+   milliseconds, if n is so big that catching up takes a while). Only
+   then is the next waiting change sent. So the picture never flashes
+   empty and fills back in.
    ===================================================================== */
 function startTheWorker() {
   try {
@@ -183,6 +222,8 @@ function startTheWorker() {
   };
 }
 
+const FRESH_WAIT = 250;
+
 function sendSetup() {
   if (!worker || !formulas) return;
   if (setupBusy) { setupWaiting = true; return; }
@@ -192,19 +233,17 @@ function sendSetup() {
   for (const letter in sliders) values[letter] = sliders[letter].value;
   worker.postMessage({
     type: "setup", run: run, S: formulas.S, T: formulas.T, f: formulas.f, values: values,
-    window: windowBox, seed: byId("seed").value, target: wanted,
+    window: windowBox, seed: byId("seed").value, clicks: clicks, target: wanted,
   });
 }
 
 function fromWorker(event) {
   const m = event.data;
   if (m.run !== run) return;            // from an older setup
-  if (m.type === "ready" || m.type === "error") {
-    setupBusy = false;
-    if (setupWaiting) { setupWaiting = false; sendSetup(); return; }
-  }
   if (m.type === "error") {
     byId("formula-message").textContent = "Problem: " + m.message;
+    fresh = false;
+    setupDone();
   } else if (m.type === "ready") {
     info = m.info;
     segments = m.segments;
@@ -219,7 +258,12 @@ function fromWorker(event) {
     byId("formula-message").textContent = info.exactTiles ? "" :
       "T is not convex and symmetric, so each tile takes longer to place (the result is still exact).";
     if (info.negativeF) byId("formula-message").textContent += " f is negative somewhere; it counts as 0 there.";
-    drawAll();
+    drawPreview();
+    fresh = true;                       // keep the old picture until the new one catches up
+    const thisRun = run;
+    setTimeout(function () { if (fresh && run === thisRun) showFresh(); }, FRESH_WAIT);
+  } else if (m.type === "clicked") {
+    clickedBack(m);
   } else if (m.type === "tiles") {
     for (const key of ["cx", "cy", "r", "parent", "generation", "attempt"]) {
       for (const v of m[key]) tiles[key].push(v);
@@ -227,8 +271,22 @@ function fromWorker(event) {
     tiles.count = tiles.r.length;
     computed = m.attempts;
     ceilingMisses = m.ceilingMisses;
-    drawNew();
+    if (!fresh) drawNew();
+    else if (computed >= wanted) showFresh();
   }
+}
+
+// Swap in the new picture, all at once.
+function showFresh() {
+  fresh = false;
+  drawAll();
+  setupDone();
+}
+
+// The worker has finished a setup: send the latest waiting change, if any.
+function setupDone() {
+  setupBusy = false;
+  if (setupWaiting) { setupWaiting = false; sendSetup(); }
 }
 
 
@@ -342,6 +400,7 @@ function drawTile(k) {
 
 // Start again from an empty picture, and draw every tile that is shown.
 function drawAll() {
+  if (fresh) return;                  // the old picture stays until the new one is ready
   sizeCanvas();
   pen.setTransform(1, 0, 0, 1, 0, 0);
   pen.clearRect(0, 0, simCanvas.width, simCanvas.height);
@@ -362,6 +421,7 @@ function drawAll() {
 
 // Draw the tiles placed since the last drawing, up to attempt "wanted".
 function drawNew() {
+  if (fresh) return;
   if (!tileShape || !pen) return showStatsSoon();
   const degreeColors = byId("color-by").value === "degree";
   while (shown < tiles.count && tiles.attempt[shown] <= wanted) {
@@ -392,6 +452,7 @@ window.addEventListener("resize", drawAll);
      drag                         move it
      mouse wheel, or pinch        zoom in or out, around the pointer
      the + / − / Reset buttons    zoom in, zoom out, show the whole window
+     click (without dragging)     add a tile there (section 8b)
    The cell sims share this in js/sim-view.js; this sim draws shapes
    instead of cells, so it has its own short version. Each move or zoom
    redraws the whole picture, at most once per screen refresh.
@@ -448,8 +509,10 @@ byId("zoom-reset").addEventListener("click", function () { resetZoom(); redrawSo
 // Dragging with one pointer moves the picture; two fingers also zoom as
 // they spread apart or pinch together.
 simCanvas.style.touchAction = "none";      // on phones, a finger drags the picture, not the page
+let press = null;              // where a single pointer went down, to tell a click from a drag
 simCanvas.addEventListener("pointerdown", function (event) {
   pointers.set(event.pointerId, canvasSpot(event));
+  press = pointers.size === 1 ? canvasSpot(event) : null;   // two fingers: never a click
   simCanvas.setPointerCapture(event.pointerId);   // keep getting moves even off the canvas
   simCanvas.style.cursor = "grabbing";
 });
@@ -466,6 +529,11 @@ simCanvas.addEventListener("pointermove", function (event) {
   else if (zoom > 1) redrawSoon();          // at zoom 1 the whole window shows: nothing to move
 });
 function releasePointer(event) {
+  // A click: one pointer that went up close to where it went down.
+  const spot = canvasSpot(event), ratio = window.devicePixelRatio || 1;
+  if (event.type === "pointerup" && press && pointers.size === 1 &&
+      Math.hypot(spot.x - press.x, spot.y - press.y) < 5 * ratio) clickAt(pointX(spot.x), pointY(spot.y));
+  press = null;
   pointers.delete(event.pointerId);
   if (pointers.size === 0) simCanvas.style.cursor = "grab";
 }
@@ -514,17 +582,18 @@ function showStats() {
   if (shown > 0) placed.push([done, shown]);
   logLogChart(byId("placed-chart"), [{ points: placed }]);
 
-  // Records over time: the largest generation and largest degree so far.
+  // Records as tiles are placed: the largest generation and largest
+  // degree among the first k tiles, against k.
   const generations = [], degrees = [], count = new Array(shown).fill(0);
   let topGeneration = 0, topDegree = 0, edge = 0;
   for (let k = 0; k < shown; k++) {
     const p = tiles.parent[k];
     let degree;
     if (p < 0) degree = ++edge; else degree = ++count[p] + 1;
-    if (tiles.generation[k] > topGeneration) { topGeneration = tiles.generation[k]; generations.push([tiles.attempt[k], topGeneration]); }
-    if (degree > topDegree) { topDegree = degree; degrees.push([tiles.attempt[k], topDegree]); }
+    if (tiles.generation[k] > topGeneration) { topGeneration = tiles.generation[k]; generations.push([k + 1, topGeneration]); }
+    if (degree > topDegree) { topDegree = degree; degrees.push([k + 1, topDegree]); }
   }
-  if (shown > 0) { generations.push([done, topGeneration]); degrees.push([done, topDegree]); }
+  if (shown > 0) { generations.push([shown, topGeneration]); degrees.push([shown, topDegree]); }
   logLogChart(byId("records-chart"), [{ points: generations }, { points: degrees, dots: true }]);
 
   // R_k against k.
@@ -611,6 +680,8 @@ function shortNumber(v) {
    a ray from the point crosses the polygon's edge an odd number of
    times exactly when the point is inside).
    ===================================================================== */
+const HOVER_HINT = "Point at a tile to see its numbers. Click an empty spot to add a tile there.";
+
 function insideShape(u, v) {
   let inside = false;
   for (let i = 0, j = shapeX.length - 1; i < shapeX.length; j = i++) {
@@ -620,22 +691,77 @@ function insideShape(u, v) {
   return inside;
 }
 
-simCanvas.addEventListener("mousemove", function (event) {
-  if (!tileShape) return;
-  const spot = canvasSpot(event);
-  const x = pointX(spot.x), y = pointY(spot.y);
+// The shown tile that the point (x, y) is in, or -1 for none.
+function tileAt(x, y) {
   for (let k = 0; k < shown; k++) {
     const r = tiles.r[k];
     if (Math.abs(x - tiles.cx[k]) > r * shapeReach || Math.abs(y - tiles.cy[k]) > r * shapeReach) continue;
-    if (!insideShape((x - tiles.cx[k]) / r, (y - tiles.cy[k]) / r)) continue;
+    if (insideShape((x - tiles.cx[k]) / r, (y - tiles.cy[k]) / r)) return k;
+  }
+  return -1;
+}
+
+simCanvas.addEventListener("mousemove", function (event) {
+  if (!tileShape || fresh) return;
+  const spot = canvasSpot(event);
+  const k = tileAt(pointX(spot.x), pointY(spot.y));
+  if (k >= 0) {
     const p = tiles.parent[k];
     byId("hover-info").textContent = "Tile " + (k + 1).toLocaleString() + " (attempt " + tiles.attempt[k].toLocaleString() +
       "): R = " + tiles.r[k].toPrecision(4) + ", parent: " + (p < 0 ? "the edge of S" : "tile " + (p + 1).toLocaleString()) +
       ", generation " + tiles.generation[k] + ", degree " + (children[k] + 1) + ".";
     return;
   }
-  byId("hover-info").textContent = "Point at a tile to see its numbers.";
+  byId("hover-info").textContent = HOVER_HINT;
 });
+
+
+/* =====================================================================
+   8b. CLICK TO ADD A TILE
+   ---------------------------------------------------------------------
+   Clicking the picture uses the clicked point as the center of the
+   next attempt, as if the random process had picked it: the tile grows
+   there until it touches the edge of S or another tile. If the point
+   is inside a tile or outside S, nothing happens.
+
+   The clicked points are kept (attempt n -> [x, y]) and sent with
+   every setup, so a clicked tile stays when you move a slider or
+   change a formula; there it grows as big as the new shapes allow.
+   Restart, a new seed or a new preset forgets them.
+   ===================================================================== */
+const NO_ROOM = "No room for a tile there: that point is inside a tile or outside S.";
+
+// "redo" is true to skip the quick way (see clickedBack).
+function clickAt(x, y, redo) {
+  if (!worker || fresh || !info) return;
+  if (tileAt(x, y) >= 0) { byId("hover-info").textContent = NO_ROOM; return; }
+  if (computed === wanted && !redo) {
+    // The usual case: the worker is exactly at attempt n, so it just
+    // tries the point as attempt n + 1 (and answers in clickedBack).
+    worker.postMessage({ type: "click", x: x, y: y, at: wanted });
+  } else {
+    // n was lowered (or the worker is still catching up): the point
+    // becomes attempt n + 1, and the packing is redone from the start.
+    clicks[wanted + 1] = [x, y];
+    setPlaying(false);
+    setWanted(wanted + 1);
+    sendSetup();
+  }
+}
+
+// The worker's answer to a click.
+function clickedBack(m) {
+  if (m.placed) {
+    clicks[m.at + 1] = [m.x, m.y];
+    setWanted(m.at + 1);
+  } else if (m.ready) {
+    byId("hover-info").textContent = NO_ROOM;
+  } else {
+    clickAt(m.x, m.y, true);   // the worker had moved on (say, Play was on): redo the packing with it
+  }
+}
+
+function forgetClicks() { clicks = {}; }
 
 
 /* =====================================================================
@@ -657,12 +783,17 @@ byId("attempts-slider").addEventListener("input", function () {
 });
 byId("play").addEventListener("click", function () { setPlaying(!playing); });
 byId("step").addEventListener("click", function () { setPlaying(false); setWanted(Math.min(wanted, computed) + 1); });
-byId("restart").addEventListener("click", function () { setPlaying(false); setWanted(0); });
+byId("restart").addEventListener("click", function () {
+  setPlaying(false);
+  setWanted(0);
+  if (Object.keys(clicks).length > 0) { forgetClicks(); sendSetup(); }
+});
 byId("speed").max = SPEEDS.length - 1;
 byId("speed").addEventListener("input", function () { speedIndex = Number(byId("speed").value); showSpeed(); });
-byId("seed").addEventListener("change", sendSetup);
+byId("seed").addEventListener("change", function () { forgetClicks(); sendSetup(); });
 byId("new-seed").addEventListener("click", function () {
   byId("seed").value = String(Math.floor(Math.random() * 100000));
+  forgetClicks();
   sendSetup();
 });
 byId("color-by").addEventListener("change", drawAll);

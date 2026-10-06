@@ -45,7 +45,7 @@
             <button class="tool-button" id="zoom-reset" title="Show the whole window once again">Reset</button>
           </div>
         </div>
-        <p class="muted small" id="hover-info">Point at a tile to see its numbers.</p>
+        <p class="muted small" id="hover-info">Point at a tile to see its numbers. Click an empty spot to add a tile there.</p>
         <!-- Messages, e.g. a formula that can't be read. -->
         <p class="muted" id="sim-message"></p>
       </section>
@@ -70,13 +70,23 @@
           </select>
         </div>
 
-        <!-- The three formulas. Any other letter gets a slider below. -->
+        <!-- The three formulas. Any other letter gets a slider below.
+             While you point at or type in the S or T formula (box or
+             typeset preview), a small picture of S or T pops up above
+             it: class="shape-popup" in section 6 of css/style.css, drawn
+             by drawPreview in sequential-packing.js. -->
         <p class="small">Domain <span class="tex">S</span>: the points <span class="tex">(x, y)</span> with</p>
-        <input type="text" class="formula-input" id="formula-S" spellcheck="false">
-        <div class="formula-preview" id="preview-S"></div>
+        <div class="formula-with-picture">
+          <input type="text" class="formula-input" id="formula-S" spellcheck="false">
+          <div class="formula-preview" id="preview-S"></div>
+          <canvas class="shape-popup" id="picture-S"></canvas>
+        </div>
         <p class="small">Tile <span class="tex">T</span>, centered at <span class="tex">(0, 0)</span>: the points with</p>
-        <input type="text" class="formula-input" id="formula-T" spellcheck="false">
-        <div class="formula-preview" id="preview-T"></div>
+        <div class="formula-with-picture">
+          <input type="text" class="formula-input" id="formula-T" spellcheck="false">
+          <div class="formula-preview" id="preview-T"></div>
+          <canvas class="shape-popup" id="picture-T"></canvas>
+        </div>
         <p class="small">Density <span class="tex">f(x, y)</span> of the centers (1 = uniform)</p>
         <input type="text" class="formula-input" id="formula-f" spellcheck="false">
         <div class="formula-preview" id="preview-f"></div>
@@ -142,7 +152,7 @@
 
         <h3 class="option-heading chart-heading">Tiles placed against attempts (log-log)</h3>
         <canvas class="chart" id="placed-chart"></canvas>
-        <h3 class="option-heading chart-heading">Largest generation (line) and largest degree (dots) against attempts (log-log)</h3>
+        <h3 class="option-heading chart-heading">Largest generation (line) and largest degree (dots) against tiles placed (log-log)</h3>
         <canvas class="chart" id="records-chart"></canvas>
         <h3 class="option-heading chart-heading">Size R<sub>k</sub> of tile k against k (log-log)</h3>
         <canvas class="chart" id="radii-chart"></canvas>
@@ -177,7 +187,8 @@
           <strong>Things to try:</strong> press Play; drag the number of
           attempts; pick another start from the list; type your own domain,
           tile or density (any extra letter, like <span class="tex">s</span>,
-          gets a slider); or change the colors. Zoom in with the mouse wheel,
+          gets a slider); click an empty spot to grow a tile there yourself;
+          or change the colors. Zoom in with the mouse wheel,
           a pinch, or the + and &minus; buttons to see the tiny tiles, and drag to
           look around.
         </p>

@@ -535,6 +535,33 @@ a.card:hover {
   overflow-x: auto;        /* a long formula scrolls instead of spilling out */
 }
 
+/* A small picture of a formula's shape (the domain or the tile), which
+   pops up above the formula's top right corner while the mouse is over
+   the formula (its box or its typeset preview), or while you type in it
+   (":focus-within" = the box has the typing cursor). Used by the random
+   sequential packing. */
+.formula-with-picture {
+  position: relative;      /* the picture is placed relative to this */
+}
+.shape-popup {
+  display: none;           /* hidden until pointed at or typed in */
+  position: absolute;
+  right: 0;
+  bottom: 100%;            /* just above the formula box */
+  width: 120px;
+  height: 120px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--corner-radius);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  z-index: 5;              /* on top of the text above it */
+  pointer-events: none;    /* never gets in the way of the mouse */
+}
+.formula-with-picture:hover .shape-popup,
+.formula-with-picture:focus-within .shape-popup {
+  display: block;
+}
+
 /* One slider:  r = [1]  ====o====  min [-10] max [10] step [0.1] */
 .slider-row {
   display: flex;
