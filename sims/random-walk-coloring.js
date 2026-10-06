@@ -78,10 +78,9 @@ let colorNames = [];            // colorNames[i] = how color i is drawn, e.g. "#
 let colorRGB = [];              // the same colors as [red, green, blue], 0..255
 let showWalkers = true;         // the "Show walkers" box
 
-// Hyperbolic plane or tree: which graph, how it is drawn, and how far
-// the view has been moved (js/sim-hyperbolic.js); and the graph itself
-// (js/sim-graphs.js), made again only when the graph changes.
-const disk = makeDiskView(byId("sim-canvas"));
+// Hyperbolic plane or tree: the graph itself (js/sim-graphs.js), made
+// again only when the graph changes. (Which graph it is, how it is
+// drawn and how far the plane has been moved are in "disk", section 5.)
 let graph = null, graphFor = null;
 
 let playing = false;            // it starts paused; Play sets it going
@@ -260,6 +259,11 @@ const simCanvas = byId("sim-canvas");            // the canvas on the page
 // lines get a whole number of pixels, so every cell is exactly the same
 // size and the lines sit exactly on the cell edges.
 const view = makeView(simCanvas, drawSoon, PAD, SMALLEST_BORDERED_CELL);
+
+// Hyperbolic plane or tree: which graph, how it is drawn, and how far
+// the plane has been moved (js/sim-hyperbolic.js). The view above zooms
+// and slides its pictures too.
+const disk = makeDiskView(simCanvas, view);
 
 // Draw at the browser's next screen refresh (at most once per refresh,
 // however many messages arrive in between).
@@ -451,27 +455,19 @@ function walkerUnder(spot) {
   return -1;
 }
 
-// Where the pointer is, in the same pixels as walkerSpots: from the top
-// of the picture (pointerSpot, js/sim-view.js), or on a hyperbolic tiling
-// or tree from the top of the canvas.
-function spotOf(event) {
-  if (domainKind !== "graph") return pointerSpot(view, event);
-  const box = simCanvas.getBoundingClientRect();
-  return { x: event.clientX - box.left, y: event.clientY - box.top };
-}
-
 // The "hand" cursor where something can be dragged.
 function showCursor(spot) {
-  const movable = domainKind === "graph" ? disk.picture !== "spread" : view.movable;
-  simCanvas.style.cursor = (dragWalker >= 0 || view.pointers.size > 0 || disk.dragFrom) ? "grabbing"
-    : (walkerUnder(spot) >= 0 || movable) ? "grab" : "default";
+  simCanvas.style.cursor = (dragWalker >= 0 || view.pointers.size > 0) ? "grabbing"
+    : (walkerUnder(spot) >= 0 || view.movable) ? "grab" : "default";
 }
 
 // A press on a walker drags the walker. Anywhere else, the pointer
-// moves the picture (pressPointer and the rest are in js/sim-view.js,
-// pressDisk and the rest in js/sim-hyperbolic.js).
+// moves the picture (pressPointer and the rest are in js/sim-view.js).
+// On a hyperbolic tiling or tree, one pointer drags across the plane
+// instead (startPlaneDrag and dragPlane, js/sim-hyperbolic.js), and two
+// fingers slide and zoom the picture.
 simCanvas.addEventListener("pointerdown", function (event) {
-  const spot = spotOf(event);
+  const spot = pointerSpot(view, event);
   if (dragWalker < 0 && view.pointers.size === 0) {
     dragWalker = walkerUnder(spot);                   // a walker, if there's one under the pointer
     if (dragWalker >= 0) {
@@ -479,23 +475,23 @@ simCanvas.addEventListener("pointerdown", function (event) {
       simCanvas.setPointerCapture(event.pointerId);   // keep getting moves even off the canvas
     }
   }
-  if (dragWalker < 0) {
-    if (domainKind === "graph") pressDisk(disk, event);
-    else pressPointer(view, event);
-  }
+  if (dragWalker < 0) pressPointer(view, event);
+  startDrag();
   showCursor(spot);
 });
 
 simCanvas.addEventListener("pointermove", function (event) {
-  const spot = spotOf(event);
+  const spot = pointerSpot(view, event);
   if (dragWalker >= 0 && event.pointerId === walkerPointer) {
     const cell = domainKind === "graph" ? ballCellUnder(disk, domain, event) : cellUnder(view, domain, spot);
     if (cell !== -1 && cell !== starts[dragWalker]) {
       starts[dragWalker] = cell;
       restart();
     }
-  } else if (domainKind === "graph") {
-    if (moveDisk(disk, event)) drawSoon();
+  } else if (disk.dragFrom && view.pointers.has(event.pointerId)) {
+    view.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });   // where a second finger starts from
+    dragPlane(disk, event.clientX, event.clientY);
+    drawSoon();
   } else {
     movePointer(view, event);
   }
@@ -505,8 +501,15 @@ simCanvas.addEventListener("pointermove", function (event) {
 function stopDragging(event) {
   if (event.pointerId === walkerPointer) { dragWalker = -1; walkerPointer = -1; }
   releasePointer(view, event);
-  releaseDisk(disk);
-  showCursor(spotOf(event));
+  startDrag();
+  showCursor(pointerSpot(view, event));
+}
+
+// On a hyperbolic tiling or tree, exactly one pointer pressed drags
+// across the plane.
+function startDrag() {
+  if (domainKind === "graph") startPlaneDrag(disk);
+  else disk.dragFrom = null;
 }
 simCanvas.addEventListener("pointerup", stopDragging);
 simCanvas.addEventListener("pointercancel", stopDragging);
@@ -712,7 +715,6 @@ function openTool() {
   toolOpen = true;
   simCanvas.hidden = true;
   showZoomButtons(view);
-  byId("disk-buttons").hidden = true;
   byId("custom-area").hidden = false;
   if (!frame.src) frame.src = "graph-tool.html?embed";    // the first time only
   checkTool();
@@ -769,10 +771,7 @@ byId("tool-cancel").addEventListener("click", function () {
 function useDomain(kind, d) {
   domainKind = kind;
   domain = d;
-  // Moving and zooming; zooming out past the whole picture only on a
-  // torus (js/sim-view.js). On a hyperbolic tiling or tree, dragging
-  // moves around the plane instead.
-  useTorus(view, Boolean(d.wrap), kind !== "graph");
+  useTorus(view, Boolean(d.wrap));   // moving and zooming; zooming out past the whole picture only on a torus (js/sim-view.js)
   showDomainChoice();
   setWalkerCount(N);
 }
@@ -813,7 +812,7 @@ function showDomainChoice() {
   byId("size-row").hidden = byId("neighbors-row").hidden = custom || onGraph;
   byId("custom-row").hidden = !custom;
   byId("graph-rows").hidden = !onGraph;
-  byId("disk-buttons").hidden = !onGraph || disk.picture === "spread" || simCanvas.hidden;
+  byId("disk-reset").hidden = !onGraph || disk.picture === "spread";   // with the zoom buttons
   if (custom && customDomain) {
     byId("custom-info").textContent = "Your region: " + customDomain.n + " cells" +
       (customDomain.wrap ? ", on a torus." : ".");
@@ -861,7 +860,7 @@ for (const radio of document.querySelectorAll('input[name="picture"]')) {
   radio.addEventListener("change", function () {
     disk.picture = radio.value;
     showDomainChoice();
-    drawSoon();
+    resetView(view);      // a new picture starts unzoomed
   });
 }
 byId("disk-reset").addEventListener("click", function () { backToStart(disk); drawSoon(); });
