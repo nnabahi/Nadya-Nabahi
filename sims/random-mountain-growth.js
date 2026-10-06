@@ -489,6 +489,11 @@ function mountainWorker() {
         : "The mountain has reached the edge of what this page can build of this tiling (about distance 23 " +
           "from the start), so it can't spread any further out.",
       exact: m.graph.exact,
+      // With the first message of a run, the tiling's rules (if it has
+      // any), so the page can build the tiling too, to draw it under the
+      // mountain, without learning them again (see learnedRules).
+      rules: from === 0 && m.graph.shape
+        ? { name: m.graph.shape.p + "," + m.graph.shape.q, kinds: learnedRules(m.graph.shape) } : undefined,
       height: h, placesFrom: from, places: places,
       start: m.start,
       steps: m.steps, blocks: m.blocks, baseSize: m.baseSize,

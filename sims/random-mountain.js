@@ -335,6 +335,7 @@ worker.onmessage = function (event) {
   const message = event.data;
   if (message.type !== "state" || message.run !== run) return;   // from an older run
   if (message.places) keepPlaces(message);                        // on a graph (section 6d)
+  if (message.rules) keepRules(message.rules);                    // on a graph (section 6d)
   if (message.dim === "graph") {
     byId("graph-built").textContent = message.exact ? "" : "This tiling has too many cells near the start " +
       "for the page to learn its rules, so it is built by geometry, which only reaches about distance 23 from the start.";
@@ -759,8 +760,48 @@ function siteMotion(i) {
   return motionTimes(diskMotion, [places[4 * i], places[4 * i + 1], places[4 * i + 2], places[4 * i + 3]]);
 }
 
+// Where a point (x, y) of the disk lands on the screen: at (cx + x
+// radius, cy - y radius) (y goes up).
+function toScreen(x, y) {
+  return [diskBox.cx + x * diskBox.radius, diskBox.cy - y * diskBox.radius];
+}
+
+// How big a cell looks, in pixels (its inradius), if its middle is at
+// the point (x, y) of the disk: the disk shrinks lengths near (x, y) by
+// 1 - x^2 - y^2 (Beardon, Chapter 7).
+function cellPixels(x, y) {
+  return diskBox.radius * currentShape().middle * (1 - x * x - y * y);
+}
+
+// Add the outline of the cell with motion A to the pen's path (for
+// small cells, every 4th point of it is plenty).
+function traceOutline(pen, A, size) {
+  const outline = currentShape().outline, every = size < 5 ? 4 : 1;
+  for (let k = 0; k < outline.length; k += every) {
+    const [x, y] = toScreen(...motionApply(A, outline[k][0], outline[k][1]));
+    if (k === 0) pen.moveTo(x, y); else pen.lineTo(x, y);
+  }
+  pen.closePath();
+}
+
+// Add the lines from the middle of the cell with motion A to the middle
+// of each of its sides. On a tree, those lines from all the cells are
+// the tree itself: each edge runs from one cell's middle, through the
+// side the two cells share, to the other's. (Each half is a straight
+// line through the middle of the first cell, moved by A, so it is a
+// hyperbolic straight line: a circle arc in the disk.)
+function traceSpokes(pen, A) {
+  const POINTS = 6;
+  for (const [sx, sy] of currentShape().sides) {
+    for (let j = 0; j <= POINTS; j++) {
+      const [x, y] = toScreen(...motionApply(A, sx * j / POINTS, sy * j / POINTS));
+      if (j === 0) pen.moveTo(x, y); else pen.lineTo(x, y);
+    }
+  }
+}
+
 function drawDisk() {
-  const s = latest, cellShape = currentShape();
+  const s = latest;
   const width = simCanvas.clientWidth, height = PICTURE_HEIGHT;
   const ratio = window.devicePixelRatio || 1;   // 2 on sharp screens
   simCanvas.style.height = height + "px";
@@ -771,40 +812,108 @@ function drawDisk() {
 
   // The disk: the whole plane.
   diskBox = { cx: width / 2, cy: height / 2, radius: Math.min(width, height) / 2 - 4 };
-  const { cx, cy, radius } = diskBox;
   pen.beginPath();
-  pen.arc(cx, cy, radius, 0, 2 * Math.PI);
+  pen.arc(diskBox.cx, diskBox.cy, diskBox.radius, 0, 2 * Math.PI);
   pen.fillStyle = OUTSIDE;
   pen.fill();
   pen.strokeStyle = EMPTY;
   pen.stroke();
 
-  // The cells. A point (x, y) of the disk is at (cx + x radius,
-  // cy - y radius) on the screen (y goes up).
-  const highest = Math.max(s.maxHeight, 1), outline = cellShape.outline;
+  // The tiling under the mountain (a tree's lines go on top instead,
+  // below, so the sites' colors don't hide them).
+  const tree = graphSpec.q === Infinity;
+  if (!tree) drawUnder(pen);
+
+  // The sites, each colored by its height; tiny ones are single dots.
+  const highest = Math.max(s.maxHeight, 1);
   pen.lineWidth = 0.5;
   pen.strokeStyle = "rgba(0, 0, 0, 0.25)";
   for (let i = 0; i < s.height.length; i++) {
     const A = siteMotion(i);
     const [mx, my] = motionApply(A, 0, 0);                  // the cell's middle
-    // How big it looks: the motion shrinks things near the middle
-    // point m by 1 - |m|^2.
-    const size = radius * cellShape.middle * (1 - mx * mx - my * my);
+    const size = cellPixels(mx, my);
     pen.fillStyle = s.height[i] === 0 ? EMPTY : cssColor(heightColor(s.height[i], highest));
-    if (size < 0.7) {                                      // tiny: a dot
-      pen.fillRect(cx + mx * radius - 0.5, cy - my * radius - 0.5, 1, 1);
+    if (size < 0.7) {
+      const [x, y] = toScreen(mx, my);
+      pen.fillRect(x - 0.5, y - 0.5, 1, 1);
       continue;
     }
-    // Its outline (for small cells, every 4th point of it is plenty).
-    const every = size < 5 ? 4 : 1;
     pen.beginPath();
-    for (let k = 0; k < outline.length; k += every) {
-      const [x, y] = motionApply(A, outline[k][0], outline[k][1]);
-      if (k === 0) pen.moveTo(cx + x * radius, cy - y * radius); else pen.lineTo(cx + x * radius, cy - y * radius);
-    }
-    pen.closePath();
+    traceOutline(pen, A, size);
     pen.fill();
     if (size > 4) pen.stroke();
+  }
+  if (tree) drawUnder(pen);
+}
+
+/* The whole tiling (or tree) under the mountain, in thin gray lines:
+   every cell big enough to see, around wherever the view is, whether or
+   not the mountain has reached it. A tiling is drawn as the outlines of
+   its cells; a tree as its edges (traceSpokes).
+   The page builds its own copy of the graph for this, the same way the
+   mountain's thread does (js/sim-graphs.js), from the rules that thread
+   learned and sent with its first message, so the page never has to
+   learn them again. It numbers cells in its own order; it only says
+   where cells are, not which ones are sites. */
+const UNDER_COLOR = "#b4b1aa";     // the gray of the lines
+const SMALLEST_UNDER = 1.2;        // cells smaller than this (inradius, in pixels) aren't drawn
+const MOST_UNDER = 40000;          // and at most this many cells are
+
+let underGraph = null, underFor = null;
+function graphUnder() {
+  const name = graphSpec.p + "," + graphSpec.q;
+  if (!learnedRules.kept || !learnedRules.kept.has(name)) return null;   // the rules haven't come yet
+  if (underFor !== graphSpec) { underFor = graphSpec; underGraph = makeGraph(graphSpec); }
+  return underGraph;
+}
+
+// The rules the mountain's thread sends with its first message.
+function keepRules(rules) {
+  if (!learnedRules.kept) learnedRules.kept = new Map();
+  learnedRules.kept.set(rules.name, rules.kinds);
+}
+
+// A breadth-first search from the cell nearest the middle of the
+// picture, going out until cells are too small to see: cells only get
+// smaller farther out, so every cell big enough is reached.
+function drawUnder(pen) {
+  const graph = graphUnder();
+  if (!graph) return;
+  const tree = graphSpec.q === Infinity;
+  const first = cellNearestMiddle(graph);
+  const seen = new Set([first]), queue = [first];
+  pen.beginPath();
+  for (let n = 0; n < queue.length && n < MOST_UNDER; n++) {
+    const A = motionTimes(diskMotion, graph.place(queue[n]));
+    const [mx, my] = motionApply(A, 0, 0);
+    const size = cellPixels(mx, my);
+    if (size < SMALLEST_UNDER) continue;
+    if (tree) traceSpokes(pen, A);
+    else { pen.moveTo(...toScreen(mx, my)); traceOutline(pen, A, size); }
+    for (const w of graph.neighbors(queue[n])) {
+      if (!seen.has(w)) { seen.add(w); queue.push(w); }
+    }
+  }
+  pen.lineWidth = 0.6;
+  pen.strokeStyle = UNDER_COLOR;
+  pen.stroke();
+}
+
+// The cell nearest the middle of the picture: start at the first cell
+// and keep stepping to whichever neighbor is nearer the middle, until
+// none is. (cosh of the distance from the middle is coshFromStart of
+// the cell's motion moved by the view.)
+function cellNearestMiddle(graph) {
+  const away = function (v) { return coshFromStart(motionTimes(diskMotion, graph.place(v))); };
+  let v = 0, best = away(0);
+  for (;;) {
+    let next = -1;
+    for (const w of graph.neighbors(v)) {
+      const d = away(w);
+      if (d < best) { best = d; next = w; }
+    }
+    if (next === -1) return v;
+    v = next;
   }
 }
 
