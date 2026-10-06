@@ -177,6 +177,7 @@ function newMountain(options) {
     maxHeight: 0,
     start: -1,         // the start site's number
     step: step,
+    dropOn: dropOn,
     heightAt: heightAt,
   };
 
@@ -199,6 +200,13 @@ function newMountain(options) {
       m.baseSize += 1;
       for (const t of tile) makeAvailable(siteX[i] + t[0], siteY[i] + t[1]);
     }
+  }
+
+  // One step with the site chosen, not random (a click on the page):
+  // the block goes on available site i.
+  function dropOn(i) {
+    drop(i);
+    m.steps += 1;
   }
 
   // The height at (x, y) (in 1D, y = 0), or 0 if there is no site there.
@@ -280,7 +288,7 @@ function newGraphMountain(options) {
     dim: "graph", graph: graph,
     siteNode: siteNode, height: height, available: available,
     steps: 0, blocks: 0, baseSize: 0, maxHeight: 0, start: -1,
-    step: step, heightOf: heightOf,
+    step: step, dropOn: dropOn, heightOf: heightOf,
   };
 
   // Drop one block, exactly as in part 1.
@@ -299,6 +307,12 @@ function newGraphMountain(options) {
       m.baseSize += 1;
       for (const w of ballAround(graph, siteNode[i], radius)) makeAvailable(w);
     }
+  }
+
+  // One step on a chosen site (a click), as in part 1.
+  function dropOn(i) {
+    drop(i);
+    m.steps += 1;
   }
 
   // The height on a cell of the graph (0 if it isn't a site).
@@ -333,6 +347,16 @@ function newGraphMountain(options) {
      { type: "pause" }
      { type: "step" }          one block
      { type: "goto", steps }   jump to that step (back or forward)
+     { type: "click", site }   the next block goes on available site
+                               number "site" (a click on the picture)
+
+   Clicks. A clicked block is kept as "step n landed on this site", so
+   it stays when the run is grown again (going back with "goto", or a
+   change to the tile or the domain); a setup with forgetClicks (the
+   Restart button, a new seed) forgets them. Step n still uses up its
+   number u_n, so every other step keeps its own random number. If the
+   clicked site isn't available at that step any more (say the domain
+   changed), that step is random as usual.
    The worker answers with "state" messages: the available sites, their
    heights, and the numbers for the Statistics quadrant. Each carries
    its run number, so the page can ignore leftovers from an older run.
@@ -348,6 +372,7 @@ function mountainWorker() {
   let random = null;            // the seeded random numbers
   let run = 0;
   let problem = "";             // e.g. "The start site is outside the domain."
+  let clicks = new Map();       // step n -> the site clicked for it (see siteName)
 
   // Start again from one block, and grow to "steps" steps.
   function setup(steps) {
@@ -370,8 +395,23 @@ function mountainWorker() {
 
   function oneStep() {
     if (!mountain || mountain.steps >= MAX_STEPS) return;
-    mountain.step(random());
+    const u = random();                       // always used up, so step n keeps u_n
+    const clicked = clicks.has(mountain.steps + 1) ? findSite(clicks.get(mountain.steps + 1)) : -1;
+    if (clicked >= 0) mountain.dropOn(clicked);
+    else mountain.step(u);
     takeSample();
+  }
+
+  // A name for site i that stays the same from run to run (site numbers
+  // can change): its coordinates, or its cell of the graph.
+  function siteName(i) {
+    const m = mountain;
+    return m.dim === "graph" ? "graph " + m.siteNode[i] : m.dim + "D " + m.siteX[i] + "," + m.siteY[i];
+  }
+  // The site with that name, or -1 if it isn't available.
+  function findSite(name) {
+    for (let i = 0; i < mountain.height.length; i++) if (siteName(i) === name) return i;
+    return -1;
   }
 
   // The run so far, for the charts over time. A sample is taken every
@@ -409,6 +449,7 @@ function mountainWorker() {
     if (message.type === "setup") {
       options = message;
       run = message.run;
+      if (message.forgetClicks) clicks = new Map();
       setup(message.steps);
       report();
     } else if (message.type === "play") {
@@ -425,6 +466,12 @@ function mountainWorker() {
     } else if (message.type === "step") {
       oneStep();
       report();
+    } else if (message.type === "click") {
+      if (mountain && message.site >= 0 && message.site < mountain.height.length && mountain.steps < MAX_STEPS) {
+        clicks.set(mountain.steps + 1, siteName(message.site));
+        oneStep();
+        report();
+      }
     } else if (message.type === "goto") {
       if (mountain && message.steps < mountain.steps) setup(message.steps);
       else while (mountain && mountain.steps < Math.min(message.steps, MAX_STEPS)) oneStep();

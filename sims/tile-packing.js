@@ -326,11 +326,31 @@ window.addEventListener("resize", drawSoon);
    made in section 5 handles the mouse wheel and the zoom buttons, and
    this page passes its pointer events on to it. ("Pointer" events
    cover the mouse, a pen and fingers alike.)
+
+   A click (a press that hardly moves) makes one move of the chain with
+   its disk centered on the clicked cell: the tiles there are deleted
+   and the region is refilled at random, as if the chain had dropped
+   its disk on that spot.
    ===================================================================== */
-simCanvas.addEventListener("pointerdown", function (event) { pressPointer(view, event); });
-simCanvas.addEventListener("pointermove", function (event) { movePointer(view, event); });
-simCanvas.addEventListener("pointerup", function (event) { releasePointer(view, event); });
-simCanvas.addEventListener("pointercancel", function (event) { releasePointer(view, event); });
+const CLICK_DISTANCE = 5;      // a press that moves less than this (pixels) is a click, not a drag
+let pressedAt = null;          // where a single pointer went down (null: two fingers, never a click)
+
+simCanvas.addEventListener("pointerdown", function (event) {
+  pressedAt = view.pointers && view.pointers.size > 0 ? null : { x: event.clientX, y: event.clientY };
+  pressPointer(view, event);
+});
+simCanvas.addEventListener("pointermove", function (event) {
+  if (pressedAt && Math.hypot(event.clientX - pressedAt.x, event.clientY - pressedAt.y) >= CLICK_DISTANCE) pressedAt = null;
+  movePointer(view, event);
+});
+simCanvas.addEventListener("pointerup", function (event) {
+  releasePointer(view, event);
+  if (!pressedAt || !domain || !worker) return;
+  pressedAt = null;
+  const v = cellUnder(view, domain, pointerSpot(view, event));
+  if (v >= 0) worker.postMessage({ type: "click", x: domain.x[v], y: domain.y[v] });
+});
+simCanvas.addEventListener("pointercancel", function (event) { pressedAt = null; releasePointer(view, event); });
 
 
 /* =====================================================================

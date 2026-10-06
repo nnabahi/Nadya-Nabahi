@@ -347,8 +347,10 @@ worker.onerror = function () {
 // A new mountain with the current tile, domain and seed. With
 // keepStep, it grows at once to the step it was at (so a change to the
 // tile or the domain shows the same moment of the run); without, it
-// starts again from one block.
-function restart(keepStep) {
+// starts again from one block. Blocks you clicked (section 6e) are kept,
+// unless it starts again from one block or "forget" is true (a new seed).
+function restart(keepStep, forget) {
+  const forgetClicks = !keepStep || Boolean(forget);
   if (domainKind === "custom" && !customDomain) return;
   const steps = (keepStep && latest && latest.steps) ? latest.steps : 0;
   const where = domainSettings();
@@ -357,13 +359,13 @@ function restart(keepStep) {
     worker.postMessage({
       type: "setup", run: run, dim: "graph", graph: disk.spec,
       radius: readWhole("set-radius", 1, MAX_GRAPH_RADIUS, 1),
-      domain: where.domain, seed: byId("seed").value, steps: steps,
+      domain: where.domain, seed: byId("seed").value, steps: steps, forgetClicks: forgetClicks,
     });
   } else {
     worker.postMessage({
       type: "setup", run: run, dim: dim, tile: tile,
       domain: where.domain, start: where.start,
-      seed: byId("seed").value, steps: steps,
+      seed: byId("seed").value, steps: steps, forgetClicks: forgetClicks,
     });
   }
   if (playing) worker.postMessage({ type: "play", speed: SPEEDS[speedIndex] });
@@ -478,6 +480,7 @@ function drawLine() {
   const left = 8, right = width - 8, top = 20, ground = height - 30;
   const columns = range.xmax - range.xmin + 1;
   const column = (right - left) / columns;        // the width of one site
+  lineLayout = { left: left, column: column, xmin: range.xmin };   // for clicks (section 6e)
   const gap = column >= 4 ? 1 : 0;                // a thin gap between wide bars
   const highest = Math.max(s.maxHeight, 1);
   function columnLeft(x) { return left + (x - range.xmin) * column; }
@@ -619,10 +622,12 @@ function drawGrid() {
    zoom the picture.
    ===================================================================== */
 simCanvas.addEventListener("pointerdown", function (event) {
+  pressedAt = view.pointers.size > 0 ? null : { x: event.clientX, y: event.clientY };   // two fingers: never a click
   pressPointer(view, event);
   startDrag();
 });
 simCanvas.addEventListener("pointermove", function (event) {
+  if (pressedAt && Math.hypot(event.clientX - pressedAt.x, event.clientY - pressedAt.y) >= CLICK_DISTANCE) pressedAt = null;
   if (disk.dragFrom && view.pointers.has(event.pointerId)) {
     view.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });   // where a second finger starts from
     dragPlane(disk, event.clientX, event.clientY);
@@ -635,12 +640,87 @@ for (const type of ["pointerup", "pointercancel"]) {
   simCanvas.addEventListener(type, function (event) {
     releasePointer(view, event);
     startDrag();
+    if (type === "pointerup" && pressedAt) clickAt(event);
+    pressedAt = null;
   });
 }
 // On a graph, one pointer drags across the plane (js/sim-hyperbolic.js).
 function startDrag() {
   if (dim === "graph") startPlaneDrag(disk);
   else disk.dragFrom = null;
+}
+
+
+/* =====================================================================
+   6e. CLICK TO DROP A BLOCK
+   ---------------------------------------------------------------------
+   A click (a press that hardly moves) on an available site drops the
+   next block there, as if the random pick had chosen it. Only the
+   available sites (colored, or gray with no block yet) can take a
+   block, as in the rule. It works in the pictures seen from above (1D,
+   2D, the disk, the half-plane and the spread-out tree), not in 3D.
+   The worker keeps the clicked blocks, so they stay when you change
+   the tile or the domain or go back with "Go to step"; Restart and a
+   new seed forget them.
+   ===================================================================== */
+const CLICK_DISTANCE = 5;     // a press that moves less than this (pixels) is a click, not a drag
+let pressedAt = null;         // where a single pointer went down
+let lineLayout = null;        // 1D: where the columns are (set by drawLine)
+
+function clickAt(event) {
+  if (!latest || !latest.height || latest.dim !== dim || toolOpen) return;
+  const box = simCanvas.getBoundingClientRect();
+  const px = event.clientX - box.left, py = event.clientY - box.top;
+  const site = siteUnder(px, py);
+  if (site >= 0) {
+    if (playing) setPlaying(false);
+    worker.postMessage({ type: "click", site: site });
+  } else {
+    showMessage("A block can only land on an available site: one with blocks, or a gray one next to them.");
+  }
+}
+
+// The site under the canvas point (px, py) (in screen pixels), or -1.
+function siteUnder(px, py) {
+  const s = latest;
+  if (dim === 1) {
+    if (!lineLayout) return -1;
+    const x = lineLayout.xmin + Math.floor((px - lineLayout.left) / lineLayout.column);
+    for (let i = 0; i < s.x.length; i++) if (s.x[i] === x) return i;
+    return -1;
+  }
+  if (dim === 2) {
+    // The same squares as drawGrid draws (section 6).
+    const range = pictureRange(), wrapRange = torusRange(), size = cellSize(view);
+    if (px < view.left || px >= view.left + view.width || py < view.top || py >= view.top + view.height) return -1;
+    let x = range.xmin + Math.floor((px - view.left) / size - view.scroll.x);
+    let y = range.ymax - Math.floor((py - view.top) / size - view.scroll.y);
+    if (wrapRange) { x = wrap(x, wrapRange.xmin, wrapRange.xmax); y = wrap(y, wrapRange.ymin, wrapRange.ymax); }
+    for (let i = 0; i < s.x.length; i++) if (s.x[i] === x && s.y[i] === y) return i;
+    return -1;
+  }
+  // On a graph: the nearest site, if the click is on it (tiny ones
+  // count within 4 pixels). Where each site is drawn, and how big, comes
+  // from js/sim-hyperbolic.js, as when it is drawn.
+  if (!disk.box) return -1;
+  const tree = isTree(disk.spec);
+  let best = -1, bestDistance = Infinity;
+  for (let i = 0; i < s.height.length; i++) {
+    let x, y, r;
+    if (disk.picture === "spread") {
+      const k = spreads[2 * i];
+      [x, y] = spreadSpot(disk, k, spreads[2 * i + 1]);
+      r = spreadDot(disk, k);
+    } else {
+      const [mx, my] = motionApply(seenFrom(disk, sitePlace(i)), 0, 0);   // the cell's middle
+      if (!onScreen(disk, mx, my)) continue;
+      [x, y] = diskToScreen(disk, mx, my);
+      r = cellPixels(disk, mx, my) * (tree ? 0.55 : 1);
+    }
+    const d = Math.hypot(px - x, py - y);
+    if (d <= Math.max(r, 4) && d < bestDistance) { best = i; bestDistance = d; }
+  }
+  return best;
 }
 
 
@@ -1047,10 +1127,10 @@ byId("speed").addEventListener("input", function () {
 });
 
 // Seed: the same seed gives the same mountain every time.
-byId("seed").addEventListener("change", function () { restart(true); });
+byId("seed").addEventListener("change", function () { restart(true, true); });
 byId("new-seed").addEventListener("click", function () {
   byId("seed").value = String(Math.floor(Math.random() * 100000));
-  restart(true);
+  restart(true, true);
 });
 
 
