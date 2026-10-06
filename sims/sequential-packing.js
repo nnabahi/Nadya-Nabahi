@@ -302,7 +302,8 @@ function sizeCanvas() {
   const ratio = window.devicePixelRatio || 1;
   const width = simCanvas.clientWidth;
   const aspect = (windowBox.ymax - windowBox.ymin) / (windowBox.xmax - windowBox.xmin);
-  const height = Math.min(MAX_PICTURE_HEIGHT, Math.round(width * aspect));
+  // (Taller in the full screen popup: pictureHeight, in js/sim-page.js.)
+  const height = pictureHeight(Math.min(MAX_PICTURE_HEIGHT, Math.round(width * aspect)));
   simCanvas.style.height = height + "px";
   simCanvas.width = Math.round(width * ratio);
   simCanvas.height = Math.round(height * ratio);

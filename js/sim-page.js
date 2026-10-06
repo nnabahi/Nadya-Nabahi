@@ -12,8 +12,8 @@
      startWorker(fn, helpers)         run a function in a second thread
      listenToTool(frame, useDrawing)  the drawing tool inside a sim page,
      showToolStatus(problem, good)      and the line that checks its drawing
-     addFullScreenButton(box, redraw) a button that shows the picture on
-     pictureHeight(normal)              the whole screen, and its height
+     pictureHeight(normal)            how tall to draw the picture (taller
+                                        in the full screen popup)
      CHART_TEXT, CHART_LINE           the colors of the small charts
      chartPen(canvas)                 get a small chart ready to draw on
      plotOverTime(...)                a small chart of numbers over time
@@ -23,8 +23,9 @@
      niceStep, shortLabel, niceNumber numbers for axes and tables
 
    It also typesets the formulas in the About quadrant, so a page that
-   has formulas loads KaTeX before this file, and lays the four boxes
-   out like bricks (both at the end of this file).
+   has formulas loads KaTeX before this file, lays the four boxes out
+   like bricks, and puts the full screen button on the picture (all at
+   the end of this file).
    ===================================================================== */
 
 
@@ -101,17 +102,21 @@ function showToolStatus(problem, good, buttons) {
 /* ---------------------------------------------------------------------
    Full screen
    ---------------------------------------------------------------------
-   A button in the top left corner of the picture shows the picture's
-   box on the whole screen; pressing it again (or the Esc key) brings it
-   back. While it is full screen, the picture is as tall as the screen.
+   Every picture (a <div class="sim-picture">) gets a button in its top
+   left corner that opens it as a large popup over the page, with the
+   page dimmed around it. Clicking outside the picture, the Esc key, or
+   the button again closes it. (The buttons are put on at the end of
+   this file.) Every sim already draws its picture again when the window
+   changes size, so opening or closing the popup sends that same signal
+   (a "resize" event), and the sim asks pictureHeight how tall to draw.
    --------------------------------------------------------------------- */
 
 // The button's icon: a square with two arrows pointing out to its
-// corners (and pointing in, to leave full screen). It is drawn in SVG
+// corners (and pointing in, to close the popup). It is drawn in SVG
 // (shapes written as text), in a 24 by 24 square.
 const FULL_SCREEN_ICONS = {
-  enter: "M14 6h4v4M18 6l-5 5M10 18H6v-4M6 18l5-5",
-  leave: "M17 11h-4V7M13 11l5-5M7 13h4v4M11 13l-5 5",
+  open: "M14 6h4v4M18 6l-5 5M10 18H6v-4M6 18l5-5",
+  close: "M17 11h-4V7M13 11l5-5M7 13h4v4M11 13l-5 5",
 };
 function fullScreenIcon(which) {
   return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
@@ -119,33 +124,51 @@ function fullScreenIcon(which) {
     'height="20" rx="3"/><path d="' + FULL_SCREEN_ICONS[which] + '"/></svg>';
 }
 
-// Put the full screen button on the picture's box "box" (a <div
-// class="sim-picture">). "redraw" is called every time the box goes full
-// screen or back, to draw the picture at its new size. Browsers that
-// can't show a part of a page full screen (like Safari on iPhones) get
-// no button.
-function addFullScreenButton(box, redraw) {
-  if (!document.fullscreenEnabled) return;
-  const button = document.createElement("button");
-  button.className = "tool-button full-screen-button";
-  function showIcon() {
-    const full = document.fullscreenElement === box;
-    button.innerHTML = fullScreenIcon(full ? "leave" : "enter");
-    button.title = full ? "Leave full screen (or press Esc)" : "Full screen";
-  }
-  button.addEventListener("click", function () {
-    if (document.fullscreenElement) document.exitFullscreen();
-    else box.requestFullscreen();
-  });
-  document.addEventListener("fullscreenchange", function () { showIcon(); redraw(); });
-  showIcon();
-  box.appendChild(button);
-}
+// The picture's box that is open as a popup right now (null if none).
+let poppedPicture = null;
 
 // How tall to draw the picture: "normal" (in screen pixels) on the page,
-// or the screen's whole height while it is full screen.
+// or the popup's whole height while it is open.
 function pictureHeight(normal) {
-  return document.fullscreenElement ? window.innerHeight : normal;
+  return poppedPicture ? poppedPicture.clientHeight : normal;
+}
+
+// Put the full screen button on the picture's box "box".
+function addFullScreenButton(box) {
+  const button = document.createElement("button");
+  button.className = "tool-button full-screen-button";
+  const backdrop = document.createElement("div");    // the dimmed page around the popup
+  backdrop.className = "picture-backdrop";
+  backdrop.hidden = true;
+  const keepPlace = document.createElement("div");   // keeps the picture's place on the page while it is out
+
+  function showIcon(open) {
+    button.innerHTML = fullScreenIcon(open ? "close" : "open");
+    button.title = open ? "Close (or press Esc, or click outside the picture)" : "Full screen";
+  }
+  function popUp(open) {
+    if (open) {
+      keepPlace.style.height = box.offsetHeight + "px";
+      box.before(keepPlace);
+    } else {
+      keepPlace.remove();
+    }
+    poppedPicture = open ? box : null;
+    box.classList.toggle("popped", open);
+    backdrop.hidden = !open;
+    document.body.classList.toggle("popup-open", open);   // the page behind doesn't scroll
+    showIcon(open);
+    window.dispatchEvent(new Event("resize"));           // the sim draws the picture at its new size
+  }
+
+  button.addEventListener("click", function () { popUp(poppedPicture !== box); });
+  backdrop.addEventListener("click", function () { popUp(false); });
+  document.addEventListener("keydown", function (event) {
+    if (event.key === "Escape" && poppedPicture === box) popUp(false);
+  });
+  showIcon(false);
+  box.appendChild(button);
+  document.body.appendChild(backdrop);
 }
 
 
@@ -377,3 +400,7 @@ if (window.katex) {
   wide.addEventListener("change", layBricks);
   layBricks();
 })();
+
+
+// The full screen button on every picture (see "Full screen" above).
+for (const box of document.querySelectorAll(".sim-picture")) addFullScreenButton(box);

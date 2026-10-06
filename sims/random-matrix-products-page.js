@@ -291,7 +291,7 @@ let following = { cloud: true, trajectory: true, histogram: true };
 function sizeCanvas() {
   const ratio = window.devicePixelRatio || 1;
   width = simCanvas.clientWidth;
-  height = Math.min(width, MOST_PIXELS_TALL);
+  height = pictureHeight(Math.min(width, MOST_PIXELS_TALL));   // taller in the full screen popup (js/sim-page.js)
   simCanvas.style.height = height + "px";
   simCanvas.width = Math.round(width * ratio);
   simCanvas.height = Math.round(height * ratio);
@@ -520,7 +520,7 @@ function drawHistogram(values) {
   pen.moveTo(0, bottom + 0.5); pen.lineTo(width, bottom + 0.5);
   pen.stroke();
   pen.fillStyle = "#555555";
-  pen.fillText("tallest bar: " + biggest.toLocaleString() + " runs; bin width " + shortLabel(binWidth), 4, 12);
+  pen.fillText("tallest bar: " + biggest.toLocaleString() + " runs; bin width " + shortLabel(binWidth), 44, 12);   // right of the full screen button
 }
 
 function showLegend() {

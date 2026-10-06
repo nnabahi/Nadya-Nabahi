@@ -74,7 +74,8 @@ function makeView(canvas, redraw, top, wholeCells) {
   const view = {
     canvas: canvas,
     redraw: redraw,
-    top: top || 0,
+    top: top || 0,          // where the picture starts, from the canvas's top
+    margin: top || 0,       // the room asked for above and below it
     wholeCells: wholeCells || Infinity,
 
     // Where the picture's box sits on the canvas, from the last
@@ -149,21 +150,27 @@ function showZoomButtons(view) {
 // at most maxHeight pixels tall), in the middle. Sizes the canvas to
 // match, and returns its pen, ready to draw in screen pixels (y = 0 is
 // "top" pixels down) and cut off ("clipped") at the picture's box.
-// pen.restore() lifts the cut-off.
+// pen.restore() lifts the cut-off. In the full screen popup
+// (js/sim-page.js), the canvas is as tall as the popup instead, with the
+// picture in the middle of it.
 function fitPicture(view, d, maxHeight) {
   const canvas = view.canvas;
   const across = d.xmax - d.xmin + 1, down = d.ymax - d.ymin + 1;
   const cssWidth = canvas.clientWidth;
+  const popup = pictureHeight(0);               // 0 when the popup isn't open
+  if (popup > 0) maxHeight = popup - 2 * view.margin;
   view.size = Math.min(cssWidth / across, maxHeight / down);
   if (view.size >= view.wholeCells) view.size = Math.floor(view.size);
   view.width = Math.round(view.size * across);
   view.height = Math.round(view.size * down);
   view.left = Math.round((cssWidth - view.width) / 2);
+  view.top = popup > 0 ? Math.round((popup - view.height) / 2) : view.margin;
+  const tall = popup > 0 ? popup : view.height + 2 * view.top;
 
   const ratio = window.devicePixelRatio || 1;   // 2 on sharp screens
-  canvas.style.height = (view.height + 2 * view.top) + "px";
+  canvas.style.height = tall + "px";
   canvas.width = Math.round(cssWidth * ratio);
-  canvas.height = Math.round((view.height + 2 * view.top) * ratio);
+  canvas.height = Math.round(tall * ratio);
   const pen = canvas.getContext("2d");
   pen.setTransform(ratio, 0, 0, ratio, 0, view.top * ratio);   // screen pixels from here on
   pen.save();

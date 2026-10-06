@@ -86,8 +86,8 @@ const MAX_GRAPH_RADIUS = 4;
 const DEFAULT_SEED = "1";
 // The picture always has the same size (the quadrant's width, and this
 // height in screen pixels), in 1D and 2D; the mountain shrinks to fit
-// inside it as it grows. Full screen, it is the whole screen instead
-// (pictureHeight, in js/sim-page.js).
+// inside it as it grows. In the full screen popup, it is the popup's
+// height instead (pictureHeight, in js/sim-page.js).
 const PICTURE_HEIGHT = 480;
 const EMPTY = "#c9c6bf";          // available sites with no block yet
 const OUTSIDE = "#ffffff";        // everything else
@@ -419,7 +419,12 @@ function drawSoon() {
     showStats();
   });
 }
-window.addEventListener("resize", drawSoon);
+// After the window changes size, or the picture opens or closes as a
+// full screen popup (js/sim-page.js): draw again at the new size, in 3D too.
+window.addEventListener("resize", function () {
+  if (view3d) sim3d.setHeight(view3d, pictureHeight(PICTURE_HEIGHT));
+  drawSoon();
+});
 
 // The color of height h (h = 1, 2, ...) when the tallest stack is
 // "highest" blocks tall. Height 1 is always red, and the colors run up
@@ -718,13 +723,6 @@ byId("stretch").addEventListener("input", function () {
   drawSoon();
 });
 byId("view3d-reset").addEventListener("click", function () { if (view3d) sim3d.resetCamera(view3d); });
-
-// The full screen button in the picture's top left corner (js/sim-page.js):
-// draw again at the new size, in 3D too.
-addFullScreenButton(simCanvas.parentElement, function () {
-  if (view3d) sim3d.setHeight(view3d, pictureHeight(PICTURE_HEIGHT));
-  drawSoon();
-});
 
 
 /* =====================================================================

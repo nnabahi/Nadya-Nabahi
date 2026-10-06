@@ -679,7 +679,7 @@ a.card:hover {
 }
 
 /* The full screen button (addFullScreenButton in js/sim-page.js) sits
-   in the top left corner of the picture: a round button with an icon. */
+   in the top left corner of every picture: a round button with an icon. */
 .full-screen-button {
   position: absolute;
   top: 8px;
@@ -693,10 +693,30 @@ a.card:hover {
   height: 18px;
 }
 
-/* The picture's box while it is full screen: the page's background
-   around the picture (instead of black). */
-.sim-picture:fullscreen {
-  background: var(--color-background);
+/* The full screen popup: the picture's box floats over the page, with
+   a small margin around it ("inset"), and the rest of the page is
+   dimmed by the "backdrop" behind it (a click there closes the popup).
+   "z-index" puts both above everything else, the top bar included. */
+.picture-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.sim-picture.popped {
+  position: fixed;
+  inset: 3vh 3vw;
+  z-index: 101;
+  overflow: hidden;
+  background: var(--color-surface);
+  border-radius: var(--corner-radius);
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.35);
+}
+
+/* While the popup is open, the page behind it doesn't scroll. */
+body.popup-open {
+  overflow: hidden;
 }
 
 /* The graph tool inside the sim. The sim sets its height to fit. */

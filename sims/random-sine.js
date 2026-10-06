@@ -201,7 +201,7 @@ let pen = null, width = 0, height = 0;
 function sizeCanvas() {
   const ratio = window.devicePixelRatio || 1;
   width = simCanvas.clientWidth;
-  height = PICTURE_HEIGHT;
+  height = pictureHeight(PICTURE_HEIGHT);         // taller in the full screen popup (js/sim-page.js)
   simCanvas.style.height = height + "px";
   simCanvas.width = Math.round(width * ratio);
   simCanvas.height = Math.round(height * ratio);
