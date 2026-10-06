@@ -28,7 +28,7 @@ repeat for the same seed) and, on the check pages,
 | `js/about-tabs.js` | The Simple / All the details tabs in a sim's About box |
 | `js/sim-page.js` | Small helpers every sim page uses (the second thread, the drawing tool inside a sim, the full screen button, small charts, typesetting the formulas, laying the four boxes out like bricks) |
 | `js/sim-view.js` | Where a sim's picture of cells goes, and moving and zooming it (any box or torus), shared by the sims |
-| `js/cell-picture.js` | Painting one color per cell, fast (the Ising and Potts, voter and percolation sims) |
+| `js/cell-picture.js` | Painting one color per cell, fast, and the shared helpers for running those sims on a ball of a hyperbolic tiling or tree (the Ising and Potts, voter and percolation sims) |
 | `js/sim-domains.js` | Domains (box, torus, Aztec diamond, drawn region), the old site's colors and color conversions, shared by the sims |
 | `js/sim-graphs.js` | Graphs beyond the square grid, built cell by cell as a sim asks: the line, the grid, hyperbolic tilings {p,q} and regular trees (exactly, from rules it learns near the start) |
 | `js/sim-3d.js` | The 3D view (stacks of cubes or coins, turned with the mouse), built on three.js and loaded only when a sim switches to 3D |
@@ -66,15 +66,15 @@ repeat for the same seed) and, on the check pages,
 | `sims/random-matrix-products-page.js` | That toy's page: the matrix boxes and their sliders, play, the cloud, histogram and one-run views, statistics |
 | `sims/random-matrix-products.js` | That toy's math (reading the matrices, the runs, the growth rate, the eigenvalues), run in the page itself |
 | `sims/random-matrix-products-check.html`, `.js` | Tests of that math (exact odds, averages, invariants, the growth rate); opens from the sim's "model check" button |
-| `sims/ising-potts.html` | Ising and Potts model sim (q colors, neighbors like to agree; heat bath or Swendsen-Wang) |
+| `sims/ising-potts.html` | Ising and Potts model sim (q colors, neighbors like to agree; heat bath or Swendsen-Wang; also on hyperbolic tilings and trees) |
 | `sims/potts.js` | That sim's page: the q, beta and h sliders, domains, drawing, statistics, the custom domain |
 | `sims/potts-chain.js` | That sim's two Markov chains (heat bath and Swendsen-Wang), run in a Web Worker |
 | `sims/potts-check.html`, `.js` | Tests of those chains (exact odds on tiny graphs, Yang's magnetization, Onsager's energy); opens from the sim's "model check" button |
-| `sims/voter-model.html` | Generalized voter model sim (opinions change by a typed rule g of the neighbors' shares, with noise) |
+| `sims/voter-model.html` | Generalized voter model sim (opinions change by a typed rule g of the neighbors' shares, with noise; also on hyperbolic tilings and trees) |
 | `sims/voter-model.js` | That sim's page: the rule g and its sliders, domains, drawing, statistics, the custom domain |
 | `sims/voter-chain.js` | That sim's update rule, run in a Web Worker |
 | `sims/voter-check.html`, `.js` | Tests of that rule (the update odds, who wins, noise); opens from the sim's "model check" button |
-| `sims/site-percolation.html`, `sims/bond-percolation.html` | The two percolation sims (cells or edges open with probability p; the p slider, clusters, crossing) |
+| `sims/site-percolation.html`, `sims/bond-percolation.html` | The two percolation sims (cells or edges open with probability p; the p slider, clusters, crossing; also on hyperbolic tilings and trees) |
 | `sims/percolation.js` | Both percolation pages' code (each page says in its `<body>` tag which one it is) |
 | `sims/percolation-clusters.js` | Finding the clusters at one p and at every p at once (union-find, Newman-Ziff), run in the page itself |
 | `sims/percolation-check.html`, `.js` | Tests of that (clusters, wrapping, Hex and duality crossings, clusters per cell at p = 1/2); opens from either sim's "model check" button |

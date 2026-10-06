@@ -2,9 +2,11 @@
    voter-model.js  —  the page of the "Generalized voter model" sim
    ---------------------------------------------------------------------
    What it does, in plain words:
-     - Builds the domain: a box or torus of cells, or a region drawn in
-       the graph tool (shown inside this page). The domain code is
-       shared with the other sims, in js/sim-domains.js.
+     - Builds the domain: a box or torus of cells, a region drawn in
+       the graph tool (shown inside this page), or a ball of a
+       hyperbolic tiling or a tree. The domain code is shared with the
+       other sims, in js/sim-domains.js and (hyperbolic tilings and
+       trees, and their pictures) js/sim-hyperbolic.js.
      - Reads the typed rule g(x), Desmos style (js/formulas.js): every
        letter other than x gets a slider. It hands the worker a table of
        g at the only shares a cell can see, 0, 1/d, ..., 1.
@@ -52,6 +54,13 @@ const BORDER = "#1e1e1e";         // the lines between opinions
 const OUTSIDE = "#ecebe7";        // around a custom domain (cells not in it)
 const SMALLEST_BORDERED_CELL = 4; // cells smaller than this (in pixels) get no border lines
 
+// Hyperbolic plane or tree: the ball's default and largest radius R,
+// and the most cells a ball may have (a ball of a hyperbolic tiling
+// grows exponentially with R).
+const DEFAULT_BALL_RADIUS = 6;
+const MAX_BALL_RADIUS = 20;
+const MAX_BALL_CELLS = 20000;
+
 // The speeds on the Speed slider, in units of time per second (in one
 // unit, each cell's clock rings once on average). Infinity means "as
 // fast as the computer can".
@@ -63,8 +72,9 @@ const DEFAULT_SPEED = SPEEDS.indexOf(5);
    2. WHAT THE PAGE REMEMBERS (the "state")
    ===================================================================== */
 
-let domainKind = "torus";      // "box", "torus" or "custom": the domain in use
-let domain = null;             // the domain graph (js/sim-domains.js)
+let domainKind = "torus";      // "box", "torus", "custom" or "graph": the domain in use
+let domain = null;             // the domain graph (js/sim-domains.js), or a ball (makeBall, js/sim-hyperbolic.js)
+const made = {};               // hyperbolic plane or tree: the graph itself (js/sim-graphs.js), made again only when it changes
 let customDomain = null;       // the last custom domain drawn, if any
 let q = DEFAULTS.q;            // number of opinions
 let noise = DEFAULTS.noise;    // eps: the chance of a uniformly random opinion
@@ -191,9 +201,17 @@ function setPlaying(on) {
    two opinions meet when the cells are big enough to see. paintCells is in
    js/cell-picture.js; the view (js/sim-view.js) says where the picture
    goes and which squares show.
+   On a hyperbolic tiling or tree, each cell is drawn in its opinion's
+   color in the disk, the half-plane or (a tree) spread out in rings
+   (drawBall, js/cell-picture.js).
    ===================================================================== */
 const simCanvas = byId("sim-canvas");
 const view = makeView(simCanvas, drawSoon, 0, SMALLEST_BORDERED_CELL);
+
+// Hyperbolic plane or tree: which graph, how it is drawn, and how far
+// the plane has been moved (js/sim-hyperbolic.js). The view above zooms
+// and slides its pictures too.
+const disk = makeDiskView(simCanvas, view);
 const outsideRGB = hexToRGB(OUTSIDE);
 let drawPending = false;
 
@@ -212,6 +230,10 @@ function drawSoon() {
 function drawColoring() {
   if (!domain || !latest || simCanvas.hidden) return;
   const colors = latest.colors;
+  if (domainKind === "graph") {
+    drawBall(disk, made.graph, domain, function (v) { return colorNames[colors[v]]; });
+    return;
+  }
   const pen = fitPicture(view, domain, MAX_PICTURE_HEIGHT);
   const shown = paintCells(view, pen, domain,
     function (v) { return colors[v]; }, function (k) { return colorRGB[k]; }, outsideRGB);
@@ -228,12 +250,37 @@ window.addEventListener("resize", drawSoon);
    js/sim-view.js does it all: drag to move, mouse wheel or pinch to
    zoom, and the + / − / Reset buttons. On a torus it also zooms out,
    showing the torus several times side by side.
+   On a hyperbolic tiling or tree, one pointer drags across the plane
+   instead (startPlaneDrag and dragPlane, js/sim-hyperbolic.js), and two
+   fingers slide and zoom the picture.
    ===================================================================== */
 simCanvas.style.touchAction = "none";   // on phones, a finger drags the picture, not the page
-simCanvas.addEventListener("pointerdown", function (event) { pressPointer(view, event); });
-simCanvas.addEventListener("pointermove", function (event) { movePointer(view, event); });
-simCanvas.addEventListener("pointerup", function (event) { releasePointer(view, event); });
-simCanvas.addEventListener("pointercancel", function (event) { releasePointer(view, event); });
+simCanvas.addEventListener("pointerdown", function (event) {
+  pressPointer(view, event);
+  startDrag();
+});
+simCanvas.addEventListener("pointermove", function (event) {
+  if (disk.dragFrom && view.pointers.has(event.pointerId)) {
+    view.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });   // where a second finger starts from
+    dragPlane(disk, event.clientX, event.clientY);
+    drawSoon();
+  } else {
+    movePointer(view, event);
+  }
+});
+function stopPointer(event) {
+  releasePointer(view, event);
+  startDrag();
+}
+simCanvas.addEventListener("pointerup", stopPointer);
+simCanvas.addEventListener("pointercancel", stopPointer);
+
+// On a hyperbolic tiling or tree, exactly one pointer pressed drags
+// across the plane.
+function startDrag() {
+  if (domainKind === "graph") startPlaneDrag(disk);
+  else disk.dragFrom = null;
+}
 
 
 /* =====================================================================
@@ -371,12 +418,33 @@ function useBox() {
   useDomain(torus ? "torus" : "box", boxDomain(width, height, neighbors, torus));
 }
 
+// A ball of a hyperbolic tiling or a tree, from the options on the page
+// (ballFromOptions, js/cell-picture.js), with the start cell in the
+// middle of the picture. (Choosing one while the graph tool is open
+// closes it.) The "Stripes" start needs a number x for each cell: here
+// it is the direction of the cell's middle from the start, in
+// thousandths of a turn, so the stripes are slices around the start.
+function useGraph() {
+  if (toolOpen) closeTool();
+  const ball = ballFromOptions(disk, made, DEFAULT_BALL_RADIUS, MAX_BALL_RADIUS, MAX_BALL_CELLS);
+  if (ball === null) { showDomainChoice(); return; }
+  ball.x = new Int32Array(ball.n);
+  for (let v = 0; v < ball.n; v++) {
+    const [mx, my] = motionApply(ballPlace(ball, v), 0, 0);    // the middle of cell v, in the disk
+    const turns = Math.atan2(my, mx) / (2 * Math.PI);          // between -1/2 and 1/2
+    ball.x[v] = Math.floor(1000 * (turns + 0.5)) % 1000;
+  }
+  useDomain("graph", ball);
+}
+
 // Show the options that fit the domain in use, and tick its radio button.
 function showDomainChoice() {
   document.querySelector('input[name="domain"][value="' + domainKind + '"]').checked = true;
-  const custom = (domainKind === "custom");
-  byId("size-row").hidden = byId("neighbors-row").hidden = custom;
+  const custom = (domainKind === "custom"), onGraph = (domainKind === "graph");
+  byId("size-row").hidden = byId("neighbors-row").hidden = custom || onGraph;
   byId("custom-row").hidden = !custom;
+  byId("graph-rows").hidden = !onGraph;
+  byId("disk-reset").hidden = !onGraph || disk.picture === "spread";   // with the zoom buttons
   if (custom && customDomain) {
     byId("custom-info").textContent = "Your region: " + customDomain.n + " cells" +
       (customDomain.wrap ? ", on a torus." : ".");
@@ -414,15 +482,30 @@ byId("formula-g").addEventListener("input", function () {
   if (readRule()) sendParams();
 });
 
-// Domain: Box / Torus / Custom.
+// Domain: Box / Torus / Custom / Hyperbolic plane or tree.
 for (const radio of document.querySelectorAll('input[name="domain"]')) {
   radio.addEventListener("change", function () {
     if (radio.value === "custom") openTool();
+    else if (radio.value === "graph") useGraph();
     else useBox();
   });
 }
 for (const id of ["set-width", "set-height", "set-neighbors"]) byId(id).addEventListener("change", useBox);
 byId("edit-custom").addEventListener("click", openTool);
+
+// Hyperbolic plane or tree: the graph, the ball's radius, and the
+// picture ("Drawn in"). "Back to the start" puts the start cell back in
+// the middle.
+for (const id of ["set-p", "set-q", "set-degree", "set-ball-radius"]) byId(id).addEventListener("change", useGraph);
+for (const radio of document.querySelectorAll('input[name="graph-kind"]')) radio.addEventListener("change", useGraph);
+for (const radio of document.querySelectorAll('input[name="picture"]')) {
+  radio.addEventListener("change", function () {
+    disk.picture = radio.value;
+    showDomainChoice();
+    resetView(view);      // a new picture starts unzoomed
+  });
+}
+byId("disk-reset").addEventListener("click", function () { backToStart(disk); drawSoon(); });
 
 // Play / Pause, Step, Restart.
 byId("play").addEventListener("click", function () { setPlaying(!playing); });
@@ -457,6 +540,9 @@ byId("set-width").value = DEFAULTS.width;
 byId("set-height").value = DEFAULTS.height;
 byId("set-width").max = byId("set-height").max = MAX_SIDE;
 byId("set-neighbors").value = String(DEFAULTS.neighbors);
+byId("set-ball-radius").value = DEFAULT_BALL_RADIUS;
+byId("set-ball-radius").max = MAX_BALL_RADIUS;
+showGraphPresets(useGraph);
 byId("q-box").max = byId("q-slider").max = MAX_Q;
 byId("noise-slider").value = byId("noise-box").value = noise;
 byId("seed").value = DEFAULTS.seed;

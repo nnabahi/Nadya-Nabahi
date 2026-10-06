@@ -42,6 +42,8 @@
             <button class="tool-button" id="zoom-in" title="Zoom in">+</button>
             <button class="tool-button" id="zoom-out" title="Zoom out">&minus;</button>
             <button class="tool-button" id="zoom-reset" title="Show the whole picture once again">Reset</button>
+            <!-- On a hyperbolic tiling or tree's disk or half-plane: put the start back in the middle. -->
+            <button class="tool-button" id="disk-reset" title="Put the start back in the middle" hidden>Back to the start</button>
           </div>
         </div>
 
@@ -109,6 +111,7 @@
           <label><input type="radio" name="domain" value="box"> Box</label>
           <label><input type="radio" name="domain" value="torus" checked> Torus</label>
           <label><input type="radio" name="domain" value="custom"> Custom (draw it)</label>
+          <label><input type="radio" name="domain" value="graph"> Hyperbolic plane or tree</label>
         </div>
         <div class="option-row" id="size-row">
           Size <input type="number" id="set-width" min="2" step="1">
@@ -124,6 +127,35 @@
         <div class="option-row" id="custom-row" hidden>
           <span id="custom-info"></span>
           <button class="tool-button" id="edit-custom">Edit custom domain</button>
+        </div>
+
+        <!-- Hyperbolic plane or tree only: which graph, how big a ball of
+             it, and how it is drawn (the ids are the ones
+             js/sim-hyperbolic.js reads). -->
+        <div id="graph-rows" hidden>
+          <div class="option-row" id="graph-presets"></div>
+          <div class="option-row">
+            <label><input type="radio" name="graph-kind" value="tiling" checked> Tiling {p, q}:</label>
+            p <input type="number" id="set-p" min="3" max="12" step="1" value="7">
+            q <input type="number" id="set-q" min="3" max="12" step="1" value="3">
+          </div>
+          <div class="option-row">
+            <label><input type="radio" name="graph-kind" value="tree"> Tree, degree</label>
+            <input type="number" id="set-degree" min="3" max="12" step="1" value="3">
+          </div>
+          <p class="muted small" id="graph-info"></p>
+          <div class="option-row">
+            Ball: every cell within R =
+            <input type="number" id="set-ball-radius" min="1" step="1">
+            steps of the start
+          </div>
+          <p class="muted small" id="ball-info"></p>
+          <div class="option-row">
+            Drawn in
+            <label><input type="radio" name="picture" value="disk" checked> the disk</label>
+            <label><input type="radio" name="picture" value="half"> the half-plane</label>
+            <label id="spread-choice"><input type="radio" name="picture" value="spread"> spread out</label>
+          </div>
         </div>
 
         <h3 class="option-heading">Run</h3>
@@ -207,6 +239,15 @@
           can take a very long time, and the borders stay rough the whole way.
         </p>
         <p>
+          <strong>Hyperbolic plane or tree.</strong> The opinions can also
+          live on a ball of a hyperbolic tiling or of a tree: every cell within
+          R steps of a start cell, drawn in the Poincar&eacute; disk or the
+          half-plane (drag to move around the plane), or, for a tree, spread
+          out in rings. There the stripes start becomes slices around the
+          start. On the whole tree or plane, the voter model never reaches
+          agreement: the opinions coexist forever.
+        </p>
+        <p>
           <strong>Things to try:</strong> press Play with the voter rule, then
           switch to g(x) = x<sup>a</sup> and slide a from 1 to 3 and back.
           Try more opinions, the stripes start, a little noise, or the
@@ -279,6 +320,26 @@
           degrees, which on a torus is its share of the cells [10]. The check
           page tests this.
         </p>
+        <p>
+          <strong>Hyperbolic plane or tree.</strong> Here
+          <span class="tex">G</span> is the ball
+          <span class="tex">B_R = \{ v : d(o, v) \le R \}</span> of a regular
+          tiling <span class="tex">\{p, q\}</span> of the hyperbolic plane
+          (<span class="tex">1/p + 1/q &lt; 1/2</span>; neighbors share a side)
+          or of the regular tree of degree <span class="tex">d</span>, with
+          <span class="tex">d(o, v)</span> the number of steps from the start
+          cell <span class="tex">o</span>, and only the edges inside the ball.
+          On the whole tree or tiling, a simple random walk is transient and
+          drifts off at a positive speed [11], so two walks meet with
+          probability less than 1, and by the duality above the voter model
+          does not cluster: started from a random state, it converges to a
+          mix of opinions that never settles [8, Chapter V]. On the finite
+          ball consensus still comes, and opinion 1 wins with its share of
+          the degrees, which is not its share of the cells: the cells on the
+          edge of the ball have fewer neighbors. The stripes start here
+          splits the ball into <span class="tex">q</span> slices by the
+          direction of each cell from <span class="tex">o</span> in the disk.
+        </p>
         <p><strong>References</strong></p>
         <ol class="references">
           <li>J. R. Norris, <em>Markov Chains</em>, Cambridge University Press,
@@ -306,6 +367,8 @@
             347&ndash;370.</li>
           <li>V. Sood, S. Redner, &ldquo;Voter model on heterogeneous
             graphs&rdquo;, <em>Phys. Rev. Lett.</em> 94 (2005), 178701.</li>
+          <li>W. Woess, <em>Random Walks on Infinite Graphs and Groups</em>,
+            Cambridge University Press, 2000.</li>
         </ol>
         </div>
       </section>
@@ -323,11 +386,14 @@
   <script src="../js/about-tabs.js"></script>
 
   <!-- Shared helpers, the domains, the picture's view (moving and
-       zooming), painting the cells, reading formulas with sliders, then
+       zooming), the hyperbolic tilings and trees and their pictures,
+       painting the cells, reading formulas with sliders, then
        the opinions (they run in a second thread), then this page's code. -->
   <script src="../js/sim-page.js"></script>
   <script src="../js/sim-domains.js"></script>
   <script src="../js/sim-view.js"></script>
+  <script src="../js/sim-graphs.js"></script>
+  <script src="../js/sim-hyperbolic.js"></script>
   <script src="../js/cell-picture.js"></script>
   <script src="../js/formulas.js"></script>
   <script src="voter-chain.js"></script>
