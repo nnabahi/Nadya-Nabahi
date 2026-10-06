@@ -112,7 +112,8 @@ const grid = {
 let colorOf = {};
 
 let currentColor = 1;    // the palette color you're painting with
-let tool = "paint";      // "paint" or "move"
+let tool = "paint";      // "paint", "fill" or "move"
+let brushSize = 1;       // the Paint brush covers cells within brushSize - 1 steps
 let view = "cells";      // "cells" or "dots"
 
 // Undo and redo. Each entry is one brush stroke (or one button press):
@@ -612,6 +613,21 @@ function cellAt(point) {
   return inGrid(x, y) ? { x: x, y: y } : null;
 }
 
+// Paint with the brush around cell (x, y): every cell whose center is
+// within brushSize - 1 steps of its center (just (x, y) at size 1).
+// On a torus the brush wraps around the edges too.
+function paintBrush(x, y) {
+  const r = brushSize - 1;
+  for (let dx = -r; dx <= r; dx++) {
+    for (let dy = -r; dy <= r; dy++) {
+      if (dx * dx + dy * dy > r * r) continue;   // outside the round brush
+      let nx = x + dx, ny = y + dy;
+      if (grid.torus) { nx = wrap(nx, grid.xmin, grid.xmax); ny = wrap(ny, grid.ymin, grid.ymax); }
+      if (inGrid(nx, ny)) setColor(nx, ny, strokeColor);
+    }
+  }
+}
+
 // Paint every cell along the straight line from point a to point b.
 // (A fast mouse can jump several cells between two updates; this fills
 // the gap so the stroke has no holes.)
@@ -621,12 +637,41 @@ function paintAlong(a, b) {
   for (let i = 1; i <= pieces; i++) {
     const t = i / pieces;
     const cell = cellAt({ x: a.x + t * (b.x - a.x), y: a.y + t * (b.y - a.y) });
-    if (cell) setColor(cell.x, cell.y, strokeColor);
+    if (cell) paintBrush(cell.x, cell.y);
   }
 }
 
-// Pointer (mouse or finger) goes down: start a stroke.
+// The Fill tool, like a paint bucket: paint cell (x, y) and every cell
+// of the same color joined to it (blank cells count as a color too), in
+// the current color. "Joined" goes from cell to neighboring cell along
+// the grid's edges, so it follows the 4 or 8 neighbors and wraps around
+// a torus. Cells outside a sim's locked domain stop it.
+function fillFrom(x, y) {
+  const start = cellName(x, y), patchColor = colorAt(x, y);
+  if (patchColor === currentColor || isBlocked(start)) return;   // nothing would change
+  const patch = new Map([[start, cy.getElementById(start)]]);   // the cells found, by name
+  const toVisit = [start];
+  while (toVisit.length > 0) {
+    patch.get(toVisit.pop()).neighborhood("node").forEach(function (node) {
+      const name = node.id();
+      if (patch.has(name) || isBlocked(name) || (colorOf[name] || 0) !== patchColor) return;
+      patch.set(name, node);
+      toVisit.push(name);
+    });
+  }
+  asOneStep(function () {
+    for (const node of patch.values()) setColor(node.data("x"), node.data("y"), currentColor);
+  });
+}
+
+// Pointer (mouse or finger) goes down: start a stroke (or, with the
+// Fill tool, fill).
 cy.on("tapstart", function (event) {
+  if (tool === "fill") {
+    const cell = cellAt(event.position);
+    if (cell) fillFrom(cell.x, cell.y);      // one Undo step, like a button press
+    return;
+  }
   if (tool !== "paint") return;
   keepFormulaResult();   // painting keeps whatever a formula drew (section 9)
   stroke = new Map();
@@ -638,7 +683,7 @@ cy.on("tapstart", function (event) {
   const startsOnSameColor = cell && currentColor !== 0 && colorAt(cell.x, cell.y) === currentColor;
   strokeColor = startsOnSameColor ? 0 : currentColor;
 
-  if (cell) setColor(cell.x, cell.y, strokeColor);
+  if (cell) paintBrush(cell.x, cell.y);
   redrawCopies();
 });
 
@@ -1032,19 +1077,28 @@ byId("formula-done").addEventListener("click", function () {
    10. CONNECTING THE BUTTONS ON THE PAGE
    ===================================================================== */
 
-// --- Tools: Paint / Move / Fit view ---------------------------------
+// --- Tools: Paint / Fill / Move / Fit view --------------------------
 function chooseTool(name) {
   tool = name;
   cy.userPanningEnabled(name === "move");      // dragging pans only in Move
   byId("tool-paint").classList.toggle("selected", name === "paint");
+  byId("tool-fill").classList.toggle("selected", name === "fill");
   byId("tool-move").classList.toggle("selected", name === "move");
   byId("graph-area").classList.toggle("moving", name === "move");
 }
 byId("tool-paint").addEventListener("click", function () { chooseTool("paint"); });
+byId("tool-fill").addEventListener("click", function () { chooseTool("fill"); });
 byId("tool-move").addEventListener("click", function () { chooseTool("move"); });
 byId("tool-fit").addEventListener("click", fitView);
 byId("tool-undo").addEventListener("click", undo);
 byId("tool-redo").addEventListener("click", redo);
+
+// The brush size slider, and the number shown next to it.
+byId("brush-size").addEventListener("input", function () {
+  brushSize = Number(byId("brush-size").value);
+  byId("brush-size-shown").textContent = brushSize;
+  if (tool !== "paint") chooseTool("paint");   // moving it means you want to paint
+});
 
 // Ctrl+Z (Cmd+Z on a Mac) undoes; Ctrl+Shift+Z or Ctrl+Y redoes.
 // Ignored while typing in a box, so it doesn't fight the box's own undo.
@@ -1081,7 +1135,7 @@ function buildPalette() {
 function chooseColor(c) {
   currentColor = c;
   buildPalette();
-  chooseTool("paint");
+  if (tool === "move") chooseTool("paint");   // Paint and Fill both keep going in the new color
 }
 byId("eraser").addEventListener("click", function () { chooseColor(0); });
 

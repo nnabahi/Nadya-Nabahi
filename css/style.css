@@ -378,8 +378,22 @@ a.card:hover {
 .toolbar {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 6px;
   margin-bottom: 10px;
+}
+
+/* The brush size slider at the end of that row. */
+.brush-size {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85em;
+  margin-left: 6px;
+}
+
+.brush-size input {
+  width: 90px;
 }
 
 /* The tool buttons look like the genre buttons (section 4), a bit

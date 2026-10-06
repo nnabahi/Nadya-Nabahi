@@ -37,10 +37,16 @@
         <!-- Tools you use all the time sit right above the drawing. -->
         <div class="toolbar">
           <button class="tool-button selected" id="tool-paint" title="Drag to paint">Paint</button>
+          <button class="tool-button" id="tool-fill" title="Click a cell to paint every cell of its color that it touches">Fill</button>
           <button class="tool-button" id="tool-move" title="Drag to move the view">Move</button>
           <button class="tool-button" id="tool-fit" title="Show the whole grid">Fit view</button>
           <button class="tool-button" id="tool-undo" title="Undo (Ctrl+Z)">Undo</button>
           <button class="tool-button" id="tool-redo" title="Redo (Ctrl+Shift+Z)">Redo</button>
+          <!-- How big the Paint brush is: 1 is one cell. -->
+          <label class="brush-size" title="How many cells the Paint brush covers">
+            Brush <input type="range" id="brush-size" min="1" max="10" step="1" value="1">
+            <span id="brush-size-shown">1</span>
+          </label>
         </div>
 
         <!-- The palette: graph-tool.js fills id="palette" with one square
@@ -166,7 +172,14 @@
           <strong>Painting.</strong> With <em>Paint</em> chosen, drag to paint in
           the current color. Starting a drag on a cell that already has that
           color erases instead, so a click turns a cell on or off. The
-          <em>Eraser</em> always erases. <em>Swap color</em> changes the chosen
+          <em>Brush</em> slider makes the brush bigger: at size k it paints every
+          cell within k &minus; 1 steps of the one under the pointer (measured
+          straight, center to center), a round blob. With <em>Fill</em> chosen,
+          a click paints the cell and every cell of the same color joined to it,
+          like a paint bucket: on a blank cell, the blank patch around it; on a
+          blue cell, only the blue cells joined to it. &ldquo;Joined&rdquo;
+          follows the grid's neighbors (4 or 8, and across the edges on a
+          torus). The <em>Eraser</em> always erases. <em>Swap color</em> changes the chosen
           square's color (cells already painted with it change too), and
           <em>+ Add color</em> adds a new one. <em>Move</em> drags the view; the mouse wheel or a
           pinch zooms at any time.
