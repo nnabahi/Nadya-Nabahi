@@ -678,6 +678,27 @@ a.card:hover {
   min-width: 2.2em;         /* so "+" and "−" aren't tiny */
 }
 
+/* The full screen button (addFullScreenButton in js/sim-page.js) sits
+   in the top left corner of the picture: a round button with an icon. */
+.full-screen-button {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  padding: 5px;
+  line-height: 0;           /* no extra space under the icon */
+}
+
+.full-screen-button svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* The picture's box while it is full screen: the page's background
+   around the picture (instead of black). */
+.sim-picture:fullscreen {
+  background: var(--color-background);
+}
+
 /* The graph tool inside the sim. The sim sets its height to fit. */
 .tool-frame {
   display: block;

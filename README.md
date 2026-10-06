@@ -26,7 +26,7 @@ repeat for the same seed) and, on the check pages,
 | `css/style.css` | The single stylesheet for every page |
 | `js/genre-filter.js` | Builds the genre buttons on `toys.html` and hides/shows cards |
 | `js/about-tabs.js` | The Simple / All the details tabs in a sim's About box |
-| `js/sim-page.js` | Small helpers every sim page uses (the second thread, the drawing tool inside a sim, small charts, typesetting the formulas) |
+| `js/sim-page.js` | Small helpers every sim page uses (the second thread, the drawing tool inside a sim, the full screen button, small charts, typesetting the formulas, laying the four boxes out like bricks) |
 | `js/sim-view.js` | Where a sim's picture of cells goes, and moving and zooming it (any box or torus), shared by the sims |
 | `js/cell-picture.js` | Painting one color per cell, fast (the Ising and Potts, voter and percolation sims) |
 | `js/sim-domains.js` | Domains (box, torus, Aztec diamond, drawn region), the old site's colors and color conversions, shared by the sims |

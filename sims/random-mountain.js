@@ -86,7 +86,8 @@ const MAX_GRAPH_RADIUS = 4;
 const DEFAULT_SEED = "1";
 // The picture always has the same size (the quadrant's width, and this
 // height in screen pixels), in 1D and 2D; the mountain shrinks to fit
-// inside it as it grows.
+// inside it as it grows. Full screen, it is the whole screen instead
+// (pictureHeight, in js/sim-page.js).
 const PICTURE_HEIGHT = 480;
 const EMPTY = "#c9c6bf";          // available sites with no block yet
 const OUTSIDE = "#ffffff";        // everything else
@@ -470,7 +471,7 @@ function drawMountain() {
 // 1D: bars.
 function drawLine() {
   const s = latest, range = pictureRange();
-  const width = simCanvas.clientWidth, height = PICTURE_HEIGHT;
+  const width = simCanvas.clientWidth, height = pictureHeight(PICTURE_HEIGHT);
   const ratio = window.devicePixelRatio || 1;   // 2 on sharp screens
   simCanvas.style.height = height + "px";
   simCanvas.width = Math.round(width * ratio);
@@ -504,7 +505,7 @@ function drawLine() {
   pen.font = "11px sans-serif";
   pen.textBaseline = "top";
   pen.textAlign = "left";
-  pen.fillText("largest height " + s.maxHeight.toLocaleString(), left, 2);
+  pen.fillText("largest height " + s.maxHeight.toLocaleString(), left + 36, 2);   // right of the full screen button
   pen.fillText(String(range.xmin), left, ground + 12);
   pen.textAlign = "right";
   pen.fillText(String(range.xmax), right, ground + 12);
@@ -531,21 +532,21 @@ function torusRange() {
 function drawGrid() {
   const s = latest, range = pictureRange(), wrapRange = torusRange();
   const across = range.xmax - range.xmin + 1, down = range.ymax - range.ymin + 1;
-  const cssWidth = simCanvas.clientWidth;
+  const cssWidth = simCanvas.clientWidth, height = pictureHeight(PICTURE_HEIGHT);
   // The picture's box: square cells, as big as fit in the canvas (which
   // always has the same size), in the middle of it. The view remembers
   // it, in screen pixels: "left", "top", "width" and "height" of the box,
   // and "size", the size of a cell when the whole picture fits (zoom 1).
-  view.size = Math.min(cssWidth / across, PICTURE_HEIGHT / down);   // a cell at zoom 1
+  view.size = Math.min(cssWidth / across, height / down);   // a cell at zoom 1
   view.width = Math.round(view.size * across);
   view.height = Math.round(view.size * down);
   view.left = Math.round((cssWidth - view.width) / 2);
-  view.top = Math.round((PICTURE_HEIGHT - view.height) / 2);
+  view.top = Math.round((height - view.height) / 2);
 
   const ratio = window.devicePixelRatio || 1;   // 2 on sharp screens
-  simCanvas.style.height = PICTURE_HEIGHT + "px";
+  simCanvas.style.height = height + "px";
   simCanvas.width = Math.round(cssWidth * ratio);
-  simCanvas.height = Math.round(PICTURE_HEIGHT * ratio);
+  simCanvas.height = Math.round(height * ratio);
   const pen = simCanvas.getContext("2d");
   pen.setTransform(ratio, 0, 0, ratio, 0, 0);   // draw in screen pixels from here on
 
@@ -678,7 +679,7 @@ async function start3D() {
                 "internet, so check the connection and try again.");
     return;
   }
-  view3d = sim3d.make3DView(byId("sim-3d"), PICTURE_HEIGHT);
+  view3d = sim3d.make3DView(byId("sim-3d"), pictureHeight(PICTURE_HEIGHT));
   showMessage("");
   drawSoon();
 }
@@ -717,6 +718,13 @@ byId("stretch").addEventListener("input", function () {
   drawSoon();
 });
 byId("view3d-reset").addEventListener("click", function () { if (view3d) sim3d.resetCamera(view3d); });
+
+// The full screen button in the picture's top left corner (js/sim-page.js):
+// draw again at the new size, in 3D too.
+addFullScreenButton(simCanvas.parentElement, function () {
+  if (view3d) sim3d.setHeight(view3d, pictureHeight(PICTURE_HEIGHT));
+  drawSoon();
+});
 
 
 /* =====================================================================
@@ -860,7 +868,7 @@ function traceSpokes(pen, A) {
 // Make the canvas the picture's size and return its pen, ready to draw
 // in screen pixels.
 function graphPen() {
-  const width = simCanvas.clientWidth, height = PICTURE_HEIGHT;
+  const width = simCanvas.clientWidth, height = pictureHeight(PICTURE_HEIGHT);
   const ratio = window.devicePixelRatio || 1;   // 2 on sharp screens
   simCanvas.style.height = height + "px";
   simCanvas.width = Math.round(width * ratio);
@@ -873,7 +881,7 @@ function graphPen() {
 // The disk or the half-plane.
 function drawHyperbolic() {
   const s = latest, pen = graphPen();
-  const width = simCanvas.clientWidth, height = PICTURE_HEIGHT;
+  const width = simCanvas.clientWidth, height = pictureHeight(PICTURE_HEIGHT);
   if (graphPicture === "disk") {
     // The disk: the whole plane.
     pictureBox = { cx: width / 2, cy: height / 2, radius: Math.min(width, height) / 2 - 4 };
@@ -926,7 +934,7 @@ function drawHyperbolic() {
 // mountain, leaving out cells packed closer than about 2 pixels.
 function drawSpread() {
   const s = latest, pen = graphPen(), p = graphSpec.p;
-  const width = simCanvas.clientWidth, height = PICTURE_HEIGHT;
+  const width = simCanvas.clientWidth, height = pictureHeight(PICTURE_HEIGHT);
   const cx = width / 2, cy = height / 2, radius = Math.min(width, height) / 2 - 8;
   let deepest = 0;
   for (let i = 0; i < s.height.length; i++) deepest = Math.max(deepest, spreads[2 * i]);

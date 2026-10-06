@@ -32,6 +32,7 @@
      make3DView(box, height)       a 3D picture inside the element "box"
      drawStacks(view3d, stacks)    a floor with stacks of blocks on it
      resetCamera(view3d)           look from the starting angle again
+     setHeight(view3d, height)     make the picture taller or shorter (full screen)
    ===================================================================== */
 
 import * as THREE from "three";
@@ -117,6 +118,12 @@ export function resetCamera(view3d) {
   view3d.controls.target.set(0, 0.25, 0);
   view3d.controls.update();
   render(view3d);
+}
+
+// Make the picture "height" screen pixels tall (e.g. full screen).
+export function setHeight(view3d, height) {
+  view3d.height = height;
+  fitToBox(view3d);
 }
 
 // Make the picture as wide as its box (after the window changes size).

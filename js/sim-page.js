@@ -12,6 +12,8 @@
      startWorker(fn, helpers)         run a function in a second thread
      listenToTool(frame, useDrawing)  the drawing tool inside a sim page,
      showToolStatus(problem, good)      and the line that checks its drawing
+     addFullScreenButton(box, redraw) a button that shows the picture on
+     pictureHeight(normal)              the whole screen, and its height
      CHART_TEXT, CHART_LINE           the colors of the small charts
      chartPen(canvas)                 get a small chart ready to draw on
      plotOverTime(...)                a small chart of numbers over time
@@ -93,6 +95,57 @@ function showToolStatus(problem, good, buttons) {
   status.textContent = problem || "✓ " + good;   // ✓ is a tick mark
   status.className = "step-status " + (problem ? "problem" : "ok");
   for (const id of buttons || ["tool-done"]) byId(id).disabled = Boolean(problem);
+}
+
+
+/* ---------------------------------------------------------------------
+   Full screen
+   ---------------------------------------------------------------------
+   A button in the top left corner of the picture shows the picture's
+   box on the whole screen; pressing it again (or the Esc key) brings it
+   back. While it is full screen, the picture is as tall as the screen.
+   --------------------------------------------------------------------- */
+
+// The button's icon: a square with two arrows pointing out to its
+// corners (and pointing in, to leave full screen). It is drawn in SVG
+// (shapes written as text), in a 24 by 24 square.
+const FULL_SCREEN_ICONS = {
+  enter: "M14 6h4v4M18 6l-5 5M10 18H6v-4M6 18l5-5",
+  leave: "M17 11h-4V7M13 11l5-5M7 13h4v4M11 13l-5 5",
+};
+function fullScreenIcon(which) {
+  return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
+    'stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" ' +
+    'height="20" rx="3"/><path d="' + FULL_SCREEN_ICONS[which] + '"/></svg>';
+}
+
+// Put the full screen button on the picture's box "box" (a <div
+// class="sim-picture">). "redraw" is called every time the box goes full
+// screen or back, to draw the picture at its new size. Browsers that
+// can't show a part of a page full screen (like Safari on iPhones) get
+// no button.
+function addFullScreenButton(box, redraw) {
+  if (!document.fullscreenEnabled) return;
+  const button = document.createElement("button");
+  button.className = "tool-button full-screen-button";
+  function showIcon() {
+    const full = document.fullscreenElement === box;
+    button.innerHTML = fullScreenIcon(full ? "leave" : "enter");
+    button.title = full ? "Leave full screen (or press Esc)" : "Full screen";
+  }
+  button.addEventListener("click", function () {
+    if (document.fullscreenElement) document.exitFullscreen();
+    else box.requestFullscreen();
+  });
+  document.addEventListener("fullscreenchange", function () { showIcon(); redraw(); });
+  showIcon();
+  box.appendChild(button);
+}
+
+// How tall to draw the picture: "normal" (in screen pixels) on the page,
+// or the screen's whole height while it is full screen.
+function pictureHeight(normal) {
+  return document.fullscreenElement ? window.innerHeight : normal;
 }
 
 
