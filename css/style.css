@@ -328,6 +328,29 @@ a.card:hover {
 .quad-stats    { grid-area: stats; }
 .quad-about    { grid-area: about; }
 
+/* "Bricks": on a wide screen, js/sim-page.js adds the class "bricks"
+   to the quadrants. Then each box is only as tall as its own content,
+   and the box under it moves up to meet it, like bricks in a wall: the
+   left column is the simulation, then the statistics; the right column
+   the options, then the about box. The two columns don't line up, on
+   purpose. How: the grid is cut into thin rows 4px tall, each box spans
+   as many as it needs (sim-page.js works that out from its height), and
+   "dense" puts each box in the first free place in its column. */
+.quadrants.bricks {
+  grid-template-areas: none;
+  grid-auto-rows: 4px;
+  grid-auto-flow: row dense;
+  row-gap: 0;
+}
+.quadrants.bricks > .quad {
+  align-self: start;        /* as tall as its content, not stretched */
+  margin-bottom: 20px;      /* the gap to the box below */
+}
+.quadrants.bricks > .quad-sim,
+.quadrants.bricks > .quad-stats    { grid-area: auto / 1; }   /* left column */
+.quadrants.bricks > .quad-controls,
+.quadrants.bricks > .quad-about    { grid-area: auto / 2; }   /* right column */
+
 /* The drawing surface for a simulation fills its quadrant's width.
    The ">" means "a canvas directly inside the quadrant" (or directly
    inside its .sim-picture box, section 8) only, so this rule leaves

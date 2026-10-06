@@ -20,8 +20,9 @@
        shownTimes(zoom, first, last)    drag, double-click for all of it)
      niceStep, shortLabel, niceNumber numbers for axes and tables
 
-   It also typesets the formulas in the About quadrant (see the end of
-   this file), so a page that has formulas loads KaTeX before this file.
+   It also typesets the formulas in the About quadrant, so a page that
+   has formulas loads KaTeX before this file, and lays the four boxes
+   out like bricks (both at the end of this file).
    ===================================================================== */
 
 
@@ -296,3 +297,30 @@ if (window.katex) {
     katex.render(element.textContent, element, { displayMode: element.tagName === "DIV", throwOnError: false });
   }
 }
+
+
+// The four boxes laid out like bricks (section 6 of css/style.css): on
+// a wide screen, each box is as tall as its own content and the box
+// under it moves up to meet it. The page is cut into rows ROW pixels
+// tall, and each box spans as many as its height (plus the 20 pixel gap
+// under it) needs. This is worked out again whenever a box changes size
+// (a "ResizeObserver" says when), so the wall rearranges itself as the
+// boxes grow and shrink. On a narrow screen the boxes are simply stacked.
+(function () {
+  const quadrants = document.querySelector(".quadrants");
+  if (!quadrants || !window.ResizeObserver) return;   // no boxes, or an old browser: the plain layout
+  const ROW = 4, GAP = 20;
+  const wide = window.matchMedia("(min-width: 761px)");   // as in the last section of css/style.css
+  const boxes = Array.from(quadrants.querySelectorAll(":scope > .quad"));
+  function layBricks() {
+    quadrants.classList.toggle("bricks", wide.matches);
+    for (const box of boxes) {
+      box.style.gridRowEnd = wide.matches
+        ? "span " + Math.ceil((box.getBoundingClientRect().height + GAP) / ROW) : "";
+    }
+  }
+  const watcher = new ResizeObserver(layBricks);
+  for (const box of boxes) watcher.observe(box);
+  wide.addEventListener("change", layBricks);
+  layBricks();
+})();
