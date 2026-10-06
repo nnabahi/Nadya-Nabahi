@@ -2,6 +2,8 @@
    genre-filter.js  —  the genre buttons on toys.html
    ---------------------------------------------------------------------
    What it does, in plain words:
+     0. Put the cards in alphabetical order by name, with the pinned
+        card (class="card pinned", the drawing tool) first.
      1. Look at every sim card on the page and collect the genre names
         written in its <ul class="tags"> list.
      2. Make one button per genre (plus an "All" button) inside
@@ -10,7 +12,8 @@
         genre, and show the ones that do.
 
    You never need to edit this file to add a sim or a genre. Just add
-   the genre as an <li> on a card in toys.html and a button appears.
+   the genre as an <li> on a card in toys.html and a button appears;
+   the card can go anywhere in the list, and it is sorted into place.
 
    A few JavaScript words used below:
      - "const x = ..."   gives a name (x) to a value.
@@ -19,6 +22,18 @@
      - "function name(...) { ... }"  a named set of steps you can reuse.
      - "for (const card of cards) { ... }"  do the steps once per card.
    ===================================================================== */
+
+
+// Step 0: sort the cards by their names (the <h3>), A to Z, with the
+// pinned card first. Moving each card to the end of the list, in that
+// order, leaves them sorted.
+const cardGrid = document.querySelector(".card-grid");
+const sortedCards = Array.from(cardGrid.querySelectorAll(".card")).sort(function (a, b) {
+  const aPinned = a.classList.contains("pinned"), bPinned = b.classList.contains("pinned");
+  if (aPinned !== bPinned) return aPinned ? -1 : 1;
+  return a.querySelector("h3").textContent.localeCompare(b.querySelector("h3").textContent);
+});
+for (const card of sortedCards) cardGrid.appendChild(card);
 
 
 // The box where the buttons go, and all the sim cards.

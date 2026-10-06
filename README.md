@@ -24,7 +24,7 @@ repeat for the same seed) and, on the check pages,
 | `MODELS.md` | Every model in nadya's Programming folder, sorted into families (not shown on the site) |
 | `sims/` | One page per simulation |
 | `css/style.css` | The single stylesheet for every page |
-| `js/genre-filter.js` | Builds the genre buttons on `toys.html` and hides/shows cards |
+| `js/genre-filter.js` | Sorts the cards on `toys.html` A to Z (the graph tool pinned first), builds the genre buttons and hides/shows cards |
 | `js/about-tabs.js` | The Simple / All the details tabs in a sim's About box |
 | `js/sim-page.js` | Small helpers every sim page uses (the second thread, the drawing tool inside a sim, the full screen button, small charts, typesetting the formulas, laying the four boxes out like bricks) |
 | `js/sim-view.js` | Where a sim's picture of cells goes, and moving and zooming it (any box or torus), shared by the sims |
@@ -35,7 +35,7 @@ repeat for the same seed) and, on the check pages,
 | `js/formulas.js` | Typed formulas and their sliders, like Desmos (the graph tool and the sims that take formulas) |
 | `js/check-page.js` | The results table and "Run the checks" button shared by the check pages |
 | `sims/graph-tool.html` | Graph & domain tool: paint a domain on a grid (pinned first on `toys.html`) |
-| `sims/graph-tool.js` | The graph tool's code (painting, torus, formula box, undo, save/load) |
+| `sims/graph-tool.js` | The graph tool's code (painting, brush size, fill, torus, formula box, undo, save/load) |
 | `sims/connected-coloring.html` | Random connected coloring sim (box, torus, or a domain drawn in the graph tool) |
 | `sims/connected-coloring.js` | That sim's page: domains, the start, drawing, statistics, the custom-domain steps |
 | `sims/connected-coloring-chain.js` | That sim's Markov chain (ReCom with a uniform correction), run in a Web Worker |
