@@ -55,16 +55,14 @@
             <button class="tool-button" id="zoom-in" title="Zoom in">+</button>
             <button class="tool-button" id="zoom-out" title="Zoom out">&minus;</button>
             <button class="tool-button" id="zoom-reset" title="Show the whole picture once again">Reset</button>
+            <!-- On a graph's disk or half-plane: put the start back in the middle. -->
+            <button class="tool-button" id="disk-reset" title="Put the start back in the middle" hidden>Back to the start</button>
           </div>
           <!-- The 3D view (2D mountains only): js/sim-3d.js puts its
                picture in here, with a button to look from the start again. -->
           <div class="sim-3d" id="sim-3d" hidden></div>
           <div class="zoom-buttons" id="view3d-buttons" hidden>
             <button class="tool-button" id="view3d-reset" title="Look from the starting angle again">Reset view</button>
-          </div>
-          <!-- On a graph, seen from above: back to the start in the middle. -->
-          <div class="zoom-buttons" id="disk-buttons" hidden>
-            <button class="tool-button" id="disk-reset" title="Put the start back in the middle">Back to the start</button>
           </div>
         </div>
 
@@ -274,13 +272,15 @@
           <strong>Hyperbolic plane or tree.</strong> The same mountain on a tiling
           of the hyperbolic plane, or on a tree, drawn in a disk where the
           cells shrink toward the edge (the edge is infinitely far away). Drag
-          to travel across the plane. There, every patch of cells has a long
+          to travel across the plane, and zoom as in 2D to see the small cells
+          near the edge. There, every patch of cells has a long
           edge compared to its size, so the base spreads fast and the mountain
           stays low: compare {7, 3} with the 2D grid. The whole tiling (or tree)
           is drawn in thin gray underneath, in 3D too; on a tree, each site is a
           coin on its vertex. Besides the disk, the plane can be
           drawn as the half-plane above a line, and a tree can be spread out,
-          with the start in the middle and each step away on the next ring.
+          with the start in the middle and each step away on the next ring
+          (drag it and zoom it as in 2D).
         </p>
         </div>
 

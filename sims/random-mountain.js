@@ -263,9 +263,9 @@ function showDomainChoice() {
     });
     row.appendChild(label);
   }
-  // A new domain starts with the whole picture; in 2D it can be moved
-  // and zoomed (section 6b), and zoomed out further on a torus.
-  useTorus(view, torusRange() !== null, dim === 2);   // the 1D side view doesn't move
+  // A new domain starts with the whole picture; in 2D and on a graph it
+  // can be moved and zoomed (section 6b), and zoomed out further on a torus.
+  useTorus(view, torusRange() !== null, dim !== 1);   // the 1D side view doesn't move
   const bounded = (domainKind === "box" || domainKind === "torus" || domainKind === "ball");
   byId("size-row").hidden = !bounded;
   byId("size-label").textContent = dim === 1 ? "Sites" : dim === 2 ? "Size" : "Every cell within R =";
@@ -622,11 +622,29 @@ function drawGrid() {
    js/sim-view.js: the view made in section 6 handles the mouse wheel
    and the buttons, and this page passes its pointer events on to it.
    ("Pointer" events cover the mouse, a pen and fingers alike.)
+   On a graph the pictures zoom the same way. In the disk and the
+   half-plane, though, dragging with the mouse (or one finger) moves you
+   across the plane instead (section 6d); two fingers still slide and
+   zoom the picture.
    ===================================================================== */
-simCanvas.addEventListener("pointerdown", function (event) { pressPointer(view, event); });
-simCanvas.addEventListener("pointermove", function (event) { movePointer(view, event); });
-simCanvas.addEventListener("pointerup", function (event) { releasePointer(view, event); });
-simCanvas.addEventListener("pointercancel", function (event) { releasePointer(view, event); });
+simCanvas.addEventListener("pointerdown", function (event) {
+  pressPointer(view, event);
+  startPlaneDrag();
+});
+simCanvas.addEventListener("pointermove", function (event) {
+  if (dragFrom && view.pointers.has(event.pointerId)) {
+    view.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });   // where a second finger starts from
+    dragPlane(event.clientX, event.clientY);
+  } else {
+    movePointer(view, event);
+  }
+});
+for (const type of ["pointerup", "pointercancel"]) {
+  simCanvas.addEventListener(type, function (event) {
+    releasePointer(view, event);
+    startPlaneDrag();
+  });
+}
 
 
 /* =====================================================================
@@ -656,7 +674,7 @@ function showPictureKind() {
   const in3D = (dim !== 1 && show3D);
   simCanvas.hidden = toolOpen || in3D;
   byId("sim-3d").hidden = byId("view3d-buttons").hidden = toolOpen || !in3D;
-  byId("disk-buttons").hidden = toolOpen || in3D || dim !== "graph" || graphPicture === "spread";
+  byId("disk-reset").hidden = dim !== "graph" || graphPicture === "spread";   // with the zoom buttons
   byId("picture-row").hidden = in3D || dim !== "graph";
   byId("view-rows").hidden = (dim === 1);
   byId("stretch-row").hidden = byId("view3d-help").hidden = !in3D;
@@ -748,8 +766,11 @@ byId("view3d-reset").addEventListener("click", function () { if (view3d) sim3d.r
    the point you grab follows the pointer, and the whole picture moves
    by the hyperbolic motion that carries one to the other (so cells
    change size as they move, but never shape). "Back to the start" puts
-   the first cell back in the middle. The 3D view stands the stacks on
-   the disk.
+   the first cell back in the middle. All three pictures also zoom (and
+   the spread-out one slides) like the grid, with the view of section 6b:
+   it zooms and moves the whole picture (the function zoomed), and the
+   drawing leaves out what is off the screen. The 3D view stands the
+   stacks on the disk.
 
    The worker sends each site's place once (its motion [a, b], see
    js/sim-graphs.js), and on a tree its depth and angle for the
@@ -821,19 +842,29 @@ function cellPixels(x, y) {
   return 2 * b.unit * middle * toHalfPlane(x, y)[1];
 }
 
-// Whether the gray lines of a cell whose middle is at the point (x, y)
-// of the disk could show on the screen. In the disk they always can. In
-// the half-plane most cells are off it, to the sides and above: the
-// points within hyperbolic distance R of w are between heights
-// Im(w) e^-R and Im(w) e^R, and at most Im(w) sinh(R) to either side
-// (Beardon, Chapter 7), with R the cell's circumradius (for a tree's
-// lines, its inradius).
+// Whether a cell whose middle is at the point (x, y) of the disk could
+// show on the screen: everything within hyperbolic distance R of its
+// middle, with R the cell's circumradius (for a tree, its inradius:
+// the tree's lines and the coins stay that close).
+// In the disk, a hyperbolic circle is a Euclidean circle (Beardon,
+// Chapter 7); worked out from its middle and radius there, it stays
+// within (1 - |z|^2) t / (1 - t) of z, with t = tanh(R / 2).
+// In the half-plane, the points within distance R of w are between
+// heights Im(w) e^-R and Im(w) e^R, and at most Im(w) sinh(R) to
+// either side (Beardon, Chapter 7).
 function onScreen(x, y) {
-  if (graphPicture === "disk") return true;
   const shape = currentShape(), b = pictureBox;
   const R = shape.q === Infinity ? shape.inradius : shape.circumradius;
+  if (graphPicture === "disk") {
+    const t = Math.tanh(R / 2), reach = b.radius * (1 - x * x - y * y) * t / (1 - t);
+    const [sx, sy] = toScreen(x, y);
+    return sx + reach > 0 && sx - reach < b.width && sy + reach > 0 && sy - reach < b.height;
+  }
   const [re, im] = toHalfPlane(x, y);
-  return im * Math.exp(-R) < b.base / b.unit && Math.abs(re) - im * Math.sinh(R) < simCanvas.clientWidth / 2 / b.unit;
+  const left = -b.cx / b.unit, right = (b.width - b.cx) / b.unit;      // the screen's sides, as Re(w)
+  const top = b.base / b.unit, bottom = (b.base - b.height) / b.unit;  // its top and bottom, as Im(w)
+  return im * Math.exp(-R) < top && im * Math.exp(R) > bottom &&
+         re + im * Math.sinh(R) > left && re - im * Math.sinh(R) < right;
 }
 
 // Add the outline of the cell with motion A to the pen's path (for
@@ -875,23 +906,40 @@ function graphPen() {
   simCanvas.height = Math.round(height * ratio);
   const pen = simCanvas.getContext("2d");
   pen.setTransform(ratio, 0, 0, ratio, 0, 0);   // draw in screen pixels from here on
+  // The view (js/sim-view.js) zooms and moves these pictures as it does
+  // the grid: its box is the whole canvas, measured in "cells" a 60th of
+  // the canvas's shorter side (so it zooms in up to about 50 times).
+  view.left = 0;
+  view.top = 0;
+  view.width = width;
+  view.height = height;
+  view.size = Math.min(width, height) / 60;
   return pen;
+}
+
+// Where the point (px, py) of the whole, unzoomed picture is on the
+// screen, with the view's zoom and move.
+function zoomed(px, py) {
+  return [(px + view.scroll.x * view.size) * view.zoom, (py + view.scroll.y * view.size) * view.zoom];
 }
 
 // The disk or the half-plane.
 function drawHyperbolic() {
   const s = latest, pen = graphPen();
   const width = simCanvas.clientWidth, height = pictureHeight(PICTURE_HEIGHT);
+  // (Unzoomed, as the whole picture; then zoomed and moved by the view.)
   if (graphPicture === "disk") {
     // The disk: the whole plane.
-    pictureBox = { cx: width / 2, cy: height / 2, radius: Math.min(width, height) / 2 - 4 };
+    const [cx, cy] = zoomed(width / 2, height / 2);
+    pictureBox = { cx: cx, cy: cy, radius: (Math.min(width, height) / 2 - 4) * view.zoom,
+                   width: width, height: height };
     pen.beginPath();
     pen.arc(pictureBox.cx, pictureBox.cy, pictureBox.radius, 0, 2 * Math.PI);
   } else {
     // The half-plane: everything above the line near the bottom, with
     // the start's middle (w = i) a third of the way up.
-    const base = height - 12;
-    pictureBox = { cx: width / 2, base: base, unit: base / 3 };
+    const [cx, base] = zoomed(width / 2, height - 12);
+    pictureBox = { cx: cx, base: base, unit: (height - 12) / 3 * view.zoom, width: width, height: height };
     pen.beginPath();
     pen.rect(0, 0, width, base);
   }
@@ -914,6 +962,7 @@ function drawHyperbolic() {
   for (let i = 0; i < s.height.length; i++) {
     const A = siteMotion(i);
     const [mx, my] = motionApply(A, 0, 0);                  // the cell's middle
+    if (!onScreen(mx, my)) continue;
     const size = cellPixels(mx, my);
     pen.fillStyle = s.height[i] === 0 ? EMPTY : cssColor(heightColor(s.height[i], highest));
     if (size < 0.7) {
@@ -937,14 +986,18 @@ function drawHyperbolic() {
 // k steps away on the circle of radius k (in rings "gap" pixels apart),
 // each cell's children sharing its slice of the circle. Under the sites,
 // the tree itself in thin gray lines, out to one ring past the
-// mountain, leaving out cells packed closer than about 2 pixels.
+// mountain, leaving out cells packed closer than about 2 pixels (and
+// branches off the screen).
 function drawSpread() {
   const s = latest, pen = graphPen(), p = graphSpec.p;
   const width = simCanvas.clientWidth, height = pictureHeight(PICTURE_HEIGHT);
-  const cx = width / 2, cy = height / 2, radius = Math.min(width, height) / 2 - 8;
+  const [cx, cy] = zoomed(width / 2, height / 2);    // the middle, with the view's zoom and move
+  const radius = (Math.min(width, height) / 2 - 8) * view.zoom;
   let deepest = 0;
   for (let i = 0; i < s.height.length; i++) deepest = Math.max(deepest, spreads[2 * i]);
   const gap = radius / (deepest + 1);
+  // Whether a dot at (x, y), "r" pixels across, could show.
+  const shows = function (x, y, r) { return x + r > 0 && x - r < width && y + r > 0 && y - r < height; };
   // Where depth k and angle a (in turns) are on the screen.
   const at = function (k, a) {
     return [cx + k * gap * Math.cos(2 * Math.PI * a), cy - k * gap * Math.sin(2 * Math.PI * a)];
@@ -960,6 +1013,17 @@ function drawSpread() {
     const kids = k === 0 ? p : p - 1;
     // Children packed closer than 2 pixels on their circle: left out.
     if ((k + 1) * gap * 2 * Math.PI * (w / kids) < 2) return;
+    // A thin slice wholly off the screen: left out. (Its branches stay
+    // between rings k and deepest + 1, and between its two sides, so
+    // inside the box around its four corners, made a little bigger for
+    // the bulge of the outer circle.)
+    if (w < 1 / 8) {
+      const corners = [at(k, low), at(k, low + w), at(deepest + 1, low), at(deepest + 1, low + w)];
+      const xs = corners.map(function (c) { return c[0]; }), ys = corners.map(function (c) { return c[1]; });
+      const bulge = (deepest + 1) * gap * (1 - Math.cos(Math.PI * w));
+      if (Math.max(...xs) + bulge < 0 || Math.min(...xs) - bulge > width ||
+          Math.max(...ys) + bulge < 0 || Math.min(...ys) - bulge > height) return;
+    }
     const [x0, y0] = at(k, low + w / 2);
     for (let j = 0; j < kids; j++) {
       const childLow = low + j * w / kids;
@@ -978,6 +1042,7 @@ function drawSpread() {
     const k = spreads[2 * i], [x, y] = at(k, spreads[2 * i + 1]);
     const room = k === 0 ? gap : k * gap * 2 * Math.PI * share(k);   // the arc each cell at depth k gets
     const dot = Math.max(1.2, Math.min(0.35 * gap, 0.45 * room));
+    if (!shows(x, y, dot)) continue;
     pen.fillStyle = s.height[i] === 0 ? EMPTY : cssColor(heightColor(s.height[i], highest));
     pen.beginPath();
     pen.arc(x, y, dot, 0, 2 * Math.PI);
@@ -1014,23 +1079,30 @@ function keepRules(rules) {
 }
 
 // A breadth-first search from the cell nearest the middle of the
-// picture, going out until cells are too small to see, or (in the
-// half-plane) off the screen. Cells only get smaller farther out, so
-// every cell big enough is reached. For the 3D floor, "place" and
-// "pixels" (toScreen and cellPixels if left out) say where a point of
-// the disk goes and how big a cell there looks.
+// screen, going out until cells are too small to see, or off the
+// screen. (Where cells are big enough to see, and the screen, are both
+// in one piece, so every cell big enough that shows is reached.) For the
+// 3D floor, "place" and "pixels" (toScreen and cellPixels if left out)
+// say where a point of the disk goes and how big a cell there looks;
+// there, the search starts from the middle of the disk, and goes out
+// until cells are too small.
 function drawUnder(pen, place, pixels) {
   const graph = graphUnder();
   if (!graph) return;
   const tree = graphSpec.q === Infinity;
-  const first = cellNearestMiddle(graph);
+  // (The middle of the screen, kept 12 pixels in from the edge of the
+  // disk or above the line, where cells are big enough to see.)
+  const middle = place ? [0, 0] : diskPointAt(pictureBox.width / 2, pictureBox.height / 2, 12);
+  const first = cellNearest(graph, middle);
   const seen = new Set([first]), queue = [first];
   pen.beginPath();
   for (let n = 0; n < queue.length && n < MOST_UNDER; n++) {
     const A = motionTimes(diskMotion, graph.place(queue[n]));
     const [mx, my] = motionApply(A, 0, 0);
     const size = (pixels || cellPixels)(mx, my);
-    if (size < SMALLEST_UNDER || (!place && !onScreen(mx, my))) continue;
+    // (The first cell always goes on to its neighbors, even if too small
+    // or just off the screen.)
+    if (n > 0 && (size < SMALLEST_UNDER || (!place && !onScreen(mx, my)))) continue;
     if (tree) traceSpokes(pen, A, place);
     else { pen.moveTo(...(place || toScreen)(mx, my)); traceOutline(pen, A, size, place); }
     for (const w of graph.neighbors(queue[n])) {
@@ -1042,12 +1114,20 @@ function drawUnder(pen, place, pixels) {
   pen.stroke();
 }
 
-// The cell nearest the middle of the picture: start at the first cell
-// and keep stepping to whichever neighbor is nearer the middle, until
-// none is. (cosh of the distance from the middle is coshFromStart of
-// the cell's motion moved by the view.)
-function cellNearestMiddle(graph) {
-  const away = function (v) { return coshFromStart(motionTimes(diskMotion, graph.place(v))); };
+// The cell nearest the point c of the disk: start at the first cell
+// and keep stepping to whichever neighbor is nearer c, until none is.
+// (cosh of the hyperbolic distance from z to c is
+// 1 + 2 |z - c|^2 / ((1 - |z|^2) (1 - |c|^2)) (Beardon, Chapter 7), so
+// the cell whose middle z has the smallest |z - c|^2 / (1 - |z|^2) is
+// the nearest. For c = 0 that is coshFromStart of the cell's motion
+// moved by the view, which stays exact even far out.)
+function cellNearest(graph, c) {
+  const away = function (v) {
+    const A = motionTimes(diskMotion, graph.place(v));
+    if (c[0] === 0 && c[1] === 0) return coshFromStart(A);
+    const [x, y] = motionApply(A, 0, 0);
+    return ((x - c[0]) * (x - c[0]) + (y - c[1]) * (y - c[1])) / Math.max(1 - x * x - y * y, 1e-15);
+  };
   let v = 0, best = away(0);
   for (;;) {
     let next = -1;
@@ -1110,42 +1190,19 @@ function floorLines(unit) {
   return lines;
 }
 
-// Dragging the disk. The motion carrying the point "from" to the point
-// "to" (and turning nothing): move "from" to 0, then 0 to "to". (The
-// motion moving c to 0 is a = 1/s, b = -c/s, with s = sqrt(1 - |c|^2).)
+// Dragging the plane (the disk or the half-plane; section 6b passes the
+// pointer events on). While exactly one pointer is pressed, "dragFrom"
+// is the point of the disk it last was on, and each move carries that
+// point to the new one. (With two fingers, the picture slides and zooms
+// instead, as in the grid.)
 let dragFrom = null;
-// The point of the disk under the pointer (in the half-plane, the
-// point of the disk that goes there: z = (w - i) / (w + i)).
-function diskPoint(event) {
-  const box = simCanvas.getBoundingClientRect(), b = pictureBox;
-  let x, y;
-  if (graphPicture === "disk") {
-    x = (event.clientX - box.left - b.cx) / b.radius;
-    y = -(event.clientY - box.top - b.cy) / b.radius;
-  } else {
-    const re = (event.clientX - box.left - b.cx) / b.unit;
-    const im = Math.max((b.base - (event.clientY - box.top)) / b.unit, 0.01);
-    // (re + i (im - 1)) / (re + i (im + 1)), worked out:
-    const D = re * re + (im + 1) * (im + 1);
-    x = (re * re + im * im - 1) / D;
-    y = -2 * re / D;
-  }
-  const r = Math.hypot(x, y), most = 0.97;      // very near the edge, a tiny drag would move far
-  return r > most ? [x * most / r, y * most / r] : [x, y];
+function startPlaneDrag() {
+  const pressed = Array.from(view.pointers.values());
+  const dragsPlane = dim === "graph" && graphPicture !== "spread" && pictureBox !== null;
+  dragFrom = (dragsPlane && pressed.length === 1) ? diskPoint(pressed[0].x, pressed[0].y) : null;
 }
-function moveBetween(from, to) {
-  const s0 = Math.sqrt(1 - from[0] * from[0] - from[1] * from[1]);
-  const s1 = Math.sqrt(1 - to[0] * to[0] - to[1] * to[1]);
-  return motionTimes([1 / s1, 0, to[0] / s1, to[1] / s1], [1 / s0, 0, -from[0] / s0, -from[1] / s0]);
-}
-simCanvas.addEventListener("pointerdown", function (event) {
-  if (dim !== "graph" || !pictureBox || graphPicture === "spread") return;
-  dragFrom = diskPoint(event);
-  simCanvas.setPointerCapture(event.pointerId);
-});
-simCanvas.addEventListener("pointermove", function (event) {
-  if (dim !== "graph" || !dragFrom) return;
-  const to = diskPoint(event);
+function dragPlane(clientX, clientY) {
+  const to = diskPoint(clientX, clientY);
   const M = motionTimes(moveBetween(dragFrom, to), diskMotion);
   const norm = Math.sqrt(M[0] * M[0] + M[1] * M[1] - M[2] * M[2] - M[3] * M[3]);   // keep |a|^2 - |b|^2 = 1
   const moved = M.map(function (t) { return t / norm; });
@@ -1154,15 +1211,51 @@ simCanvas.addEventListener("pointermove", function (event) {
   if (coshFromStart(moved) < Math.cosh(20)) diskMotion = moved;
   dragFrom = to;
   drawSoon();
-});
-for (const type of ["pointerup", "pointercancel"]) {
-  simCanvas.addEventListener(type, function () { dragFrom = null; });
+}
+
+// The point of the disk under the pointer at (clientX, clientY), kept
+// at least 7 pixels in from the edge of the disk (or above the line),
+// where a tiny drag would move very far.
+function diskPoint(clientX, clientY) {
+  const box = simCanvas.getBoundingClientRect();
+  return diskPointAt(clientX - box.left, clientY - box.top, 7);
+}
+
+// The point of the disk at (px, py) on the canvas, kept at least "edge"
+// pixels in from the edge of the disk (or above the line). In the
+// half-plane, it is the point of the disk that goes there:
+// z = (w - i) / (w + i).
+function diskPointAt(px, py, edge) {
+  const b = pictureBox;
+  if (graphPicture === "disk") {
+    const x = (px - b.cx) / b.radius, y = -(py - b.cy) / b.radius;
+    const r = Math.hypot(x, y), most = 1 - edge / b.radius;
+    return r > most ? [x * most / r, y * most / r] : [x, y];
+  }
+  const re = (px - b.cx) / b.unit;
+  const im = Math.max((b.base - py) / b.unit, edge / b.unit);
+  // (re + i (im - 1)) / (re + i (im + 1)), worked out:
+  const D = re * re + (im + 1) * (im + 1);
+  return [(re * re + im * im - 1) / D, -2 * re / D];
+}
+
+// The motion carrying the point "from" to the point "to" (and turning
+// nothing): move "from" to 0, then 0 to "to". (The motion moving c to 0
+// is a = 1/s, b = -c/s, with s = sqrt(1 - |c|^2).)
+function moveBetween(from, to) {
+  const s0 = Math.sqrt(1 - from[0] * from[0] - from[1] * from[1]);
+  const s1 = Math.sqrt(1 - to[0] * to[0] - to[1] * to[1]);
+  return motionTimes([1 / s1, 0, to[0] / s1, to[1] / s1], [1 / s0, 0, -from[0] / s0, -from[1] / s0]);
 }
 byId("disk-reset").addEventListener("click", function () { diskMotion = [1, 0, 0, 0]; drawSoon(); });
 
 // The "Drawn in" option: the disk, the half-plane, or (trees) spread out.
 for (const radio of document.querySelectorAll('input[name="picture"]')) {
-  radio.addEventListener("change", function () { graphPicture = radio.value; showPictureKind(); });
+  radio.addEventListener("change", function () {
+    graphPicture = radio.value;
+    resetView(view);      // a new picture starts unzoomed
+    showPictureKind();
+  });
 }
 
 // The graph options: the presets, p and q, or a tree's degree.
@@ -1222,6 +1315,7 @@ function readGraph() {
 function useGraph() {
   if (!readGraph()) return;
   diskMotion = [1, 0, 0, 0];
+  resetView(view);
   restart(true);
 }
 for (const id of ["set-p", "set-q", "set-degree"]) byId(id).addEventListener("change", useGraph);
