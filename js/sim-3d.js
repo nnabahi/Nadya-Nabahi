@@ -207,10 +207,10 @@ function toThree(rgb) {
 //               (0, 0), drawn under everything
 //   shape       "cubes" or "coins"
 //   stretch     how tall the stacks look: 1 is normal, 2 twice as tall
-//   color(t)    the color [r, g, b] (0..255) of a block: block k (the
-//               bottom one is k = 1) gets t = k / (the tallest height),
-//               so the top of each stack has the color a top view
-//               gives that stack, and the very top t = 1
+//   color(k, tallest)   the color [r, g, b] (0..255) of block k (the
+//               bottom one is k = 1) when the tallest stack has
+//               "tallest" blocks; the top of each stack has the color a
+//               top view gives that stack
 //   empty, ground   colors [r, g, b] of the empty cells and of the floor
 //
 // Heights: a block starts out as tall as it is wide. Once the tallest
@@ -240,7 +240,7 @@ export function drawStacks(view3d, stacks) {
   // The colors, worked out once per level (not once per block):
   // levelColor[k] is the color of the (k+1)-th block from the bottom.
   const levelColor = [];
-  for (let k = 0; k < tallest; k++) levelColor.push(toThree(stacks.color((k + 1) / tallest)));
+  for (let k = 0; k < tallest; k++) levelColor.push(toThree(stacks.color(k + 1, tallest)));
 
   // The blocks: one by one, or one column per stack if there are too many.
   const oneByOne = blocks <= MAX_BLOCKS[shape];

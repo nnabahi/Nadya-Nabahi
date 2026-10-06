@@ -389,9 +389,9 @@ function setPlaying(on) {
 /* =====================================================================
    6. DRAWING THE MOUNTAIN
    ---------------------------------------------------------------------
-   Color shows height, with the old site's colors: from blue (low) to
-   red (the largest height). Available sites with no block yet are
-   gray.
+   Color shows height (heightColor below): height 1 is always red,
+   and the colors run up to blue at the largest height. Available sites
+   with no block yet are gray.
      1D: one bar per site, as tall as its height, on a line; the gray
          available sites are small marks under the line.
      2D: seen from above, one square per cell. The cells are first drawn
@@ -418,14 +418,20 @@ function drawSoon() {
 }
 window.addEventListener("resize", drawSoon);
 
-// The old site's height color (heatColor): t = 0 is blue, t = 1 is red.
-// The hue goes from 225 (blue) down to 0 (red) and the color gets
-// brighter on the way. Returns [red, green, blue], each 0..255.
-function heatColor(t) {
-  const hue = 225 - 225 * t, saturation = 0.7, value = 0.35 + 0.55 * t;
+// The color of height h (h = 1, 2, ...) when the tallest stack is
+// "highest" blocks tall. Height 1 is always red, and the colors run up
+// to blue at the tallest height, so the scale stretches upward as the
+// mountain grows. (The old site's colors, turned upside down: the hue
+// goes from 0 (red) up to 225 (blue), and the color gets darker on the
+// way.) The same colors are used in every view: a site seen from above
+// has the color of the top block of its stack. Returns [red, green,
+// blue], each 0..255.
+function heightColor(h, highest) {
+  const t = highest <= 1 ? 0 : (h - 1) / (highest - 1);   // 0 at height 1, 1 at the tallest
+  const hue = 225 * t, saturation = 0.7, value = 0.9 - 0.55 * t;
   // The usual HSV -> RGB recipe.
-  const c = value * saturation, h = hue / 60, x = c * (1 - Math.abs((h % 2) - 1)), m = value - c;
-  const rgb = h < 1 ? [c, x, 0] : h < 2 ? [x, c, 0] : h < 3 ? [0, c, x] : h < 4 ? [0, x, c] : h < 5 ? [x, 0, c] : [c, 0, x];
+  const c = value * saturation, k = hue / 60, x = c * (1 - Math.abs((k % 2) - 1)), m = value - c;
+  const rgb = k < 1 ? [c, x, 0] : k < 2 ? [x, c, 0] : k < 3 ? [0, c, x] : k < 4 ? [0, x, c] : k < 5 ? [x, 0, c] : [c, 0, x];
   return rgb.map(function (part) { return Math.round(255 * (part + m)); });
 }
 function cssColor(rgb) { return "rgb(" + rgb.join(",") + ")"; }
@@ -483,7 +489,7 @@ function drawLine() {
       pen.fillRect(x0 + gap / 2, ground + 3, Math.max(column - gap, 1), 5);
     } else {
       const barHeight = (ground - top) * h / highest;
-      pen.fillStyle = cssColor(heatColor(h / highest));
+      pen.fillStyle = cssColor(heightColor(h, highest));
       pen.fillRect(x0 + gap / 2, ground - barHeight, Math.max(column - gap, 0.5), barHeight);
     }
   }
@@ -570,7 +576,7 @@ function drawGrid() {
       const inBox = x >= range.xmin && x <= range.xmax && y >= range.ymin && y <= range.ymax;
       const site = inBox ? siteAt.get(x + "," + y) : undefined;
       const rgb = site === undefined ? outside
-        : s.height[site] === 0 ? empty : heatColor(s.height[site] / highest);
+        : s.height[site] === 0 ? empty : heightColor(s.height[site], highest);
       const p = k * cols + i;
       pixels[4 * p] = rgb[0]; pixels[4 * p + 1] = rgb[1]; pixels[4 * p + 2] = rgb[2];
       pixels[4 * p + 3] = 255;
@@ -682,7 +688,7 @@ function draw3D() {
   sim3d.drawStacks(view3d, {
     x: s.x, y: s.y, height: s.height, floor: floor,
     shape: blockShape, stretch: Math.pow(2, stretchLevel / 2),
-    color: heatColor, empty: hexToRGB(EMPTY), ground: hexToRGB(OUTSIDE),
+    color: heightColor, empty: hexToRGB(EMPTY), ground: hexToRGB(OUTSIDE),
   });
 }
 
@@ -781,7 +787,7 @@ function drawDisk() {
     // How big it looks: the motion shrinks things near the middle
     // point m by 1 - |m|^2.
     const size = radius * cellShape.middle * (1 - mx * mx - my * my);
-    pen.fillStyle = s.height[i] === 0 ? EMPTY : cssColor(heatColor(s.height[i] / highest));
+    pen.fillStyle = s.height[i] === 0 ? EMPTY : cssColor(heightColor(s.height[i], highest));
     if (size < 0.7) {                                      // tiny: a dot
       pen.fillRect(cx + mx * radius - 0.5, cy - my * radius - 0.5, 1, 1);
       continue;
@@ -816,7 +822,7 @@ function draw3DOnDisk() {
   sim3d.drawStacks(view3d, {
     x: x, y: y, height: height, width: width, floor: { disk: unit },
     shape: blockShape, stretch: Math.pow(2, stretchLevel / 2),
-    color: heatColor, empty: hexToRGB(EMPTY), ground: hexToRGB(OUTSIDE),
+    color: heightColor, empty: hexToRGB(EMPTY), ground: hexToRGB(OUTSIDE),
   });
 }
 
