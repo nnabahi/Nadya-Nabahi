@@ -370,14 +370,22 @@ function tilePacking() {
     return ex * ex + ey * ey < r * r;
   }
 
-  function oneMove() {
+  // "at" is left out for a normal move. A click on the picture gives
+  // the cell { x, y } that was clicked: then the disk is centered there
+  // (its radius is still random), as if the chain had picked that point.
+  function oneMove(at) {
     moves++;
 
     // Step 1: the disk. A uniform point of the domain: a uniform cell,
     // then a uniform point in its square. An exponential radius:
     // -mean * log(1 - u) for u uniform in [0, 1).
-    const v0 = Math.floor(random() * n);
-    const cx = X[v0] - 0.5 + random(), cy = Y[v0] - 0.5 + random();
+    let cx, cy;
+    if (at) {
+      cx = at.x; cy = at.y;               // the middle of the clicked cell
+    } else {
+      const v0 = Math.floor(random() * n);
+      cx = X[v0] - 0.5 + random(); cy = Y[v0] - 0.5 + random();
+    }
     const r = -meanRadius * Math.log(1 - random());
     lastDisk = { x: cx, y: cy, r: r };
 
@@ -847,6 +855,7 @@ function tilePacking() {
   //   setup      start a new run (all of setup()'s settings, plus "run")
   //   play       run at "speed" moves per second (Infinity: flat out)
   //   pause, step
+  //   click      one move with the disk centered at the clicked cell { x, y }
   //   settings   a new meanRadius and sizeLimit, without restarting (they
   //              change how fast the chain mixes, not where it ends up)
   //   heat       on: true or false, whether to send the heat map
@@ -871,6 +880,9 @@ function tilePacking() {
       stop();
     } else if (message.type === "step") {
       oneMove();
+      report();
+    } else if (message.type === "click") {
+      oneMove({ x: message.x, y: message.y });
       report();
     } else if (message.type === "settings") {
       meanRadius = message.meanRadius;
