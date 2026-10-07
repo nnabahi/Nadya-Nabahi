@@ -40,6 +40,7 @@
      drawSpreadTree, spreadSpot           the spread-out tree
      startPlaneDrag, dragPlane            dragging across the plane
      makeBall                             the ball of R steps a sim runs on
+     ballCellUnder, ballCellAt            the cell of the ball under the pointer
      showGraphPresets, readGraphOptions   the Graph options on the page
 
    The file is split into numbered sections:
@@ -666,6 +667,30 @@ function ballCellUnder(dv, ball, event) {
     if (far < bestFar) { bestFar = far; best = i; }
   }
   return best;
+}
+
+
+// The cell of the ball under the pointer, or -1 if the pointer isn't on
+// one: like ballCellUnder, but only if the pointer is within the cell's
+// circumradius of its middle (on a tree, within its inradius, the
+// distance to the middle of its sides), or, spread out, on its dot.
+// (cosh of the hyperbolic distance from z to m is
+// 1 + 2 |z - m|^2 / ((1 - |z|^2) (1 - |m|^2)); Beardon, Chapter 7.)
+function ballCellAt(dv, ball, event) {
+  const i = ballCellUnder(dv, ball, event);
+  if (i === -1) return -1;
+  if (dv.picture === "spread") {
+    const box = dv.canvas.getBoundingClientRect();
+    const [sx, sy] = spreadSpot(dv, ball.depth[i], ball.angle[i]);
+    const far = Math.hypot(sx - (event.clientX - box.left), sy - (event.clientY - box.top));
+    return far <= spreadDot(dv, ball.depth[i]) + 3 ? i : -1;
+  }
+  const shape = diskShape(dv), R = isTree(shape) ? shape.inradius : shape.circumradius;
+  const [zx, zy] = diskPoint(dv, event.clientX, event.clientY);
+  const [mx, my] = motionApply(seenFrom(dv, ballPlace(ball, i)), 0, 0);
+  const coshFar = 1 + 2 * ((zx - mx) * (zx - mx) + (zy - my) * (zy - my)) /
+                  Math.max((1 - zx * zx - zy * zy) * (1 - mx * mx - my * my), 1e-300);
+  return coshFar <= Math.cosh(R) ? i : -1;
 }
 
 

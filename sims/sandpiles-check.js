@@ -40,6 +40,10 @@
         |E| = neighbor pairs). The pile's "never stabilizes" answer
         must agree.
 
+   Tests 2-6 also run on small balls of hyperbolic tilings and trees
+   (makeBall, js/sim-hyperbolic.js), where every cell topples at p
+   grains and grains fall off the ball's edge.
+
    Random numbers come from the library seedrandom, with fixed seeds,
    so the tests do the same thing every time.
    ===================================================================== */
@@ -83,6 +87,14 @@ function ringCells() {
     }
   }
   return cells;
+}
+
+// A ball of R steps around the start of a tiling {p,q} (q = Infinity:
+// the tree of degree p), as the sim page makes it: every cell topples
+// at p grains, so grains sent outside the ball are lost.
+function ballCase(name, p, q, R) {
+  const ball = makeBall(makeGraph({ kind: "tiling", p: p, q: q }), R, Infinity);
+  return { name: name, options: { domain: ball, threshold: p } };
 }
 
 // The middle cell of a torus, as its sink cell.
@@ -199,6 +211,8 @@ const mainCases = [
   shapeCase("ring with a hole, 8 neighbors", ringCells(), 8),
   torusWithSink("torus 6 x 6 with a sink cell, 4 neighbors", 6, 4),
   torusWithSink("torus 5 x 5 with a sink cell, 8 neighbors", 5, 8),
+  ballCase("ball of {7, 3}, R = 2", 7, 3, 2),
+  ballCase("ball of the tree of degree 3, R = 3", 3, Infinity, 3),
 ];
 
 // Topple until stable in four ways and compare the piles and the
@@ -283,6 +297,8 @@ const smallCases = [
   boxCase("box 3 x 2, 8 neighbors", 3, 2, 8, false),
   torusWithSink("torus 3 x 3 with a sink cell, 4 neighbors", 3, 4),
   shapeCase("L shape of 6 cells, 4 neighbors", [[0, 0], [1, 0], [2, 0], [0, 1], [0, 2], [1, 2]], 4),
+  ballCase("ball of {5, 4}, R = 1", 5, 4, 1),
+  ballCase("ball of the tree of degree 3, R = 2", 3, Infinity, 2),
 ];
 
 // The reduced Laplacian's determinant, straight from the definition:
@@ -363,6 +379,8 @@ const identityCases = [
   shapeCase("ring with a hole, 8 neighbors", ringCells(), 8),
   torusWithSink("torus 21 x 21 with a sink cell, 4 neighbors", 21, 4),
   torusWithSink("torus 15 x 15 with a sink cell, 8 neighbors", 15, 8),
+  ballCase("ball of {7, 3}, R = 4", 7, 3, 4),
+  ballCase("ball of the tree of degree 3, R = 6", 3, Infinity, 6),
 ];
 
 function testIdentity(c) {

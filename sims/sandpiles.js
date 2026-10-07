@@ -2,9 +2,12 @@
    sandpiles.js  —  the page of the "Sandpiles" sim
    ---------------------------------------------------------------------
    What it does, in plain words:
-     - Builds the table: a box or torus of cells, or a custom one drawn
-       in the graph tool (shown inside this page). The domain code is
-       shared with the other sims, in js/sim-domains.js.
+     - Builds the table: a box or torus of cells, a custom one drawn
+       in the graph tool (shown inside this page), or a ball of a
+       hyperbolic tiling or a tree. The domain code is shared with the
+       other sims, in js/sim-domains.js, and the hyperbolic tilings and
+       trees, and their pictures, in js/sim-graphs.js and
+       js/sim-hyperbolic.js.
      - Hands the table, the start and the settings to the pile
        (pileWorker in sandpiles-pile.js), which runs in a second thread
        (a "Web Worker"), and draws every pile it sends back, with the
@@ -48,6 +51,14 @@ const NUMBER_MIN_CELL = 16;       // cells at least this big (in pixels) show th
 const PAD = 2;                    // room above and below the picture
 const CLICK_DISTANCE = 4;         // a press that moves less than this (pixels) is a click, not a drag
 
+// Hyperbolic plane or tree: the ball's default and largest radius R,
+// the most cells a ball may have (a ball of a hyperbolic tiling grows
+// exponentially with R), and the picture's height in screen pixels.
+const DEFAULT_BALL_RADIUS = 5;
+const MAX_BALL_RADIUS = 20;
+const MAX_BALL_CELLS = 20000;
+const DISK_HEIGHT = 480;
+
 // The speeds on the Speed slider, in topples (or rounds) per second.
 // Infinity means "as fast as the computer can". The default is slow, so
 // you can watch every topple.
@@ -63,12 +74,19 @@ const DEFAULT_STORM_RATE = STORM_RATES.indexOf(2);
    2. WHAT THE PAGE REMEMBERS (the "state")
    ===================================================================== */
 
-let domainKind = "box";         // "box", "torus" or "custom": the table in use
-let domain = null;              // the table's graph (js/sim-domains.js)
-let neighbors = 4;              // 4 or 8: also the number of grains that makes a cell topple
+let domainKind = "box";         // "box", "torus", "custom" or "graph": the table in use
+let domain = null;              // the table's graph (js/sim-domains.js), or a ball (makeBall, js/sim-hyperbolic.js)
+let neighbors = 4;              // 4 or 8 (p on a tiling {p,q} or a tree): also the number of grains that makes a cell topple
 let sinks = [];                 // the sink cell, if any (a list of 0 or 1 cells)
 let customDomain = null;        // the last custom domain drawn, if any
 let customNeighbors = 4;        // the graph tool's neighbors for it
+
+// Hyperbolic plane or tree: the graph itself (js/sim-graphs.js), made
+// again only when the graph changes, and how many steps each cell of
+// the ball is from the start. (Which graph it is, how it is drawn and
+// how far the plane has been moved are in "disk", section 5.)
+let graph = null, graphFor = null;
+let ballSteps = null;
 
 let playing = false;            // it starts paused; Play sets it going
 let speedIndex = DEFAULT_SPEED;
@@ -256,6 +274,11 @@ function setPlaying(on) {
 
    The squares' colors go into a small image, one pixel per square,
    which is then blown up with smoothing off so the squares stay crisp.
+
+   A ball of a hyperbolic tiling or a tree is drawn by
+   js/sim-hyperbolic.js instead: in the disk or the half-plane (drag to
+   move around the plane), or, for a tree, spread out in rings, with the
+   rest of the tiling in thin gray (drawOnGraph below).
    ===================================================================== */
 let drawPending = false;
 const tiny = document.createElement("canvas");   // one pixel per square that shows
@@ -265,6 +288,11 @@ const simCanvas = byId("sim-canvas");            // the canvas on the page
 // of 4 pixels or more get a whole number of pixels each, so every cell
 // is exactly the same size.
 const view = makeView(simCanvas, drawSoon, PAD, 4);
+
+// Hyperbolic plane or tree: which graph, how it is drawn, and how far
+// the plane has been moved (js/sim-hyperbolic.js). The view above zooms
+// and slides its pictures too.
+const disk = makeDiskView(simCanvas, view);
 
 // Draw at the browser's next screen refresh (at most once per refresh,
 // however many messages arrive in between).
@@ -286,6 +314,7 @@ function drawPile() {
   if (showTopples) for (let v = 0; v < d.n; v++) mostTopples = Math.max(mostTopples, odometer[v]);
   tallest = 0;
   for (let v = 0; v < d.n; v++) if (heights[v] > tallest && !sinks.includes(v)) tallest = heights[v];
+  if (domainKind === "graph") { drawOnGraph(showTopples, mostTopples); return; }
 
   // The picture's box: as big as fits the width (and at most
   // MAX_PICTURE_HEIGHT tall), in the middle of the canvas. Then the cell
@@ -362,6 +391,49 @@ function drawPile() {
   screen.restore();
 }
 
+// Hyperbolic plane or tree: the ball's cells in the colors of their
+// heights (or topples), with the rest of the tiling (or tree) in thin
+// gray (js/sim-hyperbolic.js), and the numbers on cells big enough.
+function drawOnGraph(showTopples, mostTopples) {
+  const heights = latest.heights, odometer = latest.odometer, height = pictureHeight(DISK_HEIGHT);
+  const rgbOf = function (v) {
+    return showTopples ? colorOfTopples(odometer[v], mostTopples) : colorOfHeight(heights[v]);
+  };
+  const colorOf = function (v) { return rgbToHex(rgbOf(v).map(Math.round)); };
+  let pen;
+  if (disk.picture === "spread") {
+    pen = drawSpreadTree(disk, height, domain.n,
+      function (v) { return domain.depth[v]; }, function (v) { return domain.angle[v]; }, colorOf);
+  } else {
+    pen = diskPen(disk, height);
+    drawDiskFrame(disk, pen, height, OUTSIDE, UNDER_COLOR);
+    drawOnDisk(disk, pen, graph, domain.n, function (v) { return ballPlace(domain, v); }, colorOf);
+  }
+  if (!byId("show-numbers").checked) return;
+
+  // The numbers, on cells at least NUMBER_MIN_CELL pixels across.
+  pen.textAlign = "center";
+  pen.textBaseline = "middle";
+  for (let v = 0; v < domain.n; v++) {
+    let x, y, size;
+    if (disk.picture === "spread") {
+      [x, y] = spreadSpot(disk, domain.depth[v], domain.angle[v]);
+      size = 2 * spreadDot(disk, domain.depth[v]);
+    } else {
+      const [mx, my] = motionApply(seenFrom(disk, ballPlace(domain, v)), 0, 0);
+      if (!onScreen(disk, mx, my)) continue;
+      [x, y] = diskToScreen(disk, mx, my);
+      size = 2 * cellPixels(disk, mx, my);
+    }
+    if (size < NUMBER_MIN_CELL || x < 0 || y < 0 || x > disk.box.width || y > disk.box.height) continue;
+    const rgb = rgbOf(v);
+    pen.font = Math.round(Math.min(size * 0.45, 28)) + "px sans-serif";
+    // Dark text on light cells, white text on dark ones.
+    pen.fillStyle = (0.3 * rgb[0] + 0.59 * rgb[1] + 0.11 * rgb[2]) > 140 ? "#1e1e1e" : "#ffffff";
+    pen.fillText(String(showTopples ? odometer[v] : heights[v]), x, y + 1);
+  }
+}
+
 window.addEventListener("resize", drawSoon);
 
 
@@ -376,6 +448,9 @@ window.addEventListener("resize", drawSoon);
      mouse wheel, or pinch            zoom in or out, around the pointer
      the + / − / Reset buttons        zoom in, zoom out, show it all again
    A press that hardly moves counts as a click, a longer one as a drag.
+   On a hyperbolic tiling or tree, one pointer drags across the plane
+   instead (startPlaneDrag and dragPlane, js/sim-hyperbolic.js), and two
+   fingers slide and zoom the picture.
    "Pointer" events cover the mouse, a pen and fingers alike.
    ===================================================================== */
 const pressed = new Set();    // the pointers pressed on the picture (their ids)
@@ -392,7 +467,10 @@ function clickCell(v) {
   if (sinks.includes(v)) {
     showMessage("This is the sink cell: it eats every grain it gets.");
   } else if (mode === "info") {
-    showMessage("Cell (" + domain.x[v] + ", " + domain.y[v] + "): " + latest.heights[v] + " grains, toppled " +
+    const name = domainKind === "graph"
+      ? "This cell, " + ballSteps[v] + (ballSteps[v] === 1 ? " step" : " steps") + " from the start"
+      : "Cell (" + domain.x[v] + ", " + domain.y[v] + ")";
+    showMessage(name + ": " + latest.heights[v] + " grains, toppled " +
                 latest.odometer[v].toLocaleString() + " times so far.");
   } else {
     worker.postMessage({ type: "add", cell: v, grains: mode === "add" ? 1 : -1 });
@@ -405,19 +483,36 @@ simCanvas.addEventListener("pointerdown", function (event) {
   if (pressed.size > 1) dragged = true;           // two fingers: a pinch, not a click
   simCanvas.setPointerCapture(event.pointerId);   // keep getting moves even off the canvas
   pressPointer(view, event);                      // drag and pinch the picture (js/sim-view.js)
+  startDrag();
 });
 
 simCanvas.addEventListener("pointermove", function (event) {
   simCanvas.style.cursor = pressed.size > 0 ? "grabbing" : "grab";
   if (!pressed.has(event.pointerId)) return;
   if (Math.hypot(event.clientX - pressedAt.x, event.clientY - pressedAt.y) >= CLICK_DISTANCE) dragged = true;
-  movePointer(view, event);
+  if (disk.dragFrom && view.pointers.has(event.pointerId)) {
+    view.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });   // where a second finger starts from
+    dragPlane(disk, event.clientX, event.clientY);
+    drawSoon();
+  } else {
+    movePointer(view, event);
+  }
 });
+
+// On a hyperbolic tiling or tree, exactly one pointer pressed drags
+// across the plane.
+function startDrag() {
+  if (domainKind === "graph") startPlaneDrag(disk);
+  else disk.dragFrom = null;
+}
 
 function stopPointer(event, isClick) {
   if (!pressed.delete(event.pointerId)) return;
   releasePointer(view, event);
-  if (isClick && pressed.size === 0 && !dragged) clickCell(cellUnder(view, domain, pointerSpot(view, event)));
+  startDrag();
+  if (!isClick || pressed.size > 0 || dragged) return;
+  clickCell(domainKind === "graph" ? ballCellAt(disk, domain, event)
+                                   : cellUnder(view, domain, pointerSpot(view, event)));
 }
 simCanvas.addEventListener("pointerup", function (event) { stopPointer(event, true); });
 simCanvas.addEventListener("pointercancel", function (event) { stopPointer(event, false); });
@@ -600,6 +695,7 @@ function useDomain(kind, d, n) {
   useTorus(view, Boolean(d.wrap));   // moving and zooming; zooming out past the whole picture only on a torus (js/sim-view.js)
   makeHeightColors();
   showDomainChoice();
+  showStartChoice();
   chooseSink();
 }
 
@@ -622,12 +718,37 @@ function useBox() {
   useDomain(torus ? "torus" : "box", boxDomain(width, height, n, torus), n);
 }
 
+// A ball of a hyperbolic tiling or a tree, from the options on the
+// page (js/sim-hyperbolic.js), with the start cell in the middle of the
+// picture. Every cell of the tiling {p,q} (or of the tree of degree p)
+// has p neighbors, so it topples at p grains, and the grains sent to
+// neighbors outside the ball are lost. (Choosing one while the graph
+// tool is open closes it.)
+function useGraph() {
+  if (toolOpen) closeTool();
+  if (!readGraphOptions(disk)) { showDomainChoice(); return; }
+  if (graphFor !== disk.spec) { graph = makeGraph(disk.spec); graphFor = disk.spec; }
+  const R = readWhole("set-ball-radius", 1, MAX_BALL_RADIUS, DEFAULT_BALL_RADIUS);
+  const ball = makeBall(graph, R, MAX_BALL_CELLS);
+  byId("set-ball-radius").value = ball.R;
+  byId("ball-info").textContent = ball.n.toLocaleString() + " cells, each toppling at " + disk.spec.p +
+    " grains." + (ball.R < R
+    ? " A ball of radius " + R + " would have more than " + MAX_BALL_CELLS.toLocaleString() +
+      " cells, the most this page uses, so R is " + ball.R + "."
+    : "");
+  ballSteps = stepsFrom(ball, [0]);      // js/sim-domains.js
+  backToStart(disk);
+  useDomain("graph", ball, disk.spec.p);
+}
+
 // Show the options that fit the table in use, and tick its radio button.
 function showDomainChoice() {
   document.querySelector('input[name="domain"][value="' + domainKind + '"]').checked = true;
-  const custom = (domainKind === "custom");
-  byId("size-row").hidden = byId("neighbors-row").hidden = custom;
+  const custom = (domainKind === "custom"), onGraph = (domainKind === "graph");
+  byId("size-row").hidden = byId("neighbors-row").hidden = custom || onGraph;
   byId("custom-row").hidden = !custom;
+  byId("graph-rows").hidden = !onGraph;
+  byId("disk-reset").hidden = !onGraph || disk.picture === "spread";   // with the zoom buttons
   byId("sink-row").hidden = !(domain && domain.wrap);
   if (custom && customDomain) {
     byId("custom-info").textContent = "Your table: " + customDomain.n + " cells, " + customNeighbors +
@@ -644,19 +765,25 @@ const START_HELP = {
   empty: "No sand: click to add grains, or start the storm.",
   identity: "The pile 2M − (2M)° (see All the details), which topples into the identity. Press Play or Jump to the end.",
 };
+// On a ball of a hyperbolic tiling or a tree, which has no rows:
+const START_HELP_BALL = {
+  center: "n grains on the start cell, in the middle of the ball.",
+  linear: "Cells numbered outward from the start (the start is 0), cell k gets value + k × slope grains (0 if that is negative).",
+};
 function showStartChoice() {
   const kind = byId("start-kind").value;
   byId("grains-row").hidden = kind !== "center";
   byId("most-row").hidden = kind !== "random";
   byId("full-row").hidden = kind !== "full";
   byId("linear-row").hidden = kind !== "linear";
-  byId("start-help").textContent = START_HELP[kind];
+  byId("start-help").textContent = (domainKind === "graph" && START_HELP_BALL[kind]) || START_HELP[kind];
 }
 
-// Table: Box / Torus / Custom.
+// Table: Box / Torus / Custom / Hyperbolic plane or tree.
 for (const radio of document.querySelectorAll('input[name="domain"]')) {
   radio.addEventListener("change", function () {
     if (radio.value === "custom") openTool();
+    else if (radio.value === "graph") useGraph();
     else useBox();
   });
 }
@@ -664,6 +791,20 @@ for (const id of ["set-width", "set-height", "set-neighbors"]) {
   byId(id).addEventListener("change", useBox);
 }
 byId("edit-custom").addEventListener("click", openTool);
+
+// Hyperbolic plane or tree: the graph, the ball's radius, and the
+// picture ("Drawn in"). "Back to the start" puts the start cell back in
+// the middle.
+for (const id of ["set-p", "set-q", "set-degree", "set-ball-radius"]) byId(id).addEventListener("change", useGraph);
+for (const radio of document.querySelectorAll('input[name="graph-kind"]')) radio.addEventListener("change", useGraph);
+for (const radio of document.querySelectorAll('input[name="picture"]')) {
+  radio.addEventListener("change", function () {
+    disk.picture = radio.value;
+    showDomainChoice();
+    resetView(view);      // a new picture starts unzoomed
+  });
+}
+byId("disk-reset").addEventListener("click", function () { backToStart(disk); drawSoon(); });
 for (const radio of document.querySelectorAll('input[name="sink"]')) {
   radio.addEventListener("change", chooseSink);
 }
@@ -767,6 +908,9 @@ byId("speed").max = SPEEDS.length - 1;
 byId("speed").value = speedIndex;
 byId("storm-rate").max = STORM_RATES.length - 1;
 byId("storm-rate").value = stormRateIndex;
+byId("set-ball-radius").value = DEFAULT_BALL_RADIUS;
+byId("set-ball-radius").max = MAX_BALL_RADIUS;
+showGraphPresets(useGraph);
 showSpeed();
 showStormRate();
 showStartChoice();

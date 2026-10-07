@@ -431,7 +431,8 @@ function newPile(options) {
 // any domain. "kind" and the numbers in "s" are:
 //   "empty"                   no sand
 //   "linear"  s.value, s.slope   cell number k gets value + k * slope
-//                             (cells numbered row by row, as in hers)
+//                             (cells numbered row by row, as in hers;
+//                             in a ball, outward from the start)
 //   "random"  s.most          each cell uniform in 0, 1, ..., s.most
 //   "full"    s.height        every cell s.height
 //   "center"  s.grains        s.grains on the middle cell
@@ -450,8 +451,10 @@ function startHeights(d, kind, s, random) {
 
 // The middle cell: in a box, the cell (floor((W-1)/2), floor((H-1)/2))
 // as in nadya's code; in general, the cell nearest the middle of the
-// smallest box around the domain.
+// smallest box around the domain. In a ball of a hyperbolic tiling or a
+// tree (js/sim-hyperbolic.js), which has no rows and columns, its start.
 function middleCell(d) {
+  if (!d.x) return 0;
   const mx = d.xmin + Math.floor((d.xmax - d.xmin) / 2);
   const my = d.ymin + Math.floor((d.ymax - d.ymin) / 2);
   let best = 0, bestDistance = Infinity;
