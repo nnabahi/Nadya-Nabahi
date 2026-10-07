@@ -106,9 +106,11 @@ function newNumbers() {
   computeClusters();
 }
 
-// The clusters at the current p.
+// The clusters at the current p. If p went down far enough that the
+// clicked site closed, nothing stays highlighted.
 function computeClusters() {
   result = percolate(domain, KIND, p, U, edges);
+  if (selected !== -1 && result.root[selected] === -1) selected = -1;
   drawSoon();
 }
 
