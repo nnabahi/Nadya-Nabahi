@@ -36,6 +36,7 @@
    A sim keeps one "disk view" (makeDiskView): which graph, which
    picture, and how far the plane has been moved. Then it calls
      diskPen, drawDiskFrame, drawOnDisk   the disk or the half-plane
+     drawBallBorders                      lines between colors on a tiling
      drawSpreadTree, spreadSpot           the spread-out tree
      startPlaneDrag, dragPlane            dragging across the plane
      makeBall                             the ball of R steps a sim runs on
@@ -75,6 +76,7 @@ const UNDER_COLOR = "#b4b1aa";     // the gray of the tiling's lines
 const SMALLEST_UNDER = 1.2;        // cells smaller than this (inradius, in pixels) get no gray lines
 const MOST_UNDER = 40000;          // and at most this many cells do
 const CELL_EDGE = "rgba(0, 0, 0, 0.25)";   // the thin line around each colored cell
+const SMALLEST_BORDER = 2;         // cells smaller than this (inradius, in pixels) get no lines between colors
 const ZOOM_CELLS = 60;             // the view counts the picture as this many "cells" across its
                                    // shorter side (so it zooms in up to about 50 times; js/sim-view.js)
 
@@ -309,6 +311,42 @@ function drawOnDisk(dv, pen, under, count, placeOf, colorOf) {
   }
 }
 
+// The lines between colors on a tiling, after drawOnDisk: every side of
+// every cell of the ball, except the sides it shares with a neighbor of
+// the same color (so the edge of the ball gets a line too, like the
+// edge of a box). colorOf(i) is cell i's color number, and "style" the
+// lines' CSS color. On a tree nothing is drawn: its coins never touch.
+function drawBallBorders(dv, pen, ball, colorOf, style) {
+  if (isTree(dv.spec)) return;
+  const shape = diskShape(dv), p = shape.p, outline = shape.outline;
+  const perSide = outline.length / p;      // side k is outline[k * perSide] to the next corner
+  const facing = ballSides(ball, p);
+  pen.beginPath();
+  for (let i = 0; i < ball.n; i++) {
+    const A = seenFrom(dv, ballPlace(ball, i));
+    const [mx, my] = motionApply(A, 0, 0);                  // the cell's middle
+    if (!onScreen(dv, mx, my)) continue;
+    const size = cellPixels(dv, mx, my);
+    if (size < SMALLEST_BORDER) continue;
+    const same = new Array(p).fill(false);                  // same[k]: side k is shared with the same color
+    for (let e = ball.first[i]; e < ball.first[i + 1]; e++) {
+      if (colorOf(ball.nbr[e]) === colorOf(i)) same[facing[e]] = true;
+    }
+    const every = size < 5 ? 4 : 1;                         // small cells: every 4th point is plenty
+    for (let k = 0; k < p; k++) {
+      if (same[k]) continue;
+      for (let j = 0; j <= perSide; j += every) {
+        const [x, y] = outline[(k * perSide + j) % outline.length];
+        const [sx, sy] = diskToScreen(dv, ...motionApply(A, x, y));
+        if (j === 0) pen.moveTo(sx, sy); else pen.lineTo(sx, sy);
+      }
+    }
+  }
+  pen.lineWidth = 1.2;
+  pen.strokeStyle = style;
+  pen.stroke();
+}
+
 // The whole tiling (or tree) of "graph" in thin gray lines: every cell
 // big enough to see that shows, whether or not it is in use. A tiling
 // is drawn as the outlines of its cells; a tree as its edges
@@ -539,6 +577,8 @@ function moveBetween(from, to) {
               place[4i .. 4i+3]
      depth, angle   on a tree, where cell i goes in the spread-out
               picture (spreadPlace, js/sim-graphs.js)
+     side     on a tiling, which side of each cell each edge crosses,
+              once drawBallBorders has asked for it (ballSides)
    ===================================================================== */
 function makeBall(graph, R, most) {
   // The cells, layer by layer, while there is room for the next layer.
@@ -570,7 +610,7 @@ function makeBall(graph, R, most) {
   first[n] = nbr.length;
 
   const ball = { n: n, first: first, nbr: Int32Array.from(nbr), R: used, cell: cells,
-                 place: place, depth: null, angle: null };
+                 place: place, depth: null, angle: null, side: null };
   if (graph.shape && isTree(graph.shape) && graph.parent) {
     ball.depth = new Float64Array(n);
     ball.angle = new Float64Array(n);
@@ -581,6 +621,28 @@ function makeBall(graph, R, most) {
 
 // Cell i's place, as a motion (for drawOnDisk and cellSpot).
 function ballPlace(ball, i) { return ball.place.subarray(4 * i, 4 * i + 4); }
+
+// On a tiling: for each edge of the ball (entry e of ball.nbr, from cell
+// i to cell j), which side k of cell i the cell j is across. Moved back
+// by the inverse of cell i's motion, cell i is the first cell, and j's
+// middle is straight out from the middle of side k, at the angle
+// 2 pi k / p. (The inverse of the motion [a, b] is [conj(a), -b];
+// Beardon, Chapter 7.) Worked out once per ball, as ball.side.
+function ballSides(ball, p) {
+  if (ball.side) return ball.side;
+  const side = new Int8Array(ball.nbr.length);
+  for (let i = 0; i < ball.n; i++) {
+    const [ar, ai, br, bi] = ballPlace(ball, i);
+    const back = [ar, -ai, -br, -bi];
+    for (let e = ball.first[i]; e < ball.first[i + 1]; e++) {
+      const [x, y] = motionApply(motionTimes(back, ballPlace(ball, ball.nbr[e])), 0, 0);
+      const k = Math.round(Math.atan2(y, x) * p / (2 * Math.PI));
+      side[e] = ((k % p) + p) % p;
+    }
+  }
+  ball.side = side;
+  return side;
+}
 
 // The cell of the ball under the pointer: in the disk or the half-plane,
 // the cell whose middle is nearest the pointer (as in cellNearest); in

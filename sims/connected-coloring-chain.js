@@ -60,6 +60,20 @@
    of |S|^3 / 3 (same book, Section 4.3). Spanning-tree counts are huge,
    so everything is kept as logarithms.
 
+   On a tree or a hyperbolic tiling the band is wide (most of a ball's
+   cells are near its edge), and the banded way gets very slow. There
+   the same determinant is found by removing the cells one at a time
+   (Gaussian elimination). Removing cell v multiplies the determinant by
+   its diagonal entry and leaves the "Schur complement" (Horn & Johnson,
+   "Matrix Analysis", 2nd ed., Cambridge 2013, Section 0.8.5), which is
+   again the matrix of a graph: v is gone, and every two of its
+   neighbors are joined by a new edge (Kron reduction; F. Dorfler &
+   F. Bullo, IEEE Trans. Circuits and Systems I 60 (2013) 150-163). The
+   cells are removed in the order that adds few new edges: always one
+   with the fewest neighbors left (the "minimum degree" order; A. George
+   & J. W. H. Liu, SIAM Review 31 (1989) 1-19). On a tree that is always
+   a leaf, which adds no edge at all.
+
    No library does these steps in JavaScript, so they are written out
    below. The one library used is seedrandom
    (https://github.com/davidbau/seedrandom), for random numbers that
@@ -341,7 +355,12 @@ function chainWorker() {
           log det L = sum of log(R[p][p]^2).
      Row p of the band is stored as band[p * width + (p - q)] for the
      entries q = p - b, ..., p of that row (width = b + 1).
+     Step c costs about m b^2 steps (m = the size of L). On the square
+     grid b^2 is at most a few times m, but on a tree or a hyperbolic
+     tiling it can be a hundred times m; when b^2 is more than WIDE_BAND
+     times m, logByRemoval (below) finds the determinant instead.
      =================================================================== */
+  const WIDE_BAND = 10;
   function logSpanningTrees(cells) {
     const m = cells.length - 1;          // size of the matrix L
     if (m <= 0) return 0;                // one cell: one tree, and log 1 = 0
@@ -363,6 +382,7 @@ function chainWorker() {
         if (member[w] === memberStamp && position[w] < p) b = Math.max(b, p - position[w]);
       }
     }
+    if (b * b > WIDE_BAND * m) return logByRemoval(cells, m);
     const width = b + 1;
     if (band.length < m * width) band = new Float64Array(m * width * 2);
     band.fill(0, 0, m * width);
@@ -395,6 +415,91 @@ function chainWorker() {
           band[p * width + (p - q)] = s / band[q * width];
         }
       }
+    }
+    return logDet;
+  }
+
+  /* -------------------------------------------------------------------
+     log tau(S) the other way, by removing the cells one at a time (see
+     the top of the file). L is the matrix of a graph with weighted
+     edges: row p has the weight of each edge from p (1 at first) and,
+     on the diagonal, the sum of those weights, the edge to the dropped
+     cell included. Removing the cell in row p:
+       - the determinant is multiplied by d = L[p][p] (so log d is added);
+       - each neighbor a of p, joined to it with weight w_a, loses
+         w_a^2 / d from its diagonal entry;
+       - every two neighbors a, b of p get w_a w_b / d added to the
+         weight of the edge joining them (a new edge if there was none).
+     Each step removes a cell with the fewest neighbors left. Since L is
+     positive definite, every d is positive (Golub & Van Loan, Section
+     4.2), and the logs of the d's add up to log det L.
+     ("cells" is marked in "member", and cells[m] is the dropped cell.)
+     ------------------------------------------------------------------- */
+  function logByRemoval(cells, m) {
+    // The matrix. Row p is the cell cells[p] (cells[m], the dropped
+    // cell, has no row). Row p's neighbors are the rows joined[p][0],
+    // joined[p][1], ..., with edge weights weight[p][0], weight[p][1],
+    // ...; diagonal[p] = L[p][p].
+    for (let p = 0; p <= m; p++) position[cells[p]] = p;
+    const diagonal = new Float64Array(m), joined = [], weight = [];
+    for (let p = 0; p < m; p++) {
+      const v = cells[p];
+      joined.push([]);
+      weight.push([]);
+      for (let e = first[v]; e < first[v + 1]; e++) {
+        const w = nbr[e];
+        if (member[w] !== memberStamp) continue;
+        diagonal[p]++;
+        if (position[w] < m) { joined[p].push(position[w]); weight[p].push(1); }
+      }
+    }
+
+    // The rows waiting to be removed, sorted by how many neighbors they
+    // have left: withCount[k] = the rows with k neighbors.
+    const withCount = [];
+    function file(p) {
+      const k = joined[p].length;
+      if (!withCount[k]) withCount[k] = new Set();
+      withCount[k].add(p);
+    }
+    for (let p = 0; p < m; p++) file(p);
+
+    let logDet = 0, fewest = 0;
+    for (let removed = 0; removed < m; removed++) {
+      // A row with the fewest neighbors left. (Removing a row takes one
+      // neighbor from each of its neighbors, so the fewest can only go
+      // down by one each time.)
+      fewest = Math.max(fewest - 1, 0);
+      while (!withCount[fewest] || withCount[fewest].size === 0) fewest++;
+      const p = withCount[fewest].values().next().value;
+      withCount[fewest].delete(p);
+
+      const d = diagonal[p], near = joined[p], nearWeight = weight[p];
+      logDet += Math.log(d);
+      // Take p out of its neighbors' lists (moving the last one into its spot).
+      for (const a of near) {
+        withCount[joined[a].length].delete(a);
+        const k = joined[a].indexOf(p);
+        joined[a][k] = joined[a][joined[a].length - 1]; joined[a].pop();
+        weight[a][k] = weight[a][weight[a].length - 1]; weight[a].pop();
+      }
+      // The new diagonal entries and edge weights.
+      for (let s = 0; s < near.length; s++) {
+        const a = near[s], wa = nearWeight[s];
+        diagonal[a] -= wa * wa / d;
+        for (let t = s + 1; t < near.length; t++) {
+          const b = near[t], extra = wa * nearWeight[t] / d;
+          const k = joined[a].indexOf(b);
+          if (k >= 0) {
+            weight[a][k] += extra;
+            weight[b][joined[b].indexOf(a)] += extra;
+          } else {
+            joined[a].push(b); weight[a].push(extra);
+            joined[b].push(a); weight[b].push(extra);
+          }
+        }
+      }
+      for (const a of near) file(a);
     }
     return logDet;
   }
