@@ -49,8 +49,9 @@
         (sims/voter-check.html) tests it in the browser.
      2. voterWorker(): runs it in a second thread (a "Web Worker") for
         the sim page, voter-model.js, so the page never freezes.
-        startWorker (js/sim-page.js) starts it, with newVoter and
-        voterStart copied in.
+        startWorker (js/sim-page.js) starts it, with newVoter,
+        voterStart and the run loop and trace (js/sim-worker.js) copied
+        in.
    ===================================================================== */
 
 

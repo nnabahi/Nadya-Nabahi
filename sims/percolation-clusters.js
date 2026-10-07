@@ -62,6 +62,7 @@
                                    tree, made ready for the rest
      percolate(d, kind, p, U, edges)   the clusters at one p
      sweep(d, kind, U, edges)      the clusters for every p (Newman-Ziff)
+     openAt(swept, p)              from a sweep: how many are open at p
    ===================================================================== */
 
 
@@ -290,8 +291,7 @@ function sweep(d, kind, U, edges) {
   const values = new Float64Array(count), largest = new Int32Array(count), clusterCount = new Int32Array(count);
   let crossAt = null;
 
-  // For site percolation: which cells are open so far, and the
-  // neighbors of each cell with the step to them.
+  // For site percolation: which cells are open so far.
   const isOpen = new Uint8Array(d.n);
   let clusters = kind === "site" ? 0 : d.n;
   if (kind === "site") uf.largest = 0;

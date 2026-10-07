@@ -52,7 +52,9 @@
         (sims/potts-check.html) tests them in the browser.
      2. pottsWorker(): runs a chain in a second thread (a "Web Worker")
         for the sim page, potts.js, so the page never freezes.
-        startWorker (js/sim-page.js) starts it, with newPotts copied in.
+        startWorker (js/sim-page.js) starts it, with newPotts,
+        pottsStart and the run loop and trace (js/sim-worker.js) copied
+        in.
    ===================================================================== */
 
 

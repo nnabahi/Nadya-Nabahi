@@ -855,9 +855,9 @@ function packingCore() {
                                       (only if exactly "at" are done)
    worker -> page
      { type: "ready", run, info, segments, shapeX, shapeY }
-     { type: "clicked", run, placed, ready, x, y, at }   did the clicked tile fit?
          after a setup: facts about S and T, the edge of S (4 numbers
          per segment) and T's polygon (128 corners), for drawing.
+     { type: "clicked", run, placed, ready, x, y, at }   did the clicked tile fit?
      { type: "tiles", run, attempts, ceilingMisses, cx, cy, r, parent, generation, attempt }
          the tiles placed since the last message (all tiles of one run
          arrive in order), and how many attempts are done.

@@ -1,7 +1,7 @@
 /* =====================================================================
    random-mountain-check.js  —  the tests on random-mountain-check.html
    ---------------------------------------------------------------------
-   Three kinds of test of the growth rule in random-mountain-growth.js:
+   Four kinds of test of the growth rule in random-mountain-growth.js:
 
      1. Same mountain as nadya's Python. Her randmountain.py and
         randonesidedmountain.py turn a list of uniform numbers u into a

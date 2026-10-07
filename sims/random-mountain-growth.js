@@ -60,7 +60,8 @@
      2. mountainWorker(): runs a mountain in a second thread (a "Web
         Worker") for the sim page, random-mountain.js, so the page never
         freezes. startWorker (js/sim-page.js) starts it, with
-        newMountain copied in.
+        newMountain, newGraphMountain, the hyperbolic tilings and trees
+        and the run loop and trace (js/sim-worker.js) copied in.
    ===================================================================== */
 
 

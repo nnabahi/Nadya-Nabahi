@@ -45,9 +45,7 @@
    Plain searches, written separately from the sim's union-find
    --------------------------------------------------------------------- */
 
-// Is the edge between cells v and w open? (site: both cells open;
-// bond: the edge's own number is below p.) "edgeAt" maps "v,w" to the
-// edge's number in edgesOf.
+// A map from "v,w" (either way round) to the edge's number in edgesOf.
 function edgeLookup(edges) {
   const map = new Map();
   for (let e = 0; e < edges.count; e++) {
@@ -56,6 +54,8 @@ function edgeLookup(edges) {
   }
   return map;
 }
+// Is the edge between cells v and w open? (site: both cells open;
+// bond: the edge's own number is below p.) "edgeAt" is edgeLookup's map.
 function openBetween(kind, U, p, edgeAt, v, w) {
   return kind === "site" ? (U[v] < p && U[w] < p) : U[edgeAt.get(v + "," + w)] < p;
 }
