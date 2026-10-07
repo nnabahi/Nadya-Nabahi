@@ -288,7 +288,7 @@ function newGraphMountain(options) {
     dim: "graph", graph: graph,
     siteNode: siteNode, height: height, available: available,
     steps: 0, blocks: 0, baseSize: 0, maxHeight: 0, start: -1,
-    step: step, dropOn: dropOn, heightOf: heightOf,
+    step: step, dropOn: dropOn,
   };
 
   // Drop one block, exactly as in part 1.
@@ -313,12 +313,6 @@ function newGraphMountain(options) {
   function dropOn(i) {
     drop(i);
     m.steps += 1;
-  }
-
-  // The height on a cell of the graph (0 if it isn't a site).
-  function heightOf(node) {
-    const i = siteOf.get(node);
-    return i === undefined ? 0 : height[i];
   }
 
   m.start = makeAvailable(0);

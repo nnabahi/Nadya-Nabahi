@@ -5,9 +5,9 @@
      Draws a 3D picture that you can turn around with the mouse or your
      fingers. For now it draws STACKS: a floor of cells, and on each
      cell a stack of blocks (cubes or coins) as tall as that cell's
-     height. The random mountain uses it; later sims (a 3D random walk,
-     mountains on other graphs) will add their own kinds of pictures
-     here.
+     height. The random mountain uses it, on the square grid and on
+     hyperbolic tilings and trees (their edges drawn as lines on the
+     floor). Later sims can add their own kinds of pictures here.
 
        drag (left mouse, one finger)     turn the picture around
        mouse wheel, or pinch             zoom in or out
@@ -226,10 +226,9 @@ function toThree(rgb) {
 //               color [r, g, b]
 //
 // Heights: a block starts out as tall as a cell of width 1 is wide (a
-// cube). Once the tallest
-// stack would be more than half as tall as the floor is wide, every
-// block is squashed so it is exactly that tall; "stretch" then makes it
-// taller or flatter.
+// cube). Once the tallest stack would be more than half as tall as the
+// floor is wide, every block is squashed so it is exactly that tall;
+// "stretch" then makes it taller or flatter.
 export function drawStacks(view3d, stacks) {
   const n = stacks.x.length, shape = stacks.shape;
   if (view3d.box.clientWidth && view3d.box.clientWidth !== view3d.width) fitToBox(view3d);   // the box changed size

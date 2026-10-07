@@ -165,11 +165,6 @@ function diskToScreen(dv, x, y) {
   return [b.cx + Math.max(-1e5, Math.min(1e5, re * b.unit)), b.base - Math.min(1e5, im * b.unit)];
 }
 
-// Where the middle of the cell with place A is on the screen.
-function cellSpot(dv, A) {
-  return diskToScreen(dv, ...motionApply(seenFrom(dv, A), 0, 0));
-}
-
 // How big a cell looks, in pixels (about its inradius), if its middle is
 // at the point (x, y) of the disk. The disk shrinks lengths near (x, y)
 // by 1 - x^2 - y^2, and the half-plane near w by Im(w) (Beardon,
@@ -732,7 +727,7 @@ function makeBall(graph, R, most) {
   return ball;
 }
 
-// Cell i's place, as a motion (for drawOnDisk and cellSpot).
+// Cell i's place, as a motion (for drawOnDisk).
 function ballPlace(ball, i) { return ball.place.subarray(4 * i, 4 * i + 4); }
 
 // For each edge of the ball (entry e of ball.nbr, from cell i to cell
