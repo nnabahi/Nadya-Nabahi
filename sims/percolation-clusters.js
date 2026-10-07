@@ -41,6 +41,10 @@
    meet across an edge but their positions disagree, the cluster has
    closed a loop around the torus (the method of Newman and Ziff, same
    paper).
+   On a ball of a hyperbolic tiling or a tree (ballForPercolation), the
+   "left column" is the start cell alone and the "right column" is the
+   edge of the ball, so a cluster CROSSES when the start's cluster
+   reaches the edge.
 
    Colors that keep still. Each cluster is named after its OLDEST
    element: the one with the smallest U, the first to open as p grows.
@@ -54,6 +58,8 @@
    Contents:
      uniformNumbers(count, seed)   one U per element, from the seed
      edgesOf(d)                    each edge of the domain once
+     ballForPercolation(ball)      a ball of a hyperbolic tiling or a
+                                   tree, made ready for the rest
      percolate(d, kind, p, U, edges)   the clusters at one p
      sweep(d, kind, U, edges)      the clusters for every p (Newman-Ziff)
    ===================================================================== */
@@ -84,6 +90,32 @@ function edgesOf(d) {
   }
   return { count: a.length, a: Int32Array.from(a), b: Int32Array.from(b),
            dx: Int32Array.from(dx), dy: Int32Array.from(dy) };
+}
+
+// A ball of a hyperbolic tiling or a tree (makeBall, js/sim-hyperbolic.js)
+// has no columns. Give it some: x[v] = the number of steps from the
+// start (cell 0) to v, found by a breadth-first search, so the start is
+// the only cell with x = 0 (the "left column") and the edge of the ball
+// is the cells with the most steps (the "right column"). Then a cluster
+// "crosses" exactly when the start's cluster reaches the edge. (Every
+// cell on a shortest path from the start to v is nearer the start than
+// v, so inside the ball, x is the same as in the whole tiling or tree.)
+function ballForPercolation(ball) {
+  const n = ball.n, x = new Int32Array(n).fill(-1), queue = [0];
+  x[0] = 0;
+  for (let k = 0; k < queue.length; k++) {
+    const v = queue[k];
+    for (let e = ball.first[v]; e < ball.first[v + 1]; e++) {
+      const w = ball.nbr[e];
+      if (x[w] === -1) { x[w] = x[v] + 1; queue.push(w); }
+    }
+  }
+  ball.x = x;
+  ball.y = new Int32Array(n);       // all 0: there is only one "row"
+  ball.xmin = 0;
+  ball.xmax = Math.max(...x);
+  ball.wrap = null;
+  return ball;
 }
 
 // The step from cell v to its neighbor w, the short way round a torus.
