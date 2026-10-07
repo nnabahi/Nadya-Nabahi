@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Random mountain — Toys n' Sims</title>
+  <link rel="stylesheet" href="../../css/style.css">
+  <!-- KaTeX's styles, for the typeset formulas. -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/katex.min.css">
+  <!-- Where the 3D library three.js lives on the internet, for the 3D
+       view (js/sim-3d.js). It is only loaded when you switch to 3D. The
+       version number is fixed so an update can never change the site by
+       surprise. -->
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.186.1/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+
+  <header class="topbar">
+    <nav>
+      <a href="../../about.html">About Me</a>
+      <a href="../../resume.html">Resume</a>
+      <a href="../../index.html">Home</a>
+      <a href="../../publications.html">Publications</a>
+      <a href="../../toys.html" class="active">Toys n' Sims</a>
+    </nav>
+  </header>
+
+  <main class="page">
+    <p><a href="../../toys.html">&larr; All sims</a></p>
+    <h1>Random mountain</h1>
+
+    <!-- The four quadrants, as on every sim page (their layout is in
+         section 6 of css/style.css). All the behavior lives in
+         random-mountain.js; the ids below (id="...") are how that script
+         finds each button and box. -->
+    <div class="quadrants">
+
+      <!-- UPPER LEFT: the mountain. -->
+      <section class="quad quad-sim">
+        <h2>Simulation</h2>
+
+        <!-- The picture. random-mountain.js sets its height. In 2D, the
+             zoom buttons sit in its top right corner; the full screen
+             button (added by js/sim-page.js) in its top left corner. -->
+        <div class="sim-picture">
+          <canvas id="sim-canvas"></canvas>
+          <div class="zoom-buttons" id="zoom-buttons" hidden>
+            <button class="tool-button" id="zoom-in" title="Zoom in">+</button>
+            <button class="tool-button" id="zoom-out" title="Zoom out">&minus;</button>
+            <button class="tool-button" id="zoom-reset" title="Show the whole picture once again">Reset</button>
+            <!-- On a graph's disk or half-plane: put the start back in the middle. -->
+            <button class="tool-button" id="disk-reset" title="Put the start back in the middle" hidden>Back to the start</button>
+            <!-- ... and "Slide": dragging there slides the whole picture instead (js/sim-hyperbolic.js).
+                 It shows and hides with "Back to the start" (section 8 of css/style.css). -->
+            <button class="tool-button" id="disk-slide" title="Drag to slide the whole picture, instead of moving around the plane">Slide</button>
+          </div>
+          <!-- The 3D view (2D mountains only): js/sim-3d.js puts its
+               picture in here, with a button to look from the start again. -->
+          <div class="sim-3d" id="sim-3d" hidden></div>
+          <div class="zoom-buttons" id="view3d-buttons" hidden>
+            <button class="tool-button" id="view3d-reset" title="Look from the starting angle again">Reset view</button>
+          </div>
+        </div>
+
+        <!-- Shown instead of the picture while you draw a custom domain:
+             the graph tool itself, in an <iframe> (a page inside this
+             page). -->
+        <div id="custom-area" hidden>
+          <div class="step-bar">
+            <p class="step-title">Draw the domain</p>
+            <p class="muted step-help">Paint the cells the mountain may grow on (any
+              color counts). The first block goes on (0, 0) if you painted it, otherwise
+              on the painted cell nearest the middle. Then press Done.</p>
+            <p class="step-status" id="step-status"></p>
+            <div class="option-row">
+              <button class="tool-button" id="tool-done">Done</button>
+              <button class="tool-button" id="tool-cancel">Cancel</button>
+            </div>
+          </div>
+          <iframe class="tool-frame" id="tool-frame" title="Graph and domain tool"></iframe>
+        </div>
+
+        <!-- Messages, e.g. a problem with the domain. -->
+        <p class="muted" id="sim-message"></p>
+      </section>
+
+      <!-- UPPER RIGHT: settings. -->
+      <section class="quad quad-controls">
+        <!-- The heading, with a small "model check" button on the right
+             that opens the page testing this sim's math. -->
+        <h2 class="heading-with-button">Options
+          <a class="tool-button model-check" href="random-mountain-check.html">model check</a></h2>
+
+        <h3 class="option-heading">Dimension</h3>
+        <div class="option-row">
+          <label><input type="radio" name="dimension" value="1" checked> 1D (a line)</label>
+          <label><input type="radio" name="dimension" value="2"> 2D (a grid)</label>
+          <label><input type="radio" name="dimension" value="graph"> Hyperbolic plane or tree</label>
+        </div>
+
+        <!-- Graph only: which graph. -->
+        <div id="graph-rows" hidden>
+          <h3 class="option-heading">Graph</h3>
+          <div class="option-row" id="graph-presets"></div>
+          <div class="option-row">
+            <label><input type="radio" name="graph-kind" value="tiling" checked> Tiling {p, q}:</label>
+            p <input type="number" id="set-p" min="3" max="12" step="1" value="7">
+            q <input type="number" id="set-q" min="3" max="12" step="1" value="3">
+          </div>
+          <div class="option-row">
+            <label><input type="radio" name="graph-kind" value="tree"> Tree, degree</label>
+            <input type="number" id="set-degree" min="3" max="12" step="1" value="3">
+          </div>
+          <p class="muted small" id="graph-info"></p>
+          <p class="muted small" id="graph-built"></p>
+        </div>
+
+        <!-- 2D and graphs: the picture from above, or in 3D. -->
+        <div id="view-rows" hidden>
+          <h3 class="option-heading">View</h3>
+          <div class="option-row">
+            <label><input type="radio" name="view" value="flat" checked> From above</label>
+            <label><input type="radio" name="view" value="3d"> 3D</label>
+          </div>
+          <!-- Hyperbolic plane or tree, from above: which picture. -->
+          <div class="option-row" id="picture-row" hidden>
+            Drawn in
+            <label><input type="radio" name="picture" value="disk" checked> the disk</label>
+            <label><input type="radio" name="picture" value="half"> the half-plane</label>
+            <label id="spread-choice"><input type="radio" name="picture" value="spread"> spread out</label>
+          </div>
+          <div class="option-row" id="blocks-row" hidden>
+            Blocks
+            <label><input type="radio" name="blocks" value="cubes" checked> cubes</label>
+            <label><input type="radio" name="blocks" value="coins"> coins</label>
+          </div>
+          <div class="option-row" id="stretch-row" hidden>
+            Heights <input type="range" id="stretch" min="-4" max="4" step="1" value="0">
+            <span class="muted" id="stretch-label"></span>
+          </div>
+          <p class="muted small" id="view3d-help" hidden>Drag to turn it around, use the
+            mouse wheel or a pinch to zoom, and right-drag (or two fingers) to slide it.</p>
+        </div>
+
+        <h3 class="option-heading">Tile T</h3>
+        <!-- Graph only: the tile is every cell within distance r. -->
+        <div id="ball-tile" hidden>
+          <div class="option-row">
+            Every cell within distance r =
+            <input type="number" id="set-radius" min="1" max="4" step="1" value="1">
+          </div>
+          <p class="muted small">A graph has no offsets like (1, 0), so the tile is a
+            "ball": a block landing on a new site makes every cell within r steps of
+            it available. r = 1 means the cells sharing a side with it.</p>
+        </div>
+        <!-- 1D and 2D: the tile is a set of offsets. -->
+        <div id="offset-tile">
+        <div class="option-row" id="tile-presets"></div>
+        <p class="muted small">Click cells to add them to the tile or take them out.
+          The dark cell in the middle is the site itself.</p>
+        <!-- The clickable cells; random-mountain.js fills this in. -->
+        <div class="tile-grid" id="tile-grid"></div>
+        <div class="option-row">
+          <span id="disk-label"></span> r <input type="number" id="disk-radius" min="1" max="30" step="1" value="2">
+          <button class="tool-button" id="make-disk">Make</button>
+        </div>
+        <div class="option-row">
+          <span id="ring-label"></span> r1 <input type="number" id="ring-inner" min="0" max="30" step="1" value="3">
+          to r2 <input type="number" id="ring-outer" min="0" max="30" step="1" value="3">
+          <button class="tool-button" id="make-ring">Make</button>
+        </div>
+        <p class="muted small" id="tile-info"></p>
+        </div>
+
+        <h3 class="option-heading">Domain</h3>
+        <div class="option-row" id="domain-choice"></div>
+        <div class="option-row" id="size-row" hidden>
+          <span id="size-label"></span>
+          <input type="number" id="set-width" min="1" step="1">
+          <span id="height-part">&times; <input type="number" id="set-height" min="1" step="1"></span>
+        </div>
+        <div class="option-row" id="custom-row" hidden>
+          <span id="custom-info"></span>
+          <button class="tool-button" id="edit-custom">Edit custom domain</button>
+        </div>
+
+        <h3 class="option-heading">Run</h3>
+        <div class="option-row">
+          <button class="tool-button" id="play">Play</button>
+          <button class="tool-button" id="step" title="Drop one block">Step</button>
+          <button class="tool-button" id="restart" title="Back to one block, same seed">Restart</button>
+        </div>
+        <div class="option-row">
+          Speed <input type="range" class="wide-range" id="speed" min="0" step="1">
+          <span class="muted" id="speed-label"></span>
+        </div>
+        <div class="option-row">
+          Go to step <input type="number" id="goto-steps" min="0" step="1" style="width: 8em">
+          <button class="tool-button" id="goto">Go</button>
+        </div>
+        <div class="option-row">
+          Seed <input type="text" id="seed" size="8">
+          <button class="tool-button" id="new-seed" title="A random new seed">New seed</button>
+        </div>
+        <p class="muted small">The same seed always gives the same mountain. Changing the
+          tile or the domain keeps the seed and the step you are at, so the mountain
+          changes as little as it can.</p>
+      </section>
+
+      <!-- LOWER LEFT: numbers about this run. -->
+      <section class="quad quad-stats">
+        <h2>Statistics</h2>
+        <table class="stats-table">
+          <tr><td>Steps n</td><td id="stat-steps"></td></tr>
+          <tr><td>Blocks (n + 1)</td><td id="stat-blocks"></td></tr>
+          <tr><td>Base: sites with a block</td><td id="stat-base"></td></tr>
+          <tr><td>Available sites</td><td id="stat-available"></td></tr>
+          <tr><td>Largest height</td><td id="stat-highest"></td></tr>
+          <tr><td>Height at the start site</td><td id="stat-start"></td></tr>
+          <tr id="ends-row"><td>Base from &hellip; to &hellip;</td><td id="stat-ends"></td></tr>
+        </table>
+
+        <h3 class="option-heading">Base size over time</h3>
+        <canvas class="chart" id="base-chart"></canvas>
+        <h3 class="option-heading">Largest height over time</h3>
+        <canvas class="chart" id="highest-chart"></canvas>
+        <h3 class="option-heading">Height at the start site over time</h3>
+        <canvas class="chart" id="start-chart"></canvas>
+      </section>
+
+      <!-- LOWER RIGHT: about the model, in two tabs (js/sim-page.js
+           switches them). Text in class="tex" is typeset by KaTeX. -->
+      <section class="quad quad-about">
+        <h2>About the model</h2>
+        <nav class="about-tabs">
+          <button class="about-tab selected" data-tab="simple">Simple</button>
+          <button class="about-tab" data-tab="details">All the details</button>
+        </nav>
+
+        <div data-panel="simple">
+        <p>
+          Blocks are dropped one at a time and pile up into a mountain. The
+          <strong>base</strong> is the set of sites that already have a block.
+          A block may land on any site of the base, or on a site the
+          <strong>tile</strong> reaches from the base. It picks one of these
+          <strong>available sites</strong> completely at random, all equally
+          likely.
+        </p>
+        <p>
+          With the tile {&minus;1, +1} on a line, a block lands on the base or one
+          site past either end, so the base only grows when a block lands just
+          past an end. Most blocks land on the base, and the mountain gets
+          taller much faster than it gets wider.
+        </p>
+        <p>
+          <strong>Things to try:</strong> click an available site to drop the
+          next block there yourself; the one-sided tile {+1}; a tile with a
+          gap, like {&minus;2, +1}; 2D with 4 or 8 neighbors; a tile of your own,
+          clicked in the grid; a thin ring, which spreads more than it stacks;
+          or a small domain, where the base soon fills it and
+          the mountain only gets taller. In 2D, zoom with the mouse wheel, a
+          pinch, or the + and &minus; buttons, and drag the picture to look
+          around; on a torus, zoomed out, it shows several times side by
+          side. Or switch the 2D view to 3D, to see each site's blocks as a
+          stack of cubes or coins, and turn the mountain around. The button in
+          the picture's top left corner shows it on the whole screen.
+        </p>
+        <p>
+          <strong>Hyperbolic plane or tree.</strong> The same mountain on a tiling
+          of the hyperbolic plane, or on a tree, drawn in a disk where the
+          cells shrink toward the edge (the edge is infinitely far away). Drag
+          to travel across the plane (or press Slide to slide the whole
+          picture), and zoom as in 2D to see the small cells near the edge. There, every patch of cells has a long
+          edge compared to its size, so the base spreads fast and the mountain
+          stays low: compare {7, 3} with the 2D grid. The whole tiling (or tree)
+          is drawn in thin gray underneath, in 3D too; on a tree, each site is a
+          coin on its vertex. Besides the disk, the plane can be
+          drawn as the half-plane above a line, and a tree can be spread out,
+          with the start in the middle and each step away on the next ring
+          (drag it and zoom it as in 2D).
+        </p>
+        </div>
+
+        <div data-panel="details" hidden>
+        <p>
+          <strong>The rule.</strong> The tile <span class="tex">T</span> is a finite
+          set of offsets in <span class="tex">\mathbb{Z}^d</span>
+          (<span class="tex">d = 1</span> or <span class="tex">2</span>). The base
+          and the available sites start as
+        </p>
+        <div class="tex">D_0 = \{0\}, \qquad S_0 = \{0\} \cup T,</div>
+        <p>
+          with one block on <span class="tex">0</span>:
+          <span class="tex">H(0, 0) = 1</span>. At each step
+          <span class="tex">n = 1, 2, \dots</span>:
+        </p>
+        <div class="tex">X_n \sim \mathrm{Uniform}(S_{n-1}), \qquad H(X_n, n) = H(X_n, n-1) + 1,</div>
+        <div class="tex">D_n = D_{n-1} \cup \{X_n\}, \qquad S_n = S_{n-1} \cup (X_n + T).</div>
+        <p>
+          So <span class="tex">S_n = \{0\} \cup (D_n + T)</span>, and after
+          <span class="tex">n</span> steps there are
+          <span class="tex">n + 1</span> blocks. The uniform choice of
+          <span class="tex">X_n</span> is the only randomness. In a domain
+          <span class="tex">\Omega</span>, sites outside
+          <span class="tex">\Omega</span> are never available; on a torus or a
+          cycle the offsets wrap around.
+        </p>
+        <p>
+          <strong>nadya's models</strong> are presets:
+          <span class="tex">T = \{-1, +1\}</span> is the two-sided mountain
+          (<code>randmountain.py</code>, <code>RandBlockStack.py</code>), where
+          <span class="tex">X_n</span> is uniform on the base interval or one site
+          past either end; <span class="tex">T = \{+1\}</span> is the one-sided
+          mountain (<code>randonesidedmountain.py</code>); and the 4 neighbors in
+          2D is the 2D mountain. For the two-sided mountain the base is an
+          interval of <span class="tex">L</span> sites, and it grows at the next
+          step with probability <span class="tex">2/(L+2)</span>.
+        </p>
+        <p>
+          <strong>The base is an Eden model.</strong> Given that the base grows at
+          a step, the new site is uniform on
+          <span class="tex">S_{n-1} \setminus D_{n-1} = (D_{n-1} + T) \setminus D_{n-1}</span>,
+          the outer boundary of the base. So the base, watched only at the steps
+          where it grows, is Eden's growth model [1] with the neighbors given by
+          <span class="tex">T</span>; the mountain adds the heights on top.
+        </p>
+        <p>
+          <strong>Random numbers.</strong> Step <span class="tex">n</span> uses a
+          uniform number <span class="tex">u_n \in [0, 1)</span> and picks site
+          number <span class="tex">\lfloor u_n |S_{n-1}| \rfloor</span>, as in
+          <code>randmountain.py</code>. In 1D the sites are counted from left to
+          right, as in the Python, so the same <span class="tex">u</span>'s give
+          exactly the same mountain; in 2D they are counted in the order they
+          became available. The <span class="tex">u_n</span> come from the
+          seeded generator seedrandom [2], and the same seed gives the same
+          <span class="tex">u_n</span> whatever the tile and domain.
+        </p>
+        <p>
+          <strong>On a graph.</strong> With "Hyperbolic plane or tree", the sites
+          are the cells of a graph <span class="tex">G</span>: the tiling
+          <span class="tex">\{p, q\}</span> of the hyperbolic plane by regular
+          <span class="tex">p</span>-gons, <span class="tex">q</span> at each corner,
+          which exists exactly when <span class="tex">1/p + 1/q &lt; 1/2</span> [3]
+          (cells are neighbors when they share a side), or the regular tree of
+          degree <span class="tex">d</span>, drawn as the tiling by ideal
+          <span class="tex">d</span>-gons. The tile is the ball
+          <span class="tex">T(x) = \{y \ne x : \mathrm{dist}_G(x, y) \le r\}</span>,
+          and the rule is the same: <span class="tex">S_n = \{o\} \cup \bigcup_{x \in D_n} T(x)</span>.
+          On the line and the square grid, <span class="tex">r = 1</span> gives
+          exactly the 1D and 2D mountains with
+          <span class="tex">T = \{-1, +1\}</span> and the 4 neighbors (the check
+          page grows both from the same <span class="tex">u_n</span> and compares
+          them block for block).
+        </p>
+        <p>
+          <strong>Why the mountain stays low there.</strong> These graphs are
+          non-amenable: there is a <span class="tex">c &gt; 0</span> with
+          <span class="tex">|\partial K| \ge c |K|</span> for every finite set of
+          cells <span class="tex">K</span>, where
+          <span class="tex">\partial K</span> is the set of cells next to
+          <span class="tex">K</span> but not in it [4]. With
+          <span class="tex">r = 1</span>, the available sites are
+          <span class="tex">D_n \cup \partial D_n</span>, so each step lands on a
+          new site with probability
+          <span class="tex">|\partial D_n| / (|D_n| + |\partial D_n|) \ge c/(1+c)</span>,
+          whatever happened before. So on average at least a fraction
+          <span class="tex">c/(1+c)</span> of the steps widen the base, which
+          grows in proportion to <span class="tex">n</span>, unlike on the line,
+          where the base after <span class="tex">n</span> steps is only of order
+          <span class="tex">\sqrt{n}</span> wide.
+        </p>
+        <p>
+          <strong>How the cells are made.</strong> The mountain's branches reach
+          far from the start (the base is spread out like a tree), further than
+          the computer's numbers can tell neighboring cells apart by their
+          positions: at distance 30 two neighbors differ only in about the 14th
+          digit. So the page builds the graph from its combinatorics instead.
+          Every cell has a kind, read off from which of its neighbors are
+          closer to the start, as close, or farther, and how the cells around
+          its corners sit. A hyperbolic tiling has only finitely many such kinds
+          (its "cone types" [5]), and a cell's kind decides its children's. The
+          page learns the kinds from the cells near the start, where positions
+          are precise, checks them against geometry 14 units out, and then
+          builds every cell from them with whole numbers only. For a few large
+          tilings (big <span class="tex">p</span> and <span class="tex">q</span>)
+          there are too many cells near the start to learn from, and the page
+          builds them by position, which works up to about distance 23; it says
+          so under the graph's options.
+        </p>
+        <p>
+          <strong>The pictures.</strong> The Poincar&eacute; disk
+          <span class="tex">\{|z| &lt; 1\}</span> and the upper half-plane
+          <span class="tex">\{\operatorname{Im} w &gt; 0\}</span> are two pictures
+          of the same plane: <span class="tex">w = i(1+z)/(1-z)</span> carries one
+          onto the other, taking hyperbolic lengths to hyperbolic lengths [6]. The
+          spread-out picture of a tree is the usual radial drawing: the cells at
+          distance <span class="tex">k</span> from the start sit on the circle of
+          radius <span class="tex">k</span>, and every cell's children share its
+          slice of the circle equally.
+        </p>
+        <p><strong>References</strong></p>
+        <ol class="references">
+          <li>M. Eden, &ldquo;A two-dimensional growth process&rdquo;, in
+            <em>Proceedings of the Fourth Berkeley Symposium on Mathematical
+            Statistics and Probability</em>, Vol. 4, University of California
+            Press, 1961, 223&ndash;239.</li>
+          <li>D. Bau, seedrandom.js,
+            <a href="https://github.com/davidbau/seedrandom">github.com/davidbau/seedrandom</a>.</li>
+          <li>H. S. M. Coxeter, <em>Regular Polytopes</em>, 3rd ed., Dover, 1973.</li>
+          <li>R. Lyons and Y. Peres, <em>Probability on Trees and Networks</em>,
+            Cambridge University Press, 2016, Chapter 6.</li>
+          <li>J. W. Cannon, &ldquo;The combinatorial structure of cocompact discrete
+            hyperbolic groups&rdquo;, <em>Geometriae Dedicata</em> 16 (1984),
+            123&ndash;148.</li>
+          <li>A. F. Beardon, <em>The Geometry of Discrete Groups</em>, Springer,
+            1983, Chapter 7.</li>
+        </ol>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <!-- KaTeX (https://katex.org) typesets the formulas. The version
+       number is fixed so an update can never change the site by surprise. -->
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/katex.min.js"></script>
+
+  <!-- The code the sims share (in js/, see the README): page helpers
+       (they also typeset the formulas, so they come after KaTeX), the
+       second thread's run loop, charts, colors, domains, the picture's
+       view (moving and zooming it), the hyperbolic tilings and trees and
+       their pictures, and the options and controls of the domain. Then
+       the growth rule (it runs in a second thread), then this page's
+       code. -->
+  <script src="../../js/sim-page.js"></script>
+  <script src="../../js/sim-worker.js"></script>
+  <script src="../../js/sim-charts.js"></script>
+  <script src="../../js/sim-colors.js"></script>
+  <script src="../../js/sim-domains.js"></script>
+  <script src="../../js/sim-view.js"></script>
+  <script src="../../js/sim-graphs.js"></script>
+  <script src="../../js/sim-hyperbolic.js"></script>
+  <script src="../../js/sim-controls.js"></script>
+  <script src="random-mountain-growth.js"></script>
+  <script src="random-mountain.js"></script>
+
+</body>
+</html>

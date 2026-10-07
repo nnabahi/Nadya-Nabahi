@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Random sequential packing — Toys n' Sims</title>
+  <link rel="stylesheet" href="../../css/style.css">
+  <!-- KaTeX's styles, for the typeset formulas. -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/katex.min.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <nav>
+      <a href="../../about.html">About Me</a>
+      <a href="../../resume.html">Resume</a>
+      <a href="../../index.html">Home</a>
+      <a href="../../publications.html">Publications</a>
+      <a href="../../toys.html" class="active">Toys n' Sims</a>
+    </nav>
+  </header>
+
+  <main class="page">
+    <p><a href="../../toys.html">&larr; All sims</a></p>
+    <h1>Random sequential packing</h1>
+
+    <!-- The four quadrants, as on every sim page (their layout is in
+         section 6 of css/style.css). All the behavior lives in
+         sequential-packing.js; the ids below (id="...") are how that
+         script finds each button and box. -->
+    <div class="quadrants">
+
+      <!-- UPPER LEFT: the packing. -->
+      <section class="quad quad-sim">
+        <h2>Simulation</h2>
+        <!-- The picture. sequential-packing.js sets its height to match
+             the window's shape. Point at a tile to see its numbers. -->
+        <!-- The picture, with the zoom buttons in its top right corner
+             (section 6b of sequential-packing.js). -->
+        <div class="sim-picture">
+          <canvas id="sim-canvas"></canvas>
+          <div class="zoom-buttons">
+            <button class="tool-button" id="zoom-in" title="Zoom in">+</button>
+            <button class="tool-button" id="zoom-out" title="Zoom out">&minus;</button>
+            <button class="tool-button" id="zoom-reset" title="Show the whole window once again">Reset</button>
+          </div>
+        </div>
+        <p class="muted small" id="hover-info">Point at a tile to see its numbers. Click an empty spot to add a tile there.</p>
+        <!-- Messages, e.g. a formula that can't be read. -->
+        <p class="muted" id="sim-message"></p>
+      </section>
+
+      <!-- UPPER RIGHT: settings. -->
+      <section class="quad quad-controls">
+        <!-- The heading, with a small "model check" button on the right
+             that opens the page testing this sim's math. -->
+        <h2 class="heading-with-button">Options
+          <a class="tool-button model-check" href="sequential-packing-check.html">model check</a></h2>
+
+        <h3 class="option-heading">Shapes</h3>
+        <div class="option-row">
+          Start from
+          <select id="preset">
+            <option value="gasket">Your gasket: disks in the unit disk</option>
+            <option value="s-model">Your s model: centers λ^s ζ</option>
+            <option value="squares">Squares in a square</option>
+            <option value="disks-in-square">Disks in a square</option>
+            <option value="stars">Stars in a heart (slow: not convex)</option>
+            <option value="custom" hidden>Your own formulas</option>
+          </select>
+        </div>
+
+        <!-- The three formulas. Any other letter gets a slider below.
+             While you point at or type in the S or T formula (box or
+             typeset preview), a small picture of S or T pops up above
+             it: class="shape-popup" in section 7 of css/style.css, drawn
+             by drawPreview in sequential-packing.js. -->
+        <p class="small">Domain <span class="tex">S</span>: the points <span class="tex">(x, y)</span> with</p>
+        <div class="formula-with-picture">
+          <input type="text" class="formula-input" id="formula-S" spellcheck="false">
+          <div class="formula-preview" id="preview-S"></div>
+          <canvas class="shape-popup" id="picture-S"></canvas>
+        </div>
+        <p class="small">Tile <span class="tex">T</span>, centered at <span class="tex">(0, 0)</span>: the points with</p>
+        <div class="formula-with-picture">
+          <input type="text" class="formula-input" id="formula-T" spellcheck="false">
+          <div class="formula-preview" id="preview-T"></div>
+          <canvas class="shape-popup" id="picture-T"></canvas>
+        </div>
+        <p class="small">Density <span class="tex">f(x, y)</span> of the centers (1 = uniform)</p>
+        <input type="text" class="formula-input" id="formula-f" spellcheck="false">
+        <div class="formula-preview" id="preview-f"></div>
+        <div id="sliders"></div>
+        <p class="muted small" id="formula-message"></p>
+
+        <div class="option-row">
+          Window: x from <input type="number" id="window-xmin" step="0.1">
+          to <input type="number" id="window-xmax" step="0.1">
+        </div>
+        <div class="option-row">
+          y from <input type="number" id="window-ymin" step="0.1">
+          to <input type="number" id="window-ymax" step="0.1">
+        </div>
+        <p class="muted small">S is looked for inside the window, and the window is what the
+          picture shows.</p>
+
+        <h3 class="option-heading">Run</h3>
+        <div class="option-row">
+          Attempts n = <input type="number" id="set-attempts" min="0" step="1" style="width: 7em">
+          <input type="range" class="wide-range" id="attempts-slider" min="0" max="6" step="0.01">
+        </div>
+        <div class="option-row">
+          <button class="tool-button" id="play">Play</button>
+          <button class="tool-button" id="step" title="One more attempt">Step</button>
+          <button class="tool-button" id="restart" title="Back to no tiles, same seed">Restart</button>
+        </div>
+        <div class="option-row">
+          Speed <input type="range" class="wide-range" id="speed" min="0" step="1">
+          <span class="muted" id="speed-label"></span>
+        </div>
+        <div class="option-row">
+          Seed <input type="text" id="seed" size="8">
+          <button class="tool-button" id="new-seed" title="A random new seed">New seed</button>
+        </div>
+        <p class="muted small">The same seed always gives the same packing. Every attempt has
+          its own random numbers, so dragging n only adds or removes tiles at the end, and a
+          small change to a formula or slider moves the picture a little.</p>
+
+        <h3 class="option-heading">Colors</h3>
+        <div class="option-row">
+          Color tiles by
+          <select id="color-by">
+            <option value="generation">generation</option>
+            <option value="degree">degree</option>
+            <option value="size">size</option>
+            <option value="order">order placed</option>
+          </select>
+        </div>
+      </section>
+
+      <!-- LOWER LEFT: numbers about this packing. -->
+      <section class="quad quad-stats">
+        <h2>Statistics</h2>
+        <table class="stats-table">
+          <tr><td>Attempts n</td><td id="stat-attempts"></td></tr>
+          <tr><td>Tiles placed</td><td id="stat-tiles"></td></tr>
+          <tr><td>Area of S covered</td><td id="stat-covered"></td></tr>
+          <tr><td>Largest generation</td><td id="stat-generation"></td></tr>
+          <tr><td>Largest degree</td><td id="stat-degree"></td></tr>
+          <tr><td>Degree of the edge of S</td><td id="stat-edge"></td></tr>
+        </table>
+
+        <h3 class="option-heading">Tiles placed against attempts (log-log)</h3>
+        <canvas class="chart" id="placed-chart"></canvas>
+        <h3 class="option-heading">Largest generation (line) and largest degree (dots) against tiles placed (log-log)</h3>
+        <canvas class="chart" id="records-chart"></canvas>
+        <h3 class="option-heading">Size R<sub>k</sub> of tile k against k (log-log)</h3>
+        <canvas class="chart" id="radii-chart"></canvas>
+        <h3 class="option-heading">Number of tiles with each number of children</h3>
+        <canvas class="chart" id="children-chart"></canvas>
+      </section>
+
+      <!-- LOWER RIGHT: about the model, in two tabs (js/sim-page.js
+           switches them). Text in class="tex" is typeset by KaTeX. -->
+      <section class="quad quad-about">
+        <h2>About the model</h2>
+        <nav class="about-tabs">
+          <button class="about-tab selected" data-tab="simple">Simple</button>
+          <button class="about-tab" data-tab="details">All the details</button>
+        </nav>
+
+        <div data-panel="simple">
+        <p>
+          Drop a random point in the domain. If it lands on a tile already
+          there, nothing happens. Otherwise a new tile grows around it,
+          <strong>as big as it can</strong>, until it touches the edge of the
+          domain or an earlier tile, and then it stays there for good. Repeat.
+        </p>
+        <p>
+          With disks in a disk this gives a random version of the Apollonian
+          gasket: a few big disks, and ever smaller ones filling the gaps.
+          The tile that stopped a new tile from growing is its
+          <strong>parent</strong>. Tiles stopped by the edge are generation 1,
+          their children generation 2, and so on.
+        </p>
+        <p>
+          <strong>Things to try:</strong> press Play; drag the number of
+          attempts; pick another start from the list; type your own domain,
+          tile or density (any extra letter, like <span class="tex">s</span>,
+          gets a slider); click an empty spot to grow a tile there yourself;
+          or change the colors. Zoom in with the mouse wheel,
+          a pinch, or the + and &minus; buttons to see the tiny tiles, and drag to
+          look around.
+        </p>
+        </div>
+
+        <div data-panel="details" hidden>
+        <p>
+          <strong>The model.</strong> <span class="tex">S</span> is a domain and
+          <span class="tex">T</span> a tile, star-shaped around
+          <span class="tex">0</span>; <span class="tex">rT + C</span> is
+          <span class="tex">T</span> scaled by <span class="tex">r</span> and
+          moved to <span class="tex">C</span>. The centers
+          <span class="tex">C_1, C_2, \dots</span> are independent, with density
+          proportional to <span class="tex">f</span> on
+          <span class="tex">S</span>. With <span class="tex">K_{n-1}</span> the
+          union of the first <span class="tex">n-1</span> tiles,
+        </p>
+        <div class="tex">R_n = \sup\{\, r \ge 0 : rT + C_n \subseteq \overline{S} \setminus \operatorname{int} K_{n-1} \,\},</div>
+        <p>
+          which is <span class="tex">0</span> when <span class="tex">C_n</span>
+          lands in an earlier tile, and tile <span class="tex">n</span> is
+          <span class="tex">D_n = R_n T + C_n</span>. For
+          <span class="tex">S = T</span> the unit disk this is
+        </p>
+        <div class="tex">\begin{aligned} R_n &amp;= \max\big(0,\ \min(1 - |C_n|,\ d_n)\big), \\ d_n &amp;= \min_{k &lt; n} \big(|C_n - C_k| - R_k\big), \end{aligned}</div>
+        <p>
+          a random version of the Apollonian gasket [1, 2]; growing until
+          blocked is the same idea as random sequential adsorption [3]. Your
+          <span class="tex">s</span> model, <span class="tex">C_n = \lambda_n^s \zeta_n</span>
+          with <span class="tex">\lambda_n</span> uniform on
+          <span class="tex">[0, 1]</span> and <span class="tex">\zeta_n</span>
+          uniform on the circle, has
+          <span class="tex">P(|C_n| \le \rho) = \rho^{1/s}</span>, so its density
+          in the plane is proportional to
+          <span class="tex">(x^2 + y^2)^{(1/s - 2)/2}</span>; at
+          <span class="tex">s = 1/2</span> it is uniform.
+        </p>
+        <p>
+          <strong>Parents and generations.</strong> The parent of tile
+          <span class="tex">n</span> is what it touches: the edge of
+          <span class="tex">S</span>, or an earlier tile. Touching two at once
+          has probability <span class="tex">0</span>, so the parents make a
+          tree with the edge as its root. The degree of a tile is its number
+          of children plus one (for its parent); the degree of the edge is its
+          number of children.
+        </p>
+        <p>
+          <strong>How <span class="tex">R_n</span> is computed.</strong> Let
+          <span class="tex">g(v) = \min\{\lambda : v \in \lambda T\}</span>, the
+          gauge of <span class="tex">T</span>; for the disk
+          <span class="tex">g(v) = |v|</span>, for the square
+          <span class="tex">\max(|v_1|, |v_2|)</span>. A point
+          <span class="tex">y</span> is inside <span class="tex">rT + C</span>
+          exactly when <span class="tex">g(y - C) &lt; r</span>, so
+          <span class="tex">R_n</span> is the smallest
+          <span class="tex">g(y - C_n)</span> over the points
+          <span class="tex">y</span> on the edge of <span class="tex">S</span>
+          and on the edges of earlier tiles. When <span class="tex">T</span> is
+          convex and symmetric, <span class="tex">aT + bT = (a+b)T</span> [4,
+          Section 3.1] and <span class="tex">g</span> is a norm [5, Section 15],
+          so the distance to tile <span class="tex">k</span> is exactly
+          <span class="tex">g(C_n - C_k) - R_k</span>, the disk formula with
+          <span class="tex">g</span> in place of
+          <span class="tex">|\cdot|</span>.
+        </p>
+        <p>
+          <strong>On the computer.</strong> <span class="tex">T</span> becomes
+          a polygon with 4096 corners, found by binary search on its formula.
+          The edge of <span class="tex">S</span> is traced by marching squares
+          [6] on a 512 &times; 512 grid and refined at curves and corners.
+          Nearby tiles are found with nested grids, each 4 times finer than
+          the last (a hierarchical grid [7]), so each attempt costs about the
+          same however many tiles there are. The centers are drawn by
+          rejection sampling [8]: each grid square gets a ceiling for
+          <span class="tex">f</span>, a square is picked in proportion to its
+          ceiling, then a point in it is kept with probability
+          <span class="tex">f / \text{ceiling}</span>. The check page,
+          <a href="sequential-packing-check.html">sequential-packing-check.html</a>,
+          compares all of this with your formula and with known answers.
+        </p>
+        <p><strong>References</strong></p>
+        <ol class="references">
+          <li>R. L. Graham, J. C. Lagarias, C. L. Mallows, A. R. Wilks,
+            C. H. Yan, &ldquo;Apollonian circle packings: geometry and group
+            theory I&rdquo;, <em>Discrete &amp; Computational Geometry</em> 34
+            (2005), 547&ndash;585.
+            <a href="https://doi.org/10.1007/s00454-005-1196-9">doi:10.1007/s00454-005-1196-9</a></li>
+          <li>N. Nabahi, notes on the random packing (unpublished).</li>
+          <li>J. W. Evans, &ldquo;Random and cooperative sequential
+            adsorption&rdquo;, <em>Reviews of Modern Physics</em> 65 (1993),
+            1281&ndash;1329.
+            <a href="https://doi.org/10.1103/RevModPhys.65.1281">doi:10.1103/RevModPhys.65.1281</a></li>
+          <li>R. Schneider, <em>Convex Bodies: The Brunn&ndash;Minkowski
+            Theory</em>, 2nd ed., Cambridge University Press, 2014.</li>
+          <li>R. T. Rockafellar, <em>Convex Analysis</em>, Princeton
+            University Press, 1970.</li>
+          <li>W. E. Lorensen, H. E. Cline, &ldquo;Marching cubes: a high
+            resolution 3D surface construction algorithm&rdquo;,
+            <em>SIGGRAPH</em> 1987, 163&ndash;169.
+            <a href="https://doi.org/10.1145/37401.37422">doi:10.1145/37401.37422</a></li>
+          <li>C. Ericson, <em>Real-Time Collision Detection</em>, Morgan
+            Kaufmann, 2005, Chapter 7.</li>
+          <li>L. Devroye, <em>Non-Uniform Random Variate Generation</em>,
+            Springer, 1986, Section II.3.</li>
+        </ol>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <!-- math.js (https://mathjs.org) reads the typed formulas, and KaTeX
+       (https://katex.org) typesets them. Version numbers are fixed so an
+       update can never change the site by surprise. -->
+  <script src="https://cdn.jsdelivr.net/npm/mathjs@15.2.0/lib/browser/math.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/katex.min.js"></script>
+
+  <!-- The code the sims share (in js/, see the README): page helpers
+       (they also typeset the formulas, so they come after KaTeX),
+       charts, the old site's colors, and reading formulas with sliders. Then the packing (it runs in a second thread), then this page. -->
+  <script src="../../js/sim-page.js"></script>
+  <script src="../../js/sim-charts.js"></script>
+  <script src="../../js/sim-colors.js"></script>
+  <script src="../../js/formulas.js"></script>
+  <script src="sequential-packing-growth.js"></script>
+  <script src="sequential-packing.js"></script>
+
+</body>
+</html>

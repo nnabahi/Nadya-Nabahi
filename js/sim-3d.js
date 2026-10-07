@@ -18,7 +18,7 @@
    written as a "module" (a file that says which other files it needs
    with "import"), so this file is a module too. A sim page loads it
    only when its 3D view is first switched on:
-       const sim3d = await import("../js/sim-3d.js");
+       const sim3d = await import("../../js/sim-3d.js");
    and the page's <script type="importmap"> says where on the internet
    "three" lives. Pages that never switch to 3D never load three.js.
 

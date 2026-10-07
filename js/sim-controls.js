@@ -106,12 +106,13 @@ function boxFromOptions(least, most, defaults) {
    2. THE GRAPH TOOL INSIDE A SIM PAGE
    ---------------------------------------------------------------------
    Choosing "Custom" swaps the picture for the graph tool, loaded in an
-   <iframe> (a page inside this page) as graph-tool.html?embed. The tool
-   sends its drawing every time it changes (listenToTool,
-   js/sim-page.js), and the line above it says, live, what is wrong
-   with the drawing, if anything (showToolStatus). Done uses the
-   drawing; Cancel goes back to the domain in use. The sim pauses while
-   the tool is open, and after Cancel it carries on if it was playing.
+   <iframe> (a page inside this page) from its own folder, as
+   ../graph-tool/graph-tool.html?embed. The tool sends its drawing
+   every time it changes (listenToTool, js/sim-page.js), and the line
+   above it says, live, what is wrong with the drawing, if anything
+   (showToolStatus). Done uses the drawing; Cancel goes back to the
+   domain in use. The sim pauses while the tool is open, and after
+   Cancel it carries on if it was playing.
 
    The page's HTML has the tool's box, id="custom-area" (hidden), with
    the line id="step-status", the buttons id="tool-done" and
@@ -160,7 +161,7 @@ function makeCustomTool(page) {
     if (wasPlaying) page.setPlaying(false);
     tool.isOpen = true;
     showPicture();
-    if (!frame.src) frame.src = "graph-tool.html?embed";             // the first time only
+    if (!frame.src) frame.src = "../graph-tool/graph-tool.html?embed";   // the first time only
     else frame.contentWindow.postMessage({ type: "unlock" }, "*");   // in case a sim locked it
     if (page.onOpen) page.onOpen();
     tool.check();

@@ -18,7 +18,7 @@
      7. Sim pages: options, statistics and charts
      8. Sim pages: the picture and its buttons
      9. Sim pages: the About box
-    10. The graph tool (sims/graph-tool.html), also inside a sim page
+    10. The graph tool (sims/graph-tool/graph-tool.html), also inside a sim page
     11. Check pages
     12. Phones and narrow screens
    ===================================================================== */
@@ -283,7 +283,7 @@ a.card:hover {
 /* =====================================================================
    6. Toys n' Sims: the four-quadrant layout
    ---------------------------------------------------------------------
-   HTML shape (see sims/random-walk-coloring.html):
+   HTML shape (see sims/random-walk-coloring/random-walk-coloring.html):
      <div class="quadrants">
        <section class="quad quad-sim">      main simulation     </section>
        <section class="quad quad-controls"> options / controls  </section>
@@ -359,7 +359,7 @@ a.card:hover {
    ---------------------------------------------------------------------
    The rows of options with their buttons, formulas and sliders, and the
    numbers and small charts in the Statistics box. The graph tool
-   (sims/graph-tool.html) uses the same option rows, formulas and
+   (sims/graph-tool/graph-tool.html) uses the same option rows, formulas and
    sliders.
    ===================================================================== */
 
@@ -534,7 +534,7 @@ a.card:hover {
 
 /* The random matrix products' matrices: the boxes of one matrix, laid
    out like the matrix itself, with its weight and a remove button
-   beside it (made by sims/random-matrix-products.js).
+   beside it (made by sims/random-matrix-products/random-matrix-products.js).
 
        M1   [ 0.9 ] [ 0.8 ]    weight       ×
             [ 0.1 ] [ 0.2 ]    [    ]
@@ -805,10 +805,10 @@ body.popup-open {
 
 
 /* =====================================================================
-   10. The graph tool (sims/graph-tool.html)
+   10. The graph tool (sims/graph-tool/graph-tool.html)
    ---------------------------------------------------------------------
    The buttons, color palette, drawing box and settings on the tool's
-   page. The drawing itself is styled in sims/graph-tool.js (section 3),
+   page. The drawing itself is styled in sims/graph-tool/graph-tool.js (section 3),
    because Cytoscape draws it, not the browser's CSS. At the end: the
    tool shown inside a sim page, for a custom domain.
    ===================================================================== */
@@ -997,7 +997,7 @@ body.embedded .graph-wrap {
 /* =====================================================================
    11. Check pages
    ---------------------------------------------------------------------
-   The check pages (like sims/random-mountain-check.html) test a sim's
+   The check pages (like sims/random-mountain/random-mountain-check.html) test a sim's
    math on its own.
    ===================================================================== */
 

@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Random matrix products — check page</title>
+  <link rel="stylesheet" href="../../css/style.css">
+</head>
+<body>
+
+  <!-- A test page for the random matrix products math
+       (random-matrix-products-math.js). It opens from the toy's "model check"
+       button. -->
+  <main class="page">
+    <p><a href="random-matrix-products.html">&larr; Back to the toy</a></p>
+    <h1>Random matrix products: check page</h1>
+    <p>
+      These tests check <code>random-matrix-products-math.js</code>, the math behind the toy.
+      Press the button; it takes a few seconds.
+      The random tests use new random numbers every time, so a correct program
+      still fails one of them about 1 time in 1000. If one fails, press the button again.
+    </p>
+
+    <p><button id="run-checks">Run the checks</button></p>
+
+    <table class="check-table">
+      <tbody id="results"></tbody>
+    </table>
+
+    <h2>Compare with your Desmos D13</h2>
+    <p>
+      The x coordinate after t steps for D13 (A = [[0.9, 0.8], [0.1, 0.2]],
+      B = [[0.6, 0.3], [0.4, 0.7]], each half the time, starting at (1, 0)), 20000 runs.
+      It should look like your D13 histogram with the same t and bin width.
+    </p>
+    <p>
+      t = <input type="number" id="hist-steps" value="20" min="0" max="200" style="width: 5em">
+      bin width = <input type="number" id="hist-bin" value="0.0005" step="0.0001" style="width: 7em">
+      <button id="hist-draw">Draw</button>
+    </p>
+    <canvas class="check-picture short" id="histogram"></canvas>
+  </main>
+
+  <!-- jStat, for the chi-square p-values; math.js (https://mathjs.org)
+       reads the typed entries; seedrandom's "alea" gives random numbers
+       that repeat for the same seed. Versions are fixed so an update can
+       never change the tests by surprise. -->
+  <script src="https://cdn.jsdelivr.net/npm/jstat@1.9.6/dist/jstat.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjs@15.2.0/lib/browser/math.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/seedrandom@3.0.5/lib/alea.min.js"></script>
+  <script src="../../js/sim-page.js"></script>
+  <script src="../../js/sim-charts.js"></script>
+  <script src="../../js/check-page.js"></script>
+  <script src="../../js/formulas.js"></script>
+  <script src="random-matrix-products-math.js"></script>
+  <script src="random-matrix-products-check.js"></script>
+</body>
+</html>
