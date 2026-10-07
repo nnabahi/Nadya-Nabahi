@@ -64,7 +64,7 @@ const BALL = { R: 6, most: 20, cells: 20000 };
 // unit, each cell's clock rings once on average). Infinity means "as
 // fast as the computer can".
 const SPEEDS = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, Infinity];
-const DEFAULT_SPEED = SPEEDS.indexOf(5);
+const DEFAULT_SPEED = 5;
 
 
 /* =====================================================================
@@ -81,8 +81,6 @@ let sliders = {};              // the sliders' numbers, by letter: { value, min,
 let colorNames = [];           // colorNames[c] = how opinion c is drawn, e.g. "#f2735a"
 let colorRGB = [];             // the same as [red, green, blue], 0 .. 255
 
-let playing = false;           // it starts paused; Play sets it going
-let speedIndex = DEFAULT_SPEED;
 let run = 0;                   // counts restarts, so leftovers from an older run are ignored
 let latest = null;             // the latest message from the worker (section 2 of voter-model-chain.js)
 
@@ -157,7 +155,7 @@ worker.onmessage = function (event) {
   const message = event.data;
   if (message.type !== "state" || message.run !== run) return;   // from an older run
   latest = message;
-  if (message.frozen && playing) setPlaying(false);
+  if (message.frozen && player.playing) player.setPlaying(false);
   drawSoon();
 };
 
@@ -176,7 +174,7 @@ function restart() {
     type: "setup", run: run, n: domain.n, first: domain.first, nbr: domain.nbr, x: domain.x,
     q: q, table: currentTable(), noise: noise, start: byId("start").value, seed: byId("seed").value,
   });
-  if (playing) worker.postMessage({ type: "play", speed: SPEEDS[speedIndex] });
+  player.carryOn();
 }
 
 // A new g, slider value or noise: the opinions carry on with them.
@@ -185,11 +183,9 @@ function sendParams() {
   worker.postMessage({ type: "params", table: currentTable(), noise: noise });
 }
 
-function setPlaying(on) {
-  playing = on;
-  worker.postMessage(on ? { type: "play", speed: SPEEDS[speedIndex] } : { type: "pause" });
-  showPlaying(on);
-}
+// Play / Pause, Step, Restart and the Speed slider (connectPlay,
+// js/sim-page.js). player.playing is true while the sim plays.
+const player = connectPlay(worker, SPEEDS, DEFAULT_SPEED, "unit of time", "units of time", restart);
 
 
 /* =====================================================================
@@ -294,8 +290,8 @@ function showStats() {
    ===================================================================== */
 const tool = makeCustomTool({
   view: view,
-  isPlaying: function () { return playing; },
-  setPlaying: setPlaying,
+  isPlaying: function () { return player.playing; },
+  setPlaying: player.setPlaying,
   check: function (drawing) {
     const cells = drawing.graph.vertices.length;
     return cells < 2 ? ["Paint at least two cells.", ""] : ["", cells + " cells."];
@@ -387,21 +383,6 @@ byId("formula-g").addEventListener("input", function () {
 // options (js/sim-controls.js).
 connectDomainChoice({ box: useBox, torus: useBox, custom: tool.open, graph: useGraph });
 
-// Play / Pause, Step, Restart.
-byId("play").addEventListener("click", function () { setPlaying(!playing); });
-byId("step").addEventListener("click", function () {
-  if (playing) setPlaying(false);
-  worker.postMessage({ type: "step" });
-});
-byId("restart").addEventListener("click", restart);
-
-// Speed.
-function showSpeed() { byId("speed-label").textContent = speedText(SPEEDS[speedIndex], "unit of time", "units of time"); }
-byId("speed").addEventListener("input", function () {
-  speedIndex = Number(this.value);
-  showSpeed();
-  if (playing) worker.postMessage({ type: "play", speed: SPEEDS[speedIndex] });
-});
 
 // Seed: the same seed gives the same run every time.
 connectSeed(restart);
@@ -412,9 +393,6 @@ fillDomainOptions(DEFAULTS, MAX_SIDE, BALL);
 byId("q-box").max = byId("q-slider").max = MAX_Q;
 byId("noise-slider").value = byId("noise-box").value = noise;
 byId("seed").value = DEFAULTS.seed;
-byId("speed").max = SPEEDS.length - 1;
-byId("speed").value = speedIndex;
-showSpeed();
 byId("preset").value = "voter";
 byId("formula-g").value = PRESETS.voter.g;
 readRule();
@@ -422,4 +400,4 @@ domain = boxDomain(DEFAULTS.width, DEFAULTS.height, DEFAULTS.neighbors, true);
 useTorus(view, true);
 showDomainChoice();
 setQ(DEFAULTS.q);    // sets the colors and starts the first run
-setPlaying(false);   // paused: press Play
+player.setPlaying(false);   // paused: press Play

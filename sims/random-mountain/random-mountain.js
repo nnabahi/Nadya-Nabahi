@@ -91,7 +91,7 @@ const OUTSIDE = "#ffffff";        // everything else
 // "as fast as the computer can". The default is slow, so you can watch
 // every block land.
 const SPEEDS = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 5000, 20000, 100000, Infinity];
-const DEFAULT_SPEED = SPEEDS.indexOf(20);
+const DEFAULT_SPEED = 20;
 
 
 /* =====================================================================
@@ -102,8 +102,6 @@ let dim = 1;                 // 1 or 2
 let tile = [];               // the offsets, e.g. [[-1], [1]] or [[1, 0], ...]
 let domainKind = "whole";    // "whole", "box", "torus" or "custom"
 let customDomain = null;     // the last custom domain drawn (js/sim-domains.js), if any
-let playing = false;         // it starts paused; Play sets it going
-let speedIndex = DEFAULT_SPEED;
 let run = 0;                 // counts restarts, so leftovers from an older run are ignored
 let show3D = false;          // 2D only: the 3D view instead of the view from above (section 6c)
 let blockShape = "cubes";    // the 3D view's blocks: "cubes" or "coins"
@@ -336,8 +334,8 @@ worker.onmessage = function (event) {
   }
   latest = message;
   showMessage(message.problem);
-  if (message.atMax && playing) {
-    setPlaying(false);
+  if (message.atMax && player.playing) {
+    player.setPlaying(false);
     showMessage("That's the most steps this page goes to.");
   }
   drawSoon();
@@ -372,14 +370,12 @@ function restart(keepStep, forget) {
       seed: byId("seed").value, steps: steps, forgetClicks: forgetClicks,
     });
   }
-  if (playing) worker.postMessage({ type: "play", speed: SPEEDS[speedIndex] });
+  player.carryOn();
 }
 
-function setPlaying(on) {
-  playing = on;
-  worker.postMessage(on ? { type: "play", speed: SPEEDS[speedIndex] } : { type: "pause" });
-  showPlaying(on);
-}
+// Play / Pause, Step, Restart and the Speed slider (connectPlay,
+// js/sim-page.js). player.playing is true while the sim plays.
+const player = connectPlay(worker, SPEEDS, DEFAULT_SPEED, "block", "blocks", function () { restart(false); });
 
 
 /* =====================================================================
@@ -634,7 +630,7 @@ function clickAt(event) {
   const px = event.clientX - box.left, py = event.clientY - box.top;
   const site = siteUnder(px, py);
   if (site >= 0) {
-    if (playing) setPlaying(false);
+    if (player.playing) player.setPlaying(false);
     worker.postMessage({ type: "click", site: site });
   } else {
     showMessage("A block can only land on an available site: one with blocks, or a gray one next to them.");
@@ -969,8 +965,8 @@ function showStats() {
    ===================================================================== */
 const tool = makeCustomTool({
   view: view,
-  isPlaying: function () { return playing; },
-  setPlaying: setPlaying,
+  isPlaying: function () { return player.playing; },
+  setPlaying: player.setPlaying,
   showPicture: showPictureKind,     // the 2D or 3D picture hides while the tool is open
   check: function (drawing) {
     const cells = drawing.graph.vertices.length;
@@ -1020,23 +1016,9 @@ for (const id of ["set-width", "set-height"]) {
   byId(id).addEventListener("change", function () { restart(true); });
 }
 
-// Play / Pause, Step, Restart, Go to step.
-byId("play").addEventListener("click", function () { setPlaying(!playing); });
-byId("step").addEventListener("click", function () {
-  if (playing) setPlaying(false);
-  worker.postMessage({ type: "step" });
-});
-byId("restart").addEventListener("click", function () { restart(false); });
+// Go to step.
 byId("goto").addEventListener("click", function () {
   worker.postMessage({ type: "goto", steps: readWhole("goto-steps", 0, 10000000, 0) });
-});
-
-// Speed.
-function showSpeed() { byId("speed-label").textContent = speedText(SPEEDS[speedIndex], "block", "blocks"); }
-byId("speed").addEventListener("input", function () {
-  speedIndex = Number(this.value);
-  showSpeed();
-  if (playing) worker.postMessage({ type: "play", speed: SPEEDS[speedIndex] });
 });
 
 // Seed: the same seed gives the same mountain every time.
@@ -1046,10 +1028,7 @@ connectSeed(function () { restart(true, true); });
 // --- Start ------------------------------------------------------------
 byId("seed").value = DEFAULT_SEED;
 byId("goto-steps").value = 1000;
-byId("speed").max = SPEEDS.length - 1;
-byId("speed").value = speedIndex;
-showSpeed();
 showStretch();
 showGraphPresets(useGraph);
 setDimension(1);
-setPlaying(false);   // paused: press Play
+player.setPlaying(false);   // paused: press Play

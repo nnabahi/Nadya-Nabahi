@@ -58,7 +58,7 @@ const UNCOLORED_DOT = "#c9c6bf";
 // unit of time, in both models). Infinity means "as fast as the
 // computer can". The default is slow, so you can watch every step.
 const SPEEDS = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, Infinity];
-const DEFAULT_SPEED = SPEEDS.indexOf(5);
+const DEFAULT_SPEED = 5;
 
 
 /* =====================================================================
@@ -75,8 +75,6 @@ let colorNames = [];            // colorNames[i] = how color i is drawn, e.g. "#
 let colorRGB = [];              // the same colors as [red, green, blue], 0..255
 let showWalkers = true;         // the "Show walkers" box
 
-let playing = false;            // it starts paused; Play sets it going
-let speedIndex = DEFAULT_SPEED;
 let run = 0;                    // counts restarts, so leftovers from an older run are ignored
 
 // The latest message from the walkers: the colors, where the walkers
@@ -192,7 +190,7 @@ worker.onmessage = function (event) {
   const message = event.data;
   if (message.type !== "state" || message.run !== run) return;   // from an older run
   latest = message;
-  if (message.done && playing) setPlaying(false);
+  if (message.done && player.playing) player.setPlaying(false);
   drawSoon();
 };
 
@@ -212,14 +210,12 @@ function restart() {
     n: domain.n, first: domain.first, nbr: domain.nbr,
     starts: Int32Array.from(starts), model: model, seed: byId("seed").value,
   });
-  if (playing) worker.postMessage({ type: "play", speed: SPEEDS[speedIndex] });
+  player.carryOn();
 }
 
-function setPlaying(on) {
-  playing = on;
-  worker.postMessage(on ? { type: "play", speed: SPEEDS[speedIndex] } : { type: "pause" });
-  showPlaying(on);
-}
+// Play / Pause, Step, Restart and the Speed slider (connectPlay,
+// js/sim-page.js). player.playing is true while the sim plays.
+const player = connectPlay(worker, SPEEDS, DEFAULT_SPEED, "step", "steps", restart);
 
 
 /* =====================================================================
@@ -407,7 +403,7 @@ simCanvas.style.touchAction = "none";
 // The walker under the pointer (the one drawn on top), or -1. Only
 // before the run has started, while paused.
 function walkerUnder(spot) {
-  if (!latest || !showWalkers || playing || started()) return -1;
+  if (!latest || !showWalkers || player.playing || started()) return -1;
   for (let i = N - 1; i >= 0; i--) {
     for (const w of walkerSpots(i)) {
       if (Math.hypot(w.x - spot.x, w.y - spot.y) <= w.r + 3) return i;
@@ -647,8 +643,8 @@ function drawPerimeterChart(regions) {
    ===================================================================== */
 const tool = makeCustomTool({
   view: view,
-  isPlaying: function () { return playing; },
-  setPlaying: setPlaying,
+  isPlaying: function () { return player.playing; },
+  setPlaying: player.setPlaying,
   check: function (drawing) {
     if (drawing.graph.vertices.length === 0) return ["Paint the region first.", ""];
     const region = drawnDomain(drawing.graph, drawing.grid);
@@ -734,21 +730,6 @@ byId("show-walkers").addEventListener("change", function () {
   drawSoon();
 });
 
-// Play / Pause, Step, Restart.
-byId("play").addEventListener("click", function () { setPlaying(!playing); });
-byId("step").addEventListener("click", function () {
-  if (playing) setPlaying(false);
-  worker.postMessage({ type: "step" });
-});
-byId("restart").addEventListener("click", restart);
-
-// Speed.
-function showSpeed() { byId("speed-label").textContent = speedText(SPEEDS[speedIndex], "step", "steps"); }
-byId("speed").addEventListener("input", function () {
-  speedIndex = Number(this.value);
-  showSpeed();
-  if (playing) worker.postMessage({ type: "play", speed: SPEEDS[speedIndex] });
-});
 
 // Seed: the same seed gives the same run every time.
 connectSeed(restart);
@@ -758,8 +739,5 @@ connectSeed(restart);
 fillDomainOptions(DEFAULTS, MAX_SIDE, BALL);
 byId("set-walkers").max = byId("walkers-slider").max = MAX_WALKERS;
 byId("seed").value = DEFAULTS.seed;
-byId("speed").max = SPEEDS.length - 1;
-byId("speed").value = speedIndex;
-showSpeed();
 useBox();
-setPlaying(false);   // paused: drag the walkers, then press Play
+player.setPlaying(false);   // paused: drag the walkers, then press Play

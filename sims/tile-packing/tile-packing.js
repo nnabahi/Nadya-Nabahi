@@ -60,7 +60,7 @@ const SMALLEST_BORDERED_CELL = 4; // cells smaller than this (in pixels) get no 
 // "as fast as the computer can". The default is slow, so you can watch
 // every move.
 const SPEEDS = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 5000, Infinity];
-const DEFAULT_SPEED = SPEEDS.indexOf(5);
+const DEFAULT_SPEED = 5;
 
 
 /* =====================================================================
@@ -72,8 +72,6 @@ let domain = null;              // the domain (js/sim-domains.js)
 let customDomain = null;        // the last custom domain drawn, if any
 let tiles = [];                 // the tiles: [{ w, h, weight }, ...]
 
-let playing = false;            // it starts paused; Play sets it going
-let speedIndex = DEFAULT_SPEED;
 let run = 0;                    // counts restarts, so leftovers from an older run are ignored
 
 let placements = null;          // the chain's list of tile positions (section 1 of the chain)
@@ -129,7 +127,7 @@ function restart() {
     workLimit: WORK_LIMIT, seed: byId("seed").value,
   });
   worker.postMessage({ type: "heat", on: showingAverage() });
-  if (playing) worker.postMessage({ type: "play", speed: SPEEDS[speedIndex] });
+  player.carryOn();
 }
 
 // The mean radius and the refill limit change how fast the chain mixes,
@@ -156,11 +154,9 @@ function readRadius() {
   return r;
 }
 
-function setPlaying(on) {
-  playing = on;
-  worker.postMessage(on ? { type: "play", speed: SPEEDS[speedIndex] } : { type: "pause" });
-  showPlaying(on);
-}
+// Play / Pause, Step, Restart and the Speed slider (connectPlay,
+// js/sim-page.js). player.playing is true while the sim plays.
+const player = connectPlay(worker, SPEEDS, DEFAULT_SPEED, "move", "moves", restart);
 
 
 /* =====================================================================
@@ -433,8 +429,8 @@ function drawCoverChart() {
    ===================================================================== */
 const tool = makeCustomTool({
   view: view,
-  isPlaying: function () { return playing; },
-  setPlaying: setPlaying,
+  isPlaying: function () { return player.playing; },
+  setPlaying: player.setPlaying,
   check: function (drawing) {
     const cells = drawing.graph.vertices.length;
     return cells === 0 ? ["Paint the region first.", ""] : ["", cells + " cells."];
@@ -616,21 +612,6 @@ for (const radio of document.querySelectorAll('input[name="show"]')) {
 }
 byId("reset-average").addEventListener("click", function () { worker.postMessage({ type: "resetHeat" }); });
 
-// Play / Pause, Step, Restart.
-byId("play").addEventListener("click", function () { setPlaying(!playing); });
-byId("step").addEventListener("click", function () {
-  if (playing) setPlaying(false);
-  worker.postMessage({ type: "step" });
-});
-byId("restart").addEventListener("click", restart);
-
-// Speed.
-function showSpeed() { byId("speed-label").textContent = speedText(SPEEDS[speedIndex], "move", "moves"); }
-byId("speed").addEventListener("input", function () {
-  speedIndex = Number(this.value);
-  showSpeed();
-  if (playing) worker.postMessage({ type: "play", speed: SPEEDS[speedIndex] });
-});
 
 // Seed: the same seed gives the same run every time.
 connectSeed(restart);
@@ -643,10 +624,7 @@ byId("set-order").max = MAX_ORDER;
 byId("set-radius").value = byId("radius-slider").value = DEFAULTS.radius;
 byId("set-limit").value = DEFAULTS.limit;
 byId("seed").value = DEFAULTS.seed;
-byId("speed").max = SPEEDS.length - 1;
-byId("speed").value = speedIndex;
-showSpeed();
 showGapsInfo();
 usePreset(DEFAULT_PRESET);
 useBox();
-setPlaying(false);   // paused: press Play
+player.setPlaying(false);   // paused: press Play

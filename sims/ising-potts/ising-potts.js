@@ -55,7 +55,7 @@ const BALL = { R: 6, most: 20, cells: 20000 };
 // cell updated once on average, or one Swendsen-Wang step). Infinity
 // means "as fast as the computer can".
 const SPEEDS = [1, 2, 5, 10, 20, 50, 100, 200, 500, Infinity];
-const DEFAULT_SPEED = SPEEDS.indexOf(5);
+const DEFAULT_SPEED = 5;
 
 
 /* =====================================================================
@@ -71,8 +71,6 @@ let h = DEFAULTS.h;            // the field (pushes cells toward color 1)
 let colorNames = [];           // colorNames[k] = how color k is drawn, e.g. "#f2735a"
 let colorRGB = [];             // the same as [red, green, blue], 0 .. 255
 
-let playing = false;           // it starts paused; Play sets it going
-let speedIndex = DEFAULT_SPEED;
 let run = 0;                   // counts restarts, so leftovers from an older run are ignored
 let latest = null;             // the latest message from the chain (section 2 of ising-potts-chain.js)
 
@@ -109,7 +107,7 @@ function restart() {
     q: q, beta: beta, h: h, dynamics: checked("dynamics"), start: byId("start").value,
     seed: byId("seed").value,
   });
-  if (playing) worker.postMessage({ type: "play", speed: SPEEDS[speedIndex] });
+  player.carryOn();
 }
 
 // New beta, h or dynamics: the chain carries on with them.
@@ -117,11 +115,9 @@ function sendParams() {
   worker.postMessage({ type: "params", beta: beta, h: h, dynamics: checked("dynamics") });
 }
 
-function setPlaying(on) {
-  playing = on;
-  worker.postMessage(on ? { type: "play", speed: SPEEDS[speedIndex] } : { type: "pause" });
-  showPlaying(on);
-}
+// Play / Pause, Step, Restart and the Speed slider (connectPlay,
+// js/sim-page.js). player.playing is true while the sim plays.
+const player = connectPlay(worker, SPEEDS, DEFAULT_SPEED, "sweep", "sweeps", restart);
 
 
 /* =====================================================================
@@ -236,8 +232,8 @@ function showStats() {
    ===================================================================== */
 const tool = makeCustomTool({
   view: view,
-  isPlaying: function () { return playing; },
-  setPlaying: setPlaying,
+  isPlaying: function () { return player.playing; },
+  setPlaying: player.setPlaying,
   check: function (drawing) {
     const cells = drawing.graph.vertices.length;
     return cells < 2 ? ["Paint at least two cells.", ""] : ["", cells + " cells."];
@@ -341,21 +337,6 @@ byId("start").addEventListener("change", restart);
 // options (js/sim-controls.js).
 connectDomainChoice({ box: useBox, torus: useBox, custom: tool.open, graph: useGraph });
 
-// Play / Pause, Step, Restart.
-byId("play").addEventListener("click", function () { setPlaying(!playing); });
-byId("step").addEventListener("click", function () {
-  if (playing) setPlaying(false);
-  worker.postMessage({ type: "step" });
-});
-byId("restart").addEventListener("click", restart);
-
-// Speed.
-function showSpeed() { byId("speed-label").textContent = speedText(SPEEDS[speedIndex], "sweep", "sweeps"); }
-byId("speed").addEventListener("input", function () {
-  speedIndex = Number(this.value);
-  showSpeed();
-  if (playing) worker.postMessage({ type: "play", speed: SPEEDS[speedIndex] });
-});
 
 // Seed: the same seed gives the same run every time.
 connectSeed(restart);
@@ -370,11 +351,8 @@ byId("h-box").max = byId("h-slider").max = MAX_FIELD;
 byId("beta-slider").value = byId("beta-box").value = beta;
 byId("h-slider").value = byId("h-box").value = h;
 byId("seed").value = DEFAULTS.seed;
-byId("speed").max = SPEEDS.length - 1;
-byId("speed").value = speedIndex;
-showSpeed();
 domain = boxDomain(DEFAULTS.width, DEFAULTS.height, DEFAULTS.neighbors, true);
 useTorus(view, true);
 showDomainChoice();
 setQ(DEFAULTS.q);    // sets the colors and starts the first run
-setPlaying(false);   // paused: press Play
+player.setPlaying(false);   // paused: press Play

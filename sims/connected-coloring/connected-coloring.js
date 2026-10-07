@@ -57,7 +57,7 @@ const BALL = { R: 5, most: 20, cells: 20000 };
 // Infinity means "as fast as the computer can". The default is low, so
 // you can follow the moves; the Speed slider goes faster.
 const SPEEDS = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, Infinity];
-const DEFAULT_SPEED = SPEEDS.indexOf(10);
+const DEFAULT_SPEED = 10;
 
 
 /* =====================================================================
@@ -72,8 +72,6 @@ let colorNames = [];           // colorNames[c] = how color c is drawn, e.g. "#c
 let drawnStart = null;         // your own starting coloring, or null for the automatic one
 let startShape = "";           // what the start was: "rectangles", "blocks" or "yours"
 
-let playing = false;           // it starts paused, showing the start; Play sets it going
-let speedIndex = DEFAULT_SPEED;
 let run = 0;                   // counts restarts, so leftovers from an older run are ignored
 
 // The latest coloring and numbers from the chain.
@@ -212,16 +210,14 @@ function restart() {
     n: domain.n, first: domain.first, nbr: domain.nbr,
     colors: colors, N: N, seed: byId("seed").value,
   });
-  if (playing) worker.postMessage({ type: "play", speed: SPEEDS[speedIndex] });
+  player.carryOn();
   showStartInfo();
   drawSoon();
 }
 
-function setPlaying(on) {
-  playing = on;
-  worker.postMessage(on ? { type: "play", speed: SPEEDS[speedIndex] } : { type: "pause" });
-  showPlaying(on);
-}
+// Play / Pause, Step, Restart and the Speed slider (connectPlay,
+// js/sim-page.js). player.playing is true while the sim plays.
+const player = connectPlay(worker, SPEEDS, DEFAULT_SPEED, "move", "moves", restart);
 
 
 /* =====================================================================
@@ -558,8 +554,8 @@ function checkDrawing(drawing) {
 // Cancel: back to whatever was running before.
 const tool = makeCustomTool({
   view: view,
-  isPlaying: function () { return playing; },
-  setPlaying: setPlaying,
+  isPlaying: function () { return player.playing; },
+  setPlaying: player.setPlaying,
   onOpen: function () { showStep(1); },
   buttons: ["use-auto", "draw-own", "tool-done"],
   check: checkDrawing,
@@ -687,21 +683,6 @@ function setColorCount(value) {
 byId("colors-slider").addEventListener("input", function () { setColorCount(Number(this.value)); });
 byId("set-colors").addEventListener("change", function () { setColorCount(Number(this.value)); });
 
-// Play / Pause, Step, Restart.
-byId("play").addEventListener("click", function () { setPlaying(!playing); });
-byId("step").addEventListener("click", function () {
-  if (playing) setPlaying(false);
-  worker.postMessage({ type: "step" });
-});
-byId("restart").addEventListener("click", restart);
-
-// Speed.
-function showSpeed() { byId("speed-label").textContent = speedText(SPEEDS[speedIndex], "move", "moves"); }
-byId("speed").addEventListener("input", function () {
-  speedIndex = Number(this.value);
-  showSpeed();
-  if (playing) worker.postMessage({ type: "play", speed: SPEEDS[speedIndex] });
-});
 
 // Seed: the same seed gives the same run every time.
 connectSeed(restart);
@@ -710,8 +691,5 @@ connectSeed(restart);
 // --- Start ------------------------------------------------------------
 fillDomainOptions(DEFAULTS, MAX_SIDE, BALL);
 byId("seed").value = DEFAULTS.seed;
-byId("speed").max = SPEEDS.length - 1;
-byId("speed").value = speedIndex;
-showSpeed();
 useBox();
-setPlaying(false);   // paused: press Play to start
+player.setPlaying(false);   // paused: press Play to start

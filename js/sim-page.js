@@ -13,6 +13,7 @@
      oncePerFrame(draw)               draw at the next screen refresh
      showPlaying(on)                  the Play button, while it plays
      speedText(speed, one, many)      "5 moves per second", for the Speed slider
+     connectPlay(worker, speeds, ...)  Play / Pause, Step, Restart and Speed
      connectSeed(onChange)            the Seed box and its New seed button
      listenToTool(frame, useDrawing)  the drawing tool inside a sim page,
      showToolStatus(problem, good, buttons)   and the line that checks its drawing
@@ -94,6 +95,48 @@ function showPlaying(on) {
 function speedText(speed, one, many) {
   if (speed === Infinity) return "as fast as possible";
   return speed.toLocaleString() + " " + (speed === 1 ? one : many) + " per second";
+}
+
+// Play / Pause, Step, Restart and the Speed slider, for a sim whose math
+// runs in a second thread on the shared run loop (makeRunLoop,
+// js/sim-worker.js), which understands "play", "pause" and "step".
+//   speeds      the Speed slider's stops, per second (Infinity = as fast
+//               as possible); startSpeed is one of them
+//   one, many   what one step is called, e.g. "sweep" and "sweeps"
+//   restart()   what the Restart button does
+// Returns "player": player.playing is true while the sim plays,
+// player.setPlaying(on) plays or pauses, and player.carryOn() tells a
+// freshly restarted run to play if the sim was playing.
+// (Sandpiles and percolation run differently and have their own.)
+function connectPlay(worker, speeds, startSpeed, one, many, restart) {
+  const player = { playing: false };
+  let speedIndex = speeds.indexOf(startSpeed);
+  function sendPlay() { worker.postMessage({ type: "play", speed: speeds[speedIndex] }); }
+  function showSpeed() { byId("speed-label").textContent = speedText(speeds[speedIndex], one, many); }
+
+  player.setPlaying = function (on) {
+    player.playing = on;
+    if (on) sendPlay(); else worker.postMessage({ type: "pause" });
+    showPlaying(on);
+  };
+  player.carryOn = function () { if (player.playing) sendPlay(); };
+
+  byId("play").addEventListener("click", function () { player.setPlaying(!player.playing); });
+  byId("step").addEventListener("click", function () {
+    if (player.playing) player.setPlaying(false);
+    worker.postMessage({ type: "step" });
+  });
+  byId("restart").addEventListener("click", function () { restart(); });
+
+  byId("speed").max = speeds.length - 1;
+  byId("speed").value = speedIndex;
+  showSpeed();
+  byId("speed").addEventListener("input", function () {
+    speedIndex = Number(this.value);
+    showSpeed();
+    if (player.playing) sendPlay();
+  });
+  return player;
 }
 
 // The Seed box (id="seed") and its "New seed" button (id="new-seed"):
