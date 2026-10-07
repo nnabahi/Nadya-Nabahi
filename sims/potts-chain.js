@@ -212,25 +212,12 @@ function pottsWorker() {
 
   let chain = null, dynamics = "heat", run = 0, time = 0;
 
-  // The run so far, for the plots over time: one sample every
-  // "traceGap" sweeps; past MAX_SAMPLES every other one is dropped and
-  // the gap doubles, so a long run keeps evenly spaced samples.
-  const MAX_SAMPLES = 1000;
-  let traceTimes = [], traceAgree = [], traceCounts = [], traceGap = 1, nextSample = 0;
+  // The run so far, for the plots over time (keepSample,
+  // js/sim-worker.js).
+  let trace = newTrace();
 
   function takeSample() {
-    if (time < nextSample) return;
-    traceTimes.push(time);
-    traceAgree.push(chain.agree / Math.max(chain.pairs, 1));
-    for (let k = 0; k < chain.q; k++) traceCounts.push(chain.counts[k]);
-    nextSample = time + traceGap;
-    if (traceTimes.length > MAX_SAMPLES) {
-      const q = chain.q;
-      traceTimes = traceTimes.filter(function (t, k) { return k % 2 === 0; });
-      traceAgree = traceAgree.filter(function (t, k) { return k % 2 === 0; });
-      traceCounts = traceCounts.filter(function (t, k) { return Math.floor(k / q) % 2 === 0; });
-      traceGap *= 2;
-    }
+    keepSample(trace, time, { agree: chain.agree / Math.max(chain.pairs, 1), counts: chain.counts });
   }
 
   function setup(m) {
@@ -243,7 +230,7 @@ function pottsWorker() {
     chain = newPotts({ n: m.n, first: m.first, nbr: m.nbr, q: m.q, beta: m.beta, h: m.h,
                        colors: colors, random: new Math.seedrandom(seed + " chain") });
     time = 0;
-    traceTimes = []; traceAgree = []; traceCounts = []; traceGap = 1; nextSample = 0;
+    trace = newTrace();
     takeSample();
   }
 
@@ -253,37 +240,18 @@ function pottsWorker() {
     takeSample();
   }
 
-  let playing = false, speed = 5, owed = 0, lastTick = 0, timer = null, lastReported = -1;
-  const TICK_BUDGET = 25;   // milliseconds of work between two reports
+  // Play, Pause and Speed: the run loop (js/sim-worker.js).
+  const loop = makeRunLoop(oneSweep, report);
+  let lastReported = -1;
 
   self.onmessage = function (event) {
     const m = event.data;
-    if (m.type === "setup") { stop(); setup(m); lastReported = -1; report(); }
+    if (m.type === "setup") { loop.pause(); setup(m); lastReported = -1; report(); }
     else if (m.type === "params") { chain.beta = m.beta; chain.h = m.h; dynamics = m.dynamics; }
-    else if (m.type === "play") {
-      speed = m.speed;
-      if (!playing) { playing = true; owed = 0; lastTick = performance.now(); timer = setTimeout(tick, 0); }
-    }
-    else if (m.type === "pause") stop();
+    else if (m.type === "play") loop.play(m.speed);
+    else if (m.type === "pause") loop.pause();
     else if (m.type === "step") { oneSweep(); report(); }
   };
-
-  function stop() { playing = false; clearTimeout(timer); }
-
-  // Make the sweeps that are due (at most TICK_BUDGET ms of work), send
-  // the result to the page, and come back a moment later.
-  function tick() {
-    const now = performance.now(), until = now + TICK_BUDGET;
-    if (speed === Infinity) {
-      do oneSweep(); while (performance.now() < until);
-    } else {
-      owed = Math.min(owed + speed * (now - lastTick) / 1000, speed);   // at most 1 second behind
-      while (owed >= 1 && performance.now() < until) { oneSweep(); owed--; }
-    }
-    lastTick = now;
-    report();
-    if (playing) timer = setTimeout(tick, 10);
-  }
 
   function report() {
     if (time === lastReported) return;   // nothing new to show
@@ -292,8 +260,8 @@ function pottsWorker() {
     self.postMessage({
       type: "state", run: run, time: time, colors: colors,
       counts: chain.counts.slice(), agree: chain.agree, pairs: chain.pairs,
-      traceTimes: Float64Array.from(traceTimes), traceAgree: Float64Array.from(traceAgree),
-      traceCounts: Int32Array.from(traceCounts),
+      traceTimes: Float64Array.from(trace.times), traceAgree: Float64Array.from(trace.lists.agree),
+      traceCounts: Int32Array.from(trace.lists.counts),
     }, [colors.buffer]);   // hand the copy over instead of copying again
   }
 }

@@ -124,9 +124,7 @@ function walkWorker() {
     if (colored === n) coverTime = 0;
     if (model === "continuous") nextRing = waitingTime();
 
-    traceTimes = []; traceInterface = []; traceSizes = [];
-    traceGap = 1;
-    nextSample = 0;
+    trace = newTrace();
     takeSample();
   }
 
@@ -221,28 +219,13 @@ function walkWorker() {
   /* ===================================================================
      4. THE RUN SO FAR, FOR THE PLOTS OVER TIME
      -------------------------------------------------------------------
-     A "sample" is the time, the interface and the size of each color.
-     One is taken every traceGap steps. When there are more than
-     MAX_SAMPLES, every other one is dropped and traceGap doubles, so a
-     long run keeps evenly spaced samples from start to end.
+     A sample is the time, the interface and the size of each color,
+     kept by keepSample (js/sim-worker.js), and always one at the end.
      =================================================================== */
-  const MAX_SAMPLES = 1000;
-  let traceTimes = [], traceInterface = [], traceSizes = [];   // traceSizes: N numbers per sample
-  let traceGap = 1;
-  let nextSample = 0;
+  let trace = newTrace();
 
   function takeSample() {
-    if (time < nextSample && colored < n) return;
-    traceTimes.push(time);
-    traceInterface.push(interfaceEdges);
-    for (let i = 0; i < N; i++) traceSizes.push(sizes[i]);
-    nextSample = time + traceGap;
-    if (traceTimes.length > MAX_SAMPLES) {
-      traceTimes = traceTimes.filter(function (t, k) { return k % 2 === 0; });
-      traceInterface = traceInterface.filter(function (t, k) { return k % 2 === 0; });
-      traceSizes = traceSizes.filter(function (t, k) { return Math.floor(k / N) % 2 === 0; });
-      traceGap *= 2;
-    }
+    keepSample(trace, time, { interfaceEdges: interfaceEdges, sizes: sizes }, colored === n);
   }
 
 
@@ -258,59 +241,27 @@ function walkWorker() {
      The worker answers with "state" messages: the colors, where the
      walkers are, and the numbers for the Statistics quadrant. Each one
      carries its run number, so the page can ignore leftovers from an
-     older run. It stops by itself when every cell is colored.
+     older run. It stops by itself when every cell is colored. Play,
+     Pause and Speed are the run loop makeRunLoop (js/sim-worker.js).
      =================================================================== */
-  let playing = false;
-  let speed = 5;
-  let owed = 0;            // steps due but not yet made
-  let lastTick = 0;
-  let timer = null;
+  const loop = makeRunLoop(oneStep, report, function () { return colored === n; });
   let lastReported = -1;   // the time last sent to the page
-  const TICK_BUDGET = 25;  // milliseconds of work between two reports
 
   self.onmessage = function (event) {
     const message = event.data;
     if (message.type === "setup") {
-      stop();
+      loop.pause();
       setup(message);
       report();
     } else if (message.type === "play") {
-      speed = message.speed;
-      if (!playing && colored < n) {
-        playing = true;
-        owed = 0;
-        lastTick = performance.now();
-        timer = setTimeout(tick, 0);
-      }
+      loop.play(message.speed);
     } else if (message.type === "pause") {
-      stop();
+      loop.pause();
     } else if (message.type === "step") {
       oneStep();
       report();
     }
   };
-
-  function stop() {
-    playing = false;
-    clearTimeout(timer);
-  }
-
-  // Make the steps that are due (at most TICK_BUDGET ms of work), send
-  // the result to the page, and come back a moment later.
-  function tick() {
-    const now = performance.now();
-    const until = now + TICK_BUDGET;
-    if (speed === Infinity) {
-      do oneStep(); while (colored < n && performance.now() < until);
-    } else {
-      owed = Math.min(owed + speed * (now - lastTick) / 1000, speed);   // at most 1 second behind
-      while (owed >= 1 && colored < n && performance.now() < until) { oneStep(); owed--; }
-    }
-    lastTick = now;
-    if (colored === n) stop();
-    report();
-    if (playing) timer = setTimeout(tick, 10);
-  }
 
   // Send the colors, the walkers and the numbers to the page.
   function report() {
@@ -329,9 +280,9 @@ function walkWorker() {
       moves: moves,
       done: colored === n,
       coverTime: coverTime,
-      traceTimes: Float64Array.from(traceTimes),
-      traceInterface: Int32Array.from(traceInterface),
-      traceSizes: Int32Array.from(traceSizes),
+      traceTimes: Float64Array.from(trace.times),
+      traceInterface: Int32Array.from(trace.lists.interfaceEdges),
+      traceSizes: Int32Array.from(trace.lists.sizes),
     }, [colorCopy.buffer, positionCopy.buffer]);   // hand the copies over instead of copying again
   }
 }

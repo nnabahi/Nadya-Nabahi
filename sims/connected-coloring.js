@@ -175,11 +175,12 @@ function blockStart(d, count) {
 /* =====================================================================
    4. RUNNING THE CHAIN
    ---------------------------------------------------------------------
-   The chain is the function chainWorker() in connected-coloring-chain.js.
-   startWorker (js/sim-page.js) runs it in a second thread, a "Web
-   Worker", so the page never freezes.
+   The chain is the function chainWorker() in connected-coloring-chain.js,
+   with the run loop (js/sim-worker.js) copied in. startWorker
+   (js/sim-page.js) runs it in a second thread, a "Web Worker", so the
+   page never freezes.
    ===================================================================== */
-const worker = startWorker(chainWorker);
+const worker = startWorker(chainWorker, [makeRunLoop]);
 
 worker.onmessage = function (event) {
   const message = event.data;

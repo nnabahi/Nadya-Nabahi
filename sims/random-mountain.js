@@ -315,12 +315,15 @@ function customStart(d) {
    5. RUNNING THE MOUNTAIN
    ---------------------------------------------------------------------
    The growth rule is mountainWorker() in random-mountain-growth.js,
-   with newMountain() copied in. startWorker (js/sim-page.js) runs it in
-   a second thread, so the page never freezes.
+   with newMountain(), the hyperbolic tilings and trees, and the run
+   loop and the trace (js/sim-worker.js) copied in. startWorker
+   (js/sim-page.js) runs it in a second thread, so the page never
+   freezes.
    ===================================================================== */
 const worker = startWorker(mountainWorker,
   [newMountain, newGraphMountain, makeGraph, tilingShape, motionTimes, motionApply, halfTurn, coshFromStart,
-   learnedRules, tilingByGeometry, tilingByRules, tilingRules, testRules, hashTable, ballAround, spreadPlace]);
+   learnedRules, tilingByGeometry, tilingByRules, tilingRules, testRules, hashTable, ballAround, spreadPlace,
+   makeRunLoop, newTrace, keepSample]);
 
 worker.onmessage = function (event) {
   const message = event.data;

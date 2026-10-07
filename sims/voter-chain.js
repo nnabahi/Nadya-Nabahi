@@ -192,23 +192,12 @@ function voterWorker() {
 
   let voter = null, run = 0, time = 0, consensusTime = null;
 
-  // The run so far, for the plots over time (as in the other sims).
-  const MAX_SAMPLES = 1000;
-  let traceTimes = [], traceDisagree = [], traceCounts = [], traceGap = 1, nextSample = 0;
+  // The run so far, for the plots over time (keepSample,
+  // js/sim-worker.js).
+  let trace = newTrace();
 
   function takeSample() {
-    if (time < nextSample) return;
-    traceTimes.push(time);
-    traceDisagree.push(1 - voter.agree / Math.max(voter.pairs, 1));
-    for (let c = 0; c < voter.q; c++) traceCounts.push(voter.counts[c]);
-    nextSample = time + traceGap;
-    if (traceTimes.length > MAX_SAMPLES) {
-      const q = voter.q;
-      traceTimes = traceTimes.filter(function (t, k) { return k % 2 === 0; });
-      traceDisagree = traceDisagree.filter(function (t, k) { return k % 2 === 0; });
-      traceCounts = traceCounts.filter(function (t, k) { return Math.floor(k / q) % 2 === 0; });
-      traceGap *= 2;
-    }
+    keepSample(trace, time, { disagree: 1 - voter.agree / Math.max(voter.pairs, 1), counts: voter.counts });
   }
 
   function consensus() { return Math.max(...voter.counts) === voter.colors.length; }
@@ -229,7 +218,7 @@ function voterWorker() {
                        colors: colors, random: new Math.seedrandom(seed + " clocks") });
     time = 0;
     consensusTime = consensus() ? 0 : null;
-    traceTimes = []; traceDisagree = []; traceCounts = []; traceGap = 1; nextSample = 0;
+    trace = newTrace();
     takeSample();
   }
 
@@ -241,36 +230,19 @@ function voterWorker() {
     takeSample();
   }
 
-  let playing = false, speed = 5, owed = 0, lastTick = 0, timer = null, lastReported = -1;
-  const TICK_BUDGET = 25;   // milliseconds of work between two reports
+  // Play, Pause and Speed: the run loop (js/sim-worker.js). It stops by
+  // itself once the run is frozen.
+  const loop = makeRunLoop(oneUnit, report, frozen);
+  let lastReported = -1;
 
   self.onmessage = function (event) {
     const m = event.data;
-    if (m.type === "setup") { stop(); setup(m); lastReported = -1; report(); }
+    if (m.type === "setup") { loop.pause(); setup(m); lastReported = -1; report(); }
     else if (m.type === "params") { voter.table = m.table; voter.noise = m.noise; lastReported = -1; report(); }
-    else if (m.type === "play") {
-      speed = m.speed;
-      if (!playing) { playing = true; owed = 0; lastTick = performance.now(); timer = setTimeout(tick, 0); }
-    }
-    else if (m.type === "pause") stop();
+    else if (m.type === "play") loop.play(m.speed);
+    else if (m.type === "pause") loop.pause();
     else if (m.type === "step") { oneUnit(); report(); }
   };
-
-  function stop() { playing = false; clearTimeout(timer); }
-
-  function tick() {
-    const now = performance.now(), until = now + TICK_BUDGET;
-    if (speed === Infinity) {
-      do oneUnit(); while (!frozen() && performance.now() < until);
-    } else {
-      owed = Math.min(owed + speed * (now - lastTick) / 1000, speed);   // at most 1 second behind
-      while (owed >= 1 && !frozen() && performance.now() < until) { oneUnit(); owed--; }
-    }
-    lastTick = now;
-    if (frozen()) stop();
-    report();
-    if (playing) timer = setTimeout(tick, 10);
-  }
 
   function report() {
     if (time === lastReported) return;   // nothing new to show
@@ -279,8 +251,8 @@ function voterWorker() {
     self.postMessage({
       type: "state", run: run, time: time, colors: colors, counts: voter.counts.slice(),
       agree: voter.agree, pairs: voter.pairs, consensusTime: consensusTime, frozen: frozen(),
-      traceTimes: Float64Array.from(traceTimes), traceDisagree: Float64Array.from(traceDisagree),
-      traceCounts: Int32Array.from(traceCounts),
+      traceTimes: Float64Array.from(trace.times), traceDisagree: Float64Array.from(trace.lists.disagree),
+      traceCounts: Int32Array.from(trace.lists.counts),
     }, [colors.buffer]);
   }
 }

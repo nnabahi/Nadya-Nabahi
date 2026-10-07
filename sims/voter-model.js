@@ -146,11 +146,12 @@ function usePreset(key) {
 /* =====================================================================
    4. RUNNING THE OPINIONS
    ---------------------------------------------------------------------
-   The opinions are voterWorker() in voter-chain.js, with newVoter and
-   voterStart copied in. startWorker (js/sim-page.js) runs it in a
-   second thread, so the page never freezes.
+   The opinions are voterWorker() in voter-chain.js, with newVoter,
+   voterStart, and the run loop and the trace (js/sim-worker.js) copied
+   in. startWorker (js/sim-page.js) runs it in a second thread, so the
+   page never freezes.
    ===================================================================== */
-const worker = startWorker(voterWorker, [newVoter, voterStart]);
+const worker = startWorker(voterWorker, [newVoter, voterStart, makeRunLoop, newTrace, keepSample]);
 
 worker.onmessage = function (event) {
   const message = event.data;

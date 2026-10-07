@@ -182,10 +182,11 @@ function spreadThroughRegion(d, count, firstCell) {
    4. RUNNING THE WALKERS
    ---------------------------------------------------------------------
    The walkers are the function walkWorker() in
-   random-walk-coloring-walk.js. startWorker (js/sim-page.js) runs it in
+   random-walk-coloring-walk.js, with the run loop and the trace
+   (js/sim-worker.js) copied in. startWorker (js/sim-page.js) runs it in
    a second thread, a "Web Worker", so the page never freezes.
    ===================================================================== */
-const worker = startWorker(walkWorker);
+const worker = startWorker(walkWorker, [makeRunLoop, newTrace, keepSample]);
 
 worker.onmessage = function (event) {
   const message = event.data;

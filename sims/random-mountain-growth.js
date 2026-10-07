@@ -380,9 +380,7 @@ function mountainWorker() {
       problem = error.message;
       return;
     }
-    traceSteps = []; traceBase = []; traceHighest = []; traceStart = [];
-    traceGap = 1;
-    nextSample = 0;
+    trace = newTrace();
     takeSample();
     while (mountain.steps < Math.min(steps, MAX_STEPS)) oneStep();
   }
@@ -408,35 +406,18 @@ function mountainWorker() {
     return -1;
   }
 
-  // The run so far, for the charts over time. A sample is taken every
-  // traceGap steps; when there are more than MAX_SAMPLES, every other one
-  // is dropped and traceGap doubles, so a long run keeps evenly spaced
-  // samples from start to end.
-  const MAX_SAMPLES = 1000;
-  let traceSteps = [], traceBase = [], traceHighest = [], traceStart = [];
-  let traceGap = 1, nextSample = 0;
+  // The run so far, for the charts over time, by steps (keepSample,
+  // js/sim-worker.js).
+  let trace = newTrace();
 
   function takeSample() {
-    if (mountain.steps < nextSample) return;
-    traceSteps.push(mountain.steps);
-    traceBase.push(mountain.baseSize);
-    traceHighest.push(mountain.maxHeight);
-    traceStart.push(mountain.height[mountain.start]);
-    nextSample = mountain.steps + traceGap;
-    if (traceSteps.length > MAX_SAMPLES) {
-      const even = function (value, k) { return k % 2 === 0; };
-      traceSteps = traceSteps.filter(even);
-      traceBase = traceBase.filter(even);
-      traceHighest = traceHighest.filter(even);
-      traceStart = traceStart.filter(even);
-      traceGap *= 2;
-    }
+    const m = mountain;
+    keepSample(trace, m.steps, { base: m.baseSize, highest: m.maxHeight, start: m.height[m.start] });
   }
 
-  // The run loop, as in the other sims: every few milliseconds, drop the
-  // blocks that are due (at most TICK_BUDGET ms of work), then report.
-  let playing = false, speed = 20, owed = 0, lastTick = 0, timer = null;
-  const TICK_BUDGET = 25;
+  // Play, Pause and Speed: the run loop (js/sim-worker.js), dropping the
+  // blocks that are due.
+  const loop = makeRunLoop(oneStep, report);
 
   self.onmessage = function (event) {
     const message = event.data;
@@ -447,16 +428,9 @@ function mountainWorker() {
       setup(message.steps);
       report();
     } else if (message.type === "play") {
-      speed = message.speed;
-      if (!playing) {
-        playing = true;
-        owed = 0;
-        lastTick = performance.now();
-        timer = setTimeout(tick, 0);
-      }
+      loop.play(message.speed);
     } else if (message.type === "pause") {
-      playing = false;
-      clearTimeout(timer);
+      loop.pause();
     } else if (message.type === "step") {
       oneStep();
       report();
@@ -472,20 +446,6 @@ function mountainWorker() {
       report();
     }
   };
-
-  function tick() {
-    const now = performance.now();
-    const until = now + TICK_BUDGET;
-    if (speed === Infinity) {
-      do oneStep(); while (performance.now() < until);
-    } else {
-      owed = Math.min(owed + speed * (now - lastTick) / 1000, speed);   // at most 1 second behind
-      while (owed >= 1 && performance.now() < until) { oneStep(); owed--; }
-    }
-    lastTick = now;
-    report();
-    if (playing) timer = setTimeout(tick, 10);
-  }
 
   // On a graph, where each site is (its cell's place in the graph) only
   // has to be sent once: each message carries the places of the sites
@@ -509,10 +469,10 @@ function mountainWorker() {
       steps: m.steps, blocks: m.blocks, baseSize: m.baseSize,
       available: m.available.length, maxHeight: m.maxHeight,
       atMax: m.steps >= MAX_STEPS,
-      traceSteps: Float64Array.from(traceSteps),
-      traceBase: Float64Array.from(traceBase),
-      traceHighest: Float64Array.from(traceHighest),
-      traceStart: Float64Array.from(traceStart),
+      traceSteps: Float64Array.from(trace.times),
+      traceBase: Float64Array.from(trace.lists.base),
+      traceHighest: Float64Array.from(trace.lists.highest),
+      traceStart: Float64Array.from(trace.lists.start),
     }, [x.buffer, y.buffer, h.buffer]);   // hand the copies over instead of copying again
   }
 
@@ -547,10 +507,10 @@ function mountainWorker() {
       steps: m.steps, blocks: m.blocks, baseSize: m.baseSize,
       available: m.available.length, maxHeight: m.maxHeight,
       atMax: m.steps >= MAX_STEPS,
-      traceSteps: Float64Array.from(traceSteps),
-      traceBase: Float64Array.from(traceBase),
-      traceHighest: Float64Array.from(traceHighest),
-      traceStart: Float64Array.from(traceStart),
+      traceSteps: Float64Array.from(trace.times),
+      traceBase: Float64Array.from(trace.lists.base),
+      traceHighest: Float64Array.from(trace.lists.highest),
+      traceStart: Float64Array.from(trace.lists.start),
     }, [h.buffer, places.buffer]);
   }
 }

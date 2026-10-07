@@ -539,58 +539,28 @@ function chainWorker() {
      The worker answers with "state" messages: the colors, and the
      numbers for the Statistics quadrant. Each one carries its run
      number, so the page can ignore leftovers from an older run.
+     Play, Pause and Speed are the run loop makeRunLoop
+     (js/sim-worker.js).
      =================================================================== */
-  let playing = false;
-  let speed = 50;
-  let owed = 0;            // moves due but not yet made
-  let lastTick = 0;
-  let timer = null;
+  const loop = makeRunLoop(oneMove, report);
   let lastReported = -1;   // the move count last sent to the page
-  const TICK_BUDGET = 25;  // milliseconds of work between two reports
 
   self.onmessage = function (event) {
     const message = event.data;
     if (message.type === "setup") {
-      stop();
+      loop.pause();
       setup(message);
       lastReported = -1;
       report();
     } else if (message.type === "play") {
-      speed = message.speed;
-      if (!playing) {
-        playing = true;
-        owed = 0;
-        lastTick = performance.now();
-        timer = setTimeout(tick, 0);
-      }
+      loop.play(message.speed);
     } else if (message.type === "pause") {
-      stop();
+      loop.pause();
     } else if (message.type === "step") {
       oneMove();
       report();
     }
   };
-
-  function stop() {
-    playing = false;
-    clearTimeout(timer);
-  }
-
-  // Make the moves that are due (at most TICK_BUDGET ms of work), send
-  // the result to the page, and come back a moment later.
-  function tick() {
-    const now = performance.now();
-    const until = now + TICK_BUDGET;
-    if (speed === Infinity) {
-      do oneMove(); while (performance.now() < until);
-    } else {
-      owed = Math.min(owed + speed * (now - lastTick) / 1000, speed);   // at most 1 second behind
-      while (owed >= 1 && performance.now() < until) { oneMove(); owed--; }
-    }
-    lastTick = now;
-    report();
-    if (playing) timer = setTimeout(tick, 10);
-  }
 
   // Send the colors and the numbers to the page.
   function report() {

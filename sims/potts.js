@@ -80,11 +80,12 @@ let latest = null;             // the latest message from the chain (section 2 o
 /* =====================================================================
    3. RUNNING THE CHAIN
    ---------------------------------------------------------------------
-   The chain is pottsWorker() in potts-chain.js, with newPotts and
-   pottsStart copied in. startWorker (js/sim-page.js) runs it in a second
-   thread, so the page never freezes.
+   The chain is pottsWorker() in potts-chain.js, with newPotts,
+   pottsStart, and the run loop and the trace (js/sim-worker.js) copied
+   in. startWorker (js/sim-page.js) runs it in a second thread, so the
+   page never freezes.
    ===================================================================== */
-const worker = startWorker(pottsWorker, [newPotts, pottsStart]);
+const worker = startWorker(pottsWorker, [newPotts, pottsStart, makeRunLoop, newTrace, keepSample]);
 
 worker.onmessage = function (event) {
   const message = event.data;

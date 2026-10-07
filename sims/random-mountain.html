@@ -433,12 +433,14 @@
   <script src="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/katex.min.js"></script>
 
   <!-- The code the sims share (in js/, see the README): page helpers
-       (they also typeset the formulas, so they come after KaTeX),
-       charts, colors, domains, the picture's view (moving and zooming
-       it), the hyperbolic tilings and trees and their pictures, and the
-       options and controls of the domain. Then the growth rule (it runs in a second thread),
-       then this page's code. -->
+       (they also typeset the formulas, so they come after KaTeX), the
+       second thread's run loop, charts, colors, domains, the picture's
+       view (moving and zooming it), the hyperbolic tilings and trees and
+       their pictures, and the options and controls of the domain. Then
+       the growth rule (it runs in a second thread), then this page's
+       code. -->
   <script src="../js/sim-page.js"></script>
+  <script src="../js/sim-worker.js"></script>
   <script src="../js/sim-charts.js"></script>
   <script src="../js/sim-colors.js"></script>
   <script src="../js/sim-domains.js"></script>

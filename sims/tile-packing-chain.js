@@ -846,10 +846,9 @@ function tilePacking() {
   };
   if (!inWorker) return api;
 
-  let playing = false, speed = 5, owed = 0, lastTick = 0, timer = null;
+  const loop = makeRunLoop(oneMove, report);   // Play, Pause and Speed (js/sim-worker.js)
   let run = 0;               // which run this is (the page numbers them)
   let sendHeat = false;      // does the page want the heat map?
-  const TICK_BUDGET = 25;    // milliseconds of work between two reports
 
   // The messages the page sends:
   //   setup      start a new run (all of setup()'s settings, plus "run")
@@ -863,21 +862,15 @@ function tilePacking() {
   self.onmessage = function (event) {
     const message = event.data;
     if (message.type === "setup") {
-      stop();
+      loop.pause();
       run = message.run;
       const error = setup(message);
       self.postMessage({ type: "ready", run: run, error: error, placements: api.placements() });
       report();
     } else if (message.type === "play") {
-      speed = message.speed;
-      if (!playing) {
-        playing = true;
-        owed = 0;
-        lastTick = performance.now();
-        timer = setTimeout(tick, 0);
-      }
+      loop.play(message.speed);
     } else if (message.type === "pause") {
-      stop();
+      loop.pause();
     } else if (message.type === "step") {
       oneMove();
       report();
@@ -897,27 +890,6 @@ function tilePacking() {
       report();
     }
   };
-
-  function stop() {
-    playing = false;
-    clearTimeout(timer);
-  }
-
-  // Make the moves that are due (at most TICK_BUDGET ms of work), send
-  // the result to the page, and come back a moment later.
-  function tick() {
-    const now = performance.now();
-    const until = now + TICK_BUDGET;
-    if (speed === Infinity) {
-      do oneMove(); while (performance.now() < until);
-    } else {
-      owed = Math.min(owed + speed * (now - lastTick) / 1000, speed);   // at most 1 second behind
-      while (owed >= 1 && performance.now() < until) { oneMove(); owed--; }
-    }
-    lastTick = now;
-    report();
-    if (playing) timer = setTimeout(tick, 10);
-  }
 
   // Send the packing (who covers each cell) and the numbers to the page.
   function report() {

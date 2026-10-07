@@ -89,11 +89,12 @@ function showingAverage() { return checked("show") === "average"; }
 /* =====================================================================
    3. RUNNING THE CHAIN
    ---------------------------------------------------------------------
-   The chain is the function tilePacking() in tile-packing-chain.js.
-   startWorker (js/sim-page.js) runs it in a second thread, a "Web
-   Worker", so the page never freezes.
+   The chain is the function tilePacking() in tile-packing-chain.js,
+   with the run loop (js/sim-worker.js) copied in. startWorker
+   (js/sim-page.js) runs it in a second thread, a "Web Worker", so the
+   page never freezes.
    ===================================================================== */
-const worker = startWorker(tilePacking);
+const worker = startWorker(tilePacking, [makeRunLoop]);
 
 worker.onmessage = function (event) {
   const message = event.data;
