@@ -343,10 +343,11 @@ worker.onmessage = function (event) {
   }
   latest = message;
   showMessage(message.problem);
-  if (message.atMax && player.playing) {
-    player.setPlaying(false);
+  if (message.atMax) {    // the run loop has paused by itself, and Play and Step can't go on
+    if (player.playing) player.setPlaying(false);
     showMessage("That's the most steps this page goes to.");
   }
+  byId("play").disabled = byId("step").disabled = Boolean(message.atMax);
   drawSoon();
 };
 
