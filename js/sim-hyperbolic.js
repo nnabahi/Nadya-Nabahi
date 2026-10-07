@@ -4,7 +4,8 @@
    ---------------------------------------------------------------------
    The graphs themselves are made in js/sim-graphs.js (load it first);
    this file draws them, and builds the finite "ball" the sims run on.
-   It also needs js/sim-view.js, whose view zooms and moves the pictures.
+   It also needs js/sim-page.js and js/sim-view.js, whose view zooms and
+   moves the pictures.
 
    Three pictures (the "Drawn in" option):
      disk        the Poincare disk (see the top of js/sim-graphs.js): the
@@ -40,11 +41,14 @@
    A sim keeps one "disk view" (makeDiskView): which graph, which
    picture, and how far the plane has been moved. Then it calls
      diskPen, drawDiskFrame, drawOnDisk   the disk or the half-plane
+     drawUnder                            the whole tiling (or tree), in gray
      drawBallBorders                      lines between colors on a tiling
      drawBallBonds                        the ball drawn as a graph (bond percolation)
-     drawSpreadTree, spreadSpot           the spread-out tree
+     drawSpreadTree, spreadSpot, spreadDot   the spread-out tree
+     seenFrom, diskToScreen, cellPixels, onScreen   where a cell is on the screen
      startPlaneDrag, dragPlane            dragging across the plane
-     makeBall                             the ball of R steps a sim runs on
+     ballFromOptions, makeBall            the ball of R steps a sim runs on
+     drawBall, ballSpot                   drawing it, one color per cell
      ballCellUnder, ballCellAt            the cell of the ball under the pointer
      showGraphPresets, readGraphOptions   the Graph options on the page
 
@@ -87,6 +91,11 @@ const BOND_GRAY = "#c9c6bf";       // closed edges, in drawBallBonds
 const ZOOM_CELLS = 60;             // the view counts the picture as this many "cells" across its
                                    // shorter side (so it zooms in up to about 50 times; js/sim-view.js)
 
+// A sim's ball (section 7), drawn by drawBall:
+const BALL_HEIGHT = 480;           // the picture's height, in screen pixels
+const BALL_OUTSIDE = "#ecebe7";    // the plane around the ball
+const BALL_WHITE_DOT = "#d8d5ce";  // white cells, as dots in the spread-out tree (white dots wouldn't show)
+
 
 /* =====================================================================
    2. THE DISK VIEW
@@ -94,10 +103,16 @@ const ZOOM_CELLS = 60;             // the view counts the picture as this many "
 
 // Everything one picture of a graph needs. "canvas" is the canvas it is
 // drawn on, and "view" the page's view of it (makeView, js/sim-view.js),
-// which zooms and slides the picture. Also makes the page's "Slide"
-// button (id "disk-slide", next to "Back to the start") switch what
-// dragging does.
-function makeDiskView(canvas, view) {
+// which zooms and slides the picture. Also connects the page's buttons
+// for these pictures:
+//   "Drawn in"           (radio buttons name="picture") picks the
+//                        picture; a new one starts unzoomed, and
+//                        onPicture() (the page's) shows the options
+//                        that fit it
+//   "Back to the start"  (id "disk-reset") puts the start back in the
+//                        middle
+//   "Slide"              (id "disk-slide") switches what dragging does
+function makeDiskView(canvas, view, onPicture) {
   const dv = {
     canvas: canvas,
     view: view,
@@ -106,16 +121,23 @@ function makeDiskView(canvas, view) {
     motion: [1, 0, 0, 0],           // how far the plane has been moved from the start
     box: null,                      // where the picture is on the canvas (set when it is drawn)
     shape: null, shapeFor: null,    // the first cell's shape, worked out for the graph "shapeFor"
+    graph: null, graphFor: null,    // the graph itself, made for the graph "graphFor" (diskGraph)
     dragFrom: null,                 // the point of the disk being dragged, if any
     slide: false,                   // true: dragging slides the whole picture instead
   };
-  const slide = document.getElementById("disk-slide");
-  if (slide) {
-    slide.addEventListener("click", function () {
-      dv.slide = !dv.slide;
-      slide.classList.toggle("selected", dv.slide);   // looks pressed while on
+  for (const radio of document.querySelectorAll('input[name="picture"]')) {
+    radio.addEventListener("change", function () {
+      dv.picture = radio.value;
+      onPicture();
+      resetView(view);
     });
   }
+  byId("disk-reset").addEventListener("click", function () { backToStart(dv); view.redraw(); });
+  const slide = byId("disk-slide");
+  slide.addEventListener("click", function () {
+    dv.slide = !dv.slide;
+    slide.classList.toggle("selected", dv.slide);   // looks pressed while on
+  });
   return dv;
 }
 
@@ -127,6 +149,13 @@ function isTree(spec) { return spec.q === Infinity; }
 function diskShape(dv) {
   if (dv.shapeFor !== dv.spec) { dv.shapeFor = dv.spec; dv.shape = tilingShape(dv.spec.p, dv.spec.q); }
   return dv.shape;
+}
+
+// The graph itself (makeGraph, js/sim-graphs.js), made again only when
+// the graph changes.
+function diskGraph(dv) {
+  if (dv.graphFor !== dv.spec) { dv.graphFor = dv.spec; dv.graph = makeGraph(dv.spec); }
+  return dv.graph;
 }
 
 // The motion A (a cell's place, from graph.place) as seen in the
@@ -673,6 +702,11 @@ function moveBetween(from, to) {
 /* =====================================================================
    7. A BALL OF R STEPS, FOR THE SIMS THAT NEED A FINITE GRAPH
    ---------------------------------------------------------------------
+   A sim on "Hyperbolic plane or tree" runs on a ball: ballFromOptions
+   makes it from the options on the page, drawBall draws it with one
+   color per cell, and ballSpot, ballCellUnder and ballCellAt say where
+   its cells are on the screen.
+
    The ball is the start cell (cell 0 of the graph) and every cell
    within R steps of it, numbered 0 .. n-1 outward from the start, with
    only the edges inside the ball. It has what js/sim-domains.js's
@@ -750,6 +784,58 @@ function ballSides(ball, p) {
   }
   ball.side = side;
   return side;
+}
+
+// The ball from the options on the page: the graph (readGraphOptions,
+// section 8) and every cell within R steps of the start. "sizes" are
+// the page's { R, most, cells }: the default R, the largest R, and the
+// most cells a ball may have. A ball of a tiling grows exponentially
+// with R, so it is cut back to at most that many cells, and the line
+// under R says so. "note" (optional) adds to that line, e.g.
+// note(spec) = ", each toppling at 7 grains". Puts the start back in the
+// middle. Returns null if the options aren't a hyperbolic graph.
+function ballFromOptions(dv, sizes, note) {
+  if (!readGraphOptions(dv)) return null;
+  const R = readWhole("set-ball-radius", 1, sizes.most, sizes.R);
+  const ball = makeBall(diskGraph(dv), R, sizes.cells);
+  byId("set-ball-radius").value = ball.R;
+  byId("ball-info").textContent = ball.n.toLocaleString() + " cells" + (note ? note(dv.spec) : "") + "." + (ball.R < R
+    ? " A ball of radius " + R + " would have more than " + sizes.cells.toLocaleString() +
+      " cells, the most this page uses, so R is " + ball.R + "."
+    : "");
+  backToStart(dv);
+  return ball;
+}
+
+// Draw the ball, cell v filled with colorOf(v) (a CSS color such as
+// "#f2735a"), in the picture chosen: the disk or the half-plane with
+// the rest of the tiling (or tree) in thin gray, or the tree spread out
+// in rings. Returns the pen, to draw more on top.
+function drawBall(dv, ball, colorOf) {
+  const height = pictureHeight(BALL_HEIGHT);
+  if (dv.picture === "spread") {
+    return drawSpreadTree(dv, height, ball.n,
+      function (v) { return ball.depth[v]; }, function (v) { return ball.angle[v]; },
+      function (v) { const c = colorOf(v); return c === "#ffffff" ? BALL_WHITE_DOT : c; });
+  }
+  const pen = diskPen(dv, height);
+  drawDiskFrame(dv, pen, height, BALL_OUTSIDE, UNDER_COLOR);
+  drawOnDisk(dv, pen, diskGraph(dv), ball.n, function (v) { return ballPlace(ball, v); }, colorOf);
+  return pen;
+}
+
+// Where the middle of cell v of the ball is on the screen, as
+// { x, y, size } (size: about its radius, in pixels), or null if it is
+// off the screen. Call after drawing the ball.
+function ballSpot(dv, ball, v) {
+  if (dv.picture === "spread") {
+    const [x, y] = spreadSpot(dv, ball.depth[v], ball.angle[v]);
+    return { x: x, y: y, size: spreadDot(dv, ball.depth[v]) };
+  }
+  const [mx, my] = motionApply(seenFrom(dv, ballPlace(ball, v)), 0, 0);
+  if (!onScreen(dv, mx, my)) return null;
+  const [x, y] = diskToScreen(dv, mx, my);
+  return { x: x, y: y, size: cellPixels(dv, mx, my) };
 }
 
 // The cell of the ball under the pointer: in the disk or the half-plane,

@@ -19,18 +19,21 @@
      const view = makeView(simCanvas, drawSoon);
    Each time the page draws, it asks the view where things go:
      const pen = fitPicture(view, domain, maxHeight);   // size the canvas
-     const cells = cellsShown(view, domain);            // the squares that show
-     ... paints each square, between squareLeft and squareTop ...
+     const shown = paintCells(view, pen, domain, ...);  // paint the squares that show
      drawBorders(view, pen, shown, color);              // lines between colors
-   It passes its pointer events on to pressPointer, movePointer and
-   releasePointer (so a sim can drag other things too, like the random
-   walk sim's walkers), and calls useTorus when the domain changes.
-   (A picture that shouldn't move at all, like the random mountain's 1D
-   side view, passes movable = false to useTorus.)
-   pointerSpot and cellUnder say which cell is under the pointer (to
-   click a cell, or drop a walker on it).
+   (or, to paint the squares itself, cellsShown says which cell is on
+   each, and squareLeft and squareTop where it goes). Its pointer events
+   go to pressPointer, movePointer and releasePointer: connectPicture
+   (js/sim-controls.js) does that, and a page that drags other things
+   too, like the random walk sim's walkers, does it itself. It calls
+   useTorus when the domain changes. (A picture that shouldn't move at
+   all, like the random mountain's 1D side view, passes movable = false
+   to useTorus.) pointerSpot and cellUnder say which cell is under the
+   pointer (to click a cell, or drop a walker on it).
 
-   The page's HTML puts the canvas and the zoom buttons in one box:
+   The page's HTML puts the canvas and the zoom buttons in one box (on
+   pages with the hyperbolic plane or tree, "Back to the start" and
+   "Slide" join the zoom buttons: js/sim-hyperbolic.js):
      <div class="sim-picture">
        <canvas id="sim-canvas"></canvas>
        <div class="zoom-buttons" id="zoom-buttons" hidden>
@@ -45,8 +48,10 @@
      useTorus(view, on, movable) a new domain: a torus or not, and movable or not
      showZoomButtons(view)       show the buttons when the picture can move
      fitPicture(view, d, ...)    place the picture and size the canvas
+     cellSize(view)              how big a cell is on the screen, with the zoom
      cellsShown(view, d)         which cell is on each square that shows
      squareLeft, squareTop       where the sides of the squares are
+     paintCells(...)             paint every square that shows, fast
      drawBorders(...)            the lines between squares of different colors
      zoomBy, resetView           zoom around a point; back to the start
      pressPointer, movePointer, releasePointer   dragging and pinching
@@ -220,6 +225,41 @@ function cellsShown(view, d) {
 // pixels avoids thin gaps between squares.
 function squareLeft(view, i) { return view.left + Math.round((i + view.scroll.x) * view.cell); }
 function squareTop(view, k) { return Math.round((k + view.scroll.y) * view.cell); }
+
+// Paint every square that shows, after fitPicture (which gives "pen").
+// For cell v, groupOf(v) is a whole number (its color number, or its
+// cluster), and rgbOf(group) is how that group is painted, as [red,
+// green, blue], each 0 .. 255. Squares not in domain d get "outsideRGB".
+// Returns the group on each square (-2 outside the domain), in the order
+// of cellsShown, ready for drawBorders.
+// How: each square's color goes into a small image with one pixel per
+// square, which is then blown up with smoothing off, so the squares stay
+// crisp. Setting pixels one by one is fast even for many thousands of
+// squares.
+const tinyCanvas = document.createElement("canvas");   // one pixel per square that shows
+function paintCells(view, pen, d, groupOf, rgbOf, outsideRGB) {
+  const cells = cellsShown(view, d);
+  const cols = view.cols, rows = view.rows;
+  const shown = new Int32Array(cols * rows);
+  tinyCanvas.width = cols;
+  tinyCanvas.height = rows;
+  const tinyPen = tinyCanvas.getContext("2d");
+  const image = tinyPen.createImageData(cols, rows);
+  const pixels = image.data;                  // 4 numbers per pixel: red, green, blue, opacity
+  for (let p = 0; p < cols * rows; p++) {
+    const v = cells[p];
+    const group = v === -1 ? -2 : groupOf(v);
+    const rgb = v === -1 ? outsideRGB : rgbOf(group);
+    shown[p] = group;
+    pixels[4 * p] = rgb[0]; pixels[4 * p + 1] = rgb[1]; pixels[4 * p + 2] = rgb[2];
+    pixels[4 * p + 3] = 255;
+  }
+  tinyPen.putImageData(image, 0, 0);
+  pen.imageSmoothingEnabled = false;
+  pen.drawImage(tinyCanvas, squareLeft(view, view.firstI), squareTop(view, view.firstK),
+                cols * view.cell, rows * view.cell);
+  return shown;
+}
 
 // The border lines, all collected into one path and drawn at once: a
 // line between two squares side by side, or one above the other, whose

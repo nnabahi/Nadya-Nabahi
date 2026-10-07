@@ -5,8 +5,9 @@
      - Builds the domain: a box or torus of cells, a region drawn in
        the graph tool (shown inside this page), or a ball of a
        hyperbolic tiling or a tree. The domain code is shared with the
-       other sims, in js/sim-domains.js and (hyperbolic tilings and
-       trees, and their pictures) js/sim-hyperbolic.js.
+       other sims: the domains in js/sim-domains.js, their options and
+       the graph tool in js/sim-controls.js, and the hyperbolic tilings
+       and trees, and their pictures, in js/sim-hyperbolic.js.
      - Hands it to the chain (potts-chain.js), which runs in a second
        thread (a "Web Worker"), and draws every coloring it sends back,
        with the statistics.
@@ -45,12 +46,10 @@ const BORDER = "#1e1e1e";         // the lines between colors
 const OUTSIDE = "#ecebe7";        // around a custom domain (cells not in it)
 const SMALLEST_BORDERED_CELL = 4; // cells smaller than this (in pixels) get no border lines
 
-// Hyperbolic plane or tree: the ball's default and largest radius R,
-// and the most cells a ball may have (a ball of a hyperbolic tiling
-// grows exponentially with R).
-const DEFAULT_BALL_RADIUS = 6;
-const MAX_BALL_RADIUS = 20;
-const MAX_BALL_CELLS = 20000;
+// Hyperbolic plane or tree: the ball's default radius R, its largest
+// R, and the most cells it may have (a ball of a hyperbolic tiling grows
+// exponentially with R).
+const BALL = { R: 6, most: 20, cells: 20000 };
 
 // The speeds on the Speed slider, in sweeps per second (a sweep: every
 // cell updated once on average, or one Swendsen-Wang step). Infinity
@@ -65,7 +64,6 @@ const DEFAULT_SPEED = SPEEDS.indexOf(5);
 
 let domainKind = "torus";      // "box", "torus", "custom" or "graph": the domain in use
 let domain = null;             // the domain graph (js/sim-domains.js), or a ball (makeBall, js/sim-hyperbolic.js)
-const made = {};               // hyperbolic plane or tree: the graph itself (js/sim-graphs.js), made again only when it changes
 let customDomain = null;       // the last custom domain drawn, if any
 let q = DEFAULTS.q;            // number of colors
 let beta = DEFAULTS.beta;      // inverse temperature
@@ -121,8 +119,7 @@ function sendParams() {
 function setPlaying(on) {
   playing = on;
   worker.postMessage(on ? { type: "play", speed: SPEEDS[speedIndex] } : { type: "pause" });
-  byId("play").textContent = on ? "Pause" : "Play";
-  byId("play").classList.toggle("selected", on);
+  showPlaying(on);
 }
 
 
@@ -130,40 +127,32 @@ function setPlaying(on) {
    4. DRAWING THE COLORING
    ---------------------------------------------------------------------
    One square per cell in its color, and a dark line where two colors
-   meet when the cells are big enough to see. paintCells is in
-   js/cell-picture.js; the view (js/sim-view.js) says where the picture
-   goes and which squares show.
+   meet when the cells are big enough to see. The view (js/sim-view.js)
+   says where the picture goes and which squares show, and paints them
+   (paintCells).
    On a hyperbolic tiling or tree, each cell is drawn in its color in
    the disk, the half-plane or (a tree) spread out in rings (drawBall,
-   js/cell-picture.js).
+   js/sim-hyperbolic.js).
    ===================================================================== */
 const simCanvas = byId("sim-canvas");
+
+// Draw at the browser's next screen refresh (at most once per refresh,
+// however many messages arrive in between).
+const drawSoon = oncePerFrame(function () { drawColoring(); showStats(); });
+
 const view = makeView(simCanvas, drawSoon, 0, SMALLEST_BORDERED_CELL);
 
 // Hyperbolic plane or tree: which graph, how it is drawn, and how far
 // the plane has been moved (js/sim-hyperbolic.js). The view above zooms
 // and slides its pictures too.
-const disk = makeDiskView(simCanvas, view);
+const disk = makeDiskView(simCanvas, view, showDomainChoice);
 const outsideRGB = hexToRGB(OUTSIDE);
-let drawPending = false;
-
-// Draw at the browser's next screen refresh (at most once per refresh,
-// however many messages arrive in between).
-function drawSoon() {
-  if (drawPending) return;
-  drawPending = true;
-  requestAnimationFrame(function () {
-    drawPending = false;
-    drawColoring();
-    showStats();
-  });
-}
 
 function drawColoring() {
   if (!domain || !latest || simCanvas.hidden) return;
   const colors = latest.colors;
   if (domainKind === "graph") {
-    drawBall(disk, made.graph, domain, function (v) { return colorNames[colors[v]]; });
+    drawBall(disk, domain, function (v) { return colorNames[colors[v]]; });
     return;
   }
   const pen = fitPicture(view, domain, MAX_PICTURE_HEIGHT);
@@ -179,73 +168,26 @@ window.addEventListener("resize", drawSoon);
 /* =====================================================================
    5. MOVING AND ZOOMING
    ---------------------------------------------------------------------
-   js/sim-view.js does it all: drag to move, mouse wheel or pinch to
-   zoom, and the + / − / Reset buttons. On a torus it also zooms out,
-   showing the torus several times side by side.
+   Drag to move, mouse wheel or pinch to zoom, and the + / − / Reset
+   buttons (connectPicture, js/sim-controls.js). On a torus it also
+   zooms out, showing the torus several times side by side.
    On a hyperbolic tiling or tree, one pointer drags across the plane
-   instead (startPlaneDrag and dragPlane, js/sim-hyperbolic.js), and two
-   fingers slide and zoom the picture.
+   instead, and two fingers slide and zoom the picture.
    ===================================================================== */
-simCanvas.style.touchAction = "none";   // on phones, a finger drags the picture, not the page
-simCanvas.addEventListener("pointerdown", function (event) {
-  pressPointer(view, event);
-  startDrag();
-});
-simCanvas.addEventListener("pointermove", function (event) {
-  if (disk.dragFrom && view.pointers.has(event.pointerId)) {
-    view.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });   // where a second finger starts from
-    dragPlane(disk, event.clientX, event.clientY);
-    drawSoon();
-  } else {
-    movePointer(view, event);
-  }
-});
-function stopPointer(event) {
-  releasePointer(view, event);
-  startDrag();
-}
-simCanvas.addEventListener("pointerup", stopPointer);
-simCanvas.addEventListener("pointercancel", stopPointer);
-
-// On a hyperbolic tiling or tree, exactly one pointer pressed drags
-// across the plane.
-function startDrag() {
-  if (domainKind === "graph") startPlaneDrag(disk);
-  else disk.dragFrom = null;
-}
+connectPicture(view, disk, function () { return domainKind === "graph"; });
 
 
 /* =====================================================================
    6. STATISTICS
    ---------------------------------------------------------------------
    The color counts and the agreeing pairs come from the chain. The
-   "domains" (connected pieces of one color) are found here, by a
-   search from each cell through its neighbors of the same color.
+   "domains" (connected pieces of one color) are counted here
+   (countPieces, js/sim-domains.js).
    The magnetization says how far the coloring is from all colors
    equally common: for q = 2 (Ising) it is m = (N1 - N2) / n, between
    -1 and 1; for q > 2 it is (q * largest share - 1) / (q - 1), between
    0 (all colors equally common) and 1 (one color everywhere).
    ===================================================================== */
-function countDomains() {
-  const d = domain, colors = latest.colors;
-  const seen = new Uint8Array(d.n), stack = [];
-  let count = 0;
-  for (let s = 0; s < d.n; s++) {
-    if (seen[s]) continue;
-    count++;
-    seen[s] = 1;
-    stack.push(s);
-    while (stack.length > 0) {
-      const v = stack.pop();
-      for (let e = d.first[v]; e < d.first[v + 1]; e++) {
-        const w = d.nbr[e];
-        if (!seen[w] && colors[w] === colors[v]) { seen[w] = 1; stack.push(w); }
-      }
-    }
-  }
-  return count;
-}
-
 function magnetization(counts, n) {
   if (q === 2) return (counts[0] - counts[1]) / n;
   return (q * Math.max(...counts) / n - 1) / (q - 1);
@@ -261,7 +203,8 @@ function showStats() {
   byId("stat-agree").textContent = s.agree.toLocaleString() + " (" + (100 * s.agree / Math.max(s.pairs, 1)).toFixed(2) + "%)";
   byId("stat-magnetization-name").textContent = q === 2 ? "Magnetization m = (N₁ − N₂) / n" : "Order (q · largest share − 1) / (q − 1)";
   byId("stat-magnetization").textContent = magnetization(s.counts, n).toFixed(4);
-  byId("stat-domains").textContent = countDomains().toLocaleString();
+  const domains = countPieces(domain, s.colors, q).reduce(function (a, b) { return a + b; }, 0);
+  byId("stat-domains").textContent = domains.toLocaleString();
 
   let rows = "";
   for (let k = 0; k < q; k++) {
@@ -286,54 +229,23 @@ function showStats() {
    7. CUSTOM DOMAINS: THE GRAPH TOOL INSIDE THIS PAGE
    ---------------------------------------------------------------------
    Choosing "Custom" swaps the picture for the graph tool, loaded in an
-   <iframe> (a page inside this page) as graph-tool.html?embed. Any
-   drawing works, even one in several pieces. Done uses it.
+   <iframe> (a page inside this page): makeCustomTool, in
+   js/sim-controls.js. Any drawing works, even one in several pieces.
+   Done uses it.
    ===================================================================== */
-const frame = byId("tool-frame");
-let toolOpen = false;
-let toolMessage = null;    // the tool's latest drawing: { graph, grid, palette }
-let wasPlaying = false;    // to carry on after Cancel
-
-function openTool() {
-  wasPlaying = playing;
-  if (playing) setPlaying(false);
-  toolOpen = true;
-  simCanvas.hidden = true;
-  showZoomButtons(view);
-  byId("custom-area").hidden = false;
-  if (!frame.src) frame.src = "graph-tool.html?embed";    // the first time only
-  checkTool();
-}
-
-function closeTool() {
-  toolOpen = false;
-  byId("custom-area").hidden = true;
-  simCanvas.hidden = false;
-  showZoomButtons(view);
-}
-
-listenToTool(frame, function (drawing) { toolMessage = drawing; checkTool(); });
-
-function checkTool() {
-  if (!toolOpen) return;
-  let problem = "", good = "";
-  if (!toolMessage) problem = "Loading the drawing tool...";
-  else if (toolMessage.graph.vertices.length < 2) problem = "Paint at least two cells.";
-  else good = toolMessage.graph.vertices.length + " cells.";
-  showToolStatus(problem, good);
-}
-
-byId("tool-done").addEventListener("click", function () {
-  customDomain = drawnDomain(toolMessage.graph, toolMessage.grid);
-  closeTool();
-  useDomain("custom", customDomain);
-});
-
-byId("tool-cancel").addEventListener("click", function () {
-  closeTool();
-  showDomainChoice();
-  drawSoon();
-  if (wasPlaying) setPlaying(true);
+const tool = makeCustomTool({
+  view: view,
+  isPlaying: function () { return playing; },
+  setPlaying: setPlaying,
+  check: function (drawing) {
+    const cells = drawing.graph.vertices.length;
+    return cells < 2 ? ["Paint at least two cells.", ""] : ["", cells + " cells."];
+  },
+  done: function (drawing) {
+    customDomain = drawnDomain(drawing.graph, drawing.grid);
+    useDomain("custom", customDomain);
+  },
+  cancel: function () { showDomainChoice(); drawSoon(); },
 });
 
 
@@ -350,39 +262,27 @@ function useDomain(kind, d) {
   restart();
 }
 
-// The box or torus from the boxes on the page.
+// The box or torus from the boxes on the page. (Choosing one while the
+// graph tool is open closes it.)
 function useBox() {
-  if (toolOpen) closeTool();
-  const width = readWhole("set-width", 2, MAX_SIDE, DEFAULTS.width);
-  const height = readWhole("set-height", 2, MAX_SIDE, DEFAULTS.height);
-  const neighbors = Number(byId("set-neighbors").value);
-  const torus = (checked("domain") === "torus");
-  useDomain(torus ? "torus" : "box", boxDomain(width, height, neighbors, torus));
+  if (tool.isOpen) tool.close();
+  const d = boxFromOptions(2, MAX_SIDE, DEFAULTS);
+  useDomain(d.wrap ? "torus" : "box", d);
 }
 
 // A ball of a hyperbolic tiling or a tree, from the options on the page
-// (ballFromOptions, js/cell-picture.js), with the start cell in the
-// middle of the picture. (Choosing one while the graph tool is open
-// closes it.)
+// (ballFromOptions, js/sim-hyperbolic.js), with the start cell in the
+// middle of the picture.
 function useGraph() {
-  if (toolOpen) closeTool();
-  const ball = ballFromOptions(disk, made, DEFAULT_BALL_RADIUS, MAX_BALL_RADIUS, MAX_BALL_CELLS);
+  if (tool.isOpen) tool.close();
+  const ball = ballFromOptions(disk, BALL);
   if (ball === null) { showDomainChoice(); return; }
   useDomain("graph", ball);
 }
 
 // Show the options that fit the domain in use, and tick its radio button.
 function showDomainChoice() {
-  document.querySelector('input[name="domain"][value="' + domainKind + '"]').checked = true;
-  const custom = (domainKind === "custom"), onGraph = (domainKind === "graph");
-  byId("size-row").hidden = byId("neighbors-row").hidden = custom || onGraph;
-  byId("custom-row").hidden = !custom;
-  byId("graph-rows").hidden = !onGraph;
-  byId("disk-reset").hidden = !onGraph || disk.picture === "spread";   // with the zoom buttons
-  if (custom && customDomain) {
-    byId("custom-info").textContent = "Your region: " + customDomain.n + " cells" +
-      (customDomain.wrap ? ", on a torus." : ".");
-  }
+  showDomainOptions(domainKind, customDomain, disk);
   showCritical();
 }
 
@@ -436,30 +336,9 @@ byId("h-box").addEventListener("change", function () { setField(this.value); });
 for (const radio of document.querySelectorAll('input[name="dynamics"]')) radio.addEventListener("change", sendParams);
 byId("start").addEventListener("change", restart);
 
-// Domain: Box / Torus / Custom / Hyperbolic plane or tree.
-for (const radio of document.querySelectorAll('input[name="domain"]')) {
-  radio.addEventListener("change", function () {
-    if (radio.value === "custom") openTool();
-    else if (radio.value === "graph") useGraph();
-    else useBox();
-  });
-}
-for (const id of ["set-width", "set-height", "set-neighbors"]) byId(id).addEventListener("change", useBox);
-byId("edit-custom").addEventListener("click", openTool);
-
-// Hyperbolic plane or tree: the graph, the ball's radius, and the
-// picture ("Drawn in"). "Back to the start" puts the start cell back in
-// the middle.
-for (const id of ["set-p", "set-q", "set-degree", "set-ball-radius"]) byId(id).addEventListener("change", useGraph);
-for (const radio of document.querySelectorAll('input[name="graph-kind"]')) radio.addEventListener("change", useGraph);
-for (const radio of document.querySelectorAll('input[name="picture"]')) {
-  radio.addEventListener("change", function () {
-    disk.picture = radio.value;
-    showDomainChoice();
-    resetView(view);      // a new picture starts unzoomed
-  });
-}
-byId("disk-reset").addEventListener("click", function () { backToStart(disk); drawSoon(); });
+// Domain: Box / Torus / Custom / Hyperbolic plane or tree, and their
+// options (js/sim-controls.js).
+connectDomainChoice({ box: useBox, torus: useBox, custom: tool.open, graph: useGraph });
 
 // Play / Pause, Step, Restart.
 byId("play").addEventListener("click", function () { setPlaying(!playing); });
@@ -470,11 +349,7 @@ byId("step").addEventListener("click", function () {
 byId("restart").addEventListener("click", restart);
 
 // Speed.
-function showSpeed() {
-  const speed = SPEEDS[speedIndex];
-  byId("speed-label").textContent = speed === Infinity ? "as fast as possible"
-    : speed + (speed === 1 ? " sweep" : " sweeps") + " per second";
-}
+function showSpeed() { byId("speed-label").textContent = speedText(SPEEDS[speedIndex], "sweep", "sweeps"); }
 byId("speed").addEventListener("input", function () {
   speedIndex = Number(this.value);
   showSpeed();
@@ -482,21 +357,11 @@ byId("speed").addEventListener("input", function () {
 });
 
 // Seed: the same seed gives the same run every time.
-byId("seed").addEventListener("change", restart);
-byId("new-seed").addEventListener("click", function () {
-  byId("seed").value = String(Math.floor(Math.random() * 100000));
-  restart();
-});
+connectSeed(restart);
 
 
 // --- Start ------------------------------------------------------------
-byId("set-width").value = DEFAULTS.width;
-byId("set-height").value = DEFAULTS.height;
-byId("set-width").max = byId("set-height").max = MAX_SIDE;
-byId("set-neighbors").value = String(DEFAULTS.neighbors);
-byId("set-ball-radius").value = DEFAULT_BALL_RADIUS;
-byId("set-ball-radius").max = MAX_BALL_RADIUS;
-showGraphPresets(useGraph);
+fillDomainOptions(DEFAULTS, MAX_SIDE, BALL);
 byId("q-box").max = byId("q-slider").max = MAX_Q;
 byId("beta-box").max = byId("beta-slider").max = MAX_BETA;
 byId("h-box").min = byId("h-slider").min = -MAX_FIELD;

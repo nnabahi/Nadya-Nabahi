@@ -6,9 +6,10 @@
      - Builds the domain: a box or torus of cells, a custom one drawn
        in the graph tool (shown inside this page), or a ball of a
        hyperbolic tiling or a tree. The domain code is shared with the
-       other sims, in js/sim-domains.js, and the hyperbolic tilings and
-       trees, and their pictures, in js/sim-graphs.js and
-       js/sim-hyperbolic.js.
+       other sims: the domains (and counting their connected pieces) in
+       js/sim-domains.js, their options and the graph tool in
+       js/sim-controls.js, and the hyperbolic tilings and trees, and
+       their pictures, in js/sim-graphs.js and js/sim-hyperbolic.js.
      - Builds a starting coloring: an automatic one (N compact blocks)
        or one you draw yourself.
      - Hands both to the Markov chain (connected-coloring-chain.js),
@@ -21,13 +22,12 @@
    The file is split into numbered sections:
      1. Settings you might want to change
      2. What the page remembers (the "state")
-     3. Connected pieces
-     4. The automatic start
-     5. Running the chain
-     6. Drawing the coloring
-     7. Statistics
-     8. Custom domains: the graph tool inside this page
-     9. Connecting the buttons on the page
+     3. The automatic start
+     4. Running the chain
+     5. Drawing the coloring (and 5b, highlighting one color)
+     6. Statistics
+     7. Custom domains: the graph tool inside this page
+     8. Connecting the buttons on the page
    ===================================================================== */
 
 
@@ -43,21 +43,15 @@ const MAX_SIDE = 100;             // the biggest box or torus is 100 x 100
 const MAX_PICTURE_HEIGHT = 600;   // in screen pixels
 const BORDER = "#1e1e1e";         // the lines between colors
 const OUTSIDE = "#ecebe7";        // around a custom domain (cells not in it)
-const TRACE_POINTS = 4000;        // the most points the "boundary edges" chart keeps (section 7)
+const TRACE_POINTS = 4000;        // the most points the "boundary edges" chart keeps (section 6)
 // With one color highlighted, every other color is mixed with this much
 // white (0 = unchanged, 1 = white), so the highlighted region stands out.
 const FADE = 0.8;
-// A press that moves less than this many screen pixels is a click (it
-// highlights a color); a longer one drags the picture.
-const CLICK_DISTANCE = 5;
 
-// Hyperbolic plane or tree: the ball's default and largest radius R,
-// the most cells a ball may have (a ball of a hyperbolic tiling grows
-// exponentially with R), and the picture's height in screen pixels.
-const DEFAULT_BALL_RADIUS = 5;
-const MAX_BALL_RADIUS = 20;
-const MAX_BALL_CELLS = 20000;
-const DISK_HEIGHT = 480;
+// Hyperbolic plane or tree: the ball's default radius R, its largest
+// R, and the most cells it may have (a ball of a hyperbolic tiling grows
+// exponentially with R).
+const BALL = { R: 5, most: 20, cells: 20000 };
 
 // The speeds on the Speed slider, in moves per second.
 // Infinity means "as fast as the computer can". The default is low, so
@@ -86,47 +80,13 @@ let run = 0;                   // counts restarts, so leftovers from an older ru
 let colors = null;             // colors[v] = color of cell v
 let latest = null;             // { proposed, accepted, boundary, pairs }
 let trace = [];                // [moves tried, boundary edges] pairs, for the chart
-let traceEvery = 1;            // the chart keeps one message in this many (section 7)
+let traceEvery = 1;            // the chart keeps one message in this many (section 6)
 let messages = 0;              // messages from the chain in this run
-let highlighted = -1;          // the color shown highlighted, or -1 for none (section 6b)
-
-// Hyperbolic plane or tree: the graph itself (js/sim-graphs.js), made
-// again only when the graph changes. (Which graph it is, how it is
-// drawn and how far the plane has been moved are in "disk", section 6.)
-let graph = null, graphFor = null;
+let highlighted = -1;          // the color shown highlighted, or -1 for none (section 5b)
 
 
 /* =====================================================================
-   3. CONNECTED PIECES
-   ---------------------------------------------------------------------
-   The domains themselves (boxes, tori and drawn regions) are built by
-   js/sim-domains.js, which also describes what a domain object holds.
-   ===================================================================== */
-
-// How many connected pieces each color has. pieces[c] for c = 0 .. count-1.
-// (A coloring with every color 0 gives the pieces of the whole domain.)
-function countPieces(d, colorOf, count) {
-  const pieces = new Array(count).fill(0);
-  const seen = new Uint8Array(d.n);
-  for (let s = 0; s < d.n; s++) {
-    if (seen[s]) continue;
-    pieces[colorOf[s]]++;
-    seen[s] = 1;
-    const stack = [s];                    // explore everything joined to s in its color
-    while (stack.length > 0) {
-      const v = stack.pop();
-      for (let e = d.first[v]; e < d.first[v + 1]; e++) {
-        const w = d.nbr[e];
-        if (!seen[w] && colorOf[w] === colorOf[v]) { seen[w] = 1; stack.push(w); }
-      }
-    }
-  }
-  return pieces;
-}
-
-
-/* =====================================================================
-   4. THE AUTOMATIC START
+   3. THE AUTOMATIC START
    ---------------------------------------------------------------------
    Like the old site: the domain is cut into a grid of N rectangles,
    in rows, with about the same number in each row, and as many rows as
@@ -213,7 +173,7 @@ function blockStart(d, count) {
 
 
 /* =====================================================================
-   5. RUNNING THE CHAIN
+   4. RUNNING THE CHAIN
    ---------------------------------------------------------------------
    The chain is the function chainWorker() in connected-coloring-chain.js.
    startWorker (js/sim-page.js) runs it in a second thread, a "Web
@@ -259,13 +219,12 @@ function restart() {
 function setPlaying(on) {
   playing = on;
   worker.postMessage(on ? { type: "play", speed: SPEEDS[speedIndex] } : { type: "pause" });
-  byId("play").textContent = on ? "Pause" : "Play";
-  byId("play").classList.toggle("selected", on);
+  showPlaying(on);
 }
 
 
 /* =====================================================================
-   6. DRAWING THE COLORING
+   5. DRAWING THE COLORING
    ---------------------------------------------------------------------
    Each cell is a square in its color, with a dark line along every side
    where two cells of different colors meet, or where the domain ends.
@@ -285,26 +244,18 @@ function setPlaying(on) {
    move around the plane), or, for a tree, spread out in rings, with the
    rest of the tiling in thin gray (drawOnGraph below).
    ===================================================================== */
-let drawPending = false;
 const simCanvas = byId("sim-canvas");         // the canvas on the page
+
+// Draw at the browser's next screen refresh (at most once per refresh,
+// however many colorings arrive in between).
+const drawSoon = oncePerFrame(function () { drawColoring(); showStats(); });
+
 const view = makeView(simCanvas, drawSoon);   // where the picture goes, and the torus's zoom
 
 // Hyperbolic plane or tree: which graph, how it is drawn, and how far
 // the plane has been moved (js/sim-hyperbolic.js). The view above zooms
 // and slides its pictures too.
-const disk = makeDiskView(simCanvas, view);
-
-// Draw at the browser's next screen refresh (at most once per refresh,
-// however many colorings arrive in between).
-function drawSoon() {
-  if (drawPending) return;
-  drawPending = true;
-  requestAnimationFrame(function () {
-    drawPending = false;
-    drawColoring();
-    showStats();
-  });
-}
+const disk = makeDiskView(simCanvas, view, showDomainChoice);
 
 function drawColoring() {
   if (!domain || !colors || simCanvas.hidden) return;
@@ -337,7 +288,7 @@ function drawColoring() {
 // rest of the tiling (or tree) in thin gray, and on a tiling the lines
 // between different colors (js/sim-hyperbolic.js).
 function drawOnGraph() {
-  const height = pictureHeight(DISK_HEIGHT);
+  const height = pictureHeight(BALL_HEIGHT);
   const paint = colorNames.map(function (name, c) { return shade(c); });
   const colorOf = function (v) { return paint[colors[v]]; };
   if (disk.picture === "spread") {
@@ -347,7 +298,7 @@ function drawOnGraph() {
   }
   const pen = diskPen(disk, height);
   drawDiskFrame(disk, pen, height, OUTSIDE, UNDER_COLOR);
-  drawOnDisk(disk, pen, graph, domain.n, function (v) { return ballPlace(domain, v); }, colorOf);
+  drawOnDisk(disk, pen, diskGraph(disk), domain.n, function (v) { return ballPlace(domain, v); }, colorOf);
   drawBallBorders(disk, pen, domain, function (v) { return colors[v]; }, BORDER);
 }
 
@@ -355,7 +306,7 @@ window.addEventListener("resize", drawSoon);
 
 
 /* =====================================================================
-   6b. HIGHLIGHTING ONE COLOR
+   5b. HIGHLIGHTING ONE COLOR
    ---------------------------------------------------------------------
    Click a cell in the picture (or a bar in the "Size of each color"
    chart) to highlight its color: every other color fades, so the whole
@@ -364,7 +315,9 @@ window.addEventListener("resize", drawSoon);
    color again. The highlight stays on while the chain runs.
 
    A press that barely moves is a click; one that moves further drags
-   the picture, as before (js/sim-view.js).
+   the picture, as before (connectPicture, js/sim-controls.js). On a
+   hyperbolic tiling or tree, one pointer drags across the plane, and
+   two fingers slide and zoom the picture.
    ===================================================================== */
 
 // How color c is painted: its own color, or faded if another color is
@@ -396,57 +349,19 @@ function showHighlightInfo() {
                             : "Click it again, or outside the cells, to show every color.");
 }
 
-// Pressing, moving and letting go of the picture. On a hyperbolic
-// tiling or tree, one pointer drags across the plane (startPlaneDrag
-// and dragPlane, js/sim-hyperbolic.js), and two fingers slide and zoom
-// the picture.
-const pressed = new Set();     // the pointers (mouse, fingers) pressed down right now
-let pressedAt = null;          // where the first one went down
-let dragged = false;           // has this press moved far enough to be a drag?
-
-simCanvas.addEventListener("pointerdown", function (event) {
-  if (pressed.size === 0) { pressedAt = { x: event.clientX, y: event.clientY }; dragged = false; }
-  pressed.add(event.pointerId);
-  if (pressed.size > 1) dragged = true;           // two fingers: a pinch, not a click
-  pressPointer(view, event);                      // drag and pinch the picture (js/sim-view.js)
-  startDrag();
-});
-
-simCanvas.addEventListener("pointermove", function (event) {
-  if (!pressed.has(event.pointerId)) return;
-  if (Math.hypot(event.clientX - pressedAt.x, event.clientY - pressedAt.y) >= CLICK_DISTANCE) dragged = true;
-  if (disk.dragFrom && view.pointers.has(event.pointerId)) {
-    view.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });   // where a second finger starts from
-    dragPlane(disk, event.clientX, event.clientY);
-    drawSoon();
-  } else {
-    movePointer(view, event);
-  }
-});
-
-// On a hyperbolic tiling or tree, exactly one pointer pressed drags
-// across the plane.
-function startDrag() {
-  if (domainKind === "graph") startPlaneDrag(disk);
-  else disk.dragFrom = null;
-}
-
-function stopPointer(event, isClick) {
-  if (!pressed.delete(event.pointerId)) return;
-  releasePointer(view, event);
-  startDrag();
-  if (!isClick || pressed.size > 0 || dragged || !colors) return;
+// Dragging, zooming and clicking the picture: a click highlights the
+// color under it.
+connectPicture(view, disk, function () { return domainKind === "graph"; }, function (event) {
+  if (!colors) return;
   const v = domainKind === "graph" ? ballCellUnder(disk, domain, event)
                                    : cellUnder(view, domain, pointerSpot(view, event));
   if (v === -1) { if (highlighted !== -1) highlight(-1); }   // outside the cells: show every color
   else highlight(colors[v]);
-}
-simCanvas.addEventListener("pointerup", function (event) { stopPointer(event, true); });
-simCanvas.addEventListener("pointercancel", function (event) { stopPointer(event, false); });
+});
 
 
 /* =====================================================================
-   7. STATISTICS
+   6. STATISTICS
    ---------------------------------------------------------------------
    The table of numbers, and two small charts. The charts get their
    canvas ready, and their colors, from js/sim-page.js.
@@ -501,7 +416,7 @@ function drawSizes() {
   });
 }
 
-// Clicking a bar highlights its color (section 6b).
+// Clicking a bar highlights its color (section 5b).
 byId("sizes-chart").addEventListener("click", function (event) {
   if (!colors) return;
   const box = this.getBoundingClientRect();
@@ -578,12 +493,11 @@ function drawTrace() {
 
 
 /* =====================================================================
-   8. CUSTOM DOMAINS: THE GRAPH TOOL INSIDE THIS PAGE
+   7. CUSTOM DOMAINS: THE GRAPH TOOL INSIDE THIS PAGE
    ---------------------------------------------------------------------
    Choosing "Custom" swaps the picture for the graph tool, loaded in an
-   <iframe> (a page inside this page) as graph-tool.html?embed. The tool
-   sends a message every time the drawing changes, and this page checks
-   it live. Two steps:
+   <iframe> (a page inside this page): makeCustomTool, in
+   js/sim-controls.js. This page checks the drawing live. Two steps:
      1. Draw the region. It must be one connected piece. Then either
         "Use automatic start" (N compact blocks, as for a box), or
         "Draw my own start".
@@ -592,29 +506,10 @@ function drawTrace() {
         each color must be one connected piece; the colors you use
         become the N colors.
    ===================================================================== */
-const frame = byId("tool-frame");
-let toolStep = 0;          // 0 = tool closed, 1 or 2 = that step
-let toolMessage = null;    // the tool's latest drawing: { graph, grid, palette }
-let wasPlaying = false;    // to carry on after Cancel
+let toolStep = 1;          // the tool's step, 1 or 2
 
-function openTool() {
-  wasPlaying = playing;
-  if (playing) setPlaying(false);
-  simCanvas.hidden = true;
-  showZoomButtons(view);
-  byId("custom-area").hidden = false;
-  if (!frame.src) frame.src = "graph-tool.html?embed";    // the first time only
-  else frame.contentWindow.postMessage({ type: "unlock" }, "*");
-  showStep(1);
-}
-
-function closeTool() {
-  toolStep = 0;
-  byId("custom-area").hidden = true;
-  simCanvas.hidden = false;
-  showZoomButtons(view);
-}
-
+// Show step 1 or 2: its title, its help, and its buttons. (Check the
+// drawing again afterwards, with tool.check().)
 function showStep(step) {
   toolStep = step;
   byId("step-title").textContent = step === 1
@@ -628,48 +523,53 @@ function showStep(step) {
   for (const button of document.querySelectorAll("[data-step]")) {
     button.hidden = Number(button.dataset.step) !== step;
   }
-  checkTool();
 }
 
-// The tool sends its drawing every time it changes (js/sim-page.js).
-listenToTool(frame, function (drawing) { toolMessage = drawing; checkTool(); });
-
-// Check the drawing live and say what's wrong, if anything. Turns the
-// buttons that go on (Use automatic start, Draw my own start, Done) on
-// or off.
-function checkTool() {
-  if (toolStep === 0) return;
-  let problem = "", good = "";
-  if (!toolMessage) {
-    problem = "Loading the drawing tool...";
-  } else if (toolStep === 1 && toolMessage.graph.vertices.length === 0) {
-    problem = "Paint the region first.";
-  } else if (toolStep === 1) {
-    const region = drawnDomain(toolMessage.graph, toolMessage.grid);
+// What's wrong with the drawing, if anything, as [problem, good]. The
+// buttons that go on (Use automatic start, Draw my own start, Done)
+// work only when there is no problem.
+function checkDrawing(drawing) {
+  if (toolStep === 1) {
+    if (drawing.graph.vertices.length === 0) return ["Paint the region first.", ""];
+    const region = drawnDomain(drawing.graph, drawing.grid);
     const pieces = countPieces(region, new Int32Array(region.n), 1)[0];
-    if (region.n < 2) problem = "The region needs at least 2 cells.";
-    else if (pieces > 1) problem = "The region is in " + pieces + " pieces; it must be one connected piece.";
-    else good = region.n + " cells in one connected piece.";
-  } else {
-    const start = drawnColoring();
-    if (start.uncolored > 0) {
-      problem = start.uncolored + (start.uncolored === 1 ? " cell has" : " cells have") + " no color yet.";
-    } else if (start.used.length < 2) {
-      problem = "Use at least 2 colors.";
-    } else if (start.used.length > MAX_COLORS) {
-      problem = "At most " + MAX_COLORS + " colors, please.";
-    } else {
-      const pieces = countPieces(customDomain, start.colorOf, start.used.length);
-      const broken = [];
-      pieces.forEach(function (count, c) {
-        if (count > 1) broken.push("color " + start.used[c] + " is in " + count + " pieces");
-      });
-      if (broken.length > 0) problem = "Each color must be one connected piece: " + broken.join(", ") + ".";
-      else good = start.used.length + " colors, each one connected piece.";
-    }
+    if (region.n < 2) return ["The region needs at least 2 cells.", ""];
+    if (pieces > 1) return ["The region is in " + pieces + " pieces; it must be one connected piece.", ""];
+    return ["", region.n + " cells in one connected piece."];
   }
-  showToolStatus(problem, good, ["use-auto", "draw-own", "tool-done"]);
+  const start = drawnColoring();
+  if (start.uncolored > 0) {
+    return [start.uncolored + (start.uncolored === 1 ? " cell has" : " cells have") + " no color yet.", ""];
+  }
+  if (start.used.length < 2) return ["Use at least 2 colors.", ""];
+  if (start.used.length > MAX_COLORS) return ["At most " + MAX_COLORS + " colors, please.", ""];
+  const pieces = countPieces(customDomain, start.colorOf, start.used.length);
+  const broken = [];
+  pieces.forEach(function (count, c) {
+    if (count > 1) broken.push("color " + start.used[c] + " is in " + count + " pieces");
+  });
+  if (broken.length > 0) return ["Each color must be one connected piece: " + broken.join(", ") + ".", ""];
+  return ["", start.used.length + " colors, each one connected piece."];
 }
+
+// Step 2 -> "Done": start from your coloring, in the tool's colors. It
+// carries on running only if it was running before the tool opened.
+// Cancel: back to whatever was running before.
+const tool = makeCustomTool({
+  view: view,
+  isPlaying: function () { return playing; },
+  setPlaying: setPlaying,
+  onOpen: function () { showStep(1); },
+  buttons: ["use-auto", "draw-own", "tool-done"],
+  check: checkDrawing,
+  done: function (drawing) {
+    const start = drawnColoring();
+    const names = start.used.map(function (c) { return drawing.palette[c]; });
+    useDomain("custom", customDomain, start.colorOf, names);
+    tool.carryOn();
+  },
+  cancel: function () { showDomainChoice(); drawSoon(); },
+});
 
 // Your drawn coloring of customDomain, read from the tool. The tool
 // numbers colors by palette square (1, 2, ...); the chain wants
@@ -677,7 +577,7 @@ function checkTool() {
 //   used[c] = the tool's number of color c;  colorOf[v] = c (or -1)
 function drawnColoring() {
   const toolColor = new Map();
-  for (const v of toolMessage.graph.vertices) toolColor.set(v.id, v.color);
+  for (const v of tool.drawing.graph.vertices) toolColor.set(v.id, v.color);
   const used = [...new Set(toolColor.values())].sort(function (a, b) { return a - b; });
   const colorOf = new Int32Array(customDomain.n);
   let uncolored = 0;
@@ -691,47 +591,30 @@ function drawnColoring() {
 // Step 1 -> "Use automatic start": the region, with the automatic start.
 // (It carries on running only if it was running before the tool opened.)
 byId("use-auto").addEventListener("click", function () {
-  customDomain = drawnDomain(toolMessage.graph, toolMessage.grid);
-  closeTool();
+  customDomain = drawnDomain(tool.drawing.graph, tool.drawing.grid);
+  tool.close();
   useDomain("custom", customDomain, null, null);
-  if (wasPlaying) setPlaying(true);
+  tool.carryOn();
 });
 
 // Step 1 -> "Draw my own start": lock the region and go to step 2.
 byId("draw-own").addEventListener("click", function () {
-  customDomain = drawnDomain(toolMessage.graph, toolMessage.grid);
-  frame.contentWindow.postMessage({ type: "lock" }, "*");
+  customDomain = drawnDomain(tool.drawing.graph, tool.drawing.grid);
+  tool.frame.contentWindow.postMessage({ type: "lock" }, "*");
   showStep(2);
+  tool.check();
 });
 
 // Step 2 -> "Back to the region".
 byId("tool-back").addEventListener("click", function () {
-  frame.contentWindow.postMessage({ type: "unlock" }, "*");
+  tool.frame.contentWindow.postMessage({ type: "unlock" }, "*");
   showStep(1);
+  tool.check();
 });
-
-// Step 2 -> "Done": start from your coloring, in the tool's colors.
-byId("tool-done").addEventListener("click", function () {
-  const start = drawnColoring();
-  const names = start.used.map(function (c) { return toolMessage.palette[c]; });
-  closeTool();
-  useDomain("custom", customDomain, start.colorOf, names);
-  if (wasPlaying) setPlaying(true);
-});
-
-// Cancel: back to whatever was running before.
-for (const button of document.querySelectorAll(".tool-cancel")) {
-  button.addEventListener("click", function () {
-    closeTool();
-    showDomainChoice();
-    drawSoon();
-    if (wasPlaying) setPlaying(true);
-  });
-}
 
 
 /* =====================================================================
-   9. CONNECTING THE BUTTONS ON THE PAGE
+   8. CONNECTING THE BUTTONS ON THE PAGE
    ===================================================================== */
 
 // Switch to a new domain and restart. "start" is your own coloring
@@ -754,49 +637,31 @@ function useDomain(kind, d, start, names) {
 
 // The box or torus from the boxes on the page. (Choosing one while the
 // graph tool is open closes it.)
+// (Choosing one while the graph tool is open closes it, and carries on
+// running if it was running before the tool opened.)
 function useBox() {
-  const toolWasOpen = (toolStep !== 0);
-  if (toolWasOpen) closeTool();
-  const width = readWhole("set-width", 2, MAX_SIDE, DEFAULTS.width);
-  const height = readWhole("set-height", 2, MAX_SIDE, DEFAULTS.height);
-  const neighbors = Number(byId("set-neighbors").value);
-  const torus = (checked("domain") === "torus");
-  useDomain(torus ? "torus" : "box", boxDomain(width, height, neighbors, torus), null, null);
-  if (toolWasOpen && wasPlaying) setPlaying(true);
+  const toolWasOpen = tool.isOpen;
+  if (toolWasOpen) tool.close();
+  const d = boxFromOptions(2, MAX_SIDE, DEFAULTS);
+  useDomain(d.wrap ? "torus" : "box", d, null, null);
+  if (toolWasOpen) tool.carryOn();
 }
 
 // A ball of a hyperbolic tiling or a tree, from the options on the
-// page (js/sim-hyperbolic.js), with the start cell in the middle of the
-// picture. (Choosing one while the graph tool is open closes it.)
+// page (ballFromOptions, js/sim-hyperbolic.js), with the start cell in
+// the middle of the picture.
 function useGraph() {
-  const toolWasOpen = (toolStep !== 0);
-  if (toolWasOpen) closeTool();
-  if (!readGraphOptions(disk)) { showDomainChoice(); return; }
-  if (graphFor !== disk.spec) { graph = makeGraph(disk.spec); graphFor = disk.spec; }
-  const R = readWhole("set-ball-radius", 1, MAX_BALL_RADIUS, DEFAULT_BALL_RADIUS);
-  const ball = makeBall(graph, R, MAX_BALL_CELLS);
-  byId("set-ball-radius").value = ball.R;
-  byId("ball-info").textContent = ball.n.toLocaleString() + " cells." + (ball.R < R
-    ? " A ball of radius " + R + " would have more than " + MAX_BALL_CELLS.toLocaleString() +
-      " cells, the most this page uses, so R is " + ball.R + "."
-    : "");
-  backToStart(disk);
+  const toolWasOpen = tool.isOpen;
+  if (toolWasOpen) tool.close();
+  const ball = ballFromOptions(disk, BALL);
+  if (ball === null) { showDomainChoice(); return; }
   useDomain("graph", ball, null, null);
-  if (toolWasOpen && wasPlaying) setPlaying(true);
+  if (toolWasOpen) tool.carryOn();
 }
 
 // Show the options that fit the domain in use, and tick its radio button.
 function showDomainChoice() {
-  document.querySelector('input[name="domain"][value="' + domainKind + '"]').checked = true;
-  const custom = (domainKind === "custom"), onGraph = (domainKind === "graph");
-  byId("size-row").hidden = byId("neighbors-row").hidden = custom || onGraph;
-  byId("custom-row").hidden = !custom;
-  byId("graph-rows").hidden = !onGraph;
-  byId("disk-reset").hidden = !onGraph || disk.picture === "spread";   // with the zoom buttons
-  if (custom && customDomain) {
-    byId("custom-info").textContent = "Your region: " + customDomain.n + " cells" +
-      (customDomain.wrap ? ", on a torus." : ".");
-  }
+  showDomainOptions(domainKind, customDomain, disk);
 }
 
 function showStartInfo() {
@@ -808,32 +673,9 @@ function showStartInfo() {
     "with each color in one piece).";
 }
 
-// Domain: Box / Torus / Custom / Hyperbolic plane or tree.
-for (const radio of document.querySelectorAll('input[name="domain"]')) {
-  radio.addEventListener("change", function () {
-    if (radio.value === "custom") openTool();
-    else if (radio.value === "graph") useGraph();
-    else useBox();
-  });
-}
-for (const id of ["set-width", "set-height", "set-neighbors"]) {
-  byId(id).addEventListener("change", useBox);
-}
-byId("edit-custom").addEventListener("click", openTool);
-
-// Hyperbolic plane or tree: the graph, the ball's radius, and the
-// picture ("Drawn in"). "Back to the start" puts the start cell back in
-// the middle.
-for (const id of ["set-p", "set-q", "set-degree", "set-ball-radius"]) byId(id).addEventListener("change", useGraph);
-for (const radio of document.querySelectorAll('input[name="graph-kind"]')) radio.addEventListener("change", useGraph);
-for (const radio of document.querySelectorAll('input[name="picture"]')) {
-  radio.addEventListener("change", function () {
-    disk.picture = radio.value;
-    showDomainChoice();
-    resetView(view);      // a new picture starts unzoomed
-  });
-}
-byId("disk-reset").addEventListener("click", function () { backToStart(disk); drawSoon(); });
+// Domain: Box / Torus / Custom / Hyperbolic plane or tree, and their
+// options (js/sim-controls.js).
+connectDomainChoice({ box: useBox, torus: useBox, custom: tool.open, graph: useGraph });
 
 // N: the slider and the number box move together, and the chain restarts
 // live while you drag, like a Desmos slider.
@@ -853,12 +695,7 @@ byId("step").addEventListener("click", function () {
 byId("restart").addEventListener("click", restart);
 
 // Speed.
-function showSpeed() {
-  const speed = SPEEDS[speedIndex];
-  byId("speed-label").textContent = speed === Infinity
-    ? "as fast as possible"
-    : speed + (speed === 1 ? " move" : " moves") + " per second";
-}
+function showSpeed() { byId("speed-label").textContent = speedText(SPEEDS[speedIndex], "move", "moves"); }
 byId("speed").addEventListener("input", function () {
   speedIndex = Number(this.value);
   showSpeed();
@@ -866,24 +703,14 @@ byId("speed").addEventListener("input", function () {
 });
 
 // Seed: the same seed gives the same run every time.
-byId("seed").addEventListener("change", restart);
-byId("new-seed").addEventListener("click", function () {
-  byId("seed").value = String(Math.floor(Math.random() * 100000));
-  restart();
-});
+connectSeed(restart);
 
 
 // --- Start ------------------------------------------------------------
-byId("set-width").value = DEFAULTS.width;
-byId("set-height").value = DEFAULTS.height;
-byId("set-width").max = byId("set-height").max = MAX_SIDE;
-byId("set-neighbors").value = String(DEFAULTS.neighbors);
+fillDomainOptions(DEFAULTS, MAX_SIDE, BALL);
 byId("seed").value = DEFAULTS.seed;
 byId("speed").max = SPEEDS.length - 1;
 byId("speed").value = speedIndex;
-byId("set-ball-radius").value = DEFAULT_BALL_RADIUS;
-byId("set-ball-radius").max = MAX_BALL_RADIUS;
-showGraphPresets(useGraph);
 showSpeed();
 useBox();
 setPlaying(false);   // paused: press Play to start

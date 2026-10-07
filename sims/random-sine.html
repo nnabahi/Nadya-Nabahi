@@ -168,7 +168,7 @@
           those charts show the middle 90% of the values (the rest are counted in the end bars).</p>
       </section>
 
-      <!-- LOWER RIGHT: about the model, in two tabs (js/about-tabs.js
+      <!-- LOWER RIGHT: about the model, in two tabs (js/sim-page.js
            switches them). Text in class="tex" is typeset by KaTeX
            (<div> on its own line, <span> inside a sentence). -->
       <section class="quad quad-about">
@@ -305,14 +305,13 @@
   <script src="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/katex.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/seedrandom@3.0.5/seedrandom.min.js"></script>
 
-  <!-- The Simple / All the details tabs in the About box. -->
-  <script src="../js/about-tabs.js"></script>
-
-  <!-- Shared helpers (they also typeset the formulas, so they come after
-       KaTeX) and reading formulas with sliders. Then the math of this sim
+  <!-- The code the sims share (in js/, see the README): page helpers
+       (they also typeset the formulas, so they come after KaTeX),
+       charts, and reading formulas with sliders. Then the math of this sim
        (random-sine-roots.js, the same file the check page tests), then
        this page. -->
   <script src="../js/sim-page.js"></script>
+  <script src="../js/sim-charts.js"></script>
   <script src="../js/formulas.js"></script>
   <script src="random-sine-roots.js"></script>
   <script src="random-sine.js"></script>

@@ -223,15 +223,7 @@ function replay() {
 
 // A slider fires many times a second; replay at most once per screen
 // refresh, with whatever the latest numbers are.
-let replayPending = false;
-function replaySoon() {
-  if (replayPending) return;
-  replayPending = true;
-  requestAnimationFrame(function () {
-    replayPending = false;
-    replay();
-  });
-}
+const replaySoon = oncePerFrame(replay);
 
 let lastFrame = 0, owed = 0, lastStats = 0;
 function playFrame(time) {
@@ -677,12 +669,7 @@ byId("set-runs").addEventListener("change", function () {
   byId("set-run").max = runs;
   replay();
 });
-byId("seed").addEventListener("change", function () { seed = byId("seed").value; replay(); });
-byId("new-seed").addEventListener("click", function () {
-  seed = String(Math.floor(Math.random() * 100000));
-  byId("seed").value = seed;
-  replay();
-});
+connectSeed(function () { seed = byId("seed").value; replay(); });   // js/sim-page.js
 
 for (const radio of document.querySelectorAll('input[name="view"]')) {
   radio.addEventListener("change", function () { setViewKind(radio.value); });

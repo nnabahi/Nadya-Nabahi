@@ -4,7 +4,9 @@
    What it does, in plain words:
      - Builds the domain: a box or torus of cells, an Aztec diamond, or
        a custom one drawn in the graph tool (shown inside this page). The
-       domain code is shared with the other sims, in js/sim-domains.js.
+       domain code is shared with the other sims: the domains in
+       js/sim-domains.js, and their options and the graph tool in
+       js/sim-controls.js.
      - Reads the tiles (rectangles, each with a weight) and the options.
      - Hands everything to the chain (tile-packing-chain.js), which runs
        in a second thread (a "Web Worker"), and draws every packing it
@@ -156,8 +158,7 @@ function readRadius() {
 function setPlaying(on) {
   playing = on;
   worker.postMessage(on ? { type: "play", speed: SPEEDS[speedIndex] } : { type: "pause" });
-  byId("play").textContent = on ? "Pause" : "Play";
-  byId("play").classList.toggle("selected", on);
+  showPlaying(on);
 }
 
 
@@ -171,7 +172,7 @@ function setPlaying(on) {
    colored: by tile size, by orientation (direction), or by orientation
    and checkerboard together (the 4 colors of the arctic circle pictures,
    for dominoes). The colors are the old site's (defaultColor in
-   js/sim-domains.js).
+   js/sim-colors.js).
    ===================================================================== */
 function classColors() {
   const orientations = placements.orientW.length;
@@ -216,25 +217,17 @@ function classOf(p, classes) {
    weighted by the share of the time the cell spent in that class (the
    chain's heat map), with no lines.
    ===================================================================== */
-let drawPending = false;
 const tiny = document.createElement("canvas");      // one pixel per screen square
 const simCanvas = byId("sim-canvas");
+
+// Draw at the browser's next screen refresh (at most once per refresh,
+// however many messages arrive in between).
+const drawSoon = oncePerFrame(function () { drawPacking(); showStats(); });
+
 // Where the picture goes, and how far it is moved and zoomed. Cells at
 // least SMALLEST_BORDERED_CELL pixels big get a whole number of pixels,
 // so the lines sit exactly on the cell edges.
 const view = makeView(simCanvas, drawSoon, 0, SMALLEST_BORDERED_CELL);
-
-// Draw at the browser's next screen refresh (at most once per refresh,
-// however many messages arrive in between).
-function drawSoon() {
-  if (drawPending) return;
-  drawPending = true;
-  requestAnimationFrame(function () {
-    drawPending = false;
-    drawPacking();
-    showStats();
-  });
-}
 
 function drawPacking() {
   if (!domain || !latest || !placements || simCanvas.hidden) return;
@@ -322,35 +315,20 @@ window.addEventListener("resize", drawSoon);
 /* =====================================================================
    6. MOVING AND ZOOMING THE PICTURE
    ---------------------------------------------------------------------
-   The code is shared with the other sims, in js/sim-view.js: the view
-   made in section 5 handles the mouse wheel and the zoom buttons, and
-   this page passes its pointer events on to it. ("Pointer" events
-   cover the mouse, a pen and fingers alike.)
+   The code is shared with the other sims (connectPicture,
+   js/sim-controls.js, and js/sim-view.js): drag to move, mouse wheel or
+   pinch to zoom, and the + / − / Reset buttons.
 
    A click (a press that hardly moves) makes one move of the chain with
    its disk centered on the clicked cell: the tiles there are deleted
    and the region is refilled at random, as if the chain had dropped
    its disk on that spot.
    ===================================================================== */
-const CLICK_DISTANCE = 5;      // a press that moves less than this (pixels) is a click, not a drag
-let pressedAt = null;          // where a single pointer went down (null: two fingers, never a click)
-
-simCanvas.addEventListener("pointerdown", function (event) {
-  pressedAt = view.pointers && view.pointers.size > 0 ? null : { x: event.clientX, y: event.clientY };
-  pressPointer(view, event);
-});
-simCanvas.addEventListener("pointermove", function (event) {
-  if (pressedAt && Math.hypot(event.clientX - pressedAt.x, event.clientY - pressedAt.y) >= CLICK_DISTANCE) pressedAt = null;
-  movePointer(view, event);
-});
-simCanvas.addEventListener("pointerup", function (event) {
-  releasePointer(view, event);
-  if (!pressedAt || !domain || !worker) return;
-  pressedAt = null;
+connectPicture(view, null, null, function (event) {
+  if (!domain) return;
   const v = cellUnder(view, domain, pointerSpot(view, event));
   if (v >= 0) worker.postMessage({ type: "click", x: domain.x[v], y: domain.y[v] });
 });
-simCanvas.addEventListener("pointercancel", function (event) { pressedAt = null; releasePointer(view, event); });
 
 
 /* =====================================================================
@@ -448,58 +426,23 @@ function drawCoverChart() {
    8. CUSTOM DOMAINS: THE GRAPH TOOL INSIDE THIS PAGE
    ---------------------------------------------------------------------
    Choosing "Custom" swaps the picture for the graph tool, loaded in an
-   <iframe> (a page inside this page) as graph-tool.html?embed. The tool
-   sends a message every time the drawing changes. Any region will do
-   (it may be in several pieces); Done uses it.
+   <iframe> (a page inside this page): makeCustomTool, in
+   js/sim-controls.js. Any region will do (it may be in several
+   pieces); Done uses it.
    ===================================================================== */
-const frame = byId("tool-frame");
-let toolOpen = false;
-let toolMessage = null;    // the tool's latest drawing: { graph, grid, palette }
-let wasPlaying = false;    // to carry on after Cancel
-
-function openTool() {
-  wasPlaying = playing;
-  if (playing) setPlaying(false);
-  toolOpen = true;
-  simCanvas.hidden = true;
-  byId("custom-area").hidden = false;
-  showZoomButtons(view);
-  if (!frame.src) frame.src = "graph-tool.html?embed";    // the first time only
-  checkTool();
-}
-
-function closeTool() {
-  toolOpen = false;
-  byId("custom-area").hidden = true;
-  simCanvas.hidden = false;
-  showZoomButtons(view);
-}
-
-// The tool sends its drawing every time it changes (js/sim-page.js).
-listenToTool(frame, function (drawing) { toolMessage = drawing; checkTool(); });
-
-// Check the drawing live and say what's wrong, if anything.
-function checkTool() {
-  if (!toolOpen) return;
-  let problem = "", good = "";
-  if (!toolMessage) problem = "Loading the drawing tool...";
-  else if (toolMessage.graph.vertices.length === 0) problem = "Paint the region first.";
-  else good = toolMessage.graph.vertices.length + " cells.";
-  showToolStatus(problem, good);
-}
-
-byId("tool-done").addEventListener("click", function () {
-  customDomain = drawnDomain(toolMessage.graph, toolMessage.grid);
-  closeTool();
-  useDomain("custom", customDomain);
-});
-
-// Cancel: back to whatever was there before.
-byId("tool-cancel").addEventListener("click", function () {
-  closeTool();
-  showDomainChoice();
-  drawSoon();
-  if (wasPlaying) setPlaying(true);
+const tool = makeCustomTool({
+  view: view,
+  isPlaying: function () { return playing; },
+  setPlaying: setPlaying,
+  check: function (drawing) {
+    const cells = drawing.graph.vertices.length;
+    return cells === 0 ? ["Paint the region first.", ""] : ["", cells + " cells."];
+  },
+  done: function (drawing) {
+    customDomain = drawnDomain(drawing.graph, drawing.grid);
+    useDomain("custom", customDomain);
+  },
+  cancel: function () { showDomainChoice(); drawSoon(); },
 });
 
 
@@ -599,11 +542,9 @@ function useDomain(kind, d) {
 // The box or torus from the boxes on the page. (Choosing one while the
 // graph tool is open closes it.)
 function useBox() {
-  if (toolOpen) closeTool();
-  const width = readWhole("set-width", 1, MAX_SIDE, DEFAULTS.width);
-  const height = readWhole("set-height", 1, MAX_SIDE, DEFAULTS.height);
-  const torus = (checked("domain") === "torus");
-  useDomain(torus ? "torus" : "box", boxDomain(width, height, 4, torus));
+  if (tool.isOpen) tool.close();
+  const d = boxFromOptions(1, MAX_SIDE, DEFAULTS);   // (4 neighbors)
+  useDomain(d.wrap ? "torus" : "box", d);
 }
 
 // The Aztec diamond (aztecDiamond is in js/sim-domains.js). Choosing it
@@ -611,7 +552,7 @@ function useBox() {
 // theorem, colored by direction and checkerboard (the 4 colors of the
 // arctic circle pictures); all can be changed afterwards.
 function useAztec(switchTiles) {
-  if (toolOpen) closeTool();
+  if (tool.isOpen) tool.close();
   const order = readWhole("set-order", 1, MAX_ORDER, DEFAULTS.order);
   if (switchTiles) {
     usePreset("dominoes");
@@ -642,17 +583,10 @@ function showGapsInfo() {
     : "No gaps: every cell covered. The start is built without a search, so some domains can't get one.";
 }
 
-// Domain: Box / Torus / Aztec diamond / Custom.
-for (const radio of document.querySelectorAll('input[name="domain"]')) {
-  radio.addEventListener("change", function () {
-    if (radio.value === "custom") openTool();
-    else if (radio.value === "aztec") useAztec(true);
-    else useBox();
-  });
-}
-for (const id of ["set-width", "set-height"]) byId(id).addEventListener("change", useBox);
+// Domain: Box / Torus / Aztec diamond / Custom, and their options
+// (js/sim-controls.js).
+connectDomainChoice({ box: useBox, torus: useBox, aztec: function () { useAztec(true); }, custom: tool.open });
 byId("set-order").addEventListener("change", function () { useAztec(false); });
-byId("edit-custom").addEventListener("click", openTool);
 
 // Rotations and gaps: a new start.
 byId("rotations").addEventListener("change", restart);
@@ -690,12 +624,7 @@ byId("step").addEventListener("click", function () {
 byId("restart").addEventListener("click", restart);
 
 // Speed.
-function showSpeed() {
-  const speed = SPEEDS[speedIndex];
-  byId("speed-label").textContent = speed === Infinity
-    ? "as fast as possible"
-    : speed.toLocaleString() + (speed === 1 ? " move" : " moves") + " per second";
-}
+function showSpeed() { byId("speed-label").textContent = speedText(SPEEDS[speedIndex], "move", "moves"); }
 byId("speed").addEventListener("input", function () {
   speedIndex = Number(this.value);
   showSpeed();
@@ -703,17 +632,11 @@ byId("speed").addEventListener("input", function () {
 });
 
 // Seed: the same seed gives the same run every time.
-byId("seed").addEventListener("change", restart);
-byId("new-seed").addEventListener("click", function () {
-  byId("seed").value = String(Math.floor(Math.random() * 100000));
-  restart();
-});
+connectSeed(restart);
 
 
 // --- Start ------------------------------------------------------------
-byId("set-width").value = DEFAULTS.width;
-byId("set-height").value = DEFAULTS.height;
-byId("set-width").max = byId("set-height").max = MAX_SIDE;
+fillDomainOptions(DEFAULTS, MAX_SIDE);
 byId("set-order").value = DEFAULTS.order;
 byId("set-order").max = MAX_ORDER;
 byId("set-radius").value = byId("radius-slider").value = DEFAULTS.radius;

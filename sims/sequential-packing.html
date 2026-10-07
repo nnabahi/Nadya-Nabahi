@@ -160,7 +160,7 @@
         <canvas class="chart" id="children-chart"></canvas>
       </section>
 
-      <!-- LOWER RIGHT: about the model, in two tabs (js/about-tabs.js
+      <!-- LOWER RIGHT: about the model, in two tabs (js/sim-page.js
            switches them). Text in class="tex" is typeset by KaTeX. -->
       <section class="quad quad-about">
         <h2>About the model</h2>
@@ -306,14 +306,12 @@
   <script src="https://cdn.jsdelivr.net/npm/mathjs@15.2.0/lib/browser/math.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/katex.min.js"></script>
 
-  <!-- The Simple / All the details tabs in the About box. -->
-  <script src="../js/about-tabs.js"></script>
-
-  <!-- Shared helpers (they also typeset the formulas, so they come after
-       KaTeX), the old site's colors, and reading formulas with sliders.
-       Then the packing (it runs in a second thread), then this page. -->
+  <!-- The code the sims share (in js/, see the README): page helpers
+       (they also typeset the formulas, so they come after KaTeX),
+       charts, the old site's colors, and reading formulas with sliders. Then the packing (it runs in a second thread), then this page. -->
   <script src="../js/sim-page.js"></script>
-  <script src="../js/sim-domains.js"></script>
+  <script src="../js/sim-charts.js"></script>
+  <script src="../js/sim-colors.js"></script>
   <script src="../js/formulas.js"></script>
   <script src="sequential-packing-growth.js"></script>
   <script src="sequential-packing.js"></script>

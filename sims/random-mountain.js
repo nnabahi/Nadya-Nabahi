@@ -14,8 +14,9 @@
        mountain it sends back, with the statistics.
    Small helpers used by every sim page (byId, chartPen, ...) are in
    js/sim-page.js, moving and zooming the 2D picture is in
-   js/sim-view.js (shared with the coloring sims), and the 3D view is
-   in js/sim-3d.js.
+   js/sim-view.js (shared with the coloring sims), the graph tool and
+   clicking the picture in js/sim-controls.js, and the 3D view is in
+   js/sim-3d.js.
 
    The file is split into numbered sections:
      1. Settings you might want to change
@@ -24,7 +25,7 @@
      4. The domain
      5. Running the mountain
      6. Drawing the mountain
-     6b. Moving and zooming the 2D picture
+     6b. Moving, zooming and clicking the picture (click to drop a block)
      6c. The 3D view
      6d. The hyperbolic plane or a tree, seen from above
      7. Statistics
@@ -243,8 +244,8 @@ function showDomainChoice() {
     const radio = label.firstChild;
     radio.checked = (kind === domainKind);
     radio.addEventListener("change", function () {
-      if (kind === "custom") { openTool(); return; }
-      if (toolOpen) closeTool();
+      if (kind === "custom") { tool.open(); return; }
+      if (tool.isOpen) tool.close();
       domainKind = kind;
       showDomainChoice();
       restart(true);
@@ -347,7 +348,7 @@ worker.onerror = function () {
 // A new mountain with the current tile, domain and seed. With
 // keepStep, it grows at once to the step it was at (so a change to the
 // tile or the domain shows the same moment of the run); without, it
-// starts again from one block. Blocks you clicked (section 6e) are kept,
+// starts again from one block. Blocks you clicked (section 6b) are kept,
 // unless it starts again from one block or "forget" is true (a new seed).
 function restart(keepStep, forget) {
   const forgetClicks = !keepStep || Boolean(forget);
@@ -374,8 +375,7 @@ function restart(keepStep, forget) {
 function setPlaying(on) {
   playing = on;
   worker.postMessage(on ? { type: "play", speed: SPEEDS[speedIndex] } : { type: "pause" });
-  byId("play").textContent = on ? "Pause" : "Play";
-  byId("play").classList.toggle("selected", on);
+  showPlaying(on);
 }
 
 
@@ -393,25 +393,18 @@ function setPlaying(on) {
    The picture shows the whole domain if it is bounded, and otherwise
    every available site, with one site to spare around them.
    ===================================================================== */
-let drawPending = false;
 const simCanvas = byId("sim-canvas");
-const view = makeView(simCanvas, drawSoon);      // where the picture goes, and the 2D picture's zoom (js/sim-view.js)
-// "Hyperbolic plane or tree": the graph, how it is drawn, and how far
-// the plane has been moved (js/sim-hyperbolic.js, section 6d).
-const disk = makeDiskView(simCanvas, view);
-const tiny = document.createElement("canvas");   // 2D: one pixel per cell
 
 // Draw at the browser's next screen refresh (at most once per refresh,
 // however many messages arrive in between).
-function drawSoon() {
-  if (drawPending) return;
-  drawPending = true;
-  requestAnimationFrame(function () {
-    drawPending = false;
-    drawMountain();
-    showStats();
-  });
-}
+const drawSoon = oncePerFrame(function () { drawMountain(); showStats(); });
+
+const view = makeView(simCanvas, drawSoon);      // where the picture goes, and the 2D picture's zoom (js/sim-view.js)
+// "Hyperbolic plane or tree": the graph, how it is drawn, and how far
+// the plane has been moved (js/sim-hyperbolic.js, section 6d). Changing
+// how it is drawn ("Drawn in") shows the right options and buttons.
+const disk = makeDiskView(simCanvas, view, showPictureKind);
+const tiny = document.createElement("canvas");   // 2D: one pixel per cell
 // After the window changes size, or the picture opens or closes as a
 // full screen popup (js/sim-page.js): draw again at the new size, in 3D too.
 window.addEventListener("resize", function () {
@@ -458,7 +451,7 @@ function pictureRange() {
 }
 
 function drawMountain() {
-  if (!latest || !latest.height || latest.dim !== dim || toolOpen) return;   // nothing yet, or from before a switch of dimension
+  if (!latest || !latest.height || latest.dim !== dim || tool.isOpen) return;   // nothing yet, or from before a switch of dimension
   if (dim !== 1 && show3D) draw3D();     // section 6c
   else if (dim === 1) drawLine();
   else if (dim === 2) drawGrid();
@@ -480,7 +473,7 @@ function drawLine() {
   const left = 8, right = width - 8, top = 20, ground = height - 30;
   const columns = range.xmax - range.xmin + 1;
   const column = (right - left) / columns;        // the width of one site
-  lineLayout = { left: left, column: column, xmin: range.xmin };   // for clicks (section 6e)
+  lineLayout = { left: left, column: column, xmin: range.xmin };   // for clicks (section 6b)
   const gap = column >= 4 ? 1 : 0;                // a thin gap between wide bars
   const highest = Math.max(s.maxHeight, 1);
   function columnLeft(x) { return left + (x - range.xmin) * column; }
@@ -603,7 +596,7 @@ function drawGrid() {
 
 
 /* =====================================================================
-   6b. MOVING AND ZOOMING THE 2D PICTURE
+   6b. MOVING, ZOOMING AND CLICKING THE PICTURE
    ---------------------------------------------------------------------
    In 2D the picture can be moved and zoomed, as in the coloring sims
    (and like a graph in Desmos). On a torus (the Torus domain, or a
@@ -612,63 +605,28 @@ function drawGrid() {
      drag                         move it
      mouse wheel, or pinch        zoom in or out, around the pointer
      the + / − / Reset buttons    zoom in, zoom out, show it all again
-   The code for all of it is shared with the coloring sims, in
-   js/sim-view.js: the view made in section 6 handles the mouse wheel
-   and the buttons, and this page passes its pointer events on to it.
-   ("Pointer" events cover the mouse, a pen and fingers alike.)
+   The code for all of it is shared with the other sims
+   (connectPicture, js/sim-controls.js, and js/sim-view.js).
    On a graph the pictures zoom the same way. In the disk and the
    half-plane, though, dragging with the mouse (or one finger) moves you
    across the plane instead (section 6d); two fingers still slide and
    zoom the picture.
-   ===================================================================== */
-simCanvas.addEventListener("pointerdown", function (event) {
-  pressedAt = view.pointers.size > 0 ? null : { x: event.clientX, y: event.clientY };   // two fingers: never a click
-  pressPointer(view, event);
-  startDrag();
-});
-simCanvas.addEventListener("pointermove", function (event) {
-  if (pressedAt && Math.hypot(event.clientX - pressedAt.x, event.clientY - pressedAt.y) >= CLICK_DISTANCE) pressedAt = null;
-  if (disk.dragFrom && view.pointers.has(event.pointerId)) {
-    view.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });   // where a second finger starts from
-    dragPlane(disk, event.clientX, event.clientY);
-    drawSoon();
-  } else {
-    movePointer(view, event);
-  }
-});
-for (const type of ["pointerup", "pointercancel"]) {
-  simCanvas.addEventListener(type, function (event) {
-    releasePointer(view, event);
-    startDrag();
-    if (type === "pointerup" && pressedAt) clickAt(event);
-    pressedAt = null;
-  });
-}
-// On a graph, one pointer drags across the plane (js/sim-hyperbolic.js).
-function startDrag() {
-  if (dim === "graph") startPlaneDrag(disk);
-  else disk.dragFrom = null;
-}
 
-
-/* =====================================================================
-   6e. CLICK TO DROP A BLOCK
-   ---------------------------------------------------------------------
-   A click (a press that hardly moves) on an available site drops the
-   next block there, as if the random pick had chosen it. Only the
-   available sites (colored, or gray with no block yet) can take a
-   block, as in the rule. It works in the pictures seen from above (1D,
-   2D, the disk, the half-plane and the spread-out tree), not in 3D.
-   The worker keeps the clicked blocks, so they stay when you change
-   the tile or the domain or go back with "Go to step"; Restart and a
-   new seed forget them.
+   Click to drop a block: a click (a press that hardly moves) on an
+   available site drops the next block there, as if the random pick had
+   chosen it. Only the available sites (colored, or gray with no block
+   yet) can take a block, as in the rule. It works in the pictures seen
+   from above (1D, 2D, the disk, the half-plane and the spread-out
+   tree), not in 3D. The worker keeps the clicked blocks, so they stay
+   when you change the tile or the domain or go back with "Go to step";
+   Restart and a new seed forget them.
    ===================================================================== */
-const CLICK_DISTANCE = 5;     // a press that moves less than this (pixels) is a click, not a drag
-let pressedAt = null;         // where a single pointer went down
+connectPicture(view, disk, function () { return dim === "graph"; }, clickAt);
+
 let lineLayout = null;        // 1D: where the columns are (set by drawLine)
 
 function clickAt(event) {
-  if (!latest || !latest.height || latest.dim !== dim || toolOpen) return;
+  if (!latest || !latest.height || latest.dim !== dim || tool.isOpen) return;
   const box = simCanvas.getBoundingClientRect();
   const px = event.clientX - box.left, py = event.clientY - box.top;
   const site = siteUnder(px, py);
@@ -749,8 +707,8 @@ let loading3D = false;
 // or neither while the graph tool is open.
 function showPictureKind() {
   const in3D = (dim !== 1 && show3D);
-  simCanvas.hidden = toolOpen || in3D;
-  byId("sim-3d").hidden = byId("view3d-buttons").hidden = toolOpen || !in3D;
+  simCanvas.hidden = tool.isOpen || in3D;
+  byId("sim-3d").hidden = byId("view3d-buttons").hidden = tool.isOpen || !in3D;
   byId("disk-reset").hidden = dim !== "graph" || disk.picture === "spread";   // with the zoom buttons
   byId("picture-row").hidden = in3D || dim !== "graph";
   byId("view-rows").hidden = (dim === 1);
@@ -950,17 +908,6 @@ function floorLines(unit) {
   return lines;
 }
 
-byId("disk-reset").addEventListener("click", function () { backToStart(disk); drawSoon(); });
-
-// The "Drawn in" option: the disk, the half-plane, or (trees) spread out.
-for (const radio of document.querySelectorAll('input[name="picture"]')) {
-  radio.addEventListener("change", function () {
-    disk.picture = radio.value;
-    resetView(view);      // a new picture starts unzoomed
-    showPictureKind();
-  });
-}
-
 // A new graph from the options: start again on it, with the first cell
 // in the middle of the picture.
 function useGraph() {
@@ -1012,61 +959,29 @@ function showStats() {
    8. CUSTOM DOMAINS: THE GRAPH TOOL INSIDE THIS PAGE
    ---------------------------------------------------------------------
    As in the other sims: choosing "Custom" swaps the picture for the
-   graph tool, loaded in an <iframe> as graph-tool.html?embed. The tool
-   sends its drawing every time it changes; Done uses it. Only the
-   painted cells matter (the tile decides where blocks can go next), so
-   the domain need not be one connected piece.
+   graph tool, loaded in an <iframe> (makeCustomTool, js/sim-controls.js).
+   Done uses the drawing. Only the painted cells matter (the tile
+   decides where blocks can go next), so the domain need not be one
+   connected piece.
    ===================================================================== */
-const frame = byId("tool-frame");
-let toolOpen = false;
-let toolMessage = null;    // the tool's latest drawing: { graph, grid, palette }
-let wasPlaying = false;    // to carry on after Cancel
-
-function openTool() {
-  wasPlaying = playing;
-  if (playing) setPlaying(false);
-  toolOpen = true;
-  byId("custom-area").hidden = false;
-  showPictureKind();
-  if (!frame.src) frame.src = "graph-tool.html?embed";    // the first time only
-  checkTool();
-}
-
-function closeTool() {
-  toolOpen = false;
-  byId("custom-area").hidden = true;
-  showPictureKind();
-}
-
-// The tool sends its drawing every time it changes (js/sim-page.js).
-listenToTool(frame, function (drawing) { toolMessage = drawing; checkTool(); });
-
-// Check the drawing live and say what's wrong, if anything.
-function checkTool() {
-  if (!toolOpen) return;
-  let problem = "", good = "";
-  if (!toolMessage) problem = "Loading the drawing tool...";
-  else if (toolMessage.graph.vertices.length === 0) problem = "Paint the domain first.";
-  else good = toolMessage.graph.vertices.length + " cells.";
-  showToolStatus(problem, good);
-}
-
-byId("tool-done").addEventListener("click", function () {
-  customDomain = drawnDomain(toolMessage.graph, toolMessage.grid);
-  closeTool();
-  domainKind = "custom";
-  showDomainChoice();
-  restart(true);
+const tool = makeCustomTool({
+  view: view,
+  isPlaying: function () { return playing; },
+  setPlaying: setPlaying,
+  showPicture: showPictureKind,     // the 2D or 3D picture hides while the tool is open
+  check: function (drawing) {
+    const cells = drawing.graph.vertices.length;
+    return cells === 0 ? ["Paint the domain first.", ""] : ["", cells + " cells."];
+  },
+  done: function (drawing) {
+    customDomain = drawnDomain(drawing.graph, drawing.grid);
+    domainKind = "custom";
+    showDomainChoice();
+    restart(true);
+  },
+  cancel: function () { showDomainChoice(); drawSoon(); },
 });
-
-// Cancel: back to whatever was there before.
-byId("tool-cancel").addEventListener("click", function () {
-  closeTool();
-  showDomainChoice();
-  drawSoon();
-  if (wasPlaying) setPlaying(true);
-});
-byId("edit-custom").addEventListener("click", openTool);
+byId("edit-custom").addEventListener("click", tool.open);
 
 
 /* =====================================================================
@@ -1077,7 +992,7 @@ byId("edit-custom").addEventListener("click", openTool);
 // tile and domain go back to the defaults (whole line or plane).
 function setDimension(value) {
   dim = value;
-  if (toolOpen) closeTool();
+  if (tool.isOpen) tool.close();
   domainKind = "whole";
   byId("set-width").value = byId("set-height").value = DEFAULT_SIZE[dim];
   byId("set-width").max = byId("set-height").max = MAX_SIZE[dim];
@@ -1114,12 +1029,7 @@ byId("goto").addEventListener("click", function () {
 });
 
 // Speed.
-function showSpeed() {
-  const speed = SPEEDS[speedIndex];
-  byId("speed-label").textContent = speed === Infinity
-    ? "as fast as possible"
-    : speed.toLocaleString() + (speed === 1 ? " block" : " blocks") + " per second";
-}
+function showSpeed() { byId("speed-label").textContent = speedText(SPEEDS[speedIndex], "block", "blocks"); }
 byId("speed").addEventListener("input", function () {
   speedIndex = Number(this.value);
   showSpeed();
@@ -1127,11 +1037,7 @@ byId("speed").addEventListener("input", function () {
 });
 
 // Seed: the same seed gives the same mountain every time.
-byId("seed").addEventListener("change", function () { restart(true, true); });
-byId("new-seed").addEventListener("click", function () {
-  byId("seed").value = String(Math.floor(Math.random() * 100000));
-  restart(true, true);
-});
+connectSeed(function () { restart(true, true); });
 
 
 // --- Start ------------------------------------------------------------

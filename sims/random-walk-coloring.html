@@ -192,7 +192,7 @@
         <canvas class="chart" id="perimeter-chart" style="height: 180px"></canvas>
       </section>
 
-      <!-- LOWER RIGHT: about the model, in two tabs (js/about-tabs.js
+      <!-- LOWER RIGHT: about the model, in two tabs (js/sim-page.js
            switches them): a simple version, and all the details. Text in
            class="tex" is typeset by KaTeX (<div> on its own line, <span>
            inside a sentence). -->
@@ -370,19 +370,20 @@
        is fixed so an update can never change the site by surprise. -->
   <script src="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/katex.min.js"></script>
 
-  <!-- The Simple / All the details tabs in the About box. -->
-  <script src="../js/about-tabs.js"></script>
-
-  <!-- Helpers shared by every sim page (they also typeset the formulas,
-       so they come after KaTeX), the domains and colors shared by the
-       sims, and the picture's view (moving and zooming it), and the
-       hyperbolic tilings and trees and their pictures. Then
-       the walkers (they run in a second thread), then this page's code. -->
+  <!-- The code the sims share (in js/, see the README): page helpers
+       (they also typeset the formulas, so they come after KaTeX),
+       charts, colors, domains, the picture's view (moving and zooming
+       it), the hyperbolic tilings and trees and their pictures, and the
+       options and controls of the domain. Then the walkers (they run in a second thread), then
+       this page's code. -->
   <script src="../js/sim-page.js"></script>
+  <script src="../js/sim-charts.js"></script>
+  <script src="../js/sim-colors.js"></script>
   <script src="../js/sim-domains.js"></script>
   <script src="../js/sim-view.js"></script>
   <script src="../js/sim-graphs.js"></script>
   <script src="../js/sim-hyperbolic.js"></script>
+  <script src="../js/sim-controls.js"></script>
   <script src="random-walk-coloring-walk.js"></script>
   <script src="random-walk-coloring.js"></script>
 

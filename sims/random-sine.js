@@ -526,12 +526,7 @@ byId("set-n").addEventListener("change", function () {
   byId("set-n").value = N;
   newSample();
 });
-byId("seed").addEventListener("change", function () { seed = byId("seed").value; newSample(); });
-byId("new-seed").addEventListener("click", function () {
-  seed = String(Math.floor(Math.random() * 100000));
-  byId("seed").value = seed;
-  newSample();
-});
+connectSeed(function () { seed = byId("seed").value; newSample(); });   // js/sim-page.js
 
 for (const side of ["xmin", "xmax"]) {
   byId("view-" + side).addEventListener("change", function () {

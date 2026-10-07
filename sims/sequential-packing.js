@@ -460,14 +460,8 @@ window.addEventListener("resize", drawAll);
    ===================================================================== */
 const MAX_ZOOM = 1e6;          // a million times closer: deep into the small tiles
 const ZOOM_STEP = 1.5;         // one click on + or −
-let redrawPending = false;
 const pointers = new Map();    // the pointers pressed on the picture: id -> {x, y}
-
-function redrawSoon() {
-  if (redrawPending) return;
-  redrawPending = true;
-  requestAnimationFrame(function () { redrawPending = false; drawAll(); });
-}
+const redrawSoon = oncePerFrame(drawAll);
 
 // Back to the whole window (also when the window changes).
 function resetZoom() {
@@ -790,12 +784,7 @@ byId("restart").addEventListener("click", function () {
 });
 byId("speed").max = SPEEDS.length - 1;
 byId("speed").addEventListener("input", function () { speedIndex = Number(byId("speed").value); showSpeed(); });
-byId("seed").addEventListener("change", function () { forgetClicks(); sendSetup(); });
-byId("new-seed").addEventListener("click", function () {
-  byId("seed").value = String(Math.floor(Math.random() * 100000));
-  forgetClicks();
-  sendSetup();
-});
+connectSeed(function () { forgetClicks(); sendSetup(); });   // js/sim-page.js
 byId("color-by").addEventListener("change", drawAll);
 
 // Start: your gasket, no attempts yet, paused at a low speed.

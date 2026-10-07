@@ -192,7 +192,7 @@
         <canvas class="chart" id="sizes-chart"></canvas>
       </section>
 
-      <!-- LOWER RIGHT: about the model, in two tabs (js/about-tabs.js
+      <!-- LOWER RIGHT: about the model, in two tabs (js/sim-page.js
            switches them). Text in class="tex" is typeset by KaTeX. -->
       <section class="quad quad-about">
         <h2>About the model</h2>
@@ -406,18 +406,19 @@
   <script src="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/katex.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/seedrandom@3.0.5/seedrandom.min.js"></script>
 
-  <!-- The Simple / All the details tabs in the About box. -->
-  <script src="../js/about-tabs.js"></script>
-
-  <!-- Shared helpers, the domains, the picture's view (moving and
-       zooming), the hyperbolic tilings and trees and their pictures,
-       painting the cells, then the clusters, then the page. -->
+  <!-- The code the sims share (in js/, see the README): page helpers
+       (they also typeset the formulas, so they come after KaTeX),
+       charts, colors, domains, the picture's view (moving and zooming
+       it), the hyperbolic tilings and trees and their pictures, and the
+       options and controls of the domain. Then the clusters, then this page's code. -->
   <script src="../js/sim-page.js"></script>
+  <script src="../js/sim-charts.js"></script>
+  <script src="../js/sim-colors.js"></script>
   <script src="../js/sim-domains.js"></script>
   <script src="../js/sim-view.js"></script>
   <script src="../js/sim-graphs.js"></script>
   <script src="../js/sim-hyperbolic.js"></script>
-  <script src="../js/cell-picture.js"></script>
+  <script src="../js/sim-controls.js"></script>
   <script src="percolation-clusters.js"></script>
   <script src="percolation.js"></script>
 
