@@ -112,15 +112,16 @@ function testDomains() {
     { name: "9 x 7 torus, 4 neighbors", d: boxDomain(9, 7, 4, true) },
     { name: "6 x 6 torus, 8 neighbors", d: boxDomain(6, 6, 8, true) },
     { name: "Aztec diamond of order 4", d: aztecDiamond(4) },
-    { name: "ball of radius 3 of the tree of degree 3", d: treeBall(3, 3) },
-    { name: "ball of radius 2 of the {7, 3} tiling", d: ballForPercolation(makeBall(makeGraph({ kind: "tiling", p: 7, q: 3 }), 2, 1e6)) },
+    { name: "ball of radius 3 of the tree of degree 3", d: testBall(3, Infinity, 3) },
+    { name: "ball of radius 2 of the {7, 3} tiling", d: testBall(7, 3, 2) },
   ];
 }
 
-// The ball of radius R of the tree of degree "degree" (js/sim-graphs.js
-// and js/sim-hyperbolic.js), ready for percolation.
-function treeBall(degree, R) {
-  return ballForPercolation(makeBall(makeGraph({ kind: "tiling", p: degree, q: Infinity }), R, 1e6));
+// The ball of radius R of the tiling {p, q} (q = Infinity: the tree of
+// degree p; js/sim-graphs.js and js/sim-hyperbolic.js), ready for
+// percolation.
+function testBall(p, q, R) {
+  return ballForPercolation(makeBall(makeGraph({ kind: "tiling", p: p, q: q }), R, 1e6));
 }
 
 
@@ -129,8 +130,9 @@ function treeBall(degree, R) {
    --------------------------------------------------------------------- */
 function testClusters(kind) {
   const random = new Math.seedrandom("clusters " + kind);
+  const domains = testDomains();
   let samples = 0, bad = "";
-  for (const t of testDomains()) {
+  for (const t of domains) {
     const edges = edgesOf(t.d), edgeAt = edgeLookup(edges);
     for (let k = 0; k < 300 && !bad; k++) {
       const U = uniformNumbers(kind === "site" ? t.d.n : edges.count, "c" + k + t.name);
@@ -142,7 +144,7 @@ function testClusters(kind) {
     }
   }
   addRow(kind + ": clusters match a plain search", !bad,
-         bad ? "different clusters on the " + bad : samples + " samples on " + testDomains().length + " domains, every cluster the same.");
+         bad ? "different clusters on the " + bad : samples + " samples on " + domains.length + " domains, every cluster the same.");
 }
 
 function testWrapping(kind) {
@@ -172,10 +174,8 @@ function testSweep(kind) {
       const U = uniformNumbers(kind === "site" ? t.d.n : edges.count, "s" + k + t.name);
       const swept = sweep(t.d, kind, U, edges);
       // At 21 p's, and just below and at the p where it first crosses.
-      const ps = [];
-      for (let j = 0; j <= 20; j++) ps.push(j / 20);
-      for (const p of ps) {
-        const result = percolate(t.d, kind, p, U, edges);
+      for (let j = 0; j <= 20; j++) {
+        const p = j / 20, result = percolate(t.d, kind, p, U, edges);
         const open = openAt(swept, p);
         const largest = open === 0 ? (kind === "site" ? 0 : 1) : swept.largest[open - 1];
         const clusters = open === 0 ? (kind === "site" ? 0 : t.d.n) : swept.clusters[open - 1];
@@ -251,29 +251,25 @@ function testCoupling(kind) {
    6. Site: the Hex fact
    --------------------------------------------------------------------- */
 
-// Can the cells marked "good" be crossed, through neighbors from
-// "steps", from the cells where startHere(x, y) to where endHere(x, y)?
-function crosses(width, height, good, steps, startHere, endHere) {
+// Do the closed cells of a width x height box cross from its top row
+// (y = 0) to its bottom row, through 8 neighbors (sides or corners)?
+// closed[y * width + x] is 1 when cell (x, y) is closed.
+function closedTopToBottom(width, height, closed) {
   const seen = new Uint8Array(width * height), stack = [];
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      if (startHere(x, y) && good[y * width + x]) { seen[y * width + x] = 1; stack.push([x, y]); }
-    }
-  }
+  for (let x = 0; x < width; x++) if (closed[x]) { seen[x] = 1; stack.push([x, 0]); }
   while (stack.length > 0) {
     const [x, y] = stack.pop();
-    if (endHere(x, y)) return true;
-    for (const [sx, sy] of steps) {
-      const nx = x + sx, ny = y + sy;
-      if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
-      const k = ny * width + nx;
-      if (good[k] && !seen[k]) { seen[k] = 1; stack.push([nx, ny]); }
+    if (y === height - 1) return true;
+    for (let nx = x - 1; nx <= x + 1; nx++) {
+      for (let ny = y - 1; ny <= y + 1; ny++) {
+        if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
+        const k = ny * width + nx;
+        if (closed[k] && !seen[k]) { seen[k] = 1; stack.push([nx, ny]); }
+      }
     }
   }
   return false;
 }
-const FOUR = [[1, 0], [-1, 0], [0, 1], [0, -1]];
-const EIGHT = FOUR.concat([[1, 1], [1, -1], [-1, 1], [-1, -1]]);
 
 function testHex() {
   const random = new Math.seedrandom("hex");
@@ -286,9 +282,8 @@ function testHex() {
     const openCrossing = percolate(d, "site", p, U, edges).crossed;
     // The plain answer: closed cells, 8 neighbors, top row to bottom row.
     const closed = new Uint8Array(d.n);
-    for (let v = 0; v < d.n; v++) closed[(d.y[v]) * width + d.x[v]] = U[v] < p ? 0 : 1;
-    const closedCrossing = crosses(width, height, closed, EIGHT,
-      function (x, y) { return y === 0; }, function (x, y) { return y === height - 1; });
+    for (let v = 0; v < d.n; v++) closed[d.y[v] * width + d.x[v]] = U[v] < p ? 0 : 1;
+    const closedCrossing = closedTopToBottom(width, height, closed);
     samples++;
     if (openCrossing) open++;
     if (openCrossing === closedCrossing) bad++;
@@ -409,7 +404,7 @@ function reachEdgeExact(kind, degree, R, p) {
 }
 
 function testTreeBall(kind, degree, R, p) {
-  const d = treeBall(degree, R), edges = edgesOf(d);
+  const d = testBall(degree, Infinity, R), edges = edgesOf(d);
   const exact = reachEdgeExact(kind, degree, R, p), trials = 4000;
   let reached = 0;
   for (let k = 0; k < trials; k++) {

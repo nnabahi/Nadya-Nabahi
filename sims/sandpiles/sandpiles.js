@@ -14,8 +14,9 @@
        (a "Web Worker"), and draws every pile it sends back, with the
        statistics.
      - Clicking a cell adds a grain, removes one, or shows its numbers.
-   Small helpers used by every sim page (byId, chartPen, ...) are in
-   js/sim-page.js, and the zoom of the torus is in js/sim-view.js.
+   Small helpers used by every sim page (byId, showMessage, ...) are in
+   js/sim-page.js, the charts in js/sim-charts.js, and moving and
+   zooming the picture in js/sim-view.js.
 
    The file is split into numbered sections:
      1. Settings you might want to change
@@ -137,8 +138,10 @@ function alongColors(list, t) {
   return [0, 1, 2].map(function (i) { return Math.round(a[i] + f * (b[i] - a[i])); });
 }
 
-// The color of each height 0 .. top (top = the threshold), as [r, g, b].
-// Heights above top use the color of top. The colors are mixed in hue,
+// heightRGB[h] is the color of height h, as [r, g, b], for h from 0 up
+// to the threshold "top" or 9, whichever is more (the ten colors of
+// "One color per height"); taller cells get the last one (but see
+// colorOfHeight). For "Orange to red" the colors are mixed in hue,
 // saturation and brightness with hexToHSV and hsvToHex, and turned into
 // [r, g, b] with hexToRGB (all three in js/sim-colors.js).
 let heightRGB = [];
@@ -175,7 +178,13 @@ function colorOfHeight(h) {
 // Topples: white for 0, then lighter to darker blue up to "most".
 function colorOfTopples(k, most) {
   const t = most > 0 ? Math.sqrt(k / most) : 0;   // the square root shows small counts better
-  return [255 + t * (TOPPLES_DARKEST[0] - 255), 255 + t * (TOPPLES_DARKEST[1] - 255), 255 + t * (TOPPLES_DARKEST[2] - 255)];
+  return TOPPLES_DARKEST.map(function (c) { return 255 + t * (c - 255); });
+}
+
+// The color of a number written on a cell of color rgb: dark on light
+// cells, white on dark ones.
+function textColorOn(rgb) {
+  return 0.3 * rgb[0] + 0.59 * rgb[1] + 0.11 * rgb[2] > 140 ? "#1e1e1e" : "#ffffff";
 }
 
 
@@ -217,7 +226,9 @@ function startSettings() {
 
 // Start again from the start, with the current table, settings and seed.
 // "jump": topple to the end at once (otherwise only if the box
-// "Jump to the end whenever a setting changes" is ticked).
+// "Jump to the end whenever a setting changes" is ticked). (So buttons
+// and boxes call restart() inside a function of their own: given
+// straight to them, it would get their event as "jump".)
 function restart(jump) {
   run++;
   latest = null;
@@ -260,11 +271,10 @@ function setPlaying(on) {
 
    The picture is drawn screen square by screen square, as in the
    coloring sims: js/sim-view.js places the picture's box on the canvas
-   and says which cell of the table is on each square that shows. A box
-   simply fills the picture's box once. A torus (or a table drawn on
-   one) wraps around, so the squares keep finding cells beyond the box,
-   and the torus can be moved and zoomed (section 6). Zoomed out, it
-   shows several times side by side.
+   and says which cell of the table is on each square that shows, as
+   it is moved and zoomed (section 6). A torus (or a table drawn on
+   one) wraps around, so the squares keep finding cells beyond the box:
+   zoomed out, it shows several times side by side.
 
    paintCells (js/sim-view.js) puts the squares' colors into a small
    image, one pixel per square, and blows it up with smoothing off so
@@ -281,9 +291,9 @@ const simCanvas = byId("sim-canvas");            // the canvas on the page
 // however many messages arrive in between).
 const drawSoon = oncePerFrame(function () { drawPile(); showStats(); });
 
-// Where the picture goes, and the torus's zoom (js/sim-view.js). Cells
-// of 4 pixels or more get a whole number of pixels each, so every cell
-// is exactly the same size.
+// Where the picture goes, and how far it is moved and zoomed
+// (js/sim-view.js). Cells of 4 pixels or more get a whole number of
+// pixels each, so every cell is exactly the same size.
 const view = makeView(simCanvas, drawSoon, PAD, 4);
 
 // Hyperbolic plane or tree: which graph, how it is drawn, and how far
@@ -298,8 +308,12 @@ function drawPile() {
   let mostTopples = 0;
   if (showTopples) for (let v = 0; v < d.n; v++) mostTopples = Math.max(mostTopples, odometer[v]);
   tallest = 0;
-  for (let v = 0; v < d.n; v++) if (heights[v] > tallest && !sinks.includes(v)) tallest = heights[v];
-  if (domainKind === "graph") { drawOnGraph(showTopples, mostTopples); return; }
+  for (let v = 0; v < d.n; v++) tallest = Math.max(tallest, heights[v]);   // (sink cells hold none)
+  // The number shown on cell v (its grains, or its topples), and its
+  // color, as [r, g, b].
+  const valueOf = function (v) { return showTopples ? odometer[v] : heights[v]; };
+  const rgbOf = function (v) { return showTopples ? colorOfTopples(odometer[v], mostTopples) : colorOfHeight(heights[v]); };
+  if (domainKind === "graph") { drawOnGraph(valueOf, rgbOf); return; }
 
   // The picture's box: as big as fits the width (and at most
   // MAX_PICTURE_HEIGHT tall), in the middle of the canvas: view.cols x
@@ -308,11 +322,8 @@ function drawPile() {
   // row from the top (negative: not on the table).
   const screen = fitPicture(view, d, MAX_PICTURE_HEIGHT);
   const sinkColor = hexToRGB(SINK);
-  const cellOf = paintCells(view, screen, d, function (v) { return v; }, function (v) {
-    return sinks.includes(v) ? sinkColor
-      : showTopples ? colorOfTopples(odometer[v], mostTopples)
-      : colorOfHeight(heights[v]);
-  }, hexToRGB(OUTSIDE));
+  const cellOf = paintCells(view, screen, d, function (v) { return v; },
+    function (v) { return sinks.includes(v) ? sinkColor : rgbOf(v); }, hexToRGB(OUTSIDE));
   const cols = view.cols, rows = view.rows, size = view.cell;     // (paintCells works these out)
 
   // Big cells: thin lines between the cells, the numbers, and a cross
@@ -349,11 +360,8 @@ function drawPile() {
           screen.lineWidth = 2;
           screen.stroke();
         } else if (byId("show-numbers").checked) {
-          const value = showTopples ? odometer[v] : heights[v];
-          const rgb = showTopples ? colorOfTopples(odometer[v], mostTopples) : colorOfHeight(heights[v]);
-          // Dark text on light cells, white text on dark ones.
-          screen.fillStyle = (0.3 * rgb[0] + 0.59 * rgb[1] + 0.11 * rgb[2]) > 140 ? "#1e1e1e" : "#ffffff";
-          screen.fillText(String(value), cx, cy + 1);
+          screen.fillStyle = textColorOn(rgbOf(v));
+          screen.fillText(String(valueOf(v)), cx, cy + 1);
         }
       }
     }
@@ -361,24 +369,16 @@ function drawPile() {
   screen.restore();
 }
 
-// Hyperbolic plane or tree: the ball's cells in the colors of their
-// heights (or topples), with the rest of the tiling (or tree) in thin
-// gray (js/sim-hyperbolic.js), and the numbers on cells big enough.
-function drawOnGraph(showTopples, mostTopples) {
-  const heights = latest.heights, odometer = latest.odometer, height = pictureHeight(BALL_HEIGHT);
-  const rgbOf = function (v) {
-    return showTopples ? colorOfTopples(odometer[v], mostTopples) : colorOfHeight(heights[v]);
-  };
-  const colorOf = function (v) { return rgbToHex(rgbOf(v).map(Math.round)); };
-  let pen;
-  if (disk.picture === "spread") {
-    pen = drawSpreadTree(disk, height, domain.n,
-      function (v) { return domain.depth[v]; }, function (v) { return domain.angle[v]; }, colorOf);
-  } else {
-    pen = diskPen(disk, height);
-    drawDiskFrame(disk, pen, height, OUTSIDE, UNDER_COLOR);
-    drawOnDisk(disk, pen, diskGraph(disk), domain.n, function (v) { return ballPlace(domain, v); }, colorOf);
-  }
+// Hyperbolic plane or tree: the ball's cells in their colors, with the
+// rest of the tiling (or tree) in thin gray, and the numbers on cells
+// big enough. (drawBall, js/sim-hyperbolic.js, draws the ball; the tree
+// spread out is drawn here, so that white cells stay white, not gray.)
+function drawOnGraph(valueOf, rgbOf) {
+  const colorOf = function (v) { return rgbToHex(rgbOf(v)); };
+  const pen = disk.picture === "spread"
+    ? drawSpreadTree(disk, pictureHeight(BALL_HEIGHT), domain.n,
+        function (v) { return domain.depth[v]; }, function (v) { return domain.angle[v]; }, colorOf)
+    : drawBall(disk, domain, colorOf);
   if (!byId("show-numbers").checked) return;
 
   // The numbers, on cells at least NUMBER_MIN_CELL pixels across.
@@ -389,11 +389,9 @@ function drawOnGraph(showTopples, mostTopples) {
     if (spot === null) continue;
     const x = spot.x, y = spot.y, size = 2 * spot.size;
     if (size < NUMBER_MIN_CELL || x < 0 || y < 0 || x > disk.box.width || y > disk.box.height) continue;
-    const rgb = rgbOf(v);
     pen.font = Math.round(Math.min(size * 0.45, 28)) + "px sans-serif";
-    // Dark text on light cells, white text on dark ones.
-    pen.fillStyle = (0.3 * rgb[0] + 0.59 * rgb[1] + 0.11 * rgb[2]) > 140 ? "#1e1e1e" : "#ffffff";
-    pen.fillText(String(showTopples ? odometer[v] : heights[v]), x, y + 1);
+    pen.fillStyle = textColorOn(rgbOf(v));
+    pen.fillText(String(valueOf(v)), x, y + 1);
   }
 }
 
@@ -471,8 +469,7 @@ function showStats() {
     showMessage("");
   }
 
-  byId("play").disabled = s.stable && !byId("storm").checked;
-  byId("step").disabled = s.stable && !byId("storm").checked;
+  byId("play").disabled = byId("step").disabled = s.stable && !byId("storm").checked;   // nothing can happen
   byId("jump").disabled = s.stable;
   byId("undo").disabled = !s.canUndo;
   byId("show-identity").disabled = !s.hasSink;
@@ -496,13 +493,14 @@ function drawHeightsChart() {
   const most = Math.max(1, ...counts);
   const top = 14, bottom = h - 14, barWidth = w / bars;
   pen.textAlign = "center";
+  pen.strokeStyle = CHART_TEXT;
+  pen.lineWidth = 0.5;
   counts.forEach(function (count, b) {
     const barHeight = count === 0 ? 0 : Math.max(1, (bottom - top) * count / most);
+    const left = b * barWidth + 2, width = Math.max(1, barWidth - 4);
     pen.fillStyle = rgbToHex(colorOfHeight(b));
-    pen.fillRect(b * barWidth + 2, bottom - barHeight, Math.max(1, barWidth - 4), barHeight);
-    pen.strokeStyle = CHART_TEXT;
-    pen.lineWidth = 0.5;
-    pen.strokeRect(b * barWidth + 2, bottom - barHeight, Math.max(1, barWidth - 4), barHeight);
+    pen.fillRect(left, bottom - barHeight, width, barHeight);
+    pen.strokeRect(left, bottom - barHeight, width, barHeight);
     pen.fillStyle = CHART_TEXT;
     pen.textBaseline = "bottom";
     pen.fillText(count.toLocaleString(), (b + 0.5) * barWidth, bottom - barHeight - 1);
@@ -689,9 +687,7 @@ byId("speed").addEventListener("input", function () {
   sendSettings();
 });
 function showStormRate() {
-  const rate = STORM_RATES[stormRateIndex];
-  byId("storm-label").textContent = rate === Infinity ? "as fast as possible"
-    : rate.toLocaleString() + (rate === 1 ? " grain" : " grains") + " per second";
+  byId("storm-label").textContent = speedText(STORM_RATES[stormRateIndex], "grain", "grains");
 }
 byId("storm-rate").addEventListener("input", function () {
   stormRateIndex = Number(this.value);

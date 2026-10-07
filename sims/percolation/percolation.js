@@ -11,7 +11,8 @@
        hyperbolic tiling or a tree. The domain code is shared with the
        other sims: the domains in js/sim-domains.js, their options and
        the graph tool in js/sim-controls.js, and the hyperbolic tilings
-       and trees, and their pictures, in js/sim-hyperbolic.js.
+       and trees, and their pictures, in js/sim-graphs.js and
+       js/sim-hyperbolic.js.
      - Gives every cell (site) or every edge (bond) its own random
        number U, from the seed. At the p on the slider, the ones with
        U < p are open (percolation-clusters.js finds the clusters).
@@ -111,9 +112,10 @@ function computeClusters() {
   drawSoon();
 }
 
-// For each entry of the neighbor lists (domain.nbr), the number of its
-// edge in "edges", to look up whether an edge is open when drawing.
-function makeEntryEdges(d) {
+// For each entry of the neighbor lists of domain d (d.nbr), the number
+// of its edge in "edges", to look up whether an edge is open when
+// drawing.
+function makeEntryEdges(d, edges) {
   const lookup = new Int32Array(d.nbr.length);
   for (let e = 0; e < edges.count; e++) {
     const a = edges.a[e], b = edges.b[e];
@@ -150,7 +152,8 @@ function colorOfName(k) {
   return nameColors.get(k);
 }
 
-// How cell v is colored, as [red, green, blue], with the Colors menu.
+// How the cluster with root r is colored (r = -1: a closed cell), as
+// [red, green, blue], with the Colors menu.
 const closedRGB = hexToRGB(CLOSED), openRGB = hexToRGB(OPEN), othersRGB = hexToRGB(OTHERS);
 const accentRGB = hexToRGB(CHART_LINE), outsideRGB = hexToRGB(OUTSIDE);
 function rgbOfRoot(r) {
@@ -477,7 +480,7 @@ function useDomain(kind, d) {
   domainKind = kind;
   domain = d;
   edges = edgesOf(d);
-  entryEdge = makeEntryEdges(d);
+  entryEdge = makeEntryEdges(d, edges);
   selected = -1;
   useTorus(view, Boolean(d.wrap));   // moving and zooming (js/sim-view.js)
   showDomainChoice();

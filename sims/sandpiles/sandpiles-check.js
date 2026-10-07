@@ -54,9 +54,9 @@
    =================================================================== */
 
 // A box (or torus) and the threshold that goes with it.
-function boxCase(name, width, height, neighbors, torus, sinks) {
+function boxCase(name, width, height, neighbors, torus) {
   const d = boxDomain(width, height, neighbors, torus);
-  return { name: name, options: { domain: d, threshold: neighbors, sinks: sinks || [] } };
+  return { name: name, options: { domain: d, threshold: neighbors } };
 }
 
 // A drawn-like domain: the cells (x, y) listed in "cells", with 4 or 8
@@ -97,10 +97,11 @@ function ballCase(name, p, q, R) {
   return { name: name, options: { domain: ball, threshold: p } };
 }
 
-// The middle cell of a torus, as its sink cell.
+// A torus with its middle cell as the sink cell, as the sim page makes it.
 function torusWithSink(name, size, neighbors) {
-  const middle = Math.floor((size - 1) / 2) * size + Math.floor((size - 1) / 2);
-  return boxCase(name, size, size, neighbors, true, [middle]);
+  const c = boxCase(name, size, size, neighbors, true);
+  c.options.sinks = [middleCell(c.options.domain)];
+  return c;
 }
 
 // Random starting heights 0 .. 2 * threshold - 1 (so plenty to topple),

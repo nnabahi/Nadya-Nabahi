@@ -65,9 +65,10 @@
 
 
 // Make a new sandpile. "options" has:
-//   domain      a domain from js/sim-domains.js (box, torus or drawn)
-//   threshold   a number (4 or 8: the lattice's number of neighbors), or
-//               a list with one threshold per cell
+//   domain      a domain from js/sim-domains.js (box, torus or drawn),
+//               or a ball (makeBall, js/sim-hyperbolic.js)
+//   threshold   the grains that make a cell topple: the lattice's number
+//               of neighbors (4 or 8; p on a tiling {p,q} or a tree)
 //   sinks       (optional) a list of cells that are sink cells
 // The pile starts empty; use setHeights to fill it.
 function newPile(options) {
@@ -76,14 +77,13 @@ function newPile(options) {
 
   // ---------- the graph, worked out once ----------
 
-  const threshold = new Int32Array(n);
+  const threshold = new Int32Array(n).fill(options.threshold);
   const isSink = new Uint8Array(n);
   for (const s of options.sinks || []) isSink[s] = 1;
   // offEdge[v] = grains that leave the system when v topples: one per
   // lattice neighbor outside the domain.
   const offEdge = new Int32Array(n);
   for (let v = 0; v < n; v++) {
-    threshold[v] = typeof options.threshold === "number" ? options.threshold : options.threshold[v];
     offEdge[v] = threshold[v] - (d.first[v + 1] - d.first[v]);
     if (offEdge[v] < 0) throw new Error("cell " + v + " has more neighbors than its threshold");
   }
@@ -97,16 +97,16 @@ function newPile(options) {
     if (isSink[start] || piece[start] !== -1) continue;
     const p = pieceSize.length;
     let size = 0, leaky = false;
-    const queue = [start];
+    const stack = [start];
     piece[start] = p;
-    while (queue.length > 0) {
-      const v = queue.pop();
+    while (stack.length > 0) {
+      const v = stack.pop();
       size++;
       if (offEdge[v] > 0) leaky = true;
       for (let e = d.first[v]; e < d.first[v + 1]; e++) {
         const w = d.nbr[e];
         if (isSink[w]) { leaky = true; continue; }
-        if (piece[w] === -1) { piece[w] = p; queue.push(w); }
+        if (piece[w] === -1) { piece[w] = p; stack.push(w); }
       }
     }
     pieceSize.push(size);
@@ -119,7 +119,7 @@ function newPile(options) {
   const height = new Int32Array(n);       // grains on each cell
   const odometer = new Float64Array(n);   // how many times each cell toppled
   const pile = {
-    domain: d, threshold: threshold, isSink: isSink, offEdge: offEdge,
+    threshold: threshold, isSink: isSink,
     height: height, odometer: odometer,
     hasSink: hasSink,     // false: some piece can never lose grains
     topples: 0,           // topples so far
@@ -235,13 +235,13 @@ function newPile(options) {
   // Start again from the heights h (a list with one number per cell).
   // Sink cells get 0. The counts and the history start over.
   pile.setHeights = function (h) {
-    for (let v = 0; v < n; v++) {
-      height[v] = isSink[v] ? 0 : h[v];
-      odometer[v] = 0;
-    }
+    odometer.fill(0);
     unstableCount = 0;
     where.fill(-1);
-    for (let v = 0; v < n; v++) refresh(v);
+    for (let v = 0; v < n; v++) {
+      height[v] = isSink[v] ? 0 : h[v];
+      refresh(v);
+    }
     pile.topples = 0;
     pile.lost = 0;
     pile.added = 0;
@@ -251,10 +251,9 @@ function newPile(options) {
   };
 
   // Add k grains to cell v (k may be negative to remove grains; a cell
-  // never goes below 0). Clicking, and the storm, use this. Returns the
-  // number of grains actually added.
+  // never goes below 0). Clicking, and the storm, use this.
   pile.addGrains = function (v, k) {
-    if (isSink[v]) return 0;
+    if (isSink[v]) return;
     if (height[v] + k < 0) k = -height[v];
     height[v] += k;
     pile.added += k;
@@ -262,18 +261,28 @@ function newPile(options) {
     redo = [];
     // Removing grains breaks the "no sink" reasoning, so start it over.
     if (k < 0) restartNoSinkCheck();
-    return k;
   };
 
   // Drop one grain on a uniformly random cell (not a sink cell). u is a
-  // uniform random number in [0, 1). Returns the cell.
+  // uniform random number in [0, 1).
   const ordinaryCells = [];
   for (let v = 0; v < n; v++) if (!isSink[v]) ordinaryCells.push(v);
   pile.dropGrain = function (u) {
-    const v = ordinaryCells[Math.floor(u * ordinaryCells.length)];
-    pile.addGrains(v, 1);
-    return v;
+    pile.addGrains(ordinaryCells[Math.floor(u * ordinaryCells.length)], 1);
   };
+
+  // Topple each of "cells" once, as one step of the history, then put
+  // them and their neighbors in or out of the unstable list.
+  function toppleStep(cells) {
+    cells.forEach(function (v, k) {
+      toppleTimes(v, 1);
+      remember(v, k === 0);
+    });
+    for (const v of cells) {
+      refresh(v);
+      for (let e = d.first[v]; e < d.first[v + 1]; e++) refresh(d.nbr[e]);
+    }
+  }
 
   // One step of the animation, one topple: the cell is picked uniformly
   // among the unstable cells, with u uniform in [0, 1) (or an undone
@@ -282,31 +291,18 @@ function newPile(options) {
     if (redo.length > 0) return replay();
     if (unstableCount === 0) return -1;
     const v = unstable[Math.floor(u * unstableCount)];
-    toppleTimes(v, 1);
-    refresh(v);
-    for (let e = d.first[v]; e < d.first[v + 1]; e++) refresh(d.nbr[e]);
-    remember(v, true);
+    toppleStep([v]);
     return v;
   };
 
   // One round of the animation: every cell that is unstable now topples
-  // once, all at the same time (the usual picture of the BTW model).
-  // Returns how many cells toppled.
+  // once, all at the same time (the usual picture of the BTW model); or
+  // an undone step is replayed. Toppling them one after another is the
+  // same as all at once: a topple only adds grains to the others, so
+  // each stays unstable until its own turn.
   pile.round = function () {
-    if (redo.length > 0) return replay() === -1 ? 0 : 1;
-    const now = Array.from(unstable.subarray(0, unstableCount));
-    // Toppling them one after another is the same as all at once: a
-    // topple only adds grains to the others, so each stays unstable
-    // until its own turn.
-    now.forEach(function (v, k) {
-      toppleTimes(v, 1);
-      remember(v, k === 0);
-    });
-    for (const v of now) {
-      refresh(v);
-      for (let e = d.first[v]; e < d.first[v + 1]; e++) refresh(d.nbr[e]);
-    }
-    return now.length;
+    if (redo.length > 0) replay();
+    else toppleStep(Array.from(unstable.subarray(0, unstableCount)));
   };
 
   // Take back the last step (one topple, or one whole round). Returns
@@ -330,14 +326,7 @@ function newPile(options) {
   // Replay the last undone step. Returns its first cell.
   function replay() {
     const cells = redo.pop();
-    cells.forEach(function (v, k) {
-      toppleTimes(v, 1);
-      remember(v, k === 0);
-    });
-    for (const v of cells) {
-      refresh(v);
-      for (let e = d.first[v]; e < d.first[v + 1]; e++) refresh(d.nbr[e]);
-    }
+    toppleStep(cells);
     return cells[0];
   }
 
@@ -436,8 +425,8 @@ function newPile(options) {
 //   "random"  s.most          each cell uniform in 0, 1, ..., s.most
 //   "full"    s.height        every cell s.height
 //   "center"  s.grains        s.grains on the middle cell
-// "random" is a function giving uniform numbers in [0, 1) (only "random"
-// uses it). Heights below 0 become 0.
+// random() gives uniform numbers in [0, 1) (only the kind "random" uses
+// it). Heights below 0 become 0.
 function startHeights(d, kind, s, random) {
   const h = new Int32Array(d.n);
   for (let v = 0; v < d.n; v++) {
@@ -525,13 +514,10 @@ function pileWorker() {
     stormRandom = new Math.seedrandom(seed + " storm");
     const startRandom = new Math.seedrandom(seed + " start");
 
-    let heights;
-    if (message.start.kind === "identity") {
-      heights = pile.identityBeforeToppling() || new Int32Array(message.domain.n);
-    } else {
-      heights = startHeights(message.domain, message.start.kind, message.start, startRandom);
-    }
-    pile.setHeights(heights);
+    const start = message.start;
+    pile.setHeights(start.kind === "identity"
+      ? pile.identityBeforeToppling() || new Int32Array(message.domain.n)   // (null: no sink, so no identity)
+      : startHeights(message.domain, start.kind, start, startRandom));
     if (message.jump) pile.stabilize();
 
     avalancheFrom = null;
@@ -611,7 +597,6 @@ function pileWorker() {
 
   // Send the heights and the numbers to the page.
   function report(always) {
-    if (!pile) return;
     const now = performance.now();
     if (pile.isStable() && pile.hasSink && recurrentStale && (always || !playing || now - recurrentChecked > RECURRENT_GAP)) {
       recurrent = pile.isRecurrent();
