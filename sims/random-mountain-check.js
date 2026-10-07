@@ -190,30 +190,21 @@ function chiSquareTest(c, runs) {
     counts.set(key, (counts.get(key) || 0) + 1);
   }
 
-  // A mountain the exact listing says is impossible is a failure at once.
+  return pearson(odds, counts, runs);
+}
+
+// Pearson's test of the counts against the exact odds (pooledChiSquare,
+// js/check-page.js). A mountain the exact listing says is impossible is
+// a failure at once.
+function pearson(odds, counts, runs) {
   for (const key of counts.keys()) {
     if (!odds.has(key)) return { pass: false, text: "The sim made a mountain that is impossible: " + key };
   }
-
-  // Pearson's statistic: the sum of (observed - expected)^2 / expected,
-  // with outcomes expected fewer than 5 times pooled together.
-  let statistic = 0, groups = 0, pooledObserved = 0, pooledExpected = 0;
-  for (const [key, p] of odds) {
-    const expected = p * runs, observed = counts.get(key) || 0;
-    if (expected < 5) { pooledObserved += observed; pooledExpected += expected; continue; }
-    statistic += (observed - expected) ** 2 / expected;
-    groups += 1;
-  }
-  if (pooledExpected > 0) {
-    statistic += (pooledObserved - pooledExpected) ** 2 / pooledExpected;
-    groups += 1;
-  }
-  const degrees = groups - 1;
-  const pValue = 1 - jStat.chisquare.cdf(statistic, degrees);
+  const test = pooledChiSquare(odds, counts, runs);
   return {
-    pass: pValue > 0.001,
-    text: odds.size + " possible mountains, " + runs + " runs: chi-square " + statistic.toFixed(1) +
-          " with " + degrees + " degrees of freedom, p = " + pValue.toFixed(3),
+    pass: test.pValue > 0.001,
+    text: odds.size + " possible mountains, " + runs + " runs: chi-square " + test.statistic.toFixed(1) +
+          " with " + test.degrees + " degrees of freedom, p = " + test.pValue.toFixed(3),
   };
 }
 
@@ -376,30 +367,6 @@ function graphDepths(graph, v, far) {
   return depth;
 }
 
-// Pearson's test of counts against exact odds, as in chiSquareTest above.
-function pearson(odds, counts, runs) {
-  for (const key of counts.keys()) {
-    if (!odds.has(key)) return { pass: false, text: "The sim made a mountain that is impossible: " + key };
-  }
-  let statistic = 0, groups = 0, pooledObserved = 0, pooledExpected = 0;
-  for (const [key, p] of odds) {
-    const expected = p * runs, observed = counts.get(key) || 0;
-    if (expected < 5) { pooledObserved += observed; pooledExpected += expected; continue; }
-    statistic += (observed - expected) ** 2 / expected;
-    groups += 1;
-  }
-  if (pooledExpected > 0) {
-    statistic += (pooledObserved - pooledExpected) ** 2 / pooledExpected;
-    groups += 1;
-  }
-  const degrees = groups - 1;
-  const pValue = 1 - jStat.chisquare.cdf(statistic, degrees);
-  return {
-    pass: pValue > 0.001,
-    text: odds.size + " possible mountains, " + runs + " runs: chi-square " + statistic.toFixed(1) +
-          " with " + degrees + " degrees of freedom, p = " + pValue.toFixed(3),
-  };
-}
 
 // 4c. The tilings and trees. The hyperbolic distance between points z
 // and w of the disk is 2 artanh(|z - w| / |1 - conj(z) w|) (Beardon,

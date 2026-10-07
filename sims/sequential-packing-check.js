@@ -4,7 +4,8 @@
    Each check below builds a packing with packingCore() (from
    sequential-packing-growth.js), compares it with something known, and
    returns { name, pass, details }. The end of the file runs them one
-   after another and fills in the table on the page.
+   after another and fills in the table on the page (addRow, in
+   js/check-page.js, like the other check pages).
 
      1. Your gasket, on your own centers, against your formula
      2. Squares in a square, against the same formula with max(|x|, |y|)
@@ -171,14 +172,12 @@ function checkUniform() {
     const slice = Math.min(7, Math.floor(angle / (2 * Math.PI) * 8));
     counts[ring * 8 + slice]++;
   }
-  const expected = total / 80;
-  let chi2 = 0;
-  for (const c of counts) chi2 += (c - expected) * (c - expected) / expected;
-  const p = 1 - jStat.chisquare.cdf(chi2, 79);
+  const test = equalChiSquare(counts);     // js/check-page.js
   return {
     name: "5. Uniform centers on an annulus (chi-square, 40,000 centers)",
-    pass: p > 0.001,
-    details: "Chi-square = " + chi2.toFixed(1) + " with 79 degrees of freedom, p = " + p.toFixed(3) + ".",
+    pass: test.pValue > 0.001,
+    details: "Chi-square = " + test.statistic.toFixed(1) + " with " + test.degrees + " degrees of freedom, p = " +
+             test.pValue.toFixed(3) + ".",
   };
 }
 
@@ -297,11 +296,7 @@ if (typeof document !== "undefined") {
     try { result = CHECKS[next](); }
     catch (error) { result = { name: "Check " + (next + 1), pass: false, details: "Stopped with an error: " + error.message }; }
     if (!result.pass) failed++;
-    const row = document.createElement("tr");
-    row.innerHTML = "<td></td><td class='" + (result.pass ? "check-pass'>pass" : "check-fail'>FAIL") + "</td><td></td>";
-    row.cells[0].textContent = result.name;
-    row.cells[2].textContent = result.details;
-    document.getElementById("results").appendChild(row);
+    addRow(result.name, result.pass, result.details);
     next++;
     setTimeout(runNext, 20);
   }

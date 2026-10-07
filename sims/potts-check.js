@@ -118,18 +118,11 @@ function testSampling(dynamics) {
       const key = chain.agree + "," + chain.counts[0];
       seen.set(key, (seen.get(key) || 0) + 1);
     }
-    // Chi-square, with outcomes expected fewer than 5 times pooled together.
-    let chi = 0, bins = 0, poolSeen = 0, poolExpected = 0;
-    for (const [key, odds] of expected) {
-      const e = odds * samples, o = seen.get(key) || 0;
-      if (e < 5) { poolSeen += o; poolExpected += e; continue; }
-      chi += (o - e) * (o - e) / e;
-      bins++;
-    }
-    if (poolExpected > 0) { chi += (poolSeen - poolExpected) ** 2 / poolExpected; bins++; }
-    const pValue = 1 - jStat.chisquare.cdf(chi, bins - 1);
-    addRow((dynamics === "sw" ? "Swendsen–Wang" : "Heat bath") + " samples π", pValue > 0.001,
-           c.name + ": " + samples + " samples in " + bins + " groups, chi-square p-value " + pValue.toFixed(3) +
+    // Chi-square, with outcomes expected fewer than 5 times pooled
+    // together (js/check-page.js).
+    const test = pooledChiSquare(expected, seen, samples);
+    addRow((dynamics === "sw" ? "Swendsen–Wang" : "Heat bath") + " samples π", test.pValue > 0.001,
+           c.name + ": " + samples + " samples in " + test.groups + " groups, chi-square p-value " + test.pValue.toFixed(3) +
            " (pass above 0.001).");
   }
 }
@@ -180,10 +173,7 @@ function testUniform(dynamics) {
     for (let j = 0; j < gap; j++) chain.sweep(dynamics);
     for (let c = 0; c < q; c++) totals[c] += chain.counts[c];
   }
-  const expected = samples * d.n / q;
-  let chi = 0;
-  for (let c = 0; c < q; c++) chi += (totals[c] - expected) ** 2 / expected;
-  const pValue = 1 - jStat.chisquare.cdf(chi, q - 1);
+  const pValue = equalChiSquare(totals).pValue;     // js/check-page.js
   addRow((dynamics === "sw" ? "Swendsen–Wang" : "Heat bath") + ": β = 0 gives uniform colors", pValue > 0.001,
          "q = 5 on a 20 x 20 torus (the field h = 0.7 has no effect at β = 0): shares " +
          totals.map(function (t) { return (t / (samples * d.n)).toFixed(3); }).join(", ") +

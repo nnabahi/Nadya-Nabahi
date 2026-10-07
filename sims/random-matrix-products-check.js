@@ -93,23 +93,11 @@ function chiSquareTest(matrices, should, steps, runs) {
     if (!odds.has(key)) return { pass: false, text: "the sim made an impossible x = " + key };
   }
 
-  let statistic = 0, groups = 0, pooledObserved = 0, pooledExpected = 0;
-  for (const [key, p] of odds) {
-    const expected = p * runs, observed = counts.get(key) || 0;
-    if (expected < 5) { pooledObserved += observed; pooledExpected += expected; continue; }
-    statistic += (observed - expected) ** 2 / expected;
-    groups += 1;
-  }
-  if (pooledExpected > 0) {
-    statistic += (pooledObserved - pooledExpected) ** 2 / pooledExpected;
-    groups += 1;
-  }
-  const degrees = groups - 1;
-  const pValue = 1 - jStat.chisquare.cdf(statistic, degrees);
+  const test = pooledChiSquare(odds, counts, runs);    // js/check-page.js
   return {
-    pass: pValue > 0.001,
-    text: odds.size + " possible values of x, " + runs + " runs: chi-square " + statistic.toFixed(1) +
-          " with " + degrees + " degrees of freedom, p = " + pValue.toFixed(3),
+    pass: test.pValue > 0.001,
+    text: odds.size + " possible values of x, " + runs + " runs: chi-square " + test.statistic.toFixed(1) +
+          " with " + test.degrees + " degrees of freedom, p = " + test.pValue.toFixed(3),
   };
 }
 

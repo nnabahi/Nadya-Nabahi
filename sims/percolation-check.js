@@ -212,9 +212,8 @@ function testOpenFraction(kind) {
       open += percolate(d, kind, p, uniformNumbers(total, "f" + k + p), edges).openCount;
       trials += total;
     }
-    // A binomial count: its mean is trials p and its spread (standard
-    // deviation) sqrt(trials p (1 - p)).
-    const z = (open - trials * p) / Math.sqrt(trials * p * (1 - p));
+    // A binomial count (binomialZ, js/check-page.js).
+    const z = binomialZ(open, trials, p);
     worst = Math.max(worst, Math.abs(z));
     text += "p = " + p + ": " + (open / trials).toFixed(4) + ". ";
   }
@@ -224,7 +223,7 @@ function testOpenFraction(kind) {
 
 function testCoupling(kind) {
   const d = boxDomain(30, 30, 4, true), edges = edgesOf(d);
-  let bad = 0, pairs = 0;
+  let bad = 0;
   for (let k = 0; k < 20; k++) {
     const U = uniformNumbers(kind === "site" ? d.n : edges.count, "m" + k);
     let previous = null;
@@ -235,7 +234,6 @@ function testCoupling(kind) {
         const seen = new Map();
         for (let v = 0; v < d.n; v++) {
           if (previous.root[v] === -1) continue;
-          pairs++;
           if (!seen.has(previous.root[v])) seen.set(previous.root[v], result.root[v]);
           else if (seen.get(previous.root[v]) !== result.root[v]) bad++;
         }
@@ -368,7 +366,7 @@ function testHalf() {
   const trials = 4000;
   let crossed = 0;
   for (let k = 0; k < trials; k++) if (percolate(d, "bond", 0.5, uniformNumbers(edges.count, "half" + k), edges).crossed) crossed++;
-  const z = (crossed - trials / 2) / Math.sqrt(trials / 4);
+  const z = binomialZ(crossed, trials, 0.5);
   addRow("bond: crossing half the time at p = 1/2", Math.abs(z) < 4,
          "On the 21 x 20 box, " + crossed + " of " + trials + " samples cross (" + (crossed / trials).toFixed(3) +
          "), " + Math.abs(z).toFixed(2) + " standard deviations from 1/2 (pass below 4).");
@@ -418,7 +416,7 @@ function testTreeBall(kind, degree, R, p) {
     const U = uniformNumbers(kind === "site" ? d.n : edges.count, "tree " + kind + k);
     if (percolate(d, kind, p, U, edges).crossed) reached++;
   }
-  const z = (reached - trials * exact) / Math.sqrt(trials * exact * (1 - exact));
+  const z = binomialZ(reached, trials, exact);
   addRow(kind + ": reaching the edge of a tree's ball", d.xmax === R && Math.abs(z) < 4,
          "Tree of degree " + degree + ", ball of radius " + R + " (" + d.n + " cells), p = " + p + ": the start's cluster reaches " +
          "the edge in " + reached + " of " + trials + " samples (" + (reached / trials).toFixed(3) + "); the exact chance is " +

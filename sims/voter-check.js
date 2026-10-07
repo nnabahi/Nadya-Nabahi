@@ -118,7 +118,7 @@ function testWinner(name, d, ones) {
     while (voter.counts[0] > 0 && voter.counts[0] < d.n) voter.update(Math.floor(random() * d.n));
     if (voter.counts[0] === d.n) won++;
   }
-  const z = (won - runs * exact) / Math.sqrt(runs * exact * (1 - exact));
+  const z = binomialZ(won, runs, exact);     // js/check-page.js
   addRow("Who wins: " + name, Math.abs(z) < 4,
          "Opinion 1 won " + won + " of " + runs + " runs (" + (won / runs).toFixed(3) + "); its share of the degrees is " +
          exact.toFixed(3) + ", " + Math.abs(z).toFixed(2) + " standard deviations away (pass below 4).");
@@ -137,10 +137,7 @@ function testFullNoise() {
     for (let j = 0; j < 5; j++) voter.unitOfTime();   // 5 units apart: all but about 1% of cells fresh
     for (let c = 0; c < q; c++) totals[c] += voter.colors.filter(function (o) { return o === c; }).length;
   }
-  const expected = samples * d.n / q;
-  let chi = 0;
-  for (let c = 0; c < q; c++) chi += (totals[c] - expected) ** 2 / expected;
-  const pValue = 1 - jStat.chisquare.cdf(chi, q - 1);
+  const pValue = equalChiSquare(totals).pValue;     // js/check-page.js
   addRow("Noise ε = 1 gives uniform opinions", pValue > 0.001,
          "q = 5 on a 20 x 20 torus: shares " + totals.map(function (t) { return (t / (samples * d.n)).toFixed(3); }).join(", ") +
          "; chi-square p-value " + pValue.toFixed(3) + " (pass above 0.001).");
