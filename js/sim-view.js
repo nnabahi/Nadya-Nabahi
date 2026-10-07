@@ -89,9 +89,12 @@ function makeView(canvas, redraw, top, wholeCells) {
     cell: 1, firstI: 0, lastI: -1, firstK: 0, lastK: -1, cols: 0, rows: 0,
 
     // Moving and zooming. "torus" is true when the picture wraps around
-    // (then it can also zoom out past zoom 1), and "movable" is false
-    // for a picture that doesn't move or zoom at all.
+    // (then it can also zoom out past zoom 1), "free" when it can slide
+    // anywhere, even past its edges (the hyperbolic pictures:
+    // js/sim-hyperbolic.js sets it when it draws them), and "movable" is
+    // false for a picture that doesn't move or zoom at all.
     torus: false,
+    free: false,
     movable: true,
     scroll: { x: 0, y: 0 },   // how far the picture is moved, in cells
     zoom: 1,                  // 2 = cells twice as big, 0.5 = half as big
@@ -129,6 +132,7 @@ function makeView(canvas, redraw, top, wholeCells) {
 // cursor: section 8 of css/style.css.)
 function useTorus(view, on, movable) {
   view.torus = on;
+  view.free = false;
   view.movable = (movable !== false);
   view.scroll = { x: 0, y: 0 };
   view.zoom = 1;
@@ -272,8 +276,9 @@ function zoomBy(view, factor, px, py) {
 // domain never comes in past the edge of the picture's box. "across"
 // and "down" are the domain's size in cells; zoomed in, the box shows
 // only across / zoom of them, so the picture can move that far less.
+// (A "free" picture can go anywhere.)
 function keepInBox(view) {
-  if (view.torus) return;
+  if (view.torus || view.free) return;
   const across = view.width / view.size, down = view.height / view.size;
   const shownAcross = view.width / cellSize(view), shownDown = view.height / cellSize(view);
   view.scroll.x = Math.min(0, Math.max(shownAcross - across, view.scroll.x));

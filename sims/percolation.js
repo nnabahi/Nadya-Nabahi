@@ -56,12 +56,11 @@ const SMALLEST_EDGE_CELL = 6;     // bond: cells at least this big are drawn as 
 const CLICK_DISTANCE = 5;         // a press that moves less than this (in pixels) is a click
 
 // Hyperbolic plane or tree: the ball's default and largest radius R,
-// the most cells a ball may have (a ball of a hyperbolic tiling grows
-// exponentially with R), and the open edges' color (bond).
+// and the most cells a ball may have (a ball of a hyperbolic tiling
+// grows exponentially with R).
 const DEFAULT_BALL_RADIUS = 6;
 const MAX_BALL_RADIUS = 20;
 const MAX_BALL_CELLS = 20000;
-const BALL_EDGE = "rgba(30, 30, 30, 0.7)";
 
 // The critical point p_c on the square grid, where an infinite cluster
 // first appears (see "All the details" for where these come from).
@@ -184,11 +183,13 @@ function rgbOfRoot(r) {
    The "view" (js/sim-view.js) says where the picture goes and which
    squares show; it also moves and zooms it (section 6).
 
-   On a hyperbolic tiling or tree, each cell is drawn in its cluster's
-   color in the disk, the half-plane or (a tree) spread out in rings
-   (drawBall, js/cell-picture.js); bond percolation adds a line for
-   each open edge between cells big enough to see. A ring marks the
-   start cell.
+   On a hyperbolic tiling or tree, the picture is the disk, the
+   half-plane or (a tree) spread out in rings. Site percolation draws
+   each cell in its cluster's color (drawBall, js/cell-picture.js).
+   Bond percolation draws the graph itself, as on the square grid: a
+   line for every open edge in its cluster's color, thin gray lines for
+   the closed ones, and no cells (drawBallBonds, js/sim-hyperbolic.js).
+   A ring marks the start cell.
    ===================================================================== */
 const simCanvas = byId("sim-canvas");
 const view = makeView(simCanvas, drawSoon, 0, SMALLEST_BORDERED_CELL);
@@ -286,29 +287,28 @@ function drawEdges(pen) {
   }
 }
 
-// Hyperbolic plane or tree: the cells in their clusters' colors, the
-// open edges (bond), and a ring around the start.
+// Hyperbolic plane or tree: the cells in their clusters' colors (site),
+// or the open edges in their clusters' colors (bond), and a ring around
+// the start.
 function drawOnBall() {
-  const pen = drawBall(disk, made.graph, domain, function (v) {
-    return rgbToHex(rgbOfRoot(inCluster(v) ? result.root[v] : -1));
-  });
-  // Where each cell is on the screen (null if off it), worked out once.
-  const spots = [];
-  for (let v = 0; v < domain.n; v++) spots.push(ballSpot(disk, domain, v));
-  if (KIND === "bond") {
-    pen.beginPath();
-    for (let e = 0; e < edges.count; e++) {
-      if (!(U[e] < p)) continue;
-      const a = spots[edges.a[e]], b = spots[edges.b[e]];
-      if (a === null || b === null || Math.min(a.size, b.size) < SMALLEST_EDGE_CELL / 2) continue;
-      pen.moveTo(a.x, a.y);
-      pen.lineTo(b.x, b.y);
+  let pen;
+  if (KIND === "site") {
+    pen = drawBall(disk, made.graph, domain, function (v) {
+      return rgbToHex(rgbOfRoot(inCluster(v) ? result.root[v] : -1));
+    });
+  } else {
+    const height = pictureHeight(BALL_HEIGHT);
+    if (disk.picture === "spread") {
+      pen = drawSpreadTree(disk, height, domain.n, function (v) { return domain.depth[v]; },
+        function (v) { return domain.angle[v]; }, function () { return null; });
+    } else {
+      pen = diskPen(disk, height);
+      drawDiskFrame(disk, pen, height, CLOSED, UNDER_COLOR);
     }
-    pen.strokeStyle = BALL_EDGE;
-    pen.lineWidth = 1.2;
-    pen.stroke();
+    drawBallBonds(disk, pen, domain, function (e) { return U[entryEdge[e]] < p; },
+      function (v) { return inCluster(v) ? rgbToHex(rgbOfRoot(result.root[v])) : null; }, OTHERS);
   }
-  const start = spots[0];
+  const start = ballSpot(disk, domain, 0);
   if (start !== null) {
     pen.beginPath();
     pen.arc(start.x, start.y, Math.max(4, Math.min(12, 0.5 * start.size)), 0, 2 * Math.PI);

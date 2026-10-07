@@ -44,6 +44,9 @@
             <button class="tool-button" id="zoom-reset" title="Show the whole picture once again">Reset</button>
             <!-- On a hyperbolic tiling or tree's disk or half-plane: put the start back in the middle. -->
             <button class="tool-button" id="disk-reset" title="Put the start back in the middle" hidden>Back to the start</button>
+            <!-- ... and "Slide": dragging there slides the whole picture instead (js/sim-hyperbolic.js).
+                 It shows and hides with "Back to the start" (section 8 of css/style.css). -->
+            <button class="tool-button" id="disk-slide" title="Drag to slide the whole picture, instead of moving around the plane">Slide</button>
           </div>
         </div>
 
@@ -289,7 +292,7 @@
           Hyperbolic plane or tree: the table is then a ball of a hyperbolic
           tiling or a tree, a cell with <em>p</em> neighbors topples at
           <em>p</em> grains, and grains fall off the ball's edge (drag to move
-          around the plane).
+          around the plane, or press Slide to slide the whole picture).
         </p>
         </div>
 

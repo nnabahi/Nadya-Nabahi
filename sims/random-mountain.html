@@ -57,6 +57,9 @@
             <button class="tool-button" id="zoom-reset" title="Show the whole picture once again">Reset</button>
             <!-- On a graph's disk or half-plane: put the start back in the middle. -->
             <button class="tool-button" id="disk-reset" title="Put the start back in the middle" hidden>Back to the start</button>
+            <!-- ... and "Slide": dragging there slides the whole picture instead (js/sim-hyperbolic.js).
+                 It shows and hides with "Back to the start" (section 8 of css/style.css). -->
+            <button class="tool-button" id="disk-slide" title="Drag to slide the whole picture, instead of moving around the plane">Slide</button>
           </div>
           <!-- The 3D view (2D mountains only): js/sim-3d.js puts its
                picture in here, with a button to look from the start again. -->
@@ -273,8 +276,8 @@
           <strong>Hyperbolic plane or tree.</strong> The same mountain on a tiling
           of the hyperbolic plane, or on a tree, drawn in a disk where the
           cells shrink toward the edge (the edge is infinitely far away). Drag
-          to travel across the plane, and zoom as in 2D to see the small cells
-          near the edge. There, every patch of cells has a long
+          to travel across the plane (or press Slide to slide the whole
+          picture), and zoom as in 2D to see the small cells near the edge. There, every patch of cells has a long
           edge compared to its size, so the base spreads fast and the mountain
           stays low: compare {7, 3} with the 2D grid. The whole tiling (or tree)
           is drawn in thin gray underneath, in 3D too; on a tree, each site is a

@@ -44,6 +44,9 @@
             <button class="tool-button" id="zoom-reset" title="Show the whole picture once again">Reset</button>
             <!-- On a hyperbolic tiling or tree's disk or half-plane: put the start back in the middle. -->
             <button class="tool-button" id="disk-reset" title="Put the start back in the middle" hidden>Back to the start</button>
+            <!-- ... and "Slide": dragging there slides the whole picture instead (js/sim-hyperbolic.js).
+                 It shows and hides with "Back to the start" (section 8 of css/style.css). -->
+            <button class="tool-button" id="disk-slide" title="Drag to slide the whole picture, instead of moving around the plane">Slide</button>
           </div>
         </div>
 
@@ -242,7 +245,8 @@
           <strong>Hyperbolic plane or tree.</strong> The model also runs on a
           ball of a hyperbolic tiling or of a tree: every cell within R steps
           of a start cell. It is drawn in the Poincar&eacute; disk or the
-          half-plane (drag to move around the plane), or, for a tree, spread
+          half-plane (drag to move around the plane, or press Slide to slide
+          the whole picture), or, for a tree, spread
           out in rings, and all three zoom. Most of a ball's cells are on its
           edge, so cooling it down looks quite different from the square grid.
         </p>

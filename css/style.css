@@ -719,6 +719,13 @@ a.card:hover {
   min-width: 2.2em;         /* so "+" and "−" aren't tiny */
 }
 
+/* The "Slide" button (hyperbolic pictures, js/sim-hyperbolic.js) comes
+   right after "Back to the start" and is hidden whenever that one is,
+   so the sim pages only show or hide "Back to the start". */
+#disk-reset[hidden] + #disk-slide {
+  display: none;
+}
+
 /* The full screen button (addFullScreenButton in js/sim-page.js) sits
    in the top left corner of every picture: a round button with an icon. */
 .full-screen-button {

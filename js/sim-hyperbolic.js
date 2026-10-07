@@ -27,16 +27,21 @@
    the point you grab follows the pointer, and the whole picture moves
    by the hyperbolic motion that carries one to the other (so cells
    change size as they move, but never shape). "Back to the start" puts
-   the first cell back in the middle. All three pictures also zoom (and
-   the spread-out one slides) like the square grid, with the page's view
-   (js/sim-view.js): it zooms and moves the whole picture (the function
-   zoomed), and the drawing leaves out what is off the screen. With two
-   fingers, the disk and the half-plane slide and zoom too.
+   the first cell back in the middle. The "Slide" button switches
+   dragging to sliding the whole picture instead (press it again to
+   switch back). All three pictures also zoom and slide like the square
+   grid, with the page's view (js/sim-view.js): it zooms and moves the
+   whole picture (the function zoomed), and the drawing leaves out what
+   is off the screen. Unlike the square grid, they slide anywhere, even
+   past their edges ("Reset" brings them back). The spread-out tree
+   always slides, and with two fingers, so do the disk and the
+   half-plane (and they zoom too).
 
    A sim keeps one "disk view" (makeDiskView): which graph, which
    picture, and how far the plane has been moved. Then it calls
      diskPen, drawDiskFrame, drawOnDisk   the disk or the half-plane
      drawBallBorders                      lines between colors on a tiling
+     drawBallBonds                        the ball drawn as a graph (bond percolation)
      drawSpreadTree, spreadSpot           the spread-out tree
      startPlaneDrag, dragPlane            dragging across the plane
      makeBall                             the ball of R steps a sim runs on
@@ -78,6 +83,7 @@ const SMALLEST_UNDER = 1.2;        // cells smaller than this (inradius, in pixe
 const MOST_UNDER = 40000;          // and at most this many cells do
 const CELL_EDGE = "rgba(0, 0, 0, 0.25)";   // the thin line around each colored cell
 const SMALLEST_BORDER = 2;         // cells smaller than this (inradius, in pixels) get no lines between colors
+const BOND_GRAY = "#c9c6bf";       // closed edges, in drawBallBonds
 const ZOOM_CELLS = 60;             // the view counts the picture as this many "cells" across its
                                    // shorter side (so it zooms in up to about 50 times; js/sim-view.js)
 
@@ -88,9 +94,11 @@ const ZOOM_CELLS = 60;             // the view counts the picture as this many "
 
 // Everything one picture of a graph needs. "canvas" is the canvas it is
 // drawn on, and "view" the page's view of it (makeView, js/sim-view.js),
-// which zooms and slides the picture.
+// which zooms and slides the picture. Also makes the page's "Slide"
+// button (id "disk-slide", next to "Back to the start") switch what
+// dragging does.
 function makeDiskView(canvas, view) {
-  return {
+  const dv = {
     canvas: canvas,
     view: view,
     spec: GRAPH_PRESETS[0].graph,   // the graph, as makeGraph (js/sim-graphs.js) wants it
@@ -99,7 +107,16 @@ function makeDiskView(canvas, view) {
     box: null,                      // where the picture is on the canvas (set when it is drawn)
     shape: null, shapeFor: null,    // the first cell's shape, worked out for the graph "shapeFor"
     dragFrom: null,                 // the point of the disk being dragged, if any
+    slide: false,                   // true: dragging slides the whole picture instead
   };
+  const slide = document.getElementById("disk-slide");
+  if (slide) {
+    slide.addEventListener("click", function () {
+      dv.slide = !dv.slide;
+      slide.classList.toggle("selected", dv.slide);   // looks pressed while on
+    });
+  }
+  return dv;
 }
 
 // Whether a graph is a tree.
@@ -211,6 +228,7 @@ function diskPen(dv, height) {
   view.width = width;
   view.height = height;
   view.size = Math.min(width, height) / ZOOM_CELLS;
+  view.free = true;     // these pictures slide anywhere, even past their edges
   return pen;
 }
 
@@ -270,13 +288,17 @@ function traceOutline(dv, pen, A, size, place) {
 // hyperbolic straight line: a circle arc in the disk.) "place" is as in
 // traceOutline.
 function traceSpokes(dv, pen, A, place) {
-  const POINTS = 6;
-  for (const [sx, sy] of diskShape(dv).sides) {
-    for (let j = 0; j <= POINTS; j++) {
-      const [x, y] = place ? place(...motionApply(A, sx * j / POINTS, sy * j / POINTS))
-                           : diskToScreen(dv, ...motionApply(A, sx * j / POINTS, sy * j / POINTS));
-      if (j === 0) pen.moveTo(x, y); else pen.lineTo(x, y);
-    }
+  for (let k = 0; k < diskShape(dv).sides.length; k++) traceSpoke(dv, pen, A, k, place);
+}
+
+// One of those lines: from the middle of the cell with motion A to the
+// middle of its side k.
+function traceSpoke(dv, pen, A, k, place) {
+  const POINTS = 6, [sx, sy] = diskShape(dv).sides[k];
+  for (let j = 0; j <= POINTS; j++) {
+    const [x, y] = place ? place(...motionApply(A, sx * j / POINTS, sy * j / POINTS))
+                         : diskToScreen(dv, ...motionApply(A, sx * j / POINTS, sy * j / POINTS));
+    if (j === 0) pen.moveTo(x, y); else pen.lineTo(x, y);
   }
 }
 
@@ -346,6 +368,94 @@ function drawBallBorders(dv, pen, ball, colorOf, style) {
   pen.lineWidth = 1.2;
   pen.strokeStyle = style;
   pen.stroke();
+}
+
+// The ball drawn as a graph instead of as cells (bond percolation):
+// after drawDiskFrame, or spread out after drawSpreadTree (with no
+// dots). Each edge runs from one cell's middle to the other's; in the
+// disk and the half-plane it goes through the middle of the side the
+// two cells share (two lines of traceSpoke, so it is a hyperbolic
+// straight line). isOpen(e) says whether the edge of entry e of
+// ball.nbr is open, and colorOf(i) is the color of cell i's open edges
+// (a CSS color), or null if it has none. Open edges are thick lines in
+// their color with a dot on each end, thinner as the cells get smaller;
+// closed edges are thin gray lines; a cell with no open edge is a small
+// dot in the color "loose". Tiny cells are a single dot in their color
+// (nothing if they have no open edge), and ones off the screen are left
+// out.
+function drawBallBonds(dv, pen, ball, isOpen, colorOf, loose) {
+  const spread = dv.picture === "spread";
+  const facing = spread ? null : ballSides(ball, dv.spec.p);
+  // Where each cell is on the screen, (x[i], y[i]), and about how big,
+  // in pixels (size[i], -1 if it is off the screen); in the disk and the
+  // half-plane also its motion, as seen.
+  const n = ball.n, x = new Float64Array(n), y = new Float64Array(n);
+  const size = new Float64Array(n).fill(-1), seen = new Array(n);
+  for (let i = 0; i < n; i++) {
+    if (spread) {
+      [x[i], y[i]] = spreadSpot(dv, ball.depth[i], ball.angle[i]);
+      size[i] = 2 * spreadDot(dv, ball.depth[i]);
+      continue;
+    }
+    const A = seenFrom(dv, ballPlace(ball, i));
+    const [mx, my] = motionApply(A, 0, 0);
+    if (!onScreen(dv, mx, my)) continue;
+    seen[i] = A;
+    size[i] = cellPixels(dv, mx, my);
+    [x[i], y[i]] = diskToScreen(dv, mx, my);
+  }
+  // How thick an open edge is between cells about s pixels big (in
+  // steps of half a pixel, so the edges of one color and thickness are
+  // drawn all at once), and the dots on its ends.
+  const thick = function (s) { return Math.max(0.6, Math.min(5, Math.round(0.8 * s) / 2)); };
+  const gray = new Path2D(), looseDots = new Path2D();
+  const lines = new Map(), dots = new Map();     // color (and thickness) -> its lines, its dots
+  const pathFor = function (paths, key, extra) {
+    if (!paths.has(key)) paths.set(key, Object.assign({ path: new Path2D() }, extra));
+    return paths.get(key).path;
+  };
+
+  for (let i = 0; i < n; i++) {
+    if (size[i] < 0) continue;
+    const color = colorOf(i);
+    if (!spread && size[i] < 1) {                 // tiny: a single dot
+      if (color !== null) { pen.fillStyle = color; pen.fillRect(x[i] - 0.5, y[i] - 0.5, 1, 1); }
+      continue;
+    }
+    for (let e = ball.first[i]; e < ball.first[i + 1]; e++) {
+      const j = ball.nbr[e], open = isOpen(e);
+      // Spread out, each edge is drawn once, from the child to its
+      // parent, and drawSpreadTree already drew the gray ones.
+      if (spread && (ball.depth[j] > ball.depth[i] || !open)) continue;
+      const s = size[j] < 0 ? size[i] : Math.min(size[i], size[j]);
+      if (!open && s < SMALLEST_UNDER) continue;
+      const path = open ? pathFor(lines, color + " " + thick(s), { color: color, width: thick(s) }) : gray;
+      if (spread) { path.moveTo(x[i], y[i]); path.lineTo(x[j], y[j]); }
+      else traceSpoke(dv, path, seen[i], facing[e]);
+    }
+    const r = 0.65 * thick(size[i]);
+    const dot = color === null ? looseDots : pathFor(dots, color, { color: color });
+    const radius = color === null ? 0.6 * r : r;
+    dot.moveTo(x[i] + radius, y[i]);
+    dot.arc(x[i], y[i], radius, 0, 2 * Math.PI);
+  }
+
+  pen.lineCap = "round";
+  pen.lineJoin = "round";
+  pen.lineWidth = 0.6;
+  pen.strokeStyle = BOND_GRAY;
+  pen.stroke(gray);
+  pen.fillStyle = loose;
+  pen.fill(looseDots);
+  for (const group of lines.values()) {
+    pen.lineWidth = group.width;
+    pen.strokeStyle = group.color;
+    pen.stroke(group.path);
+  }
+  for (const group of dots.values()) {
+    pen.fillStyle = group.color;
+    pen.fill(group.path);
+  }
 }
 
 // The whole tiling (or tree) of "graph" in thin gray lines: every cell
@@ -426,8 +536,8 @@ function cellNearest(dv, graph, c) {
 
 // "count" cells, cell i at depth depthOf(i) and angle angleOf(i) (in
 // turns; both from spreadPlace, js/sim-graphs.js), filled with
-// colorOf(i). Draws on a fresh canvas "height" pixels tall, and returns
-// its pen.
+// colorOf(i) (null: no dot). Draws on a fresh canvas "height" pixels
+// tall, and returns its pen.
 function drawSpreadTree(dv, height, count, depthOf, angleOf, colorOf) {
   const pen = diskPen(dv, height), p = dv.spec.p;
   const width = dv.canvas.clientWidth;
@@ -475,7 +585,9 @@ function drawSpreadTree(dv, height, count, depthOf, angleOf, colorOf) {
   for (let i = 0; i < count; i++) {
     const k = depthOf(i), [x, y] = at(k, angleOf(i)), dot = spreadDot(dv, k);
     if (x + dot < 0 || x - dot > width || y + dot < 0 || y - dot > height) continue;
-    pen.fillStyle = colorOf(i);
+    const color = colorOf(i);
+    if (color === null) continue;
+    pen.fillStyle = color;
     pen.beginPath();
     pen.arc(x, y, dot, 0, 2 * Math.PI);
     pen.fill();
@@ -507,12 +619,12 @@ function spreadDot(dv, k) {
    half-plane, dv.dragFrom is the point of the disk it last was on; the
    page then calls dragPlane on each move (instead of movePointer),
    which carries that point to the new one, and draws again. With two
-   fingers, or on the spread-out tree, the view slides and zooms the
-   picture instead, as on the square grid.
+   fingers, on the spread-out tree, or with "Slide" on, the view slides
+   (and zooms) the picture instead, as on the square grid.
    ===================================================================== */
 function startPlaneDrag(dv) {
   const pressed = Array.from(dv.view.pointers.values());
-  const dragsPlane = dv.picture !== "spread" && dv.box !== null;
+  const dragsPlane = dv.picture !== "spread" && dv.box !== null && !dv.slide;
   dv.dragFrom = (dragsPlane && pressed.length === 1) ? diskPoint(dv, pressed[0].x, pressed[0].y) : null;
 }
 
@@ -578,8 +690,8 @@ function moveBetween(from, to) {
               place[4i .. 4i+3]
      depth, angle   on a tree, where cell i goes in the spread-out
               picture (spreadPlace, js/sim-graphs.js)
-     side     on a tiling, which side of each cell each edge crosses,
-              once drawBallBorders has asked for it (ballSides)
+     side     which side of each cell each edge crosses, once
+              drawBallBorders or drawBallBonds has asked for it (ballSides)
    ===================================================================== */
 function makeBall(graph, R, most) {
   // The cells, layer by layer, while there is room for the next layer.
@@ -623,8 +735,8 @@ function makeBall(graph, R, most) {
 // Cell i's place, as a motion (for drawOnDisk and cellSpot).
 function ballPlace(ball, i) { return ball.place.subarray(4 * i, 4 * i + 4); }
 
-// On a tiling: for each edge of the ball (entry e of ball.nbr, from cell
-// i to cell j), which side k of cell i the cell j is across. Moved back
+// For each edge of the ball (entry e of ball.nbr, from cell i to cell
+// j), which side k of cell i the cell j is across (on a tree too). Moved back
 // by the inverse of cell i's motion, cell i is the first cell, and j's
 // middle is straight out from the middle of side k, at the angle
 // 2 pi k / p. (The inverse of the motion [a, b] is [conj(a), -b];

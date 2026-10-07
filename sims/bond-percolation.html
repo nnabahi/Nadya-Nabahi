@@ -46,6 +46,9 @@
             <button class="tool-button" id="zoom-reset" title="Show the whole picture once again">Reset</button>
             <!-- On a hyperbolic tiling or tree's disk or half-plane: put the start back in the middle. -->
             <button class="tool-button" id="disk-reset" title="Put the start back in the middle" hidden>Back to the start</button>
+            <!-- ... and "Slide": dragging there slides the whole picture instead (js/sim-hyperbolic.js).
+                 It shows and hides with "Back to the start" (section 8 of css/style.css). -->
+            <button class="tool-button" id="disk-slide" title="Drag to slide the whole picture, instead of moving around the plane">Slide</button>
           </div>
         </div>
 
@@ -220,7 +223,10 @@
           ball of a hyperbolic tiling or of a tree: every cell within R steps
           of a start cell (the one with the ring). It is drawn in the
           Poincar&eacute; disk or the half-plane (drag to move around the
-          plane), or, for a tree, spread out in rings, and all three zoom.
+          plane, or press Slide to slide the whole picture), or, for a tree,
+          spread out in rings, and all three zoom. It is drawn as the graph
+          itself: each open edge in its cluster's color, and the closed ones
+          in thin gray.
           Statistics then say whether the start's cluster reaches the edge of
           the ball. On a tree where every cell has d neighbors,
           p<sub>c</sub> = 1/(d &minus; 1). The hyperbolic plane has two
