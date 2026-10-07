@@ -165,9 +165,6 @@ function forEachCell(doThis) {
 // current color, or color 1 when the eraser is chosen.
 function paintColor() { return currentColor || 1; }
 
-// Where the point (x, y) is drawn. Minus sign: Cytoscape's y points down.
-function drawAt(x, y) { return { x: x * UNIT, y: -y * UNIT }; }
-
 // Wrap a number into the range lo..hi, for the torus.
 // E.g. with lo = 0, hi = 9: 10 -> 0, -1 -> 9.
 function wrap(v, lo, hi) {
@@ -268,17 +265,16 @@ function buildGrid() {
 
   const elements = [];   // everything to draw, collected here first
 
-  // One node per cell.
-  for (let x = grid.xmin; x <= grid.xmax; x++) {
-    for (let y = grid.ymin; y <= grid.ymax; y++) {
-      elements.push({
-        group: "nodes", classes: isBlocked(cellName(x, y)) ? "cell blocked" : "cell",
-        pannable: true,   // with the Move tool, dragging on a cell moves the view
-        data: { id: cellName(x, y), x: x, y: y, color: colorAt(x, y) },
-        position: drawAt(x, y),
-      });
-    }
-  }
+  // One node per cell, drawn at (x * UNIT, -y * UNIT): Cytoscape's y points down.
+  forEachCell(function (x, y) {
+    const name = cellName(x, y);
+    elements.push({
+      group: "nodes", classes: isBlocked(name) ? "cell blocked" : "cell",
+      pannable: true,   // with the Move tool, dragging on a cell moves the view
+      data: { id: name, x: x, y: y, color: colorAt(x, y) },
+      position: { x: x * UNIT, y: -y * UNIT },
+    });
+  });
 
   // The edges. Each cell looks right and up (and, with 8 neighbors,
   // diagonally right-up and right-down); looking the other ways would
@@ -286,28 +282,26 @@ function buildGrid() {
   const steps = grid.neighbors === 8 ? [[1, 0], [0, 1], [1, 1], [1, -1]] : [[1, 0], [0, 1]];
   const seen = new Set();   // edges already made, so none is made twice
 
-  for (let x = grid.xmin; x <= grid.xmax; x++) {
-    for (let y = grid.ymin; y <= grid.ymax; y++) {
-      for (const [dx, dy] of steps) {
-        let nx = x + dx, ny = y + dy;
-        let wrapped = false;
-        if (!inGrid(nx, ny)) {
-          if (!grid.torus) continue;           // off the edge: no neighbor
-          nx = wrap(nx, grid.xmin, grid.xmax); // torus: come back the other side
-          ny = wrap(ny, grid.ymin, grid.ymax);
-          wrapped = true;
-        }
-        if (nx === x && ny === y) continue;    // a tiny torus can wrap onto itself
-
-        const a = cellName(x, y), b = cellName(nx, ny);
-        const pair = a < b ? a + "|" + b : b + "|" + a;
-        if (seen.has(pair)) continue;          // a tiny torus can repeat an edge
-        seen.add(pair);
-
-        elements.push({ group: "edges", classes: wrapped ? "wrap" : "", data: { source: a, target: b } });
+  forEachCell(function (x, y) {
+    for (const [dx, dy] of steps) {
+      let nx = x + dx, ny = y + dy;
+      let wrapped = false;
+      if (!inGrid(nx, ny)) {
+        if (!grid.torus) continue;           // off the edge: no neighbor
+        nx = wrap(nx, grid.xmin, grid.xmax); // torus: come back the other side
+        ny = wrap(ny, grid.ymin, grid.ymax);
+        wrapped = true;
       }
+      if (nx === x && ny === y) continue;    // a tiny torus can wrap onto itself
+
+      const a = cellName(x, y), b = cellName(nx, ny);
+      const pair = a < b ? a + "|" + b : b + "|" + a;
+      if (seen.has(pair)) continue;          // a tiny torus can repeat an edge
+      seen.add(pair);
+
+      elements.push({ group: "edges", classes: wrapped ? "wrap" : "", data: { source: a, target: b } });
     }
-  }
+  });
 
   // Swap the old drawing for the new one. "batch" makes Cytoscape redraw
   // once at the end instead of after every single change.
@@ -386,10 +380,11 @@ function drawBackground() {
 
   // 1. Gray everywhere, white inside the grid's limits. (A torus has
   //    copies of the grid everywhere, so then it's all white.)
+  const W = width(), H = height();
   pen.fillStyle = grid.torus ? BACKGROUND : OUTSIDE_GRID;
   pen.fillRect(0, 0, w, h);
   pen.fillStyle = BACKGROUND;
-  pen.fillRect(screenX(grid.xmin - 0.5), screenY(grid.ymax + 0.5), width() * scale, height() * scale);
+  pen.fillRect(screenX(grid.xmin - 0.5), screenY(grid.ymax + 0.5), W * scale, H * scale);
 
   // 2. Light lines every cell (skipped when zoomed so far out that
   //    they would be closer than 4 pixels and just look gray).
@@ -403,7 +398,6 @@ function drawBackground() {
   // below). On a torus they are the real grid's lines, repeated in every
   // copy, and the numbers are the real coordinates: on a torus 10 wide,
   // the copy of the line x = 5 is labeled 5 again.
-  const W = width(), H = height();
   const majorX = majorLines(left, right, grid.xmin, grid.xmax, W);
   const majorY = majorLines(bottom, top, grid.ymin, grid.ymax, H);
   const axisX = placesOf(0, left, right, grid.xmin, grid.xmax, W);     // the y-axis (x = 0)
@@ -507,22 +501,22 @@ function drawTorusCopies(pen, scale, screenX, screenY, left, right, bottom, top)
   // The same sizes and see-through-ness as the real cells (section 3),
   // so copies and the real grid look the same.
   pen.globalAlpha = dots ? 1 : CELL_OPACITY;
+  pen.strokeStyle = EDGE_COLOR;
+  pen.lineWidth = EDGE_WIDTH * cy.zoom();
   for (let i = iFrom; i <= iTo; i++) {
     for (let j = jFrom; j <= jTo; j++) {
       if (i === 0 && j === 0) continue;   // that's the real grid
       const dx = i * W, dy = j * H;
 
-      // Dots view: the small gray unpainted dots, if they're big enough to see.
-      if (dots && scale >= 6) {
-        pen.fillStyle = OFF_DOT;
-        forEachCell(function (x, y) {
-          if (colorAt(x, y) === 0) circle(pen, screenX(x + dx), screenY(y + dy), OFF_DOT_SIZE / 2 * scale);
-        });
-      }
-      // Dots view: the edges between painted dots.
       if (dots) {
-        pen.strokeStyle = EDGE_COLOR;
-        pen.lineWidth = EDGE_WIDTH * cy.zoom();
+        // The small gray unpainted dots, if they're big enough to see.
+        if (scale >= 6) {
+          pen.fillStyle = OFF_DOT;
+          forEachCell(function (x, y) {
+            if (colorAt(x, y) === 0) circle(pen, screenX(x + dx), screenY(y + dy), OFF_DOT_SIZE / 2 * scale);
+          });
+        }
+        // The edges between painted dots.
         edges.forEach(function (edge) {
           const a = edge.source().data(), b = edge.target().data();
           pen.beginPath();
@@ -530,9 +524,8 @@ function drawTorusCopies(pen, scale, screenX, screenY, left, right, bottom, top)
           pen.lineTo(screenX(b.x + dx), screenY(b.y + dy));
           pen.stroke();
         });
-      }
-      // Cells outside a sim's locked domain (section 11), grayed out.
-      if (allowed !== null && !dots) {
+      } else if (allowed !== null) {
+        // Cells outside a sim's locked domain (section 11), grayed out.
         pen.globalAlpha = 1;
         pen.fillStyle = OUTSIDE_GRID;
         forEachCell(function (x, y) {
@@ -886,7 +879,7 @@ function loadJSON(text) {
   Object.assign(grid, settings);
 
   // The palette, if the file has one made of "#rrggbb" colors.
-  const isColor = function (text) { return /^#[0-9a-fA-F]{6}$/.test(text); };
+  const isColor = function (c) { return /^#[0-9a-fA-F]{6}$/.test(c); };
   if (Array.isArray(data.palette) && data.palette.length > 0 && data.palette.every(isColor)) {
     palette = [null].concat(data.palette);
     if (currentColor >= palette.length) currentColor = 1;
@@ -951,14 +944,12 @@ function loadEdgeList(text) {
    It works "live", like Desmos: every change to the formula, a slider
    or the mode recomputes the grid from how it looked before the formula
    started changing it ("beforeFormula"). Painting by hand, or pressing
-   Accept (or Enter in the formula box), keeps the result, and the whole formula session becomes one
-   Undo step. (Its state, "formula", "beforeFormula" and "sliders", is
-   in section 2.)
+   Accept (or Enter in the formula box), keeps the result, and the whole
+   formula session becomes one Undo step. (Its state, "formula",
+   "beforeFormula" and "sliders", is in section 2.) Reading the formula
+   (readTree), finding its slider letters (sliderLetters) and the slider
+   rows (makeSlider) are shared with the sims, in js/formulas.js.
    ===================================================================== */
-
-// Reading the formula (readTree), finding its slider letters
-// (sliderLetters) and the slider rows (makeSlider) are shared with the
-// sims, so they are in js/formulas.js.
 
 // Runs on every keystroke in the formula box.
 function readFormula() {
@@ -1083,17 +1074,14 @@ byId("formula").addEventListener("keydown", function (event) {
    ===================================================================== */
 
 // --- Tools: Paint / Fill / Move / Fit view --------------------------
+const TOOLS = ["paint", "fill", "move"];   // the buttons id="tool-paint", ...
 function chooseTool(name) {
   tool = name;
   cy.userPanningEnabled(name === "move");      // dragging pans only in Move
-  byId("tool-paint").classList.toggle("selected", name === "paint");
-  byId("tool-fill").classList.toggle("selected", name === "fill");
-  byId("tool-move").classList.toggle("selected", name === "move");
+  for (const t of TOOLS) byId("tool-" + t).classList.toggle("selected", name === t);
   byId("graph-area").classList.toggle("moving", name === "move");
 }
-byId("tool-paint").addEventListener("click", function () { chooseTool("paint"); });
-byId("tool-fill").addEventListener("click", function () { chooseTool("fill"); });
-byId("tool-move").addEventListener("click", function () { chooseTool("move"); });
+for (const t of TOOLS) byId("tool-" + t).addEventListener("click", function () { chooseTool(t); });
 byId("tool-fit").addEventListener("click", fitView);
 byId("tool-undo").addEventListener("click", undo);
 byId("tool-redo").addEventListener("click", redo);
@@ -1176,6 +1164,8 @@ chooser.addEventListener("change", function () {
 });
 
 // --- Grid settings ----------------------------------------------------
+const SETTING_BOXES = ["set-xmin", "set-xmax", "set-ymin", "set-ymax", "set-neighbors", "set-torus"];
+
 // Returns a sentence describing what's wrong, or "" if all is fine.
 function checkSettings(s) {
   const numbers = [s.xmin, s.xmax, s.ymin, s.ymax];
@@ -1213,7 +1203,7 @@ function applySettings() {
   showMessage("");
   buildGrid();
 }
-for (const id of ["set-xmin", "set-xmax", "set-ymin", "set-ymax", "set-neighbors", "set-torus"]) {
+for (const id of SETTING_BOXES) {
   byId(id).addEventListener("change", applySettings);   // "change" = after you finish editing
 }
 
@@ -1275,24 +1265,16 @@ buildGrid();
    The two pages talk with postMessage, which works even for pages
    opened straight from the computer (file://).
    ===================================================================== */
+// (postMessage sends a copy, so the sim never shares "grid" or "palette".)
 function tellSim() {
-  if (!embedded) return;
-  window.parent.postMessage({
-    type: "graph",
-    graph: getGraph(),
-    grid: Object.assign({}, grid),
-    palette: palette.slice(),
-  }, "*");
+  if (embedded) window.parent.postMessage({ type: "graph", graph: getGraph(), grid: grid, palette: palette }, "*");
 }
 
 function lockDomain(on) {
   if ((allowed !== null) === on) return;   // already that way
   keepFormulaResult();
   allowed = on ? new Set(Object.keys(colorOf)) : null;
-  for (const id of ["set-xmin", "set-xmax", "set-ymin", "set-ymax", "set-neighbors", "set-torus",
-                    "do-load", "do-paste"]) {
-    byId(id).disabled = on;
-  }
+  for (const id of SETTING_BOXES.concat(["do-load", "do-paste"])) byId(id).disabled = on;
   buildGrid();
   showMessage(on ? "The region is fixed now: paint colors inside it. Gray cells are outside it." : "");
 }

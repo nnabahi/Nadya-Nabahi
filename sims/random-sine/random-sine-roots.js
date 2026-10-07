@@ -183,7 +183,7 @@ function setLaw(values) {
       return values[m - 1];
     },
     mean: total / m,
-    smallest: Math.min.apply(null, values),
+    smallest: Math.min(...values),
   };
 }
 

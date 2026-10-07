@@ -13,10 +13,12 @@
      6b. Moving and zooming the picture
      7. Statistics and charts
      8. Pointing at a tile
+     8b. Click to add a tile
      9. Connecting the buttons
    It uses the shared helpers in js/sim-page.js (byId, startWorker,
-   chartPen, ...), the colors in js/sim-domains.js (defaultColor) and
-   the formula reading and sliders in js/formulas.js.
+   ...), the charts' pens and colors in js/sim-charts.js (chartPen,
+   CHART_LINE), the old site's colors in js/sim-colors.js (defaultColor)
+   and the formula reading and sliders in js/formulas.js.
    ===================================================================== */
 
 
@@ -28,12 +30,13 @@
    ===================================================================== */
 const UNIT_SQUARE = "max(abs(x), abs(y)) <= 1";
 const UNIT_DISK = "x^2 + y^2 <= 1";
+const UNIT_WINDOW = [-1.05, 1.05, -1.05, 1.05];   // xmin, xmax, ymin, ymax
 const PRESETS = {
-  "gasket":          { S: UNIT_DISK, T: UNIT_DISK, f: "1", window: [-1.05, 1.05, -1.05, 1.05] },
-  "s-model":         { S: UNIT_DISK, T: UNIT_DISK, f: "(x^2 + y^2)^((1/s - 2)/2)", window: [-1.05, 1.05, -1.05, 1.05],
+  "gasket":          { S: UNIT_DISK, T: UNIT_DISK, f: "1", window: UNIT_WINDOW },
+  "s-model":         { S: UNIT_DISK, T: UNIT_DISK, f: "(x^2 + y^2)^((1/s - 2)/2)", window: UNIT_WINDOW,
                        sliders: { s: { value: 0.5, min: 0.05, max: 3, step: 0.05 } } },
-  "squares":         { S: UNIT_SQUARE, T: UNIT_SQUARE, f: "1", window: [-1.05, 1.05, -1.05, 1.05] },
-  "disks-in-square": { S: UNIT_SQUARE, T: UNIT_DISK, f: "1", window: [-1.05, 1.05, -1.05, 1.05] },
+  "squares":         { S: UNIT_SQUARE, T: UNIT_SQUARE, f: "1", window: UNIT_WINDOW },
+  "disks-in-square": { S: UNIT_SQUARE, T: UNIT_DISK, f: "1", window: UNIT_WINDOW },
   "stars":           { S: "(x^2 + y^2 - 0.8)^3 - x^2 y^3 <= 0", T: "sqrt(x^2 + y^2) <= 0.6 + 0.3 cos(5 atan2(y, x))",
                        f: "1", window: [-1.3, 1.3, -1.3, 1.3] },
 };
@@ -111,11 +114,9 @@ function readFormulas() {
   }
   byId("formula-message").textContent = "";
 
-  // One slider per letter, in the order the letters first appear.
-  const letters = [];
-  for (const name of FORMULA_NAMES) {
-    for (const letter of sliderLetters(trees[name])) if (!letters.includes(letter)) letters.push(letter);
-  }
+  // One slider per letter, in the order the letters first appear (a Set
+  // keeps that order, and each letter once).
+  const letters = new Set(FORMULA_NAMES.flatMap(function (name) { return sliderLetters(trees[name]); }));
   const holder = byId("sliders");
   holder.innerHTML = "";
   for (const letter of letters) {
@@ -133,7 +134,7 @@ function readFormulas() {
 // Fill in a preset's formulas, window and sliders.
 function usePreset(key) {
   const p = PRESETS[key];
-  forgetClicks();
+  clicks = {};
   byId("formula-S").value = p.S;
   byId("formula-T").value = p.T;
   byId("formula-f").value = p.f;
@@ -377,7 +378,7 @@ function pixelY(y) { return simCanvas.height / 2 - (y - look.y) * scale; }
 function pointX(px) { return look.x + (px - simCanvas.width / 2) / scale; }
 function pointY(py) { return look.y - (py - simCanvas.height / 2) / scale; }
 
-// Which of the PALETTE colors tile k gets (section 9 of the page sets "colorBy").
+// Which of the PALETTE colors tile k gets, by the "Color tiles by" choice.
 function colorOf(k) {
   let b;
   const colorBy = byId("color-by").value;
@@ -389,9 +390,9 @@ function colorOf(k) {
 }
 
 function drawTile(k) {
-  const r = tiles.r[k] * scale;
-  if (r * shapeReach < 0.15) return;                 // smaller than a pixel: invisible anyway
-  const px = pixelX(tiles.cx[k]), py = pixelY(tiles.cy[k]), reach = r * shapeReach;
+  const r = tiles.r[k] * scale, reach = r * shapeReach;
+  if (reach < 0.15) return;                          // smaller than a pixel: invisible anyway
+  const px = pixelX(tiles.cx[k]), py = pixelY(tiles.cy[k]);
   if (px + reach < 0 || px - reach > simCanvas.width || py + reach < 0 || py - reach > simCanvas.height) return;   // off the picture
   pen.setTransform(r, 0, 0, -r, px, py);
   pen.fillStyle = colorOf(k);
@@ -406,7 +407,7 @@ function drawAll() {
   pen.clearRect(0, 0, simCanvas.width, simCanvas.height);
   // The edge of S.
   pen.strokeStyle = CHART_TEXT;
-  pen.lineWidth = Math.max(1, (window.devicePixelRatio || 1));
+  pen.lineWidth = Math.max(1, window.devicePixelRatio || 1);
   pen.beginPath();
   for (let i = 0; i < segments.length; i += 4) {
     pen.moveTo(pixelX(segments[i]), pixelY(segments[i + 1]));
@@ -549,7 +550,7 @@ function middleOfPointers() {
    ---------------------------------------------------------------------
    The numbers are kept up to date by drawNew (section 6). The charts
    are redrawn at most a few times a second. They get their canvas
-   ready, and their colors, from js/sim-page.js.
+   ready, and their colors, from js/sim-charts.js.
    ===================================================================== */
 let statsTimer = null;
 function showStatsSoon() {
@@ -617,7 +618,8 @@ function logSpaced(n) {
 function logLogChart(canvas, series) {
   const p = chartPen(canvas);
   const w = canvas.clientWidth, h = canvas.clientHeight, left = 44, bottom = h - 14, top = 4;
-  const all = series.flatMap(function (s) { return s.points; }).filter(function (q) { return q[0] > 0 && q[1] > 0; });
+  function positive(q) { return q[0] > 0 && q[1] > 0; }   // a log scale has no room for 0 or less
+  const all = series.flatMap(function (s) { return s.points; }).filter(positive);
   if (all.length < 2) return;
   const lx = all.map(function (q) { return Math.log10(q[0]); }), ly = all.map(function (q) { return Math.log10(q[1]); });
   const x0 = Math.min(...lx), x1 = Math.max(...lx, x0 + 1e-9), y0 = Math.min(...ly), y1 = Math.max(...ly, y0 + 1e-9);
@@ -631,7 +633,7 @@ function logLogChart(canvas, series) {
   p.fillText(right, w - p.measureText(right).width, h - 2);
   p.strokeStyle = CHART_LINE; p.fillStyle = CHART_LINE; p.lineWidth = 1.5;
   for (const s of series) {
-    const points = s.points.filter(function (q) { return q[0] > 0 && q[1] > 0; });
+    const points = s.points.filter(positive);
     if (s.dots) {
       for (const q of points) p.fillRect(sx(q[0]) - 1, sy(q[1]) - 1, 2.5, 2.5);
     } else {
@@ -674,7 +676,7 @@ function shortNumber(v) {
    a ray from the point crosses the polygon's edge an odd number of
    times exactly when the point is inside).
    ===================================================================== */
-const HOVER_HINT = "Point at a tile to see its numbers. Click an empty spot to add a tile there.";
+const HOVER_HINT = byId("hover-info").textContent;   // the hint the page starts with
 
 function insideShape(u, v) {
   let inside = false;
@@ -699,14 +701,11 @@ simCanvas.addEventListener("mousemove", function (event) {
   if (!tileShape || fresh) return;
   const spot = canvasSpot(event);
   const k = tileAt(pointX(spot.x), pointY(spot.y));
-  if (k >= 0) {
-    const p = tiles.parent[k];
-    byId("hover-info").textContent = "Tile " + (k + 1).toLocaleString() + " (attempt " + tiles.attempt[k].toLocaleString() +
-      "): R = " + tiles.r[k].toPrecision(4) + ", parent: " + (p < 0 ? "the edge of S" : "tile " + (p + 1).toLocaleString()) +
-      ", generation " + tiles.generation[k] + ", degree " + (children[k] + 1) + ".";
-    return;
-  }
-  byId("hover-info").textContent = HOVER_HINT;
+  if (k < 0) { byId("hover-info").textContent = HOVER_HINT; return; }
+  const p = tiles.parent[k];
+  byId("hover-info").textContent = "Tile " + (k + 1).toLocaleString() + " (attempt " + tiles.attempt[k].toLocaleString() +
+    "): R = " + tiles.r[k].toPrecision(4) + ", parent: " + (p < 0 ? "the edge of S" : "tile " + (p + 1).toLocaleString()) +
+    ", generation " + tiles.generation[k] + ", degree " + (children[k] + 1) + ".";
 });
 
 
@@ -755,8 +754,6 @@ function clickedBack(m) {
   }
 }
 
-function forgetClicks() { clicks = {}; }
-
 
 /* =====================================================================
    9. CONNECTING THE BUTTONS
@@ -780,11 +777,11 @@ byId("step").addEventListener("click", function () { setPlaying(false); setWante
 byId("restart").addEventListener("click", function () {
   setPlaying(false);
   setWanted(0);
-  if (Object.keys(clicks).length > 0) { forgetClicks(); sendSetup(); }
+  if (Object.keys(clicks).length > 0) { clicks = {}; sendSetup(); }
 });
 byId("speed").max = SPEEDS.length - 1;
 byId("speed").addEventListener("input", function () { speedIndex = Number(byId("speed").value); showSpeed(); });
-connectSeed(function () { forgetClicks(); sendSetup(); });   // js/sim-page.js
+connectSeed(function () { clicks = {}; sendSetup(); });   // js/sim-page.js
 byId("color-by").addEventListener("change", drawAll);
 
 // Start: your gasket, no attempts yet, paused at a low speed.

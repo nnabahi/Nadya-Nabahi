@@ -13,7 +13,8 @@
      7. Many samples: histograms
      8. Connecting the buttons
    It uses the shared helpers in js/sim-page.js (byId, showMessage,
-   histogram, niceNumber, ...) and the formula reading and sliders in
+   ...), the charts and number labels in js/sim-charts.js (histogram,
+   niceNumber, ...) and the formula reading and sliders in
    js/formulas.js.
 
    Everything runs right here, in the page's own thread. One sample

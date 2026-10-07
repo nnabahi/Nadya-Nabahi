@@ -145,8 +145,7 @@ function packingCore() {
 
     // Symmetric? (Same reach in opposite directions, up to the binary
     // search's rounding.) If so, make it exactly symmetric.
-    rhoMax = 0;
-    for (let k = 0; k < M; k++) rhoMax = Math.max(rhoMax, rho[k]);
+    rhoMax = Math.max(...rho);
     if (rhoMax === 0) throw new Error("T has no area around its center.");
     let symmetric = true;
     for (let k = 0; k < M / 2; k++) {
@@ -351,7 +350,7 @@ function packingCore() {
     areaS = 0;
     for (const s of segments) areaS += (s[0] * s[3] - s[2] * s[1]) / 2;
     if (segments.length === 0) {
-      throw new Error(inside.some(v => v === 1) ? "S has no edge in the window." : "S is empty in the window.");
+      throw new Error(inside.includes(1) ? "S has no edge in the window." : "S is empty in the window.");
     }
   }
 
@@ -545,10 +544,7 @@ function packingCore() {
   function segmentDistance(cx, cy, ax, ay, bx, by) {
     const ux = ax - cx, uy = ay - cy, wx = bx - ax, wy = by - ay;   // y - C = u + t w, for t from 0 to 1
     let best = Math.min(g(ux, uy), g(ux + wx, uy + wy));
-    const from = Math.atan2(uy, ux);
-    let turn = Math.atan2(uy + wy, ux + wx) - from;                // how far the direction turns
-    if (turn > Math.PI) turn -= TAU;
-    if (turn < -Math.PI) turn += TAU;
+    const from = Math.atan2(uy, ux), turn = turnBetween(from, Math.atan2(uy + wy, ux + wx));
     if (Math.abs(turn) > Math.PI - 1e-12) return 0;               // C is on the segment
     // The corner directions passed, from j0 to j1 (going the way the direction turns).
     const step = turn > 0 ? 1 : -1;
@@ -564,6 +560,15 @@ function packingCore() {
       best = Math.min(best, Math.hypot(ux + t * wx, uy + t * wy) / rho[k]);
     }
     return best;
+  }
+
+  // How far the direction turns from angle "from" to angle "to", the
+  // short way round: between -π and π.
+  function turnBetween(from, to) {
+    let turn = to - from;
+    if (turn > Math.PI) turn -= TAU;
+    if (turn < -Math.PI) turn += TAU;
+    return turn;
   }
 
   // The ordinary distance from (cx, cy) to the segment from a to b.
@@ -612,10 +617,7 @@ function packingCore() {
   // Within slice k the polygon edge stays within max(rho[k], rho[k+1])
   // of the center, so the slices touched, plus one, are enough.
   function reachBetween(ax, ay, bx, by) {
-    const from = Math.atan2(ay, ax);
-    let turn = Math.atan2(by, bx) - from;
-    if (turn > Math.PI) turn -= TAU;
-    if (turn < -Math.PI) turn += TAU;
+    const from = Math.atan2(ay, ax), turn = turnBetween(from, Math.atan2(by, bx));
     const lo = Math.min(from, from + turn), hi = Math.max(from, from + turn);
     return mostRho(Math.floor(lo * M / TAU), Math.floor(hi * M / TAU) + 1);
   }
@@ -726,13 +728,11 @@ function packingCore() {
        cx, cy     the center C          r          the size R (> 0)
        parent     what stopped it: a tile number, or -1 for the edge of S
        generation 1 if its parent is the edge, else its parent's + 1
-       children   how many later tiles have it as their parent
        attempt    the attempt n that placed it (1, 2, 3, ...)
      Attempts that land inside a tile place nothing (R_n = 0).
      =================================================================== */
-  const tiles = { count: 0, cx: [], cy: [], r: [], parent: [], generation: [], children: [], attempt: [] };
+  const tiles = { count: 0, cx: [], cy: [], r: [], parent: [], generation: [], attempt: [] };
   let attempts = 0;
-  let edgeChildren = 0;          // tiles whose parent is the edge of S
   let seed = "1", makeRandom = null;
   let clicks = {};               // attempt n -> [x, y]: centers you clicked
 
@@ -740,7 +740,6 @@ function packingCore() {
     for (const key of Object.keys(tiles)) if (key !== "count") tiles[key] = [];
     tiles.count = 0;
     attempts = 0;
-    edgeChildren = 0;
   }
 
   // Grow a tile at (cx, cy). Returns the new tile's number, or -1 if
@@ -756,9 +755,7 @@ function packingCore() {
     tiles.cx.push(cx); tiles.cy.push(cy); tiles.r.push(found.distance);
     tiles.parent.push(parent);
     tiles.generation.push(parent < 0 ? 1 : tiles.generation[parent] + 1);
-    tiles.children.push(0);
     tiles.attempt.push(attempts);
-    if (parent < 0) edgeChildren++; else tiles.children[parent]++;
     const R = found.distance;
     addObstacle(1, t, cx + R * tMinX, cx + R * tMaxX, cy + R * tMinY, cy + R * tMaxY);
     return t;
@@ -819,17 +816,14 @@ function packingCore() {
       const s = segments[k];
       addObstacle(0, k, Math.min(s[0], s[2]), Math.max(s[0], s[2]), Math.min(s[1], s[3]), Math.max(s[1], s[3]));
     }
-    return { exactTiles, areaS, areaT, edgeSegments: segments.length, negativeF };
+    return { exactTiles, areaS, areaT, negativeF };
   }
 
   return {
     setup, attempt, addClick, placeAt, drawCenter, tiles, g,
     get attempts() { return attempts; },
-    get edgeChildren() { return edgeChildren; },
     get ceilingMisses() { return ceilingMisses; },
     get segments() { return segments; },
-    get areaS() { return areaS; },
-    get areaT() { return areaT; },
     get exactTiles() { return exactTiles; },
     get shape() { return { px, py, rhoMax }; },
   };

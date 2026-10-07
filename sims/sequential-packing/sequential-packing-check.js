@@ -50,7 +50,7 @@ function checkGasket() {
   let worst = 0, wrongParents = 0, wrongZeros = 0;
   for (let n = 0; n < 3000; n++) {
     const lambda = random(), angle = 2 * Math.PI * random();
-    const cx = Math.pow(lambda, 0.5) * Math.cos(angle), cy = Math.pow(lambda, 0.5) * Math.sin(angle);
+    const radius = Math.pow(lambda, 0.5), cx = radius * Math.cos(angle), cy = radius * Math.sin(angle);
     const before = tiles.count;
     const t = packing.placeAt(cx, cy);
     // Your formula, on the tiles placed so far.
@@ -135,15 +135,17 @@ function checkNonConvex() {
   function shrunk(k) { return tiles.r[k] * (1 - Math.max(1e-3, 1e-5 / tiles.r[k])); }
   let overlaps = 0, outside = 0;
   for (let k = 0; k < tiles.count; k++) {
+    const rk = shrunk(k);
     for (let e = 0; e < px.length; e++) {
-      if (!HEART(tiles.cx[k] + shrunk(k) * px[e], tiles.cy[k] + shrunk(k) * py[e])) outside++;
+      if (!HEART(tiles.cx[k] + rk * px[e], tiles.cy[k] + rk * py[e])) outside++;
     }
     for (let i = 0; i < tiles.count; i++) {
       const gap = Math.hypot(tiles.cx[i] - tiles.cx[k], tiles.cy[i] - tiles.cy[k]);
       if (i === k || gap > (tiles.r[i] + tiles.r[k]) * rhoMax) continue;   // too far apart to touch
+      const ri = shrunk(i);
       for (let e = 0; e < px.length; e++) {
-        const ex = tiles.cx[k] + shrunk(k) * px[e], ey = tiles.cy[k] + shrunk(k) * py[e];
-        if (packing.g(ex - tiles.cx[i], ey - tiles.cy[i]) < shrunk(i)) overlaps++;
+        const ex = tiles.cx[k] + rk * px[e], ey = tiles.cy[k] + rk * py[e];
+        if (packing.g(ex - tiles.cx[i], ey - tiles.cy[i]) < ri) overlaps++;
       }
     }
   }
@@ -279,26 +281,25 @@ function drawTiles(canvas, tiles, count, shape, win) {
 const CHECKS = [checkGasket, checkSquares, checkMesh, checkNonConvex, checkUniform,
   () => checkDensity(0.25), () => checkDensity(1), checkSpeed];
 
-if (typeof document !== "undefined") {
-  let next = 0, failed = 0;
-  // One check at a time, with a short pause so the page can show each row.
-  function runNext() {
-    if (next === CHECKS.length) {
-      document.getElementById("status").textContent = failed === 0 ? "All checks passed." : failed + " check(s) failed.";
-      const disk = newPacking({ inS: DISK, inT: DISK });
-      drawTiles(document.getElementById("picture-gasket"), gasketForPicture.tiles, gasketForPicture.count, disk.shape, WINDOW);
-      const star = newPacking({ inS: HEART, inT: STAR, window: HEART_WINDOW });
-      for (let n = 0; n < 3000; n++) star.attempt();
-      drawTiles(document.getElementById("picture-star"), star.tiles, star.tiles.count, star.shape, HEART_WINDOW);
-      return;
-    }
-    let result;
-    try { result = CHECKS[next](); }
-    catch (error) { result = { name: "Check " + (next + 1), pass: false, details: "Stopped with an error: " + error.message }; }
-    if (!result.pass) failed++;
-    addRow(result.name, result.pass, result.details);
-    next++;
-    setTimeout(runNext, 20);
+// One check at a time, with a short pause so the page can show each
+// row; then the status line and the two pictures.
+let next = 0, failed = 0;
+function runNext() {
+  if (next === CHECKS.length) {
+    byId("status").textContent = failed === 0 ? "All checks passed." : failed + " check(s) failed.";
+    const disk = newPacking({ inS: DISK, inT: DISK });
+    drawTiles(byId("picture-gasket"), gasketForPicture.tiles, gasketForPicture.count, disk.shape, WINDOW);
+    const star = newPacking({ inS: HEART, inT: STAR, window: HEART_WINDOW });
+    for (let n = 0; n < 3000; n++) star.attempt();
+    drawTiles(byId("picture-star"), star.tiles, star.tiles.count, star.shape, HEART_WINDOW);
+    return;
   }
+  let result;
+  try { result = CHECKS[next](); }
+  catch (error) { result = { name: "Check " + (next + 1), pass: false, details: "Stopped with an error: " + error.message }; }
+  if (!result.pass) failed++;
+  addRow(result.name, result.pass, result.details);
+  next++;
   setTimeout(runNext, 20);
 }
+setTimeout(runNext, 20);

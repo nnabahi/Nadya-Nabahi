@@ -237,7 +237,7 @@ drawSample();
     const b = Math.floor((x - lo) / (hi - lo) * bins);
     if (b >= 0 && b < bins) counts[b]++;
   }
-  const most = Math.max.apply(null, counts), barW = canvas.width / bins;
+  const most = Math.max(...counts), barW = canvas.width / bins;
   pen.fillStyle = "#4682b4";
   counts.forEach(function (c, b) {
     const barH = c / most * (canvas.height - 20 * ratio);

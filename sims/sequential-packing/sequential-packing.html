@@ -33,10 +33,9 @@
       <!-- UPPER LEFT: the packing. -->
       <section class="quad quad-sim">
         <h2>Simulation</h2>
-        <!-- The picture. sequential-packing.js sets its height to match
-             the window's shape. Point at a tile to see its numbers. -->
         <!-- The picture, with the zoom buttons in its top right corner
-             (section 6b of sequential-packing.js). -->
+             (section 6b of sequential-packing.js, which also sets its
+             height to match the window's shape). -->
         <div class="sim-picture">
           <canvas id="sim-canvas"></canvas>
           <div class="zoom-buttons">
@@ -308,7 +307,8 @@
 
   <!-- The code the sims share (in js/, see the README): page helpers
        (they also typeset the formulas, so they come after KaTeX),
-       charts, the old site's colors, and reading formulas with sliders. Then the packing (it runs in a second thread), then this page. -->
+       charts, the old site's colors, and reading formulas with sliders.
+       Then the packing (it runs in a second thread), then this page. -->
   <script src="../../js/sim-page.js"></script>
   <script src="../../js/sim-charts.js"></script>
   <script src="../../js/sim-colors.js"></script>
