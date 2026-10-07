@@ -48,8 +48,9 @@
       one sweep.
 
    The file has two parts, with no drawing and no buttons:
-     1. newPotts(options): the two chains. The check page
-        (sims/ising-potts/ising-potts-check.html) tests them in the browser.
+     1. newPotts(options) and pottsStart: the two chains, and their
+        start. The check page (ising-potts-check.html) tests them in
+        the browser.
      2. pottsWorker(): runs a chain in a second thread (a "Web Worker")
         for the sim page, ising-potts.js, so the page never freezes.
         startWorker (js/sim-page.js) starts it, with newPotts,
@@ -64,22 +65,21 @@
    options: { n, first, nbr (the domain's neighbor lists, see
    js/sim-domains.js), q, beta, h, colors (the start, one color per
    cell), random (a function giving uniform numbers in [0, 1)) }.
-   Returns an object holding the coloring and the counts, with:
-     heatBath(v)       one heat-bath update of cell v
-     sweep(dynamics)   one sweep: "heat" (n random updates) or "sw"
-     colorWeights(v, weights)   the heat bath's weights for cell v
-     recount()         count colors and agreeing pairs from scratch
+   Returns the chain: the coloring (colors) and its counts (counts,
+   agree, pairs), beta and h (the page changes them as it runs), and
+     sweep(dynamics)        one sweep: "heat" (n heat-bath updates) or "sw"
+     colorWeights(v, out)   the heat bath's weights for cell v
    ===================================================================== */
 function newPotts(options) {
-  const n = options.n, first = options.first, nbr = options.nbr, random = options.random;
+  const n = options.n, first = options.first, nbr = options.nbr, q = options.q, random = options.random;
   const chain = {
-    q: options.q, beta: options.beta, h: options.h,
+    beta: options.beta, h: options.h,
     colors: Uint8Array.from(options.colors),   // colors[v] = the color of cell v
-    counts: new Int32Array(options.q),         // counts[k] = cells of color k
+    counts: new Int32Array(q),                 // counts[k] = cells of color k
     agree: 0,                                  // agreeing neighbor pairs
     pairs: 0,                                  // all neighbor pairs
   };
-  const weights = new Float64Array(options.q);
+  const weights = new Float64Array(q);
   const parent = new Int32Array(n), size = new Int32Array(n);   // for Swendsen-Wang
   const newColor = new Int16Array(n);
 
@@ -92,18 +92,17 @@ function newPotts(options) {
     for (let e = first[v]; e < first[v + 1]; e++) out[chain.colors[nbr[e]]] += 1;
     out[0] += chain.h;
     let most = -Infinity;
-    for (let k = 0; k < chain.q; k++) { out[k] *= chain.beta; most = Math.max(most, out[k]); }
-    for (let k = 0; k < chain.q; k++) out[k] = Math.exp(out[k] - most);
-    return out;
+    for (let k = 0; k < q; k++) { out[k] *= chain.beta; most = Math.max(most, out[k]); }
+    for (let k = 0; k < q; k++) out[k] = Math.exp(out[k] - most);
   };
 
   // One heat-bath update of cell v: a new color drawn with the weights.
-  chain.heatBath = function (v) {
+  function heatBath(v) {
     chain.colorWeights(v, weights);
     let total = 0;
-    for (let k = 0; k < chain.q; k++) total += weights[k];
+    for (let k = 0; k < q; k++) total += weights[k];
     let u = random() * total, k = 0;
-    while (k < chain.q - 1 && u >= weights[k]) { u -= weights[k]; k++; }
+    while (k < q - 1 && u >= weights[k]) { u -= weights[k]; k++; }
     const old = chain.colors[v];
     if (k === old) return;
     // Keep the counts up to date: v's neighbors of the old color stop
@@ -116,7 +115,7 @@ function newPotts(options) {
     chain.colors[v] = k;
     chain.counts[old]--;
     chain.counts[k]++;
-  };
+  }
 
   // The root of v's cluster (union-find, as in the percolation sims:
   // each cluster a little tree; halving the path on the way up).
@@ -126,7 +125,7 @@ function newPotts(options) {
   }
 
   // One Swendsen-Wang step.
-  chain.swendsenWang = function () {
+  function swendsenWang() {
     const bond = 1 - Math.exp(-chain.beta);
     for (let v = 0; v < n; v++) { parent[v] = v; size[v] = 1; newColor[v] = -1; }
     // Bonds between agreeing neighbors (each pair once: w > v).
@@ -148,23 +147,17 @@ function newPotts(options) {
       const r = root(v);
       if (newColor[r] === -1) {
         const a = chain.beta * chain.h * size[r];
-        const zero = a > 0 ? 1 / (1 + (chain.q - 1) * Math.exp(-a)) : Math.exp(a) / (Math.exp(a) + chain.q - 1);
+        const zero = a > 0 ? 1 / (1 + (q - 1) * Math.exp(-a)) : Math.exp(a) / (Math.exp(a) + q - 1);
         const u = random();
-        newColor[r] = u < zero ? 0 : 1 + Math.min(chain.q - 2, Math.floor((u - zero) / (1 - zero) * (chain.q - 1)));
+        newColor[r] = u < zero ? 0 : 1 + Math.min(q - 2, Math.floor((u - zero) / (1 - zero) * (q - 1)));
       }
       chain.colors[v] = newColor[r];
     }
-    chain.recount();
-  };
-
-  // One sweep of either chain.
-  chain.sweep = function (dynamics) {
-    if (dynamics === "sw") { chain.swendsenWang(); return; }
-    for (let k = 0; k < n; k++) chain.heatBath(Math.floor(random() * n));
-  };
+    recount();
+  }
 
   // Count the colors and the agreeing pairs from scratch.
-  chain.recount = function () {
+  function recount() {
     chain.counts.fill(0);
     chain.agree = 0;
     chain.pairs = 0;
@@ -177,9 +170,15 @@ function newPotts(options) {
         if (chain.colors[w] === chain.colors[v]) chain.agree++;
       }
     }
+  }
+
+  // One sweep of either chain.
+  chain.sweep = function (dynamics) {
+    if (dynamics === "sw") swendsenWang();
+    else for (let k = 0; k < n; k++) heatBath(Math.floor(random() * n));
   };
 
-  chain.recount();
+  recount();
   return chain;
 }
 
@@ -213,10 +212,8 @@ function pottsWorker() {
   importScripts("https://cdn.jsdelivr.net/npm/seedrandom@3.0.5/seedrandom.min.js");
 
   let chain = null, dynamics = "heat", run = 0, time = 0;
-
-  // The run so far, for the plots over time (keepSample,
-  // js/sim-worker.js).
-  let trace = newTrace();
+  let trace = null;          // the run so far, for the charts over time (keepSample, js/sim-worker.js)
+  let lastReported = -1;     // the time of the last state sent to the page
 
   function takeSample() {
     keepSample(trace, time, { agree: chain.agree / Math.max(chain.pairs, 1), counts: chain.counts });
@@ -225,13 +222,13 @@ function pottsWorker() {
   function setup(m) {
     run = m.run;
     dynamics = m.dynamics;
-    const seed = String(m.seed);
     // The start has its own random numbers, so changing the dynamics
     // never changes the start.
-    const colors = pottsStart(m.n, m.q, m.start, new Math.seedrandom(seed + " start"));
+    const colors = pottsStart(m.n, m.q, m.start, new Math.seedrandom(m.seed + " start"));
     chain = newPotts({ n: m.n, first: m.first, nbr: m.nbr, q: m.q, beta: m.beta, h: m.h,
-                       colors: colors, random: new Math.seedrandom(seed + " chain") });
+                       colors: colors, random: new Math.seedrandom(m.seed + " chain") });
     time = 0;
+    lastReported = -1;
     trace = newTrace();
     takeSample();
   }
@@ -244,11 +241,10 @@ function pottsWorker() {
 
   // Play, Pause and Speed: the run loop (js/sim-worker.js).
   const loop = makeRunLoop(oneSweep, report);
-  let lastReported = -1;
 
   self.onmessage = function (event) {
     const m = event.data;
-    if (m.type === "setup") { loop.pause(); setup(m); lastReported = -1; report(); }
+    if (m.type === "setup") { loop.pause(); setup(m); report(); }
     else if (m.type === "params") { chain.beta = m.beta; chain.h = m.h; dynamics = m.dynamics; }
     else if (m.type === "play") loop.play(m.speed);
     else if (m.type === "pause") loop.pause();

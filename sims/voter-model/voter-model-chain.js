@@ -45,8 +45,9 @@
    table[d * (maxDegree + 1) + k] = g(k / d). makeTable builds it.
 
    The file has two parts, with no drawing and no buttons:
-     1. makeTable, newVoter(options): the rule. The check page
-        (sims/voter-model/voter-model-check.html) tests it in the browser.
+     1. makeTable, newVoter(options) and voterStart: the rule, and the
+        start. The check page (voter-model-check.html) tests them in
+        the browser.
      2. voterWorker(): runs it in a second thread (a "Web Worker") for
         the sim page, voter-model.js, so the page never freezes.
         startWorker (js/sim-page.js) starts it, with newVoter,
@@ -82,20 +83,22 @@ function makeTable(g, maxDegree) {
 // options: { n, first, nbr (the domain's neighbor lists, see
 // js/sim-domains.js), q, table (from makeTable), noise (eps), colors
 // (the start), random (uniform numbers in [0, 1)) }.
-// Returns an object holding the opinions and the counts, with:
+// Returns the opinions (colors) and their counts (counts, agree,
+// pairs), table and noise (the page changes them as it runs), and
 //   weights(v, out)  the weights g(x_c) of each opinion c for cell v
 //   update(v)        cell v's clock rings
 //   unitOfTime()     n updates of uniformly chosen cells
 function newVoter(options) {
-  const n = options.n, first = options.first, nbr = options.nbr, random = options.random;
+  const n = options.n, first = options.first, nbr = options.nbr, q = options.q, random = options.random;
   const voter = {
-    q: options.q, table: options.table, noise: options.noise,
+    table: options.table, noise: options.noise,
     colors: Uint8Array.from(options.colors),   // colors[v] = the opinion of cell v
-    counts: new Int32Array(options.q),         // counts[c] = cells holding opinion c
+    counts: new Int32Array(q),                 // counts[c] = cells holding opinion c
     agree: 0,                                  // neighbor pairs that agree
     pairs: 0,                                  // all neighbor pairs
   };
-  const neighborCounts = new Int32Array(options.q), w = new Float64Array(options.q);
+  const weights = new Float64Array(q);
+  const neighborCounts = new Int32Array(q);
 
   // The weight g(x_c) of each opinion c for cell v, into "out".
   voter.weights = function (v, out) {
@@ -103,32 +106,29 @@ function newVoter(options) {
     neighborCounts.fill(0);
     for (let e = first[v]; e < first[v + 1]; e++) neighborCounts[voter.colors[nbr[e]]]++;
     const row = d * (voter.table.maxDegree + 1);
-    for (let c = 0; c < voter.q; c++) out[c] = d === 0 ? 0 : voter.table.table[row + neighborCounts[c]];
-    return out;
+    for (let c = 0; c < q; c++) out[c] = d === 0 ? 0 : voter.table.table[row + neighborCounts[c]];
   };
 
-  // Cell v's clock rings.
+  // Cell v's clock rings: a random opinion c (the noise), or one drawn
+  // with the weights (if they are all 0, v keeps its opinion).
   voter.update = function (v) {
-    let c = voter.colors[v];
+    const old = voter.colors[v];
+    let c = old;
     if (random() < voter.noise) {
-      c = Math.floor(random() * voter.q);
+      c = Math.floor(random() * q);
     } else {
-      voter.weights(v, w);
+      voter.weights(v, weights);
       let total = 0;
-      for (let k = 0; k < voter.q; k++) total += w[k];
+      for (let k = 0; k < q; k++) total += weights[k];
       if (total > 0) {
         let u = random() * total;
         c = 0;
-        while (c < voter.q - 1 && u >= w[c]) { u -= w[c]; c++; }
+        while (c < q - 1 && u >= weights[c]) { u -= weights[c]; c++; }
       }
     }
-    setColor(v, c);
-  };
-
-  // Cell v takes opinion c, keeping the counts up to date.
-  function setColor(v, c) {
-    const old = voter.colors[v];
     if (c === old) return;
+    // Keep the counts up to date: v's neighbors of the old opinion stop
+    // agreeing with it, those of the new one start.
     for (let e = first[v]; e < first[v + 1]; e++) {
       const other = voter.colors[nbr[e]];
       if (other === old) voter.agree--;
@@ -137,20 +137,21 @@ function newVoter(options) {
     voter.colors[v] = c;
     voter.counts[old]--;
     voter.counts[c]++;
-  }
+  };
 
+  // One unit of time: n clocks ring, each at a uniformly chosen cell.
   voter.unitOfTime = function () {
     for (let k = 0; k < n; k++) voter.update(Math.floor(random() * n));
   };
 
-  // Count everything from scratch (at the start).
-  voter.counts.fill(0);
+  // Count the opinions and the agreeing pairs at the start.
   for (let v = 0; v < n; v++) {
     voter.counts[voter.colors[v]]++;
     for (let e = first[v]; e < first[v + 1]; e++) {
-      if (nbr[e] <= v) continue;
+      const w = nbr[e];
+      if (w <= v) continue;
       voter.pairs++;
-      if (voter.colors[nbr[e]] === voter.colors[v]) voter.agree++;
+      if (voter.colors[w] === voter.colors[v]) voter.agree++;
     }
   }
   return voter;
@@ -160,12 +161,13 @@ function newVoter(options) {
 // "stripes" (q equal stripes from left to right, by the cells' x).
 function voterStart(n, xs, q, kind, random) {
   const colors = new Uint8Array(n);
+  if (kind === "random") {
+    for (let v = 0; v < n; v++) colors[v] = Math.floor(random() * q);
+    return colors;
+  }
   let xmin = Infinity, xmax = -Infinity;
   for (let v = 0; v < n; v++) { xmin = Math.min(xmin, xs[v]); xmax = Math.max(xmax, xs[v]); }
-  for (let v = 0; v < n; v++) {
-    colors[v] = kind === "random" ? Math.floor(random() * q)
-      : Math.min(q - 1, Math.floor((xs[v] - xmin) / (xmax - xmin + 1) * q));
-  }
+  for (let v = 0; v < n; v++) colors[v] = Math.min(q - 1, Math.floor((xs[v] - xmin) / (xmax - xmin + 1) * q));
   return colors;
 }
 
@@ -181,8 +183,9 @@ function voterStart(n, xs, q, kind, random) {
                                    (Infinity = as fast as possible)
      { type: "pause" }
      { type: "step" }              one unit of time
-   The worker answers with "state" messages, each with its run number.
-   It stops by itself at consensus (one opinion everywhere) when that
+   The worker answers with "state" messages: the opinions and the
+   numbers for the Statistics quadrant, each with its run number, so
+   the page can ignore leftovers from an older run. It stops by itself at consensus (one opinion everywhere) when that
    can never change: no noise, and g(0) = 0, so no cell ever takes an
    opinion none of its neighbors hold.
    ===================================================================== */
@@ -192,10 +195,8 @@ function voterWorker() {
   importScripts("https://cdn.jsdelivr.net/npm/seedrandom@3.0.5/seedrandom.min.js");
 
   let voter = null, run = 0, time = 0, consensusTime = null;
-
-  // The run so far, for the plots over time (keepSample,
-  // js/sim-worker.js).
-  let trace = newTrace();
+  let trace = null;          // the run so far, for the charts over time (keepSample, js/sim-worker.js)
+  let lastReported = -1;     // the time of the last state sent to the page
 
   function takeSample() {
     keepSample(trace, time, { disagree: 1 - voter.agree / Math.max(voter.pairs, 1), counts: voter.counts });
@@ -213,11 +214,11 @@ function voterWorker() {
 
   function setup(m) {
     run = m.run;
-    const seed = String(m.seed);
-    const colors = voterStart(m.n, m.x, m.q, m.start, new Math.seedrandom(seed + " start"));
+    const colors = voterStart(m.n, m.x, m.q, m.start, new Math.seedrandom(m.seed + " start"));
     voter = newVoter({ n: m.n, first: m.first, nbr: m.nbr, q: m.q, table: m.table, noise: m.noise,
-                       colors: colors, random: new Math.seedrandom(seed + " clocks") });
+                       colors: colors, random: new Math.seedrandom(m.seed + " clocks") });
     time = 0;
+    lastReported = -1;
     consensusTime = consensus() ? 0 : null;
     trace = newTrace();
     takeSample();
@@ -234,11 +235,10 @@ function voterWorker() {
   // Play, Pause and Speed: the run loop (js/sim-worker.js). It stops by
   // itself once the run is frozen.
   const loop = makeRunLoop(oneUnit, report, frozen);
-  let lastReported = -1;
 
   self.onmessage = function (event) {
     const m = event.data;
-    if (m.type === "setup") { loop.pause(); setup(m); lastReported = -1; report(); }
+    if (m.type === "setup") { loop.pause(); setup(m); report(); }
     else if (m.type === "params") { voter.table = m.table; voter.noise = m.noise; lastReported = -1; report(); }
     else if (m.type === "play") loop.play(m.speed);
     else if (m.type === "pause") loop.pause();
@@ -254,6 +254,6 @@ function voterWorker() {
       agree: voter.agree, pairs: voter.pairs, consensusTime: consensusTime, frozen: frozen(),
       traceTimes: Float64Array.from(trace.times), traceDisagree: Float64Array.from(trace.lists.disagree),
       traceCounts: Int32Array.from(trace.lists.counts),
-    }, [colors.buffer]);
+    }, [colors.buffer]);   // hand the copy over instead of copying again
   }
 }

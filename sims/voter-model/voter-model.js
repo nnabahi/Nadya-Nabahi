@@ -11,9 +11,9 @@
      - Reads the typed rule g(x), Desmos style (js/formulas.js): every
        letter other than x gets a slider. It hands the worker a table of
        g at the only shares a cell can see, 0, 1/d, ..., 1.
-     - Hands everything to the worker (voter-model-chain.js), which runs in a
-       second thread (a "Web Worker"), and draws every coloring it sends
-       back, with the statistics.
+     - Hands everything to the worker (voter-model-chain.js), which runs
+       in a second thread (a "Web Worker"), and draws every coloring it
+       sends back, with the statistics.
      - Changing g, its sliders or the noise changes the rule while it
        runs; the opinions carry on from where they are. Restart goes
        back to the start (same seed, same random numbers). Changing q,
@@ -165,8 +165,9 @@ worker.onerror = function () {
 };
 
 // Start again from the start, with the current settings and seed.
+// (Without a rule, if math.js didn't load, there is nothing to run.)
 function restart() {
-  if (!domain || !rule) return;
+  if (!rule) return;
   run++;
   latest = null;
   showMessage("");
@@ -177,9 +178,10 @@ function restart() {
   player.carryOn();
 }
 
-// A new g, slider value or noise: the opinions carry on with them.
+// A new g, slider value or noise: the opinions carry on with them
+// (once the run has started).
 function sendParams() {
-  if (!domain || !rule || !latest) return;
+  if (!latest) return;
   worker.postMessage({ type: "params", table: currentTable(), noise: noise });
 }
 
@@ -214,7 +216,7 @@ const disk = makeDiskView(simCanvas, view, showDomainChoice);
 const outsideRGB = hexToRGB(OUTSIDE);
 
 function drawColoring() {
-  if (!domain || !latest || simCanvas.hidden) return;
+  if (!latest || simCanvas.hidden) return;
   const colors = latest.colors;
   if (domainKind === "graph") {
     drawBall(disk, domain, function (v) { return colorNames[colors[v]]; });
@@ -250,13 +252,13 @@ connectPicture(view, disk, function () { return domainKind === "graph"; });
    (countPieces, js/sim-domains.js).
    ===================================================================== */
 function showStats() {
-  if (!domain || !latest) return;
+  if (!latest) return;
   const s = latest, n = domain.n;
   byId("stat-cells").textContent = n.toLocaleString();
   byId("stat-time").textContent = s.time.toLocaleString();
   byId("stat-disagree").textContent = (s.pairs - s.agree).toLocaleString() + " of " + s.pairs.toLocaleString() +
     " (" + (100 * (1 - s.agree / Math.max(s.pairs, 1))).toFixed(2) + "%)";
-  byId("stat-alive").textContent = Array.from(s.counts).filter(function (c) { return c > 0; }).length + " of " + q;
+  byId("stat-alive").textContent = s.counts.filter(function (c) { return c > 0; }).length + " of " + q;
   const domains = countPieces(domain, s.colors, q).reduce(function (a, b) { return a + b; }, 0);
   byId("stat-domains").textContent = domains.toLocaleString();
   byId("stat-consensus").textContent = s.consensusTime === null ? "not yet" : "at time " + s.consensusTime.toLocaleString();
@@ -269,6 +271,7 @@ function showStats() {
   }
   byId("color-rows").innerHTML = rows;
 
+  // The share of each opinion over time, and of disagreeing pairs.
   const lines = [];
   for (let c = 0; c < q; c++) {
     const values = [];
@@ -276,7 +279,7 @@ function showStats() {
     lines.push({ color: colorNames[c], values: values });
   }
   plotOverTime(byId("shares-chart"), s.traceTimes, lines, "time");
-  plotOverTime(byId("disagree-chart"), s.traceTimes, [{ color: CHART_LINE, values: Array.from(s.traceDisagree) }], "time");
+  plotOverTime(byId("disagree-chart"), s.traceTimes, [{ color: CHART_LINE, values: s.traceDisagree }], "time");
 }
 
 
@@ -327,9 +330,9 @@ function useBox() {
 
 // A ball of a hyperbolic tiling or a tree, from the options on the page
 // (ballFromOptions, js/sim-hyperbolic.js), with the start cell in the
-// middle of the picture. The "Stripes" start needs a number x for each cell: here
-// it is the direction of the cell's middle from the start, in
-// thousandths of a turn, so the stripes are slices around the start.
+// middle of the picture. The "Stripes" start needs a number x for each
+// cell: here it is the direction of the cell's middle from the start,
+// in thousandths of a turn, so the stripes are slices around the start.
 function useGraph() {
   if (tool.isOpen) tool.close();
   const ball = ballFromOptions(disk, BALL);
@@ -373,7 +376,7 @@ byId("noise-box").addEventListener("change", function () { setNoise(this.value);
 byId("start").addEventListener("change", restart);
 
 // The rule: a preset, or g typed by hand (then the menu says "your own").
-byId("preset").addEventListener("change", function () { usePreset(byId("preset").value); });
+byId("preset").addEventListener("change", function () { usePreset(this.value); });
 byId("formula-g").addEventListener("input", function () {
   byId("preset").value = "custom";
   if (readRule()) sendParams();
@@ -382,7 +385,6 @@ byId("formula-g").addEventListener("input", function () {
 // Domain: Box / Torus / Custom / Hyperbolic plane or tree, and their
 // options (js/sim-controls.js).
 connectDomainChoice({ box: useBox, torus: useBox, custom: tool.open, graph: useGraph });
-
 
 // Seed: the same seed gives the same run every time.
 connectSeed(restart);
@@ -394,8 +396,7 @@ byId("q-box").max = byId("q-slider").max = MAX_Q;
 byId("noise-slider").value = byId("noise-box").value = noise;
 byId("seed").value = DEFAULTS.seed;
 byId("preset").value = "voter";
-byId("formula-g").value = PRESETS.voter.g;
-readRule();
+usePreset("voter");
 domain = boxDomain(DEFAULTS.width, DEFAULTS.height, DEFAULTS.neighbors, true);
 useTorus(view, true);
 showDomainChoice();

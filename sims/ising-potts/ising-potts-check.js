@@ -41,6 +41,7 @@ function exactPi(d, q, beta, h) {
   for (let s = 0; s < total; s++) weights[s] /= Z;
   return weights;
 }
+// Coloring number s into "colors" (its digits in base q), and back.
 function decode(s, q, colors) {
   for (let v = 0; v < colors.length; v++) { colors[v] = s % q; s = Math.floor(s / q); }
 }

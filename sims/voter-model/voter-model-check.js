@@ -65,21 +65,22 @@ function testVoterRule() {
 /* 2. The update law, by chi-square. */
 function testUpdateLaw() {
   const d = boxDomain(5, 5, 8, false), q = 4, trials = 20000;
+  const v = 12;   // the middle cell, 8 neighbors
   const cases = [
     { name: "g(x) = x², ε = 0.3", g: function (x) { return x * x; }, noise: 0.3 },
     { name: "g(x) = 1 − x, ε = 0", g: function (x) { return 1 - x; }, noise: 0 },
     { name: "g(x) = x + 0.2, ε = 0.1", g: function (x) { return x + 0.2; }, noise: 0.1 },
   ];
   for (const c of cases) {
-    const v = 12;   // the middle cell, 8 neighbors
     const start = randomVoter(d, q, c.g, c.noise, "law" + c.name).colors;
     const x = shares(d, start, q, v);
     let sum = 0;
     for (let k = 0; k < q; k++) sum += c.g(x[k]);
     const expected = x.map(function (share) { return c.noise / q + (1 - c.noise) * c.g(share) / sum; });
-    const seen = new Array(q).fill(0), random = new Math.seedrandom("trials" + c.name);
+    const table = makeTable(c.g, 8), random = new Math.seedrandom("trials" + c.name);
+    const seen = new Array(q).fill(0);
     for (let t = 0; t < trials; t++) {
-      const voter = newVoter({ n: d.n, first: d.first, nbr: d.nbr, q: q, table: makeTable(c.g, 8),
+      const voter = newVoter({ n: d.n, first: d.first, nbr: d.nbr, q: q, table: table,
                                noise: c.noise, colors: start, random: random });
       voter.update(v);
       seen[voter.colors[v]]++;
@@ -110,10 +111,10 @@ function testWinner(name, d, ones) {
     degreeAll += deg;
     if (ones.includes(v)) { colors[v] = 0; degreeOnes += deg; }
   }
-  const exact = degreeOnes / degreeAll;
+  const exact = degreeOnes / degreeAll, table = makeTable(function (x) { return x; }, 8);
   let won = 0;
   for (let r = 0; r < runs; r++) {
-    const voter = newVoter({ n: d.n, first: d.first, nbr: d.nbr, q: 2, table: makeTable(function (x) { return x; }, 8),
+    const voter = newVoter({ n: d.n, first: d.first, nbr: d.nbr, q: 2, table: table,
                              noise: 0, colors: colors, random: random });
     while (voter.counts[0] > 0 && voter.counts[0] < d.n) voter.update(Math.floor(random() * d.n));
     if (voter.counts[0] === d.n) won++;
@@ -135,7 +136,7 @@ function testFullNoise() {
   const totals = new Array(q).fill(0), samples = 200;
   for (let s = 0; s < samples; s++) {
     for (let j = 0; j < 5; j++) voter.unitOfTime();   // 5 units apart: all but about 1% of cells fresh
-    for (let c = 0; c < q; c++) totals[c] += voter.colors.filter(function (o) { return o === c; }).length;
+    for (const c of voter.colors) totals[c]++;
   }
   const pValue = equalChiSquare(totals).pValue;     // js/check-page.js
   addRow("Noise ε = 1 gives uniform opinions", pValue > 0.001,

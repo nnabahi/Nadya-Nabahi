@@ -8,9 +8,9 @@
        other sims: the domains in js/sim-domains.js, their options and
        the graph tool in js/sim-controls.js, and the hyperbolic tilings
        and trees, and their pictures, in js/sim-hyperbolic.js.
-     - Hands it to the chain (ising-potts-chain.js), which runs in a second
-       thread (a "Web Worker"), and draws every coloring it sends back,
-       with the statistics.
+     - Hands it to the chain (ising-potts-chain.js), which runs in a
+       second thread (a "Web Worker"), and draws every coloring it sends
+       back, with the statistics.
      - Moving the beta or h slider, or switching the dynamics, changes
        the chain's settings while it runs, like turning a thermostat:
        the coloring carries on from where it is. Restart goes back to
@@ -146,7 +146,7 @@ const disk = makeDiskView(simCanvas, view, showDomainChoice);
 const outsideRGB = hexToRGB(OUTSIDE);
 
 function drawColoring() {
-  if (!domain || !latest || simCanvas.hidden) return;
+  if (!latest || simCanvas.hidden) return;
   const colors = latest.colors;
   if (domainKind === "graph") {
     drawBall(disk, domain, function (v) { return colorNames[colors[v]]; });
@@ -191,7 +191,7 @@ function magnetization(counts, n) {
 }
 
 function showStats() {
-  if (!domain || !latest) return;
+  if (!latest) return;
   const s = latest, n = domain.n;
   byId("stat-cells").textContent = n.toLocaleString();
   byId("stat-pairs").textContent = s.pairs.toLocaleString();
@@ -218,7 +218,7 @@ function showStats() {
     lines.push({ color: colorNames[k], values: values });
   }
   plotOverTime(byId("shares-chart"), s.traceTimes, lines, "sweep");
-  plotOverTime(byId("agree-chart"), s.traceTimes, [{ color: CHART_LINE, values: Array.from(s.traceAgree) }], "sweep");
+  plotOverTime(byId("agree-chart"), s.traceTimes, [{ color: CHART_LINE, values: s.traceAgree }], "sweep");
 }
 
 
@@ -336,7 +336,6 @@ byId("start").addEventListener("change", restart);
 // Domain: Box / Torus / Custom / Hyperbolic plane or tree, and their
 // options (js/sim-controls.js).
 connectDomainChoice({ box: useBox, torus: useBox, custom: tool.open, graph: useGraph });
-
 
 // Seed: the same seed gives the same run every time.
 connectSeed(restart);
