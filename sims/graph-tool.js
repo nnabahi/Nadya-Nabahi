@@ -1263,7 +1263,7 @@ buildGrid();
    ---------------------------------------------------------------------
    A sim can show this tool inside its own page, in an <iframe> (a page
    inside a page), so you can draw its domain. Then:
-     - only the drawing and the options show (css/style.css, section 8,
+     - only the drawing and the options show (css/style.css, section 10,
        the "body.embedded" rules)
      - after every change the drawing is sent to the sim as a message
        (tellSim, called from updateStats in section 7), and so is this

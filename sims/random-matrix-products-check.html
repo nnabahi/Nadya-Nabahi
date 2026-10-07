@@ -5,10 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Random matrix products — check page</title>
   <link rel="stylesheet" href="../css/style.css">
-  <style>
-    /* Only for this page: the histogram picture. */
-    #histogram { width: 100%; max-width: 800px; height: 260px; display: block; border: 1px solid var(--color-border, #ccc); }
-  </style>
 </head>
 <body>
 
@@ -42,7 +38,7 @@
       bin width = <input type="number" id="hist-bin" value="0.0005" step="0.0001" style="width: 7em">
       <button id="hist-draw">Draw</button>
     </p>
-    <canvas id="histogram"></canvas>
+    <canvas class="check-picture short" id="histogram"></canvas>
   </main>
 
   <!-- jStat, for the chi-square p-values; math.js (https://mathjs.org)

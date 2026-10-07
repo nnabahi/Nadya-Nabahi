@@ -15,10 +15,12 @@
      4. Ordinary page content (cards, headings, lists)
      5. Home page image area
      6. Toys n' Sims: the four-quadrant layout
-     7. Graph & domain tool (sims/graph-tool.html)
-     8. More for sim pages (the sims, the graph tool shown inside a
-        sim, and the check pages)
-     9. Phones and narrow screens
+     7. Sim pages: options, statistics and charts
+     8. Sim pages: the picture and its buttons
+     9. Sim pages: the About box
+    10. The graph tool (sims/graph-tool.html), also inside a sim page
+    11. Check pages
+    12. Phones and narrow screens
    ===================================================================== */
 
 
@@ -202,8 +204,9 @@ a.card:hover {
        <li>Random walk</li>
      </ul>
    The buttons inside <div class="filter-bar"> are made by
-   js/genre-filter.js, each as <button class="filter-button">. The graph
-   tool's buttons (class="tool-button", section 7) share their look.
+   js/genre-filter.js, each as <button class="filter-button">. The sims'
+   and the graph tool's buttons (class="tool-button", section 7) share
+   their look.
    --------------------------------------------------------------------- */
 
 /* The list of labels: a row that wraps, without bullet points. */
@@ -276,7 +279,6 @@ a.card:hover {
   color: var(--color-text-muted);
   margin-bottom: 32px;
 }
-
 
 /* =====================================================================
    6. Toys n' Sims: the four-quadrant layout
@@ -351,12 +353,307 @@ a.card:hover {
 .quadrants.bricks > .quad-controls,
 .quadrants.bricks > .quad-about    { grid-area: auto / 2; }   /* right column */
 
-/* The drawing surface for a simulation fills its quadrant's width.
-   The ">" means "a canvas directly inside the quadrant" (or directly
-   inside its .sim-picture box, section 8) only, so this rule leaves
-   alone canvases that libraries (like Cytoscape) create deeper inside
-   the page. */
-.quad-sim > canvas,
+
+/* =====================================================================
+   7. Sim pages: options, statistics and charts
+   ---------------------------------------------------------------------
+   The rows of options with their buttons, formulas and sliders, and the
+   numbers and small charts in the Statistics box. The graph tool
+   (sims/graph-tool.html) uses the same option rows, formulas and
+   sliders.
+   ===================================================================== */
+
+/* Settings in the Options quadrant. */
+.option-heading {
+  font-size: 0.95em;
+  margin: 16px 0 6px;
+}
+
+.option-heading:first-of-type {
+  margin-top: 0;
+}
+
+.option-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin-bottom: 8px;
+  font-size: 0.9em;
+}
+
+.option-row input[type="number"] {
+  width: 5em;
+  font: inherit;
+}
+
+.option-row select {
+  font: inherit;
+}
+
+/* The tool buttons look like the genre buttons (section 4), a bit
+   smaller. A button that can't be used right now is faded. */
+.tool-button {
+  font-size: 0.85em;
+  padding: 3px 12px;
+}
+
+.tool-button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* The Options heading with the small "model check" button pushed to
+   the right end of the same line (it opens the sim's check page). */
+.heading-with-button {
+  display: flex;
+  justify-content: space-between;   /* heading on the left, button on the right */
+  align-items: center;
+  gap: 8px;
+}
+
+.model-check {
+  font-size: 0.7em;
+  font-weight: normal;
+  text-decoration: none;            /* a link that looks like a button */
+}
+
+/* A slider that takes the spare width of its row: the sims' sliders,
+   and the formula's sliders (below). */
+.wide-range,
+.slider-range {
+  flex: 1 1 120px;
+}
+
+/* The formula box, its typeset preview, and its sliders. */
+.formula-input {
+  width: 100%;
+  font-family: monospace;
+  font-size: 0.95em;
+  padding: 4px 6px;
+}
+
+.formula-preview {
+  min-height: 1.8em;       /* keeps the space even when it's empty */
+  margin: 6px 0;
+  overflow-x: auto;        /* a long formula scrolls instead of spilling out */
+}
+
+/* A small picture of a formula's shape (the domain or the tile), which
+   pops up above the formula's top right corner while the mouse is over
+   the formula (its box or its typeset preview), or while you type in it
+   (":focus-within" = the box has the typing cursor). Used by the random
+   sequential packing. */
+.formula-with-picture {
+  position: relative;      /* the picture is placed relative to this */
+}
+.shape-popup {
+  display: none;           /* hidden until pointed at or typed in */
+  position: absolute;
+  right: 0;
+  bottom: 100%;            /* just above the formula box */
+  width: 120px;
+  height: 120px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--corner-radius);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  z-index: 5;              /* on top of the text above it */
+  pointer-events: none;    /* never gets in the way of the mouse */
+}
+.formula-with-picture:hover .shape-popup,
+.formula-with-picture:focus-within .shape-popup {
+  display: block;
+}
+
+/* One slider:  r = [1]  ====o====  min [-10] max [10] step [0.1] */
+.slider-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin-bottom: 8px;
+  font-size: 0.85em;
+}
+
+.slider-name {
+  font-family: var(--font-heading);
+  font-style: italic;
+}
+
+.slider-row input[type="number"] {
+  width: 4.5em;
+  font: inherit;
+}
+
+.slider-limits {
+  color: var(--color-text-muted);
+}
+
+/* The box for copied or pasted text. */
+.text-box {
+  width: 100%;
+  font-family: monospace;
+  font-size: 0.8em;
+  margin-bottom: 8px;
+}
+
+/* A clickable grid of small square cells, for picking a tile (the
+   random mountain's Tile T): a lit cell is in the tile, the dark one in
+   the middle is the site itself. In 1D it is a single row. */
+.tile-grid {
+  display: grid;
+  gap: 2px;
+  max-width: 260px;
+  margin-bottom: 10px;
+}
+
+.tile-grid.one-row {
+  max-width: 100%;
+}
+
+.tile-cell {
+  aspect-ratio: 1;
+  min-width: 0;
+  padding: 0;
+  border: 1px solid var(--color-border);
+  border-radius: 2px;
+  background: var(--color-surface);
+  cursor: pointer;
+}
+
+.tile-cell.on {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+}
+
+.tile-cell.center {
+  background: var(--color-text);
+  cursor: default;
+}
+
+/* The random matrix products' matrices: the boxes of one matrix, laid
+   out like the matrix itself, with its weight and a remove button
+   beside it (made by sims/random-matrix-products.js).
+
+       M1   [ 0.9 ] [ 0.8 ]    weight       ×
+            [ 0.1 ] [ 0.2 ]    [    ]
+                               chance 0.5
+*/
+.matrix-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  font-size: 0.9em;
+}
+
+.matrix-name {
+  font-style: italic;
+  min-width: 2em;
+}
+
+.matrix-entries {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3px;
+  padding: 2px 6px;
+  border-left: 2px solid var(--color-text);    /* the matrix's brackets */
+  border-right: 2px solid var(--color-text);
+  border-radius: 4px;
+}
+
+.matrix-entries input,
+.matrix-weight input {
+  width: 5em;
+  font-family: monospace;
+}
+
+.matrix-weight {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* The numbers in the Statistics quadrant. */
+.stats-table td {
+  padding: 2px 16px 2px 0;
+}
+
+.color-counts {
+  list-style: none;
+  padding: 0;
+  margin: 12px 0 0;
+  font-size: 0.9em;
+}
+
+/* The little color square next to each color count. */
+.swatch-small {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  margin-right: 8px;
+  vertical-align: middle;
+}
+
+/* The small plots in the Statistics quadrant. */
+.chart {
+  display: block;
+  width: 100%;
+  height: 90px;
+}
+
+/* A chart you can click (e.g. the coloring sim's color sizes: a click
+   highlights that color). */
+.chart.clickable {
+  cursor: pointer;
+}
+
+/* A chart you can zoom and drag in time (chartZoom in js/sim-charts.js).
+   "touch-action: none" lets fingers pinch the chart instead of the page. */
+.chart.zoomable {
+  cursor: grab;
+  touch-action: none;
+}
+
+/* Taller charts, for the ones with more to show. */
+.chart.tall   { height: 130px; }
+.chart.taller { height: 180px; }
+
+/* A box that scrolls when its content is more than 220px tall (the
+   random sine's table of lobes). */
+.scroll-box {
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+/* Smaller gray notes under the options. */
+.small {
+  font-size: 0.85em;
+  margin: 0 0 8px;
+}
+
+
+/* =====================================================================
+   8. Sim pages: the picture and its buttons
+   ---------------------------------------------------------------------
+   The box around a sim's picture, <div class="sim-picture">, and the
+   buttons on top of the picture: zoom (+, −, Reset), "Back to the
+   start" and "Slide", and full screen.
+   ===================================================================== */
+
+/* The zoom buttons (+, −, Reset) sit in the top right corner of
+   the picture, as in Desmos. "position: relative" on the box around the
+   picture lets "position: absolute" place the buttons inside it. */
+.sim-picture {
+  position: relative;
+}
+
+/* The drawing surface for a simulation fills the width of its box.
+   The ">" means "a canvas directly inside the .sim-picture box" only,
+   so this rule leaves alone canvases that libraries (like Cytoscape or
+   three.js) create deeper inside the page. */
 .sim-picture > canvas {
   display: block;
   width: 100%;
@@ -365,13 +662,155 @@ a.card:hover {
   border-radius: calc(var(--corner-radius) / 2);
 }
 
+/* A sim's picture can be dragged: show the "hand" cursor, and on phones
+   let a finger drag it instead of scrolling the page. (js/sim-view.js
+   adds the classes "scrollable" when it can move, "dragging" while
+   dragged.) */
+#sim-canvas.scrollable {
+  cursor: grab;
+  touch-action: none;
+}
+
+#sim-canvas.scrollable.dragging {
+  cursor: grabbing;
+}
+
+/* The 3D view (js/sim-3d.js) draws on a canvas inside this box. Like
+   the 2D pictures, it has a gray background; "touch-action: none" lets
+   fingers turn the picture instead of scrolling the page. */
+.sim-3d canvas {
+  display: block;
+  background: var(--color-placeholder);
+  border-radius: calc(var(--corner-radius) / 2);
+  touch-action: none;
+  cursor: grab;
+}
+
+.zoom-buttons {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  gap: 4px;
+}
+
+.zoom-buttons .tool-button {
+  min-width: 2.2em;         /* so "+" and "−" aren't tiny */
+}
+
+/* The "Slide" button (hyperbolic pictures, js/sim-hyperbolic.js) comes
+   right after "Back to the start" and is hidden whenever that one is,
+   so the sim pages only show or hide "Back to the start". */
+#disk-reset[hidden] + #disk-slide {
+  display: none;
+}
+
+/* The full screen button (addFullScreenButton in js/sim-page.js) sits
+   in the top left corner of every picture: a round button with an icon. */
+.full-screen-button {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  padding: 5px;
+  line-height: 0;           /* no extra space under the icon */
+}
+
+.full-screen-button svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* The full screen popup: the picture's box floats over the page, with
+   a small margin around it ("inset"), and the rest of the page is
+   dimmed by the "backdrop" behind it (a click there closes the popup).
+   "z-index" puts both above everything else, the top bar included. */
+.picture-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.sim-picture.popped {
+  position: fixed;
+  inset: 3vh 3vw;
+  z-index: 101;
+  overflow: hidden;
+  background: var(--color-surface);
+  border-radius: var(--corner-radius);
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.35);
+}
+
+/* While the popup is open, the page behind it doesn't scroll. */
+body.popup-open {
+  overflow: hidden;
+}
+
 
 /* =====================================================================
-   7. Graph & domain tool (sims/graph-tool.html)
+   9. Sim pages: the About box
+   ===================================================================== */
+
+/* The tabs at the top of the About box (js/sim-page.js), drawn like
+   the top bar: plain words, the chosen one underlined. */
+.about-tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--color-border);
+  margin-bottom: 12px;
+}
+
+.about-tab {
+  font: inherit;
+  font-size: 0.9em;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;          /* sit on the bar's bottom line */
+  padding: 4px 12px;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.about-tab:hover {
+  color: var(--color-text);
+}
+
+.about-tab.selected {
+  color: var(--color-accent);
+  font-weight: bold;
+  border-bottom-color: var(--color-accent);
+}
+
+/* The numbered steps and the references in the About quadrant. */
+.about-steps,
+.references {
+  padding-left: 1.4em;
+}
+
+.references {
+  font-size: 0.85em;
+}
+
+.references li {
+  margin-bottom: 4px;
+}
+
+/* A typeset formula on its own line that is wider than its box (on a
+   phone) scrolls sideways instead of spilling out of the page. */
+.katex-display {
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+
+/* =====================================================================
+   10. The graph tool (sims/graph-tool.html)
    ---------------------------------------------------------------------
    The buttons, color palette, drawing box and settings on the tool's
    page. The drawing itself is styled in sims/graph-tool.js (section 3),
-   because Cytoscape draws it, not the browser's CSS.
+   because Cytoscape draws it, not the browser's CSS. At the end: the
+   tool shown inside a sim page, for a custom domain.
    ===================================================================== */
 
 /* A row of buttons above the drawing. */
@@ -394,18 +833,6 @@ a.card:hover {
 
 .brush-size input {
   width: 90px;
-}
-
-/* The tool buttons look like the genre buttons (section 4), a bit
-   smaller. A button that can't be used right now is faded. */
-.tool-button {
-  font-size: 0.85em;
-  padding: 3px 12px;
-}
-
-.tool-button:disabled {
-  opacity: 0.4;
-  cursor: default;
 }
 
 /* The palette: a grid of color squares 7 across (like OneNote or
@@ -493,165 +920,9 @@ a.card:hover {
   cursor: grab;
 }
 
-/* Settings in the Options quadrant. */
-.option-heading {
-  font-size: 0.95em;
-  margin: 16px 0 6px;
-}
-
-.option-heading:first-of-type {
-  margin-top: 0;
-}
-
-.option-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px 10px;
-  margin-bottom: 8px;
-  font-size: 0.9em;
-}
-
-.option-row input[type="number"] {
-  width: 5em;
-  font: inherit;
-}
-
-.option-row select {
-  font: inherit;
-}
-
-/* The formula box, its typeset preview, and its sliders. */
-.formula-input {
-  width: 100%;
-  font-family: monospace;
-  font-size: 0.95em;
-  padding: 4px 6px;
-}
-
-.formula-preview {
-  min-height: 1.8em;       /* keeps the space even when it's empty */
-  margin: 6px 0;
-  overflow-x: auto;        /* a long formula scrolls instead of spilling out */
-}
-
-/* A small picture of a formula's shape (the domain or the tile), which
-   pops up above the formula's top right corner while the mouse is over
-   the formula (its box or its typeset preview), or while you type in it
-   (":focus-within" = the box has the typing cursor). Used by the random
-   sequential packing. */
-.formula-with-picture {
-  position: relative;      /* the picture is placed relative to this */
-}
-.shape-popup {
-  display: none;           /* hidden until pointed at or typed in */
-  position: absolute;
-  right: 0;
-  bottom: 100%;            /* just above the formula box */
-  width: 120px;
-  height: 120px;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--corner-radius);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-  z-index: 5;              /* on top of the text above it */
-  pointer-events: none;    /* never gets in the way of the mouse */
-}
-.formula-with-picture:hover .shape-popup,
-.formula-with-picture:focus-within .shape-popup {
-  display: block;
-}
-
-/* One slider:  r = [1]  ====o====  min [-10] max [10] step [0.1] */
-.slider-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px 8px;
-  margin-bottom: 8px;
-  font-size: 0.85em;
-}
-
-.slider-name {
-  font-family: var(--font-heading);
-  font-style: italic;
-}
-
-.slider-row input[type="number"] {
-  width: 4.5em;
-  font: inherit;
-}
-
-.slider-limits {
-  color: var(--color-text-muted);
-}
-
-/* The box for copied or pasted text. */
-.text-box {
-  width: 100%;
-  font-family: monospace;
-  font-size: 0.8em;
-  margin-bottom: 8px;
-}
-
-/* The numbers in the Statistics quadrant. */
-.stats-table td {
-  padding: 2px 16px 2px 0;
-}
-
-.color-counts {
-  list-style: none;
-  padding: 0;
-  margin: 12px 0 0;
-  font-size: 0.9em;
-}
-
-/* The little color square next to each color count. */
-.swatch-small {
-  display: inline-block;
-  width: 12px;
-  height: 12px;
-  border-radius: 3px;
-  margin-right: 8px;
-  vertical-align: middle;
-}
-
-
-/* =====================================================================
-   8. More for sim pages
-   ---------------------------------------------------------------------
-   Used by the sim pages (like sims/random-walk-coloring.html), by
-   the graph tool when a sim shows it inside its own page
-   (graph-tool.html?embed), and, at the end, by the check pages.
-   ===================================================================== */
-
-/* A slider that takes the spare width of its row: the sims' sliders,
-   and the formula box's sliders in the graph tool (section 7). */
-.wide-range,
-.slider-range {
-  flex: 1 1 120px;
-}
-
-/* The Options heading with the small "model check" button pushed to
-   the right end of the same line (it opens the sim's check page). */
-.heading-with-button {
-  display: flex;
-  justify-content: space-between;   /* heading on the left, button on the right */
-  align-items: center;
-  gap: 8px;
-}
-
-.model-check {
-  font-size: 0.7em;
-  font-weight: normal;
-  text-decoration: none;            /* a link that looks like a button */
-}
-
-/* Smaller gray notes under the options. */
-.small {
-  font-size: 0.85em;
-  margin: 0 0 8px;
-}
+/* ---------------------------------------------------------------------
+   The graph tool inside a sim page (js/sim-controls.js)
+   --------------------------------------------------------------------- */
 
 /* The steps above the graph tool: a title, some help, and a live check
    that turns green when the drawing is fine and red when it isn't. */
@@ -676,179 +947,12 @@ a.card:hover {
 .step-status.ok      { color: var(--color-ok); }
 .step-status.problem { color: var(--color-problem); }
 
-/* A sim's picture can be dragged: show the "hand" cursor, and on phones
-   let a finger drag it instead of scrolling the page. (js/sim-view.js
-   adds the classes "scrollable" when it can move, "dragging" while
-   dragged.) */
-#sim-canvas.scrollable {
-  cursor: grab;
-  touch-action: none;
-}
-
-#sim-canvas.scrollable.dragging {
-  cursor: grabbing;
-}
-
-/* The zoom buttons (+, −, Reset) sit in the top right corner of
-   the picture, as in Desmos. "position: relative" on the box around the
-   picture lets "position: absolute" place the buttons inside it. */
-.sim-picture {
-  position: relative;
-}
-
-/* The 3D view (js/sim-3d.js) draws on a canvas inside this box. Like
-   the 2D pictures, it has a gray background; "touch-action: none" lets
-   fingers turn the picture instead of scrolling the page. */
-.sim-3d canvas {
-  display: block;
-  background: var(--color-placeholder);
-  border-radius: calc(var(--corner-radius) / 2);
-  touch-action: none;
-  cursor: grab;
-}
-
-.zoom-buttons {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  display: flex;
-  gap: 4px;
-}
-
-.zoom-buttons .tool-button {
-  min-width: 2.2em;         /* so "+" and "−" aren't tiny */
-}
-
-/* The "Slide" button (hyperbolic pictures, js/sim-hyperbolic.js) comes
-   right after "Back to the start" and is hidden whenever that one is,
-   so the sim pages only show or hide "Back to the start". */
-#disk-reset[hidden] + #disk-slide {
-  display: none;
-}
-
-/* The full screen button (addFullScreenButton in js/sim-page.js) sits
-   in the top left corner of every picture: a round button with an icon. */
-.full-screen-button {
-  position: absolute;
-  top: 8px;
-  left: 8px;
-  padding: 5px;
-  line-height: 0;           /* no extra space under the icon */
-}
-
-.full-screen-button svg {
-  width: 18px;
-  height: 18px;
-}
-
-/* The full screen popup: the picture's box floats over the page, with
-   a small margin around it ("inset"), and the rest of the page is
-   dimmed by the "backdrop" behind it (a click there closes the popup).
-   "z-index" puts both above everything else, the top bar included. */
-.picture-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 100;
-  background: rgba(0, 0, 0, 0.5);
-}
-
-.sim-picture.popped {
-  position: fixed;
-  inset: 3vh 3vw;
-  z-index: 101;
-  overflow: hidden;
-  background: var(--color-surface);
-  border-radius: var(--corner-radius);
-  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.35);
-}
-
-/* While the popup is open, the page behind it doesn't scroll. */
-body.popup-open {
-  overflow: hidden;
-}
-
 /* The graph tool inside the sim. The sim sets its height to fit. */
 .tool-frame {
   display: block;
   width: 100%;
   height: 900px;
   border: 0;
-}
-
-/* The small plots in the Statistics quadrant. */
-.chart {
-  display: block;
-  width: 100%;
-  height: 90px;
-}
-
-/* A chart you can click (e.g. the coloring sim's color sizes: a click
-   highlights that color). */
-.chart.clickable {
-  cursor: pointer;
-}
-
-/* A chart you can zoom and drag in time (chartZoom in js/sim-page.js).
-   "touch-action: none" lets fingers pinch the chart instead of the page. */
-.chart.zoomable {
-  cursor: grab;
-  touch-action: none;
-}
-
-.chart-heading {
-  margin-top: 16px;
-}
-
-/* The tabs at the top of the About box (js/about-tabs.js), drawn like
-   the top bar: plain words, the chosen one underlined. */
-.about-tabs {
-  display: flex;
-  gap: 4px;
-  border-bottom: 1px solid var(--color-border);
-  margin-bottom: 12px;
-}
-
-.about-tab {
-  font: inherit;
-  font-size: 0.9em;
-  background: none;
-  border: none;
-  border-bottom: 2px solid transparent;
-  margin-bottom: -1px;          /* sit on the bar's bottom line */
-  padding: 4px 12px;
-  color: var(--color-text-muted);
-  cursor: pointer;
-}
-
-.about-tab:hover {
-  color: var(--color-text);
-}
-
-.about-tab.selected {
-  color: var(--color-accent);
-  font-weight: bold;
-  border-bottom-color: var(--color-accent);
-}
-
-/* The numbered steps and the references in the About quadrant. */
-.about-steps,
-.references {
-  padding-left: 1.4em;
-}
-
-.references {
-  font-size: 0.85em;
-}
-
-.references li {
-  margin-bottom: 4px;
-}
-
-/* A typeset formula on its own line that is wider than its box (on a
-   phone) scrolls sideways instead of spilling out of the page. */
-.katex-display {
-  overflow-x: auto;
-  overflow-y: hidden;
 }
 
 /* The graph tool when a sim shows it inside its page: "embedded" is
@@ -890,44 +994,14 @@ body.embedded .graph-wrap {
 }
 
 
-/* A clickable grid of small square cells, for picking a tile (the
-   random mountain's Tile T): a lit cell is in the tile, the dark one in
-   the middle is the site itself. In 1D it is a single row. */
-.tile-grid {
-  display: grid;
-  gap: 2px;
-  max-width: 260px;
-  margin-bottom: 10px;
-}
+/* =====================================================================
+   11. Check pages
+   ---------------------------------------------------------------------
+   The check pages (like sims/random-mountain-check.html) test a sim's
+   math on its own.
+   ===================================================================== */
 
-.tile-grid.one-row {
-  max-width: 100%;
-}
-
-.tile-cell {
-  aspect-ratio: 1;
-  min-width: 0;
-  padding: 0;
-  border: 1px solid var(--color-border);
-  border-radius: 2px;
-  background: var(--color-surface);
-  cursor: pointer;
-}
-
-.tile-cell.on {
-  background: var(--color-accent);
-  border-color: var(--color-accent);
-}
-
-.tile-cell.center {
-  background: var(--color-text);
-  cursor: default;
-}
-
-
-/* Check pages (like sims/random-mountain-check.html), which test a
-   sim's math on its own: their tables, and each test marked pass
-   (green) or FAIL (red). */
+/* The results table, with each test marked pass (green) or FAIL (red). */
 .check-table {
   border-collapse: collapse;   /* one line between cells, not two */
   margin: 0.5em 0;
@@ -950,9 +1024,62 @@ body.embedded .graph-wrap {
   white-space: nowrap;         /* in a table, "✓ pass" stays on one line */
 }
 
+/* A picture on a check page: the random sine's two pictures, and the
+   random matrix products' histogram (a little shorter). */
+.check-picture {
+  display: block;
+  width: 100%;
+  max-width: 800px;
+  height: 300px;
+  border: 1px solid var(--color-border);
+}
+
+.check-picture.short {
+  height: 260px;
+}
+
+/* Pictures side by side (the random sequential packing's check page). */
+.check-pictures {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1em;
+}
+
+.check-pictures canvas {
+  width: 360px;
+  height: 360px;
+  border: 1px solid var(--color-border);
+}
+
+/* The random tile packing's check page: its sections, the table of
+   counts (numbers line up on the right), the bars, and the arctic
+   circle picture. */
+.check-section {
+  margin: 1.5rem 0;
+}
+
+#count-results td,
+#count-results th {
+  text-align: right;
+}
+
+.bars {
+  width: 100%;
+  height: 90px;
+  display: block;
+  margin: 0.3rem 0 0.8rem;
+}
+
+#arctic-canvas {
+  width: 100%;
+  max-width: 480px;
+  aspect-ratio: 1;
+  display: block;
+}
+
 
 /* =====================================================================
-   9. Phones and narrow screens
+   12. Phones and narrow screens
    ---------------------------------------------------------------------
    Everything inside "@media (max-width: 760px) { ... }" only applies
    when the window is 760px wide or less. It comes last in the file so

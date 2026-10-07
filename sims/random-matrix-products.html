@@ -7,45 +7,6 @@
   <link rel="stylesheet" href="../css/style.css">
   <!-- KaTeX's styles, for the typeset formulas. -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/katex.min.css">
-  <style>
-    /* Only for this page: the boxes of one matrix, laid out like the
-       matrix itself, with its weight and a remove button beside it.
-
-           M1   [ 0.9 ] [ 0.8 ]    weight       ×
-                [ 0.1 ] [ 0.2 ]    [    ]
-                                   chance 0.5
-    */
-    .matrix-row {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      margin-bottom: 10px;
-      font-size: 0.9em;
-    }
-    .matrix-name {
-      font-style: italic;
-      min-width: 2em;
-    }
-    .matrix-entries {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 3px;
-      padding: 2px 6px;
-      border-left: 2px solid var(--color-text);    /* the matrix's brackets */
-      border-right: 2px solid var(--color-text);
-      border-radius: 4px;
-    }
-    .matrix-entries input,
-    .matrix-weight input {
-      width: 5em;
-      font-family: monospace;
-    }
-    .matrix-weight {
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-    }
-  </style>
 </head>
 <body>
 
@@ -184,11 +145,11 @@
           <tr><td>Red dots: spread (standard deviation of x, y)</td><td id="stat-red-spread"></td></tr>
         </table>
 
-        <h3 class="option-heading chart-heading">Growth rate of each run, (1/t) log |P<sub>t</sub>|</h3>
+        <h3 class="option-heading">Growth rate of each run, (1/t) log |P<sub>t</sub>|</h3>
         <canvas class="chart" id="growth-chart"></canvas>
-        <h3 class="option-heading chart-heading">Largest eigenvalue of P<sub>t</sub> (real part), scaled like the picture</h3>
+        <h3 class="option-heading">Largest eigenvalue of P<sub>t</sub> (real part), scaled like the picture</h3>
         <canvas class="chart" id="eigen-chart"></canvas>
-        <h3 class="option-heading chart-heading">Largest eigenvalue of P<sub>t</sub> (imaginary part)</h3>
+        <h3 class="option-heading">Largest eigenvalue of P<sub>t</sub> (imaginary part)</h3>
         <canvas class="chart" id="eigen-im-chart"></canvas>
         <p class="muted small">P<sub>t</sub> is the product of the first t matrices of a run.
           The eigenvalue charts show the middle 90% of the values (the rest are counted in the end bars).</p>

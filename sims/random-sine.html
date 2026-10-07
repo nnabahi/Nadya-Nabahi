@@ -147,22 +147,22 @@
           <tr><td>Lobes in [&minus;A, A]</td><td id="stat-lobes"></td></tr>
         </table>
 
-        <h3 class="option-heading chart-heading">The lobes of this sample</h3>
-        <div style="max-height: 220px; overflow-y: auto">
+        <h3 class="option-heading">The lobes of this sample</h3>
+        <div class="scroll-box">
           <table class="stats-table">
             <thead><tr><td>From</td><td>To</td><td>Area</td><td>Peak offset</td><td>Peak value</td></tr></thead>
             <tbody id="lobe-rows"></tbody>
           </table>
         </div>
 
-        <h3 class="option-heading chart-heading" id="samples-heading">Many samples</h3>
-        <h3 class="option-heading chart-heading">Lobe areas I<sub>n</sub> (the integral of f over a lobe)</h3>
+        <h3 class="option-heading" id="samples-heading">Many samples</h3>
+        <h3 class="option-heading">Lobe areas I<sub>n</sub> (the integral of f over a lobe)</h3>
         <canvas class="chart" id="areas-chart"></canvas>
-        <h3 class="option-heading chart-heading">Peak offsets x<sub>n</sub> &minus; R(n) (from the lobe's left root)</h3>
+        <h3 class="option-heading">Peak offsets x<sub>n</sub> &minus; R(n) (from the lobe's left root)</h3>
         <canvas class="chart" id="offsets-chart"></canvas>
-        <h3 class="option-heading chart-heading">Peak values f(x<sub>n</sub>)</h3>
+        <h3 class="option-heading">Peak values f(x<sub>n</sub>)</h3>
         <canvas class="chart" id="peaks-chart"></canvas>
-        <h3 class="option-heading chart-heading">f&prime;(0) / f(0)</h3>
+        <h3 class="option-heading">f&prime;(0) / f(0)</h3>
         <canvas class="chart" id="logder-chart"></canvas>
         <p class="muted small">Signed areas, peaks and f&prime;(0)/f(0) can have huge outliers, so
           those charts show the middle 90% of the values (the rest are counted in the end bars).</p>

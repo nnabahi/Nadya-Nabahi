@@ -5,13 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Check page: random sequential packing</title>
   <link rel="stylesheet" href="../css/style.css">
-  <style>
-    /* Only for this check page: the two pictures. (The results table and
-       its pass / FAIL marks are styled in css/style.css, like the other
-       check pages.) */
-    .pictures { display: flex; flex-wrap: wrap; gap: 1em; }
-    .pictures canvas { width: 360px; height: 360px; border: 1px solid var(--color-border); }
-  </style>
 </head>
 <body>
   <main class="page">
@@ -33,7 +26,7 @@
     <h2>Pictures</h2>
     <p>Colored by generation (1 = touches the edge of S). Left: your gasket after
       20,000 attempts. Right: a star tile in a heart, 3,000 attempts.</p>
-    <div class="pictures">
+    <div class="check-pictures">
       <canvas id="picture-gasket"></canvas>
       <canvas id="picture-star"></canvas>
     </div>
