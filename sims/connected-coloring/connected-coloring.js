@@ -227,10 +227,9 @@ const player = connectPlay(worker, SPEEDS, DEFAULT_SPEED, "move", "moves", resta
    where two cells of different colors meet, or where the domain ends.
 
    The "view" (js/sim-view.js) says where the picture goes and which
-   squares show; for each one, this finds which cell of the domain is
-   there and paints its color. A box simply fills the picture once. A
-   torus (or a region drawn on one) wraps around, and can be moved and
-   zoomed like a graph in Desmos:
+   squares show, and paints them (paintCells), as in the other sims. A
+   box simply fills the picture once. A torus (or a region drawn on one)
+   wraps around, and can be moved and zoomed like a graph in Desmos:
      drag it                          move it
      mouse wheel, or pinch            zoom in or out, around the pointer
      the + / − / Reset buttons        zoom in, zoom out, show it all again
@@ -253,29 +252,18 @@ const view = makeView(simCanvas, drawSoon);   // where the picture goes, and the
 // the plane has been moved (js/sim-hyperbolic.js). The view above zooms
 // and slides its pictures too.
 const disk = makeDiskView(simCanvas, view, showDomainChoice);
+const outsideRGB = hexToRGB(OUTSIDE);
 
 function drawColoring() {
   if (!domain || !colors || simCanvas.hidden) return;
   if (domainKind === "graph") { drawOnGraph(); return; }
   const pen = fitPicture(view, domain, MAX_PICTURE_HEIGHT);
 
-  // The color on each square that shows (-1 where it isn't the domain).
-  const shown = cellsShown(view, domain).map(function (v) { return v === -1 ? -1 : colors[v]; });
-
-  // The squares. With a color highlighted, the others are faded.
-  const paint = colorNames.map(function (name, c) { return shade(c); });
-  pen.fillStyle = OUTSIDE;
-  pen.fillRect(view.left, 0, view.width, view.height);
-  for (let k = 0; k < view.rows; k++) {
-    for (let i = 0; i < view.cols; i++) {
-      const c = shown[k * view.cols + i];
-      if (c === -1) continue;
-      const x0 = squareLeft(view, view.firstI + i), x1 = squareLeft(view, view.firstI + i + 1);
-      const y0 = squareTop(view, view.firstK + k), y1 = squareTop(view, view.firstK + k + 1);
-      pen.fillStyle = paint[c];
-      pen.fillRect(x0, y0, x1 - x0, y1 - y0);
-    }
-  }
+  // The squares, each in its cell's color. With a color highlighted, the
+  // others are faded. "shown" is the color on each square that shows.
+  const paint = colorNames.map(function (name, c) { return hexToRGB(shade(c)); });
+  const shown = paintCells(view, pen, domain, function (v) { return colors[v]; },
+    function (c) { return paint[c]; }, outsideRGB);
 
   // The lines between different colors (the outside counts as a color).
   drawBorders(view, pen, shown, BORDER);

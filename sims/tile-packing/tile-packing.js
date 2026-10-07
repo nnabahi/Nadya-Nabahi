@@ -201,20 +201,17 @@ function classOf(p, classes) {
    the mouse wheel or a pinch, or the + / − / Reset buttons. On a torus
    it wraps around, and zoomed out it shows several times.
 
-   The view says which cell is on each screen square that shows
-   (cellsShown). The packing is drawn one pixel per square (an "image"
-   whose pixels we set one by one), then blown up into the picture's
-   box with smoothing off, so the cells stay crisp squares. When cells
-   are big enough on screen (zoomed in, or a small domain), a dark line
-   goes along every side where two different tiles meet (an empty cell
-   counts as different), or where the domain ends. Then the last move's
-   disk is drawn on top.
+   The squares are painted by paintCells (js/sim-view.js), as in the
+   other sims, each in its tile's class color. When cells are big
+   enough on screen (zoomed in, or a small domain), a dark line goes
+   along every side where two different tiles meet (an empty cell counts
+   as different), or where the domain ends. Then the last move's disk
+   is drawn on top.
 
    "Average over time" colors each cell by mixing the class colors, each
    weighted by the share of the time the cell spent in that class (the
    chain's heat map), with no lines.
    ===================================================================== */
-const tiny = document.createElement("canvas");      // one pixel per screen square
 const simCanvas = byId("sim-canvas");
 
 // Draw at the browser's next screen refresh (at most once per refresh,
@@ -232,54 +229,35 @@ function drawPacking() {
   const average = showingAverage() && latest.heat;
   const colors = classColors(), classes = colors.length;
 
-  // 1. Size the canvas and place the picture's box (js/sim-view.js), and
-  //    find which cell is on each screen square (-1 = none).
+  // 1. Size the canvas and place the picture's box (js/sim-view.js).
   const pen = fitPicture(view, d, MAX_PICTURE_HEIGHT);
-  const shown = cellsShown(view, d);
-  const cols = view.cols, rows = view.rows;
-
-  // 2. One pixel per square. Row 0 of the image is the top row of squares.
-  tiny.width = cols;
-  tiny.height = rows;
-  const tinyPen = tiny.getContext("2d");
-  const image = tinyPen.createImageData(cols, rows);
-  const pixels = image.data;                  // 4 numbers per pixel: red, green, blue, opacity
   const outside = hexToRGB(OUTSIDE);
-  for (let q = 0; q < cols * rows; q++) {
-    const v = shown[q];
-    let rgb;
-    if (v === -1) {
-      rgb = outside;
-    } else if (average) {
-      rgb = [0, 0, 0];
+
+  if (average) {
+    // 2. "Average over time": each cell is its own group (paintCells,
+    //    js/sim-view.js), painted in the mix of the class colors.
+    paintCells(view, pen, d, function (v) { return v; }, function (v) {
+      const rgb = [0, 0, 0];
       for (let c = 0; c < classes; c++) {
         const share = latest.heat[v * classes + c];
         for (let k = 0; k < 3; k++) rgb[k] += share * colors[c][k];
       }
-    } else {
-      rgb = colors[classOf(owner[v], classes)];
-    }
-    pixels[4 * q] = rgb[0]; pixels[4 * q + 1] = rgb[1]; pixels[4 * q + 2] = rgb[2];
-    pixels[4 * q + 3] = 255;
-  }
-  tinyPen.putImageData(image, 0, 0);
+      return rgb;
+    }, outside);
+  } else {
+    // 2. Each square's group is the tile on it (-1 for an empty cell),
+    //    painted in the tile's class color. "tileOn" is the tile on each
+    //    square that shows, and -2 outside the domain.
+    const tileOn = paintCells(view, pen, d, function (v) { return owner[v]; },
+      function (tile) { return colors[classOf(tile, classes)]; }, outside);
 
-  // 3. Blow it up into the picture's box, with smoothing off so the
-  //    cells stay sharp squares.
-  pen.imageSmoothingEnabled = false;
-  const left = squareLeft(view, view.firstI), top = squareTop(view, view.firstK);
-  pen.drawImage(tiny, left, top, squareLeft(view, view.lastI + 1) - left, squareTop(view, view.lastK + 1) - top);
-
-  // 4. The lines around the tiles: between two squares covered by
-  //    different tiles. Each square gets the number of the tile on it;
-  //    empty cells are -1 (so two empty cells side by side get no line)
-  //    and the outside is -2 (so the domain's edge always gets one).
-  if (!average && view.cell >= SMALLEST_BORDERED_CELL) {
-    const tileOn = Array.from(shown, function (v) { return v === -1 ? -2 : owner[v]; });
-    drawBorders(view, pen, tileOn, BORDER);
+    // 3. The lines around the tiles: between two squares covered by
+    //    different tiles (so two empty cells side by side get no line,
+    //    and the domain's edge always gets one).
+    if (view.cell >= SMALLEST_BORDERED_CELL) drawBorders(view, pen, tileOn, BORDER);
   }
 
-  // 5. The disk. Cell (x, y) has its middle (x - xmin + 1/2) cells from
+  // 4. The disk. Cell (x, y) has its middle (x - xmin + 1/2) cells from
   //    the left of the domain's box and (ymax - y + 1/2) from its top. On
   //    a torus it is drawn again one torus over, in every direction, as
   //    far as the picture shows.
