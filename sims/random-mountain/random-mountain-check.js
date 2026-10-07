@@ -43,6 +43,9 @@
             the tiling's rules alone, every corner still has exactly q
             cells around it;
           - the same invariants as in 3.
+
+   Random numbers come from the library seedrandom, each test with its
+   own fixed seed, so the page gives the same results every time.
    ===================================================================== */
 
 
@@ -177,11 +180,12 @@ function exactOdds(c) {
 
 // Run the sim "runs" times and compare with the exact odds.
 function chiSquareTest(c, runs) {
+  const random = new Math.seedrandom("odds " + c.name);
   const odds = exactOdds(c);
   const counts = new Map();
   for (let r = 0; r < runs; r++) {
     const m = newMountain(c);
-    for (let k = 0; k < c.steps; k++) m.step(Math.random());
+    for (let k = 0; k < c.steps; k++) m.step(random());
     const heights = new Map();
     for (let i = 0; i < m.height.length; i++) {
       if (m.height[i] > 0) heights.set(m.siteX[i] + "," + m.siteY[i], m.height[i]);
@@ -220,10 +224,11 @@ function pearson(odds, counts, runs) {
    scratch ({start} and base + T, inside the domain) and compared.
    =================================================================== */
 function checkInvariants(c, steps) {
+  const random = new Math.seedrandom("invariants " + c.name);
   const m = newMountain(c);
   const d = c.domain;
   for (let k = 1; k <= steps; k++) {
-    m.step(Math.random());
+    m.step(random());
     let total = 0, base = 0, highest = 0;
     for (const h of m.height) { total += h; if (h > 0) base += 1; if (h > highest) highest = h; }
     if (m.steps !== k || m.blocks !== k + 1 || total !== k + 1) return "step " + k + ": the blocks don't add up";
@@ -260,11 +265,13 @@ function checkInvariants(c, steps) {
 
 // 4a. Same as 1D and 2D. Grow both mountains with the same random
 // numbers and compare every site's height. "oneOrTwo" is the 1D or 2D
-// mountain's options, "graphOptions" the graph mountain's.
-function sameAsFlat(oneOrTwo, graphOptions, steps) {
+// mountain's options, "graphOptions" the graph mountain's, "name" the
+// test's name (it seeds the random numbers).
+function sameAsFlat(oneOrTwo, graphOptions, steps, name) {
+  const random = new Math.seedrandom(name);
   const flat = newMountain(oneOrTwo), onGraph = newGraphMountain(graphOptions);
   for (let k = 0; k < steps; k++) {
-    const u = Math.random();
+    const u = random();
     flat.step(u);
     onGraph.step(u);
   }
@@ -337,6 +344,7 @@ function exactTreeOdds(d, r, steps) {
   return odds;
 }
 function treeChiSquare(d, r, steps, runs) {
+  const random = new Math.seedrandom("tree odds " + d + " " + r + " " + steps);
   const odds = exactTreeOdds(d, r, steps);
   const counts = new Map();
   // One tree for all the runs (much faster than a new one each time),
@@ -345,7 +353,7 @@ function treeChiSquare(d, r, steps, runs) {
   const depths = graphDepths(tree, 0, steps * r + 1);
   for (let run = 0; run < runs; run++) {
     const m = newGraphMountain({ graph: tree, radius: r, domain: { kind: "whole" } });
-    for (let k = 0; k < steps; k++) m.step(Math.random());
+    for (let k = 0; k < steps; k++) m.step(random());
     const pairs = [];
     for (let i = 0; i < m.height.length; i++) if (m.height[i] > 0) pairs.push([depths.get(m.siteNode[i]), m.height[i]]);
     const key = describeByDepth(pairs);
@@ -460,11 +468,12 @@ function checkFar(p, q) {
 // base size and largest height add up and no site is available twice;
 // every 500 steps the available sites are worked out again from scratch
 // (the start, and every cell within distance r of the base, inside the
-// domain).
-function checkGraphInvariants(options, steps) {
+// domain). "name", the test's name, seeds the random numbers.
+function checkGraphInvariants(options, steps, name) {
+  const random = new Math.seedrandom("invariants " + name);
   const m = newGraphMountain(options);
   for (let k = 1; k <= steps; k++) {
-    m.step(Math.random());
+    m.step(random());
     let total = 0, base = 0, highest = 0;
     for (const h of m.height) { total += h; if (h > 0) base += 1; if (h > highest) highest = h; }
     if (m.steps !== k || m.blocks !== k + 1 || total !== k + 1) return "step " + k + ": the blocks don't add up";
@@ -530,7 +539,7 @@ function allTests() {
   ];
   for (const [name, flat, onGraph] of sameTests) {
     tests.push(function () {
-      const problem = sameAsFlat(flat, onGraph, 20000);
+      const problem = sameAsFlat(flat, onGraph, 20000, name);
       addRow(name, problem === "", problem || "the same mountain, block for block");
     });
   }
@@ -561,7 +570,7 @@ function allTests() {
     ["tree of degree 3, cells within 1, 6 layers", { graph: { kind: "tiling", p: 3, q: Infinity }, radius: 1, domain: { kind: "ball", layers: 6 } }],
   ]) {
     tests.push(function () {
-      const problem = checkGraphInvariants(options, 3000);
+      const problem = checkGraphInvariants(options, 3000, name);
       addRow("Invariants: " + name + ", 3000 steps", problem === "", problem || "all hold after every step");
     });
   }
