@@ -2,7 +2,7 @@
    random-matrix-products-check.js  —  the tests on
    random-matrix-products-check.html
    ---------------------------------------------------------------------
-   Five kinds of test of random-matrix-products-math.js:
+   Six kinds of test of random-matrix-products-math.js:
 
      1. Exact odds. With fixed matrices, after t steps there are only
         (number of matrices)^t possible products, and each one's
@@ -38,6 +38,9 @@
         (3/4 - 1/4) log 2 = (log 2)/2 by the law of large numbers
         (Durrett, same book, Theorem 2.4.1), and the bottom-right
         entry stays 1. So the growth rate is (log 2)/2 = 0.34657...
+
+     6. Small things: the eigenvalues of a few matrices, the letters
+        that get a slider, and boxes that must give an error.
    ===================================================================== */
 
 
@@ -185,7 +188,7 @@ function rescalingTest(matrices, steps, runs) {
     }
     const factor = Math.exp(cloud.logSize[n]);
     const stored = [cloud.q0[n] * factor, cloud.q1[n] * factor, cloud.q2[n] * factor, cloud.q3[n] * factor];
-    const size = Math.max.apply(null, product.map(Math.abs));
+    const size = Math.max(...product.map(Math.abs));
     for (let k = 0; k < 4; k++) worst = Math.max(worst, Math.abs(stored[k] - product[k]) / size);
   }
   return { pass: worst < 1e-12, text: "largest difference, relative to the product's size: " + worst.toExponential(2) };
@@ -275,10 +278,10 @@ function testRow(name, run) {
 
 // The list of tests, run one at a time by the "Run the checks" button.
 function allTests() {
-  const d13 = PRESETS.d13.matrices, d12 = PRESETS.d12.matrices, ab = PRESETS.randmatAB.matrices;
+  const d13 = PRESETS.d13, d12 = PRESETS.d12, ab = PRESETS.randmatAB;
   const weighted = d13.map(function (m, i) { return { entries: m.entries, weight: i === 0 ? "1" : "3" }; });
   // randmatprod.py's pair with weights 2 and 1: E[X] = (2A + B)/3.
-  const withP = PRESETS.randmatprod.matrices.map(function (m, i) {
+  const withP = PRESETS.randmatprod.map(function (m, i) {
     return { entries: m.entries, weight: i === 0 ? "p" : "1 - p" };
   });
   const prodMean = [(2 * 5 / 4 + 1) / 3, (2 * 3 / 4 - 1) / 3, (2 * 3 / 4 + 0) / 3, (2 * 5 / 4 + 1) / 3];
@@ -306,15 +309,15 @@ function drawHistogram() {
   const steps = readWhole("hist-steps", 0, 200, 20);
   const width = Math.max(Number(byId("hist-bin").value) || 0.001, 1e-5);
   const runs = 20000;
-  const cloud = newCloud(readModel(PRESETS.d13.matrices, {}), runs, "1");
+  const cloud = newCloud(readModel(PRESETS.d13, {}), runs, "1");
   for (let k = 0; k < steps; k++) cloud.step();
   const xs = [];
   for (let n = 0; n < runs; n++) xs.push(pointOf(cloud, n, 1, 0, "none", 1)[0]);
-  const lo = Math.min.apply(null, xs), hi = Math.max.apply(null, xs);
+  const lo = Math.min(...xs), hi = Math.max(...xs);
   const bins = Math.min(2000, Math.max(1, Math.ceil((hi - lo) / width)));
   const counts = new Array(bins).fill(0);
   for (const x of xs) counts[Math.min(bins - 1, Math.floor((x - lo) / width))]++;
-  const most = Math.max.apply(null, counts);
+  const most = Math.max(...counts);
 
   const pen = chartPen(canvas);
   const w = canvas.clientWidth, h = canvas.clientHeight;

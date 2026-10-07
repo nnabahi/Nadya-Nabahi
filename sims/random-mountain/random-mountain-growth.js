@@ -122,6 +122,7 @@ function newMountain(options) {
   }
 
   // Wrap a number into lo..hi, for tori. E.g. lo = 0, hi = 9: 10 -> 0, -1 -> 9.
+  // (As wrap in js/sim-domains.js, which the second thread can't see.)
   function wrap(v, lo, hi) {
     const n = hi - lo + 1;
     return lo + (((v - lo) % n) + n) % n;
@@ -182,13 +183,17 @@ function newMountain(options) {
     heightAt: heightAt,
   };
 
-  // Drop one block. "u" is a uniform random number in [0, 1).
-  // Returns the number of the site it landed on.
+  // One step: drop a block on a random available site. "u" is a uniform
+  // random number in [0, 1).
   function step(u) {
-    const i = available[Math.floor(u * available.length)];
+    dropOn(available[Math.floor(u * available.length)]);
+  }
+
+  // One step with the site chosen, not random (a click on the page):
+  // the block goes on available site i.
+  function dropOn(i) {
     drop(i);
     m.steps += 1;
-    return i;
   }
 
   // Put a block on site i, and if it is new to the base, make its
@@ -201,13 +206,6 @@ function newMountain(options) {
       m.baseSize += 1;
       for (const t of tile) makeAvailable(siteX[i] + t[0], siteY[i] + t[1]);
     }
-  }
-
-  // One step with the site chosen, not random (a click on the page):
-  // the block goes on available site i.
-  function dropOn(i) {
-    drop(i);
-    m.steps += 1;
   }
 
   // The height at (x, y) (in 1D, y = 0), or 0 if there is no site there.
@@ -257,8 +255,8 @@ function newGraphMountain(options) {
   const available = [];        // the available sites (on the line: left to right)
 
   // For a ball: the cells allowed (the start and everything within R).
-  let inside = null;
-  if (options.domain.kind === "ball") inside = new Set([0].concat(ballAround(graph, 0, options.domain.layers)));
+  const inside = options.domain.kind === "ball"
+    ? new Set([0].concat(ballAround(graph, 0, options.domain.layers))) : null;
 
   // Make a cell available, unless it is outside the domain or already
   // available. Returns its site number, or -1 if outside the domain.
@@ -292,14 +290,14 @@ function newGraphMountain(options) {
     step: step, dropOn: dropOn,
   };
 
-  // Drop one block, exactly as in part 1.
+  // One step, random or on a chosen site, exactly as in part 1.
   function step(u) {
-    const i = available[Math.floor(u * available.length)];
+    dropOn(available[Math.floor(u * available.length)]);
+  }
+  function dropOn(i) {
     drop(i);
     m.steps += 1;
-    return i;
   }
-
   function drop(i) {
     height[i] += 1;
     m.blocks += 1;
@@ -308,12 +306,6 @@ function newGraphMountain(options) {
       m.baseSize += 1;
       for (const w of ballAround(graph, siteNode[i], radius)) makeAvailable(w);
     }
-  }
-
-  // One step on a chosen site (a click), as in part 1.
-  function dropOn(i) {
-    drop(i);
-    m.steps += 1;
   }
 
   m.start = makeAvailable(0);
@@ -333,8 +325,8 @@ function newGraphMountain(options) {
    little as it can, like a Desmos slider.
 
    The page sends:
-     { type: "setup", run, dim, tile, domain, start, seed, steps }
-         (or, for a graph: dim "graph", graph, radius, domain)
+     { type: "setup", run, dim, tile, domain, start, seed, steps, forgetClicks }
+         (on a graph: dim "graph", and graph and radius instead of tile and start)
          a new mountain, grown at once to "steps" steps with the same
          seed (so changing a setting keeps the step you were at)
      { type: "play", speed }   drop "speed" blocks per second
@@ -352,6 +344,7 @@ function newGraphMountain(options) {
    number u_n, so every other step keeps its own random number. If the
    clicked site isn't available at that step any more (say the domain
    changed), that step is random as usual.
+
    The worker answers with "state" messages: the available sites, their
    heights, and the numbers for the Statistics quadrant. Each carries
    its run number, so the page can ignore leftovers from an older run.
@@ -363,11 +356,16 @@ function mountainWorker() {
 
   const MAX_STEPS = 10000000;   // ten million blocks at most
   let options = null;           // the latest setup message
-  let mountain = null;          // from newMountain() (part 1)
+  let mountain = null;          // from newMountain() or newGraphMountain() (part 1)
   let random = null;            // the seeded random numbers
   let run = 0;
   let problem = "";             // e.g. "The start site is outside the domain."
   let clicks = new Map();       // step n -> the site clicked for it (see siteName)
+  let trace = null;             // the run so far, for the charts over time (newTrace, js/sim-worker.js)
+  // On a graph, where each site is (its cell's place in the graph) only
+  // has to be sent once: each message carries the places of the sites
+  // made since the last message, starting with site number placesFrom.
+  let placesSent = 0;
 
   // Start again from one block, and grow to "steps" steps.
   function setup(steps) {
@@ -407,10 +405,6 @@ function mountainWorker() {
     return -1;
   }
 
-  // The run so far, for the charts over time, by steps (keepSample,
-  // js/sim-worker.js).
-  let trace = newTrace();
-
   function takeSample() {
     const m = mountain;
     keepSample(trace, m.steps, { base: m.baseSize, highest: m.maxHeight, start: m.height[m.start] });
@@ -448,24 +442,19 @@ function mountainWorker() {
     }
   };
 
-  // On a graph, where each site is (its cell's place in the graph) only
-  // has to be sent once: each message carries the places of the sites
-  // made since the last message, starting with site number placesFrom.
-  let placesSent = 0;
-
-  // Send the available sites (their coordinates and heights) and the
-  // numbers to the page.
+  // Send the page the heights of the available sites (in the order they
+  // became available), the numbers for the Statistics quadrant, and
+  // where the sites are: in 1D and 2D, every site's coordinates; on a
+  // graph, the places of the new sites (addPlaces).
   function report() {
-    if (!mountain) {
+    const m = mountain;
+    if (!m) {
       self.postMessage({ type: "state", run: run, problem: problem });
       return;
     }
-    const m = mountain;
-    if (options.dim === "graph") { reportGraph(m); return; }
-    const x = Int32Array.from(m.siteX), y = Int32Array.from(m.siteY), h = Int32Array.from(m.height);
-    self.postMessage({
+    const message = {
       type: "state", run: run, problem: "", dim: options.dim,
-      x: x, y: y, height: h,             // every available site, in the order they became available
+      height: Int32Array.from(m.height),
       start: m.start,
       steps: m.steps, blocks: m.blocks, baseSize: m.baseSize,
       available: m.available.length, maxHeight: m.maxHeight,
@@ -474,44 +463,45 @@ function mountainWorker() {
       traceBase: Float64Array.from(trace.lists.base),
       traceHighest: Float64Array.from(trace.lists.highest),
       traceStart: Float64Array.from(trace.lists.start),
-    }, [x.buffer, y.buffer, h.buffer]);   // hand the copies over instead of copying again
+    };
+    if (m.dim === "graph") {
+      addPlaces(message);
+    } else {
+      message.x = Int32Array.from(m.siteX);
+      message.y = Int32Array.from(m.siteY);
+    }
+    // Hand the lists of sites over instead of copying them again.
+    const lists = [message.height, message.x, message.y, message.places].filter(Boolean);
+    self.postMessage(message, lists.map(function (list) { return list.buffer; }));
   }
 
-  // The same for a mountain on a graph.
-  function reportGraph(m) {
-    const count = m.siteNode.length, from = placesSent;
-    const places = new Float64Array(4 * (count - from));
-    for (let i = from; i < count; i++) places.set(m.graph.place(m.siteNode[i]), 4 * (i - from));
-    // On a tree (built by rules), where each site goes in the page's
-    // "spread out" picture too: its depth and angle (spreadPlace).
-    let spread;
-    if (m.graph.shape && m.graph.shape.q === Infinity && m.graph.parent) {
-      spread = new Float64Array(2 * (count - from));
-      for (let i = from; i < count; i++) spread.set(spreadPlace(m.graph, m.siteNode[i]), 2 * (i - from));
+  // On a graph: the places of the sites made since the last message,
+  // from site number placesFrom on (and on a tree built by rules, where
+  // they go in the page's "spread out" picture too: their depth and
+  // angle, spreadPlace); a problem if the graph can't grow any more;
+  // and with the first message of a run the tiling's rules (if it has
+  // any), so the page can build the tiling too, to draw it under the
+  // mountain, without learning them again (see learnedRules).
+  function addPlaces(message) {
+    const graph = mountain.graph, sites = mountain.siteNode;
+    const from = placesSent, count = sites.length;
+    message.placesFrom = from;
+    message.places = new Float64Array(4 * (count - from));
+    for (let i = from; i < count; i++) message.places.set(graph.place(sites[i]), 4 * (i - from));
+    if (graph.shape && graph.shape.q === Infinity && graph.parent) {
+      message.spread = new Float64Array(2 * (count - from));
+      for (let i = from; i < count; i++) message.spread.set(spreadPlace(graph, sites[i]), 2 * (i - from));
     }
     placesSent = count;
-    const h = Int32Array.from(m.height);
-    self.postMessage({
-      type: "state", run: run, dim: "graph",
-      problem: !m.graph.full ? "" : m.graph.exact
+    message.exact = graph.exact;
+    if (graph.full) {
+      message.problem = graph.exact
         ? "The graph has reached a million cells, the most this page makes, so the mountain can't spread any further out."
         : "The mountain has reached the edge of what this page can build of this tiling (about distance 23 " +
-          "from the start), so it can't spread any further out.",
-      exact: m.graph.exact,
-      // With the first message of a run, the tiling's rules (if it has
-      // any), so the page can build the tiling too, to draw it under the
-      // mountain, without learning them again (see learnedRules).
-      rules: from === 0 && m.graph.shape
-        ? { name: m.graph.shape.p + "," + m.graph.shape.q, kinds: learnedRules(m.graph.shape) } : undefined,
-      height: h, placesFrom: from, places: places, spread: spread,
-      start: m.start,
-      steps: m.steps, blocks: m.blocks, baseSize: m.baseSize,
-      available: m.available.length, maxHeight: m.maxHeight,
-      atMax: m.steps >= MAX_STEPS,
-      traceSteps: Float64Array.from(trace.times),
-      traceBase: Float64Array.from(trace.lists.base),
-      traceHighest: Float64Array.from(trace.lists.highest),
-      traceStart: Float64Array.from(trace.lists.start),
-    }, [h.buffer, places.buffer]);
+          "from the start), so it can't spread any further out.";
+    }
+    if (from === 0 && graph.shape) {
+      message.rules = { name: graph.shape.p + "," + graph.shape.q, kinds: learnedRules(graph.shape) };
+    }
   }
 }

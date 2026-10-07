@@ -226,15 +226,10 @@ function pearson(odds, counts, runs) {
 function checkInvariants(c, steps) {
   const random = new Math.seedrandom("invariants " + c.name);
   const m = newMountain(c);
-  const d = c.domain;
   for (let k = 1; k <= steps; k++) {
     m.step(random());
-    let total = 0, base = 0, highest = 0;
-    for (const h of m.height) { total += h; if (h > 0) base += 1; if (h > highest) highest = h; }
-    if (m.steps !== k || m.blocks !== k + 1 || total !== k + 1) return "step " + k + ": the blocks don't add up";
-    if (m.baseSize !== base) return "step " + k + ": wrong base size";
-    if (m.maxHeight !== highest) return "step " + k + ": wrong largest height";
-    if (new Set(m.available).size !== m.available.length) return "step " + k + ": a site is available twice";
+    const problem = stepProblem(m, k);
+    if (problem) return problem;
     if (c.dim === 1) {
       for (let j = 1; j < m.available.length; j++) {
         if (m.siteX[m.available[j - 1]] >= m.siteX[m.available[j]]) return "step " + k + ": 1D list not left to right";
@@ -245,17 +240,33 @@ function checkInvariants(c, steps) {
       for (let i = 0; i < m.height.length; i++) {
         if (m.height[i] === 0) continue;
         for (const t of c.tile) {
-          const key = siteKey(d, m.siteX[i] + t[0], m.siteY[i] + (t[1] || 0));
+          const key = siteKey(c.domain, m.siteX[i] + t[0], m.siteY[i] + (t[1] || 0));
           if (key !== null) should.add(key);
         }
       }
-      const actual = new Set(m.available.map(function (i) { return m.siteX[i] + "," + m.siteY[i]; }));
-      if (actual.size !== should.size || Array.from(should).some(function (s) { return !actual.has(s); })) {
-        return "step " + k + ": the available sites are wrong";
-      }
+      const actual = m.available.map(function (i) { return m.siteX[i] + "," + m.siteY[i]; });
+      if (!sameSet(actual, should)) return "step " + k + ": the available sites are wrong";
     }
   }
   return "";
+}
+
+// The checks after step k of mountain m (from newMountain or
+// newGraphMountain): "" if they all hold, else what is wrong.
+function stepProblem(m, k) {
+  let total = 0, base = 0, highest = 0;
+  for (const h of m.height) { total += h; if (h > 0) base += 1; if (h > highest) highest = h; }
+  if (m.steps !== k || m.blocks !== k + 1 || total !== k + 1) return "step " + k + ": the blocks don't add up";
+  if (m.baseSize !== base) return "step " + k + ": wrong base size";
+  if (m.maxHeight !== highest) return "step " + k + ": wrong largest height";
+  if (new Set(m.available).size !== m.available.length) return "step " + k + ": a site is available twice";
+  return "";
+}
+
+// Whether the list "actual" has exactly the things in the set "should".
+function sameSet(actual, should) {
+  const seen = new Set(actual);
+  return seen.size === should.size && Array.from(should).every(function (x) { return seen.has(x); });
 }
 
 
@@ -334,9 +345,9 @@ function exactTreeOdds(d, r, steps) {
     }
     const sites = new Set([0]);
     for (const k of heights.keys()) for (const w of treeBall(d, k, r)) sites.add(w);
-    for (const sSite of sites) {
+    for (const site of sites) {
       const next = new Map(heights);
-      next.set(sSite, (next.get(sSite) || 0) + 1);
+      next.set(site, (next.get(site) || 0) + 1);
       grow(next, stepsLeft - 1, probability / sites.size);
     }
   }
@@ -474,12 +485,8 @@ function checkGraphInvariants(options, steps, name) {
   const m = newGraphMountain(options);
   for (let k = 1; k <= steps; k++) {
     m.step(random());
-    let total = 0, base = 0, highest = 0;
-    for (const h of m.height) { total += h; if (h > 0) base += 1; if (h > highest) highest = h; }
-    if (m.steps !== k || m.blocks !== k + 1 || total !== k + 1) return "step " + k + ": the blocks don't add up";
-    if (m.baseSize !== base) return "step " + k + ": wrong base size";
-    if (m.maxHeight !== highest) return "step " + k + ": wrong largest height";
-    if (new Set(m.available).size !== m.available.length) return "step " + k + ": a site is available twice";
+    const problem = stepProblem(m, k);
+    if (problem) return problem;
     if (k % 500 === 0) {
       const should = new Set([0]);
       const inDomain = options.domain.kind === "ball" ? graphDepths(m.graph, 0, options.domain.layers) : null;
@@ -489,10 +496,8 @@ function checkGraphInvariants(options, steps, name) {
           if (!inDomain || inDomain.has(w)) should.add(w);
         }
       }
-      const actual = new Set(m.available.map(function (i) { return m.siteNode[i]; }));
-      if (actual.size !== should.size || Array.from(should).some(function (w) { return !actual.has(w); })) {
-        return "step " + k + ": the available sites are wrong";
-      }
+      const actual = m.available.map(function (i) { return m.siteNode[i]; });
+      if (!sameSet(actual, should)) return "step " + k + ": the available sites are wrong";
     }
   }
   return "";

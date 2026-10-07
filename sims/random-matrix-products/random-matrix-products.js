@@ -13,7 +13,8 @@
      6. Statistics
      7. Connecting the buttons
    It uses the shared helpers in js/sim-page.js (byId, showMessage,
-   histogram, niceNumber, ...) and the formula reading and sliders in
+   ...), the charts and number labels in js/sim-charts.js (histogram,
+   niceNumber, ...), and the formula reading and sliders in
    js/formulas.js.
 
    Everything runs right here, in the page's own thread. A step of 2000
@@ -62,8 +63,9 @@ let tMax = START_TMAX;
 let cloud = null;         // the N runs (newCloud)
 let wantedT = 0;          // the t the picture should show
 
-// The run shown in the "One run" view, and its trajectory: one copy of
-// its product (e^logSize * Q) for every t = 0, 1, ..., t.
+// The run shown in the "One run" view, and its trajectory: a copy of
+// its product (e^logSize * Q) for every t = 0, 1, ..., t, each kept as
+// a "cloud" of that one run, so pointOf can read it.
 let shownRun = 1;
 let trajectory = [];
 
@@ -179,7 +181,7 @@ function useMatrices() {
 
 function usePreset(key) {
   // A copy, so typing never changes the preset itself.
-  matrices = PRESETS[key].matrices.map(function (m) {
+  matrices = PRESETS[key].map(function (m) {
     return { entries: m.entries.slice(), weight: m.weight };
   });
   sliders = {};
@@ -200,7 +202,8 @@ function stepOnce() {
 
 function remember() {
   const n = shownRun - 1;
-  trajectory.push({ q: [cloud.q0[n], cloud.q1[n], cloud.q2[n], cloud.q3[n]], logSize: cloud.logSize[n], t: cloud.t });
+  trajectory.push({ q0: [cloud.q0[n]], q1: [cloud.q1[n]], q2: [cloud.q2[n]], q3: [cloud.q3[n]],
+                    logSize: [cloud.logSize[n]], t: cloud.t });
 }
 
 // Go back to t = 0 (a new cloud if N or the seed changed) and step
@@ -297,38 +300,29 @@ function py(y) { return height / 2 - (y - plane.cy) / plane.perPixel; }
 function planeX(sx) { return plane.cx + (sx - width / 2) * plane.perPixel; }
 function planeY(sy) { return plane.cy - (sy - height / 2) * plane.perPixel; }
 
-// The dots to draw for the cloud: { red: [[x, y], ...], blue: [...] },
-// plus how many could not be drawn (too big or too small for the
-// computer at this scale).
+// The dots to draw: { red: [[x, y], ...], blue: [...] }, plus how many
+// could not be drawn (too big or too small for the computer at this
+// scale). For the cloud, one red and one blue dot per run; for one run,
+// its dots v_0, v_1, ..., v_t.
 function cloudDots() {
-  const scale = byId("scale").value;
-  const dots = { red: [], blue: [], lost: 0 };
-  for (let n = 0; n < cloud.runs; n++) {
-    for (const [name, x0, y0, box] of [["red", 1, 0, "show-red"], ["blue", 0, 1, "show-blue"]]) {
-      if (!byId(box).checked) continue;
-      const p = pointOf(cloud, n, x0, y0, scale, rho);
-      if (isFinite(p[0]) && isFinite(p[1])) dots[name].push(p);
-      else dots.lost++;
-    }
-  }
+  const dots = { red: [], blue: [], lost: 0 }, scale = byId("scale").value;
+  for (let n = 0; n < cloud.runs; n++) addDots(dots, cloud, n, scale);
   return dots;
 }
-
-// The shown run's dots v_0, v_1, ..., v_t, in the same form.
 function trajectoryDots() {
-  const scale = byId("scale").value;
-  const dots = { red: [], blue: [], lost: 0 };
-  for (const h of trajectory) {
-    // pointOf reads a cloud; a tiny "cloud" of one run does the job.
-    const one = { q0: [h.q[0]], q1: [h.q[1]], q2: [h.q[2]], q3: [h.q[3]], logSize: [h.logSize], t: h.t };
-    for (const [name, x0, y0, box] of [["red", 1, 0, "show-red"], ["blue", 0, 1, "show-blue"]]) {
-      if (!byId(box).checked) continue;
-      const p = pointOf(one, 0, x0, y0, scale, rho);
-      if (isFinite(p[0]) && isFinite(p[1])) dots[name].push(p);
-      else dots.lost++;
-    }
-  }
+  const dots = { red: [], blue: [], lost: 0 }, scale = byId("scale").value;
+  for (const one of trajectory) addDots(dots, one, 0, scale);
   return dots;
+}
+// Add run n of the cloud c to the dots: where (1, 0) goes in red and
+// (0, 1) in blue, if their boxes are ticked.
+function addDots(dots, c, n, scale) {
+  for (const [name, x0, y0, box] of [["red", 1, 0, "show-red"], ["blue", 0, 1, "show-blue"]]) {
+    if (!byId(box).checked) continue;
+    const p = pointOf(c, n, x0, y0, scale, rho);
+    if (isFinite(p[0]) && isFinite(p[1])) dots[name].push(p);
+    else dots.lost++;
+  }
 }
 
 // The numbers the histogram counts: the red dots' x (or y).
@@ -480,7 +474,7 @@ function drawHistogram(values) {
     const i = Math.floor((v - line.xmin) / binWidth);
     if (i >= 0 && i < bins) counts[i]++;
   }
-  const biggest = Math.max(1, Math.max.apply(null, counts));
+  const biggest = Math.max(1, ...counts);
 
   const bottom = height - 18, top = 16;
   const sx = function (x) { return (x - line.xmin) / span * width; };

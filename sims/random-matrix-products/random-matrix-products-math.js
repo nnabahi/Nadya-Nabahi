@@ -67,43 +67,32 @@
 /* =====================================================================
    1. PRESETS
    ---------------------------------------------------------------------
-   Each matrix is { entries: [top left, top right, bottom left,
-   bottom right], weight }, all as typed text. A blank weight means
-   "no weight given".
+   Each preset is a list of matrices, and each matrix is
+   { entries: [top left, top right, bottom left, bottom right], weight },
+   all as typed text. A blank weight means "no weight given". (Their
+   names, shown in the menu, are in random-matrix-products.html.)
    ===================================================================== */
 
 const PRESETS = {
-  // Desmos D13: two fixed column-stochastic matrices, each half the time.
-  d13: {
-    name: "D13: two stochastic matrices A, B",
-    matrices: [
-      { entries: ["0.9", "0.8", "0.1", "0.2"], weight: "" },
-      { entries: ["0.6", "0.3", "0.4", "0.7"], weight: "" },
-    ],
-  },
+  // Desmos D13: two fixed column-stochastic matrices A, B, each half the time.
+  d13: [
+    { entries: ["0.9", "0.8", "0.1", "0.2"], weight: "" },
+    { entries: ["0.6", "0.3", "0.4", "0.7"], weight: "" },
+  ],
   // Desmos D12: a random column-stochastic matrix, uniform entries.
-  d12: {
-    name: "D12: random stochastic matrix",
-    matrices: [
-      { entries: ["u1", "u2", "1 - u1", "1 - u2"], weight: "" },
-    ],
-  },
-  // randmatAB.py and randmatcltmul.py.
-  randmatAB: {
-    name: "randmatAB.py: [[2, 1], [1, 1]] and [[3, 1], [2, 1]]",
-    matrices: [
-      { entries: ["2", "1", "1", "1"], weight: "" },
-      { entries: ["3", "1", "2", "1"], weight: "" },
-    ],
-  },
-  // randmatprod.py.
-  randmatprod: {
-    name: "randmatprod.py: [[5/4, 3/4], [3/4, 5/4]] and [[1, -1], [0, 1]]",
-    matrices: [
-      { entries: ["5/4", "3/4", "3/4", "5/4"], weight: "" },
-      { entries: ["1", "-1", "0", "1"], weight: "" },
-    ],
-  },
+  d12: [
+    { entries: ["u1", "u2", "1 - u1", "1 - u2"], weight: "" },
+  ],
+  // randmatAB.py and randmatcltmul.py: [[2, 1], [1, 1]] and [[3, 1], [2, 1]].
+  randmatAB: [
+    { entries: ["2", "1", "1", "1"], weight: "" },
+    { entries: ["3", "1", "2", "1"], weight: "" },
+  ],
+  // randmatprod.py: [[5/4, 3/4], [3/4, 5/4]] and [[1, -1], [0, 1]].
+  randmatprod: [
+    { entries: ["5/4", "3/4", "3/4", "5/4"], weight: "" },
+    { entries: ["1", "-1", "0", "1"], weight: "" },
+  ],
 };
 
 // The fresh uniform numbers a formula may use at every step.
@@ -243,16 +232,15 @@ function averageMatrix(model) {
       } else {
         // Every u1..u4 runs over the grid centers (it's simplest to grid
         // all four; 12^4 = 20736 values, done once per change).
-        let sum = 0, count = 0;
+        let sum = 0;
         const u = [0, 0, 0, 0];
         for (let a = 0; a < GRID; a++) for (let b = 0; b < GRID; b++)
         for (let c = 0; c < GRID; c++) for (let d = 0; d < GRID; d++) {
           u[0] = (a + 0.5) / GRID; u[1] = (b + 0.5) / GRID;
           u[2] = (c + 0.5) / GRID; u[3] = (d + 0.5) / GRID;
           sum += entry.valueAt(u);
-          count++;
         }
-        average = sum / count;
+        average = sum / GRID ** 4;
       }
       mean[k] += model.chances[i] * average;
     });
@@ -305,9 +293,8 @@ function newCloud(model, runs, seed) {
     q0: new Float64Array(runs), q1: new Float64Array(runs),
     q2: new Float64Array(runs), q3: new Float64Array(runs),
     logSize: new Float64Array(runs),
-    streams: [],
+    streams: [],         // run n's random numbers
     step: step,
-    restart: restart,
     setModel: function (m) { cloud.model = m; restart(); },
   };
 

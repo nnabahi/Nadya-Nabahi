@@ -12,11 +12,12 @@
      - Hands them to the growth rule (random-mountain-growth.js), which
        runs in a second thread (a "Web Worker"), and draws every
        mountain it sends back, with the statistics.
-   Small helpers used by every sim page (byId, chartPen, ...) are in
-   js/sim-page.js, moving and zooming the 2D picture is in
-   js/sim-view.js (shared with the coloring sims), the graph tool and
-   clicking the picture in js/sim-controls.js, and the 3D view is in
-   js/sim-3d.js.
+   Small helpers used by every sim page (byId, readWhole, ...) are in
+   js/sim-page.js, the charts in js/sim-charts.js, moving, zooming and
+   painting the 2D picture in js/sim-view.js (shared with the coloring
+   sims), the graph tool and clicking the picture in
+   js/sim-controls.js, the hyperbolic pictures in js/sim-hyperbolic.js,
+   and the 3D view in js/sim-3d.js.
 
    The file is split into numbered sections:
      1. Settings you might want to change
@@ -59,20 +60,21 @@ const PRESETS = {
 // site). The Make buttons can build bigger tiles; the grid then shows
 // only the part that fits.
 const GRID_REACH = { 1: 10, 2: 5 };
-const MAX_RADIUS = 30;
+const MAX_RADIUS = 30;             // the largest r of the Make buttons
 
-// The domains for each dimension, and the default size of a bounded one.
+// The domains for each dimension (on "Hyperbolic plane or tree", a ball
+// is every cell within R steps of the start), and the default and
+// largest size of a bounded one.
 const DOMAINS = {
   1: [["whole", "Whole line"], ["box", "Segment"], ["torus", "Cycle"]],
   2: [["whole", "Whole plane"], ["box", "Box"], ["torus", "Torus"], ["custom", "Custom (draw it)"]],
+  graph: [["whole", "The whole plane (or tree)"], ["ball", "A ball"]],
 };
 const DEFAULT_SIZE = { 1: 101, 2: 41, graph: 6 };
 const MAX_SIZE = { 1: 2001, 2: 301, graph: 12 };
 
-// "Hyperbolic plane or tree": its domains (a ball is every cell within
-// R steps of the start), and the largest r for the tile "every cell
-// within distance r". (The graph presets are in js/sim-hyperbolic.js.)
-DOMAINS.graph = [["whole", "The whole plane (or tree)"], ["ball", "A ball"]];
+// On a graph, the largest r for the tile "every cell within distance r".
+// (The graph presets are in js/sim-hyperbolic.js.)
 const MAX_GRAPH_RADIUS = 4;
 
 const DEFAULT_SEED = "1";
@@ -85,7 +87,10 @@ const EMPTY = "#c9c6bf";          // available sites with no block yet
 const OUTSIDE = "#ffffff";        // everything else
 // (How far the 2D picture zooms in and out is set in js/sim-view.js.)
 // The 3D view's floor is OUTSIDE too; its other settings (how many
-// blocks are drawn one by one, the camera) are in js/sim-3d.js.
+// blocks are drawn one by one, the camera) are in js/sim-3d.js. On a
+// graph, the tiling's lines on the 3D floor are a little darker than
+// from above, as they are only 1 pixel wide there:
+const UNDER_COLOR_3D = "#8a877f";
 
 // The speeds on the Speed slider, in blocks per second. Infinity means
 // "as fast as the computer can". The default is slow, so you can watch
@@ -98,18 +103,22 @@ const DEFAULT_SPEED = 20;
    2. WHAT THE PAGE REMEMBERS (the "state")
    ===================================================================== */
 
-let dim = 1;                 // 1 or 2
+let dim = 1;                 // 1, 2 or "graph" (the hyperbolic plane or a tree)
 let tile = [];               // the offsets, e.g. [[-1], [1]] or [[1, 0], ...]
-let domainKind = "whole";    // "whole", "box", "torus" or "custom"
+let domainKind = "whole";    // "whole", "box", "torus" or "custom"; on a graph "whole" or "ball"
 let customDomain = null;     // the last custom domain drawn (js/sim-domains.js), if any
 let run = 0;                 // counts restarts, so leftovers from an older run are ignored
-let show3D = false;          // 2D only: the 3D view instead of the view from above (section 6c)
+let show3D = false;          // 2D and graphs: the 3D view instead of the view from above (section 6c)
 let blockShape = "cubes";    // the 3D view's blocks: "cubes" or "coins"
-let stretchLevel = 0;        // the 3D view's Heights slider: -4 (flatter) .. 4 (taller)
+let stretch = 1;             // the 3D view's Heights: 2^(slider / 2), the slider from -4 (flatter) to 4 (taller)
 
 // The latest message from the mountain (see part 2 of
 // random-mountain-growth.js): the sites, their heights, the numbers.
 let latest = null;
+
+// Whether "latest" is a mountain to show: not just a problem, and not
+// from before a switch of dimension.
+function haveMountain() { return Boolean(latest && latest.height && latest.dim === dim); }
 
 
 /* =====================================================================
@@ -122,8 +131,10 @@ let latest = null;
    the seed and the step, like a Desmos slider.
    ===================================================================== */
 
-// An offset's name, "x" in 1D or "x,y" in 2D, for the set below.
+// An offset's name, "x" in 1D or "x,y" in 2D, for the set below; and
+// as it is shown, "x" or "(x, y)".
 function offsetKey(t) { return dim === 1 ? String(t[0]) : t[0] + "," + t[1]; }
+function offsetText(t) { return dim === 1 ? String(t[0]) : "(" + t[0] + ", " + t[1] + ")"; }
 
 // Use these offsets as the tile (0 is left out: it changes nothing),
 // show them, and restart at the same step.
@@ -169,7 +180,7 @@ function showTileGrid() {
   if (dim === 2) for (let y = reach; y >= -reach; y--) rowsY.push(y);   // top row first: y goes up
   for (const y of rowsY) {
     for (let x = -reach; x <= reach; x++) {
-      const t = dim === 1 ? [x] : [x, y];
+      const t = dim === 1 ? [x] : [x, y], key = offsetKey(t);
       const cell = document.createElement("button");
       cell.className = "tile-cell";
       if (x === 0 && y === 0) {
@@ -177,10 +188,9 @@ function showTileGrid() {
         cell.title = "the site itself";
         cell.disabled = true;
       } else {
-        cell.title = dim === 1 ? String(x) : "(" + x + ", " + y + ")";
-        if (inTile.has(offsetKey(t))) cell.classList.add("on");
+        cell.title = offsetText(t);
+        if (inTile.has(key)) cell.classList.add("on");
         cell.addEventListener("click", function () {
-          const key = offsetKey(t);
           setTile(inTile.has(key) ? tile.filter(function (u) { return offsetKey(u) !== key; })
                                   : tile.concat([t]));
         });
@@ -210,15 +220,14 @@ byId("make-disk").addEventListener("click", function () {
   setTile(ringTile(0, readWhole("disk-radius", 1, MAX_RADIUS, 2)));
 });
 byId("make-ring").addEventListener("click", function () {
-  let r1 = readWhole("ring-inner", 0, MAX_RADIUS, 3), r2 = readWhole("ring-outer", 0, MAX_RADIUS, 3);
-  if (r1 > r2) { const t = r1; r1 = r2; r2 = t; }
-  setTile(ringTile(r1, r2));
+  const r1 = readWhole("ring-inner", 0, MAX_RADIUS, 3), r2 = readWhole("ring-outer", 0, MAX_RADIUS, 3);
+  setTile(ringTile(Math.min(r1, r2), Math.max(r1, r2)));
 });
 
 // "4 offsets: (1, 0), (0, 1), ..." (the first few).
 function describeTile() {
   if (tile.length === 0) return "T is empty: every block lands on the start site.";
-  const shown = tile.slice(0, 12).map(function (t) { return dim === 1 ? String(t[0]) : "(" + t[0] + ", " + t[1] + ")"; });
+  const shown = tile.slice(0, 12).map(offsetText);
   return "T has " + tile.length + (tile.length === 1 ? " offset: " : " offsets: ") + shown.join(", ") +
          (tile.length > 12 ? ", ..." : "") + ".";
 }
@@ -229,7 +238,8 @@ function describeTile() {
    ---------------------------------------------------------------------
    Whole line / plane: no limits. Segment / Box, Cycle / Torus: the
    given number of sites, centered on 0 (so the first block, on 0, is
-   in the middle). Custom: the cells drawn in the graph tool.
+   in the middle). Custom: the cells drawn in the graph tool. On a
+   graph: the whole graph, or a ball around the start.
    ===================================================================== */
 
 // Show the domain choices for this dimension, with "domainKind" ticked.
@@ -278,21 +288,20 @@ function domainSettings() {
       ? { kind: "ball", layers: readWhole("set-width", 1, MAX_SIZE.graph, DEFAULT_SIZE.graph) }
       : { kind: "whole" } };
   }
-  if (domainKind === "whole") {
-    return { domain: { kind: "whole" }, start: dim === 1 ? [0] : [0, 0] };
-  }
   if (domainKind === "custom") {
     const d = customDomain;
     const cells = [];
     for (let v = 0; v < d.n; v++) cells.push([d.x[v], d.y[v]]);
     return { domain: { kind: "cells", cells: cells, wrap: d.wrap }, start: customStart(d) };
   }
+  const start = dim === 1 ? [0] : [0, 0];
+  if (domainKind === "whole") return { domain: { kind: "whole" }, start: start };
   const across = centered(readWhole("set-width", 1, MAX_SIZE[dim], DEFAULT_SIZE[dim]));
   const down = dim === 1 ? { low: 0, high: 0 } : centered(readWhole("set-height", 1, MAX_SIZE[dim], DEFAULT_SIZE[dim]));
   return {
     domain: { kind: "box", xmin: across.low, xmax: across.high, ymin: down.low, ymax: down.high,
               torus: domainKind === "torus" },
-    start: dim === 1 ? [0] : [0, 0],
+    start: start,
   };
 }
 
@@ -313,10 +322,10 @@ function customStart(d) {
    5. RUNNING THE MOUNTAIN
    ---------------------------------------------------------------------
    The growth rule is mountainWorker() in random-mountain-growth.js,
-   with newMountain(), the hyperbolic tilings and trees, and the run
-   loop and the trace (js/sim-worker.js) copied in. startWorker
-   (js/sim-page.js) runs it in a second thread, so the page never
-   freezes.
+   with newMountain(), newGraphMountain(), the hyperbolic tilings and
+   trees, and the run loop and the trace (js/sim-worker.js) copied in.
+   startWorker (js/sim-page.js) runs it in a second thread, so the page
+   never freezes.
    ===================================================================== */
 const worker = startWorker(mountainWorker,
   [newMountain, newGraphMountain, makeGraph, tilingShape, motionTimes, motionApply, halfTurn, coshFromStart,
@@ -352,24 +361,22 @@ worker.onerror = function () {
 // starts again from one block. Blocks you clicked (section 6b) are kept,
 // unless it starts again from one block or "forget" is true (a new seed).
 function restart(keepStep, forget) {
-  const forgetClicks = !keepStep || Boolean(forget);
   if (domainKind === "custom" && !customDomain) return;
-  const steps = (keepStep && latest && latest.steps) ? latest.steps : 0;
   const where = domainSettings();
   run++;
+  const message = {
+    type: "setup", run: run, dim: dim, domain: where.domain, seed: byId("seed").value,
+    steps: (keepStep && latest && latest.steps) ? latest.steps : 0,
+    forgetClicks: !keepStep || Boolean(forget),
+  };
   if (dim === "graph") {
-    worker.postMessage({
-      type: "setup", run: run, dim: "graph", graph: disk.spec,
-      radius: readWhole("set-radius", 1, MAX_GRAPH_RADIUS, 1),
-      domain: where.domain, seed: byId("seed").value, steps: steps, forgetClicks: forgetClicks,
-    });
+    message.graph = disk.spec;
+    message.radius = readWhole("set-radius", 1, MAX_GRAPH_RADIUS, 1);
   } else {
-    worker.postMessage({
-      type: "setup", run: run, dim: dim, tile: tile,
-      domain: where.domain, start: where.start,
-      seed: byId("seed").value, steps: steps, forgetClicks: forgetClicks,
-    });
+    message.tile = tile;
+    message.start = where.start;
   }
+  worker.postMessage(message);
   player.carryOn();
 }
 
@@ -386,9 +393,8 @@ const player = connectPlay(worker, SPEEDS, DEFAULT_SPEED, "block", "blocks", fun
    with no block yet are gray.
      1D: one bar per site, as tall as its height, on a line; the gray
          available sites are small marks under the line.
-     2D: seen from above, one square per cell. The cells are first drawn
-         one pixel each (an "image"), then blown up with smoothing off,
-         so they stay crisp squares (as in the other sims).
+     2D: seen from above, one square per cell, painted as in the other
+         sims (paintCells, js/sim-view.js).
    The picture shows the whole domain if it is bounded, and otherwise
    every available site, with one site to spare around them.
    ===================================================================== */
@@ -403,7 +409,6 @@ const view = makeView(simCanvas, drawSoon);      // where the picture goes, and 
 // the plane has been moved (js/sim-hyperbolic.js, section 6d). Changing
 // how it is drawn ("Drawn in") shows the right options and buttons.
 const disk = makeDiskView(simCanvas, view, showPictureKind);
-const tiny = document.createElement("canvas");   // 2D: one pixel per cell
 // After the window changes size, or the picture opens or closes as a
 // full screen popup (js/sim-page.js): draw again at the new size, in 3D too.
 window.addEventListener("resize", function () {
@@ -427,18 +432,24 @@ function heightColor(h, highest) {
   const rgb = k < 1 ? [c, x, 0] : k < 2 ? [x, c, 0] : k < 3 ? [0, c, x] : k < 4 ? [0, x, c] : k < 5 ? [x, 0, c] : [c, 0, x];
   return rgb.map(function (part) { return Math.round(255 * (part + m)); });
 }
-function cssColor(rgb) { return "rgb(" + rgb.join(",") + ")"; }
 
-// The x and y range of the picture.
+// Make the canvas "width" by "height" screen pixels, and return its pen,
+// ready to draw in screen pixels.
+function canvasPen(width, height) {
+  const ratio = window.devicePixelRatio || 1;   // 2 on sharp screens
+  simCanvas.style.height = height + "px";
+  simCanvas.width = Math.round(width * ratio);
+  simCanvas.height = Math.round(height * ratio);
+  const pen = simCanvas.getContext("2d");
+  pen.setTransform(ratio, 0, 0, ratio, 0, 0);   // draw in screen pixels from here on
+  return pen;
+}
+
+// The x and y range of the picture, { xmin, xmax, ymin, ymax }: a
+// bounded domain itself, or around the available sites.
 function pictureRange() {
-  if (domainKind === "box" || domainKind === "torus") {
-    const d = domainSettings().domain;
-    return { xmin: d.xmin, xmax: d.xmax, ymin: d.ymin, ymax: d.ymax };
-  }
-  if (domainKind === "custom") {
-    const d = customDomain;
-    return { xmin: d.xmin, xmax: d.xmax, ymin: d.ymin, ymax: d.ymax };
-  }
+  if (domainKind === "box" || domainKind === "torus") return domainSettings().domain;
+  if (domainKind === "custom") return customDomain;
   const s = latest;
   let xmin = Infinity, xmax = -Infinity, ymin = Infinity, ymax = -Infinity;
   for (let i = 0; i < s.x.length; i++) {
@@ -450,7 +461,7 @@ function pictureRange() {
 }
 
 function drawMountain() {
-  if (!latest || !latest.height || latest.dim !== dim || tool.isOpen) return;   // nothing yet, or from before a switch of dimension
+  if (!haveMountain() || tool.isOpen) return;
   if (dim !== 1 && show3D) draw3D();     // section 6c
   else if (dim === 1) drawLine();
   else if (dim === 2) drawGrid();
@@ -458,21 +469,18 @@ function drawMountain() {
   else drawHyperbolic();
 }
 
-// 1D: bars.
+// 1D: bars. lineLayout says where the columns are, for clicks
+// (section 6b).
+let lineLayout = null;
+
 function drawLine() {
   const s = latest, range = pictureRange();
   const width = simCanvas.clientWidth, height = pictureHeight(PICTURE_HEIGHT);
-  const ratio = window.devicePixelRatio || 1;   // 2 on sharp screens
-  simCanvas.style.height = height + "px";
-  simCanvas.width = Math.round(width * ratio);
-  simCanvas.height = Math.round(height * ratio);
-  const pen = simCanvas.getContext("2d");
-  pen.setTransform(ratio, 0, 0, ratio, 0, 0);   // draw in screen pixels from here on
-
+  const pen = canvasPen(width, height);
   const left = 8, right = width - 8, top = 20, ground = height - 30;
   const columns = range.xmax - range.xmin + 1;
   const column = (right - left) / columns;        // the width of one site
-  lineLayout = { left: left, column: column, xmin: range.xmin };   // for clicks (section 6b)
+  lineLayout = { left: left, column: column, xmin: range.xmin };
   const gap = column >= 4 ? 1 : 0;                // a thin gap between wide bars
   const highest = Math.max(s.maxHeight, 1);
   function columnLeft(x) { return left + (x - range.xmin) * column; }
@@ -484,7 +492,7 @@ function drawLine() {
       pen.fillRect(x0 + gap / 2, ground + 3, Math.max(column - gap, 1), 5);
     } else {
       const barHeight = (ground - top) * h / highest;
-      pen.fillStyle = cssColor(heightColor(h, highest));
+      pen.fillStyle = rgbToHex(heightColor(h, highest));
       pen.fillRect(x0 + gap / 2, ground - barHeight, Math.max(column - gap, 0.5), barHeight);
     }
   }
@@ -506,11 +514,11 @@ function drawLine() {
   }
 }
 
-// 2D: seen from above. As in the coloring sims, the picture is drawn
-// screen square by screen square: for each square that shows in the
-// picture's box, find which cell is there. On a torus that wraps
-// around, so the squares beyond the box show the torus again, and the
-// picture can be moved and zoomed (section 6b).
+// 2D: seen from above, painted as in the coloring sims (paintCells,
+// js/sim-view.js): for each square that shows in the picture's box, the
+// site there. On a torus that wraps around, so the squares beyond the
+// box show the torus again, and the picture can be moved and zoomed
+// (section 6b).
 
 // The torus that the 2D picture wraps around, or null.
 function torusRange() {
@@ -520,8 +528,14 @@ function torusRange() {
   return null;
 }
 
+// The sites of the last 2D picture as a domain (js/sim-domains.js) whose
+// cell number i is site i: its range, its torus, and cellAt, which site
+// is at each place in the range (-1 = none). Clicks use it too
+// (section 6b).
+let gridSites = null;
+
 function drawGrid() {
-  const s = latest, range = pictureRange(), wrapRange = torusRange();
+  const s = latest, range = pictureRange();
   const across = range.xmax - range.xmin + 1, down = range.ymax - range.ymin + 1;
   const cssWidth = simCanvas.clientWidth, height = pictureHeight(PICTURE_HEIGHT);
   // The picture's box: square cells, as big as fit in the canvas (which
@@ -533,64 +547,28 @@ function drawGrid() {
   view.height = Math.round(view.size * down);
   view.left = Math.round((cssWidth - view.width) / 2);
   view.top = Math.round((height - view.height) / 2);
+  const pen = canvasPen(cssWidth, height);
 
-  const ratio = window.devicePixelRatio || 1;   // 2 on sharp screens
-  simCanvas.style.height = height + "px";
-  simCanvas.width = Math.round(cssWidth * ratio);
-  simCanvas.height = Math.round(height * ratio);
-  const pen = simCanvas.getContext("2d");
-  pen.setTransform(ratio, 0, 0, ratio, 0, 0);   // draw in screen pixels from here on
-
-  // Each site's number, by its place, to look up a cell quickly.
-  const siteAt = new Map();
-  for (let i = 0; i < s.x.length; i++) siteAt.set(s.x[i] + "," + s.y[i], i);
-
-  // Which squares show. Square (i, k) is column i from the left and row
-  // k from the top of the picture (k = 0 is the top row, y = ymax: rows
-  // go up the screen as y goes up). view.scroll moves the squares, in
-  // cells, and view.zoom sizes them (js/sim-view.js).
-  const size = cellSize(view);
-  const scroll = view.scroll;
-  const firstI = Math.floor(-scroll.x) - 1, lastI = Math.ceil(view.width / size - scroll.x);
-  const firstK = Math.floor(-scroll.y) - 1, lastK = Math.ceil(view.height / size - scroll.y);
-  const cols = lastI - firstI + 1, rows = lastK - firstK + 1;
-
-  // One pixel per square, in a small image. Row 0 of the image is the
-  // top row of squares.
-  tiny.width = cols;
-  tiny.height = rows;
-  const tinyPen = tiny.getContext("2d");
-  const image = tinyPen.createImageData(cols, rows);
-  const pixels = image.data;   // 4 numbers per pixel: red, green, blue, opacity
-  const outside = hexToRGB(OUTSIDE), empty = hexToRGB(EMPTY);
-  const highest = Math.max(s.maxHeight, 1);
-  for (let k = 0; k < rows; k++) {
-    for (let i = 0; i < cols; i++) {
-      let x = range.xmin + firstI + i, y = range.ymax - (firstK + k);
-      if (wrapRange) { x = wrap(x, wrapRange.xmin, wrapRange.xmax); y = wrap(y, wrapRange.ymin, wrapRange.ymax); }
-      const inBox = x >= range.xmin && x <= range.xmax && y >= range.ymin && y <= range.ymax;
-      const site = inBox ? siteAt.get(x + "," + y) : undefined;
-      const rgb = site === undefined ? outside
-        : s.height[site] === 0 ? empty : heightColor(s.height[site], highest);
-      const p = k * cols + i;
-      pixels[4 * p] = rgb[0]; pixels[4 * p + 1] = rgb[1]; pixels[4 * p + 2] = rgb[2];
-      pixels[4 * p + 3] = 255;
-    }
+  gridSites = { xmin: range.xmin, xmax: range.xmax, ymin: range.ymin, ymax: range.ymax,
+                wrap: torusRange(), cellAt: new Int32Array(across * down).fill(-1) };
+  for (let i = 0; i < s.x.length; i++) {
+    const x = s.x[i] - range.xmin, y = s.y[i] - range.ymin;   // (a site of an older domain may be outside)
+    if (x >= 0 && x < across && y >= 0 && y < down) gridSites.cellAt[y * across + x] = i;
   }
-  tinyPen.putImageData(image, 0, 0);
 
-  // Blow it up into the picture's box, with smoothing off so the cells
-  // stay sharp squares, and a thin frame around the box.
+  // Paint the squares, only inside the picture's box (paintCells draws
+  // from the top of the box), then a thin frame around the box.
+  const empty = hexToRGB(EMPTY), highest = Math.max(s.maxHeight, 1);
+  pen.translate(0, view.top);
   pen.save();
   pen.beginPath();
-  pen.rect(view.left, view.top, view.width, view.height);
-  pen.clip();                                     // nothing outside the picture's box
-  pen.imageSmoothingEnabled = false;
-  pen.drawImage(tiny, view.left + Math.round((firstI + scroll.x) * size), view.top + Math.round((firstK + scroll.y) * size),
-                cols * size, rows * size);
+  pen.rect(view.left, 0, view.width, view.height);
+  pen.clip();
+  paintCells(view, pen, gridSites, function (i) { return s.height[i]; },
+             function (h) { return h === 0 ? empty : heightColor(h, highest); }, hexToRGB(OUTSIDE));
   pen.restore();
   pen.strokeStyle = EMPTY;
-  pen.strokeRect(view.left + 0.5, view.top + 0.5, view.width - 1, view.height - 1);
+  pen.strokeRect(view.left + 0.5, 0.5, view.width - 1, view.height - 1);
 }
 
 
@@ -622,13 +600,9 @@ function drawGrid() {
    ===================================================================== */
 connectPicture(view, disk, function () { return dim === "graph"; }, clickAt);
 
-let lineLayout = null;        // 1D: where the columns are (set by drawLine)
-
 function clickAt(event) {
-  if (!latest || !latest.height || latest.dim !== dim || tool.isOpen) return;
-  const box = simCanvas.getBoundingClientRect();
-  const px = event.clientX - box.left, py = event.clientY - box.top;
-  const site = siteUnder(px, py);
+  if (!haveMountain() || tool.isOpen) return;
+  const site = siteUnder(event);
   if (site >= 0) {
     if (player.playing) player.setPlaying(false);
     worker.postMessage({ type: "click", site: site });
@@ -637,24 +611,17 @@ function clickAt(event) {
   }
 }
 
-// The site under the canvas point (px, py) (in screen pixels), or -1.
-function siteUnder(px, py) {
+// The site under the pointer of a pointer event, or -1.
+function siteUnder(event) {
+  // 2D: on the squares drawGrid painted (cellUnder, js/sim-view.js).
+  if (dim === 2) return gridSites ? cellUnder(view, gridSites, pointerSpot(view, event)) : -1;
   const s = latest;
+  const box = simCanvas.getBoundingClientRect();
+  const px = event.clientX - box.left, py = event.clientY - box.top;   // in screen pixels on the canvas
   if (dim === 1) {
     if (!lineLayout) return -1;
     const x = lineLayout.xmin + Math.floor((px - lineLayout.left) / lineLayout.column);
-    for (let i = 0; i < s.x.length; i++) if (s.x[i] === x) return i;
-    return -1;
-  }
-  if (dim === 2) {
-    // The same squares as drawGrid draws (section 6).
-    const range = pictureRange(), wrapRange = torusRange(), size = cellSize(view);
-    if (px < view.left || px >= view.left + view.width || py < view.top || py >= view.top + view.height) return -1;
-    let x = range.xmin + Math.floor((px - view.left) / size - view.scroll.x);
-    let y = range.ymax - Math.floor((py - view.top) / size - view.scroll.y);
-    if (wrapRange) { x = wrap(x, wrapRange.xmin, wrapRange.xmax); y = wrap(y, wrapRange.ymin, wrapRange.ymax); }
-    for (let i = 0; i < s.x.length; i++) if (s.x[i] === x && s.y[i] === y) return i;
-    return -1;
+    return s.x.indexOf(x);
   }
   // On a graph: the nearest site, if the click is on it (tiny ones
   // count within 4 pixels). Where each site is drawn, and how big, comes
@@ -685,13 +652,12 @@ function siteUnder(px, py) {
    6c. THE 3D VIEW
    ---------------------------------------------------------------------
    In 2D (and on a graph, section 6d), the View option can show the
-   mountain in 3D: each site's
-   blocks as a stack of cubes or coins, colored from the bottom up with
-   the same colors as the view from above (so seen from straight above,
-   it looks like the 2D picture). Gray tiles are the available sites
-   with no block yet. The 3D code is shared, in js/sim-3d.js; it loads
-   the 3D library three.js from the internet the first time 3D is
-   switched on.
+   mountain in 3D: each site's blocks as a stack of cubes or coins,
+   colored from the bottom up with the same colors as the view from
+   above (so seen from straight above, it looks like the 2D picture).
+   Gray tiles are the available sites with no block yet. The 3D code is
+   shared, in js/sim-3d.js; it loads the 3D library three.js from the
+   internet the first time 3D is switched on.
 
    Heights: a block starts as a cube. Once the mountain gets taller than
    half its width, the blocks are squashed to keep it that tall, so the
@@ -700,7 +666,7 @@ function siteUnder(px, py) {
    ===================================================================== */
 let sim3d = null;            // the 3D code, once loaded (js/sim-3d.js)
 let view3d = null;           // the 3D picture
-let loading3D = false;
+let loading3D = false;       // start3D has begun (false again if loading fails)
 
 // Which picture shows: the view from above, the 3D view (not in 1D),
 // or neither while the graph tool is open.
@@ -744,15 +710,10 @@ async function start3D() {
 function draw3D() {
   if (!view3d) return;
   if (dim === "graph") { draw3DOnDisk(); return; }   // section 6d
-  const s = latest;
-  // The floor: the domain's cells for a drawn domain, otherwise the
-  // same box as the view from above.
-  const floor = domainKind === "custom"
-    ? { x: Array.from(customDomain.x), y: Array.from(customDomain.y) }
-    : pictureRange();
   sim3d.drawStacks(view3d, {
-    x: s.x, y: s.y, height: s.height, floor: floor,
-    shape: blockShape, stretch: Math.pow(2, stretchLevel / 2),
+    x: latest.x, y: latest.y, height: latest.height,
+    floor: pictureRange(),   // as from above: a box, or a drawn domain's own cells
+    shape: blockShape, stretch: stretch,
     color: heightColor, empty: hexToRGB(EMPTY), ground: hexToRGB(OUTSIDE),
   });
 }
@@ -765,12 +726,11 @@ for (const radio of document.querySelectorAll('input[name="blocks"]')) {
   radio.addEventListener("change", function () { blockShape = radio.value; drawSoon(); });
 }
 function showStretch() {
-  const factor = Math.pow(2, stretchLevel / 2);
-  byId("stretch-label").textContent = stretchLevel === 0 ? "normal"
-    : (factor > 1 ? factor.toFixed(1) + " times taller" : (1 / factor).toFixed(1) + " times flatter");
+  byId("stretch-label").textContent = stretch === 1 ? "normal"
+    : (stretch > 1 ? stretch.toFixed(1) + " times taller" : (1 / stretch).toFixed(1) + " times flatter");
 }
 byId("stretch").addEventListener("input", function () {
-  stretchLevel = Number(this.value);
+  stretch = Math.pow(2, Number(this.value) / 2);
   showStretch();
   drawSoon();
 });
@@ -818,7 +778,7 @@ function sitePlace(i) { return places.subarray(4 * i, 4 * i + 4); }
 // The color of site i: by its height, gray with no block yet.
 function siteColor(i) {
   const h = latest.height[i];
-  return h === 0 ? EMPTY : cssColor(heightColor(h, Math.max(latest.maxHeight, 1)));
+  return h === 0 ? EMPTY : rgbToHex(heightColor(h, Math.max(latest.maxHeight, 1)));
 }
 
 // The disk or the half-plane: the sites, over the whole tiling (or
@@ -836,19 +796,16 @@ function drawSpread() {
     function (i) { return spreads[2 * i]; }, function (i) { return spreads[2 * i + 1]; }, siteColor);
 }
 
-/* The page builds its own copy of the graph for the gray lines, the
-   same way the mountain's thread does (js/sim-graphs.js), from the rules
-   that thread learned and sent with its first message, so the page never
-   has to learn them again. It numbers cells in its own order; it only
-   says where cells are, not which ones are sites. */
-const UNDER_COLOR_3D = "#8a877f";   // the gray lines on the 3D floor, a little darker (they are only 1 pixel wide there)
-
-let underGraph = null, underFor = null;
+// The graph for the gray lines, or null until the rules come. The page
+// builds its own copy of the graph (diskGraph, js/sim-hyperbolic.js), the
+// same way the mountain's thread does (js/sim-graphs.js), from the rules
+// that thread learned and sent with its first message, so the page never
+// has to learn them again. It numbers cells in its own order; it only
+// says where cells are, not which ones are sites.
 function graphUnder() {
   const name = disk.spec.p + "," + disk.spec.q;
-  if (!learnedRules.kept || !learnedRules.kept.has(name)) return null;   // the rules haven't come yet
-  if (underFor !== disk.spec) { underFor = disk.spec; underGraph = makeGraph(disk.spec); }
-  return underGraph;
+  if (!learnedRules.kept || !learnedRules.kept.has(name)) return null;
+  return diskGraph(disk);
 }
 
 // The rules the mountain's thread sends with its first message.
@@ -864,8 +821,8 @@ function keepRules(rules) {
 // equally thick, so a stack's height shows its count however small its
 // cell. Cells too small to see are left out.
 function draw3DOnDisk() {
-  const s = latest, cellShape = diskShape(disk);
-  const unit = 1 / (2 * cellShape.middle);    // so the first cell, in the middle, is 1 wide
+  const s = latest;
+  const unit = 1 / (2 * diskShape(disk).middle);    // so the first cell, in the middle, is 1 wide
   const thinner = isTree(disk.spec) ? 0.6 : 1;
   const x = [], y = [], height = [], width = [];
   for (let i = 0; i < s.height.length; i++) {
@@ -876,7 +833,7 @@ function draw3DOnDisk() {
   }
   sim3d.drawStacks(view3d, {
     x: x, y: y, height: height, width: width, floor: { disk: unit },
-    shape: "coins", stretch: Math.pow(2, stretchLevel / 2),
+    shape: "coins", stretch: stretch,
     color: heightColor, empty: hexToRGB(EMPTY), ground: hexToRGB(OUTSIDE),
     lines: floorLines(unit), lineColor: hexToRGB(UNDER_COLOR_3D),
   });
@@ -929,8 +886,8 @@ byId("set-radius").addEventListener("change", function () { restart(true); });
    part 2 of random-mountain-growth.js).
    ===================================================================== */
 function showStats() {
+  if (!haveMountain()) return;
   const s = latest;
-  if (!s || !s.height || s.dim !== dim) return;
   byId("stat-steps").textContent = s.steps.toLocaleString();
   byId("stat-blocks").textContent = s.blocks.toLocaleString();
   byId("stat-base").textContent = s.baseSize.toLocaleString();
@@ -987,8 +944,9 @@ byId("edit-custom").addEventListener("click", tool.open);
    9. CONNECTING THE BUTTONS ON THE PAGE
    ===================================================================== */
 
-// Dimension: 1D or 2D. Each has its own presets and domains, so the
-// tile and domain go back to the defaults (whole line or plane).
+// Dimension: 1D, 2D or a graph. Each has its own domains (and 1D and 2D
+// their own tile presets), so the domain goes back to the whole line,
+// plane or graph, and in 1D and 2D the tile to the first preset.
 function setDimension(value) {
   dim = value;
   if (tool.isOpen) tool.close();
@@ -1011,7 +969,7 @@ for (const radio of document.querySelectorAll('input[name="dimension"]')) {
   radio.addEventListener("change", function () { setDimension(radio.value === "graph" ? "graph" : Number(radio.value)); });
 }
 
-// The size of a segment, cycle, box or torus.
+// The size of a segment, cycle, box or torus, or the R of a ball.
 for (const id of ["set-width", "set-height"]) {
   byId(id).addEventListener("change", function () { restart(true); });
 }

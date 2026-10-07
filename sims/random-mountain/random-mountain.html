@@ -46,9 +46,9 @@
       <section class="quad quad-sim">
         <h2>Simulation</h2>
 
-        <!-- The picture. random-mountain.js sets its height. In 2D, the
-             zoom buttons sit in its top right corner; the full screen
-             button (added by js/sim-page.js) in its top left corner. -->
+        <!-- The picture. random-mountain.js sets its height. In 2D and on
+             a graph, the zoom buttons sit in its top right corner; the full
+             screen button (added by js/sim-page.js) in its top left corner. -->
         <div class="sim-picture">
           <canvas id="sim-canvas"></canvas>
           <div class="zoom-buttons" id="zoom-buttons" hidden>
@@ -61,7 +61,7 @@
                  It shows and hides with "Back to the start" (section 8 of css/style.css). -->
             <button class="tool-button" id="disk-slide" title="Drag to slide the whole picture, instead of moving around the plane">Slide</button>
           </div>
-          <!-- The 3D view (2D mountains only): js/sim-3d.js puts its
+          <!-- The 3D view (2D mountains and graphs): js/sim-3d.js puts its
                picture in here, with a button to look from the start again. -->
           <div class="sim-3d" id="sim-3d" hidden></div>
           <div class="zoom-buttons" id="view3d-buttons" hidden>
@@ -162,21 +162,21 @@
         </div>
         <!-- 1D and 2D: the tile is a set of offsets. -->
         <div id="offset-tile">
-        <div class="option-row" id="tile-presets"></div>
-        <p class="muted small">Click cells to add them to the tile or take them out.
-          The dark cell in the middle is the site itself.</p>
-        <!-- The clickable cells; random-mountain.js fills this in. -->
-        <div class="tile-grid" id="tile-grid"></div>
-        <div class="option-row">
-          <span id="disk-label"></span> r <input type="number" id="disk-radius" min="1" max="30" step="1" value="2">
-          <button class="tool-button" id="make-disk">Make</button>
-        </div>
-        <div class="option-row">
-          <span id="ring-label"></span> r1 <input type="number" id="ring-inner" min="0" max="30" step="1" value="3">
-          to r2 <input type="number" id="ring-outer" min="0" max="30" step="1" value="3">
-          <button class="tool-button" id="make-ring">Make</button>
-        </div>
-        <p class="muted small" id="tile-info"></p>
+          <div class="option-row" id="tile-presets"></div>
+          <p class="muted small">Click cells to add them to the tile or take them out.
+            The dark cell in the middle is the site itself.</p>
+          <!-- The clickable cells; random-mountain.js fills this in. -->
+          <div class="tile-grid" id="tile-grid"></div>
+          <div class="option-row">
+            <span id="disk-label"></span> r <input type="number" id="disk-radius" min="1" max="30" step="1" value="2">
+            <button class="tool-button" id="make-disk">Make</button>
+          </div>
+          <div class="option-row">
+            <span id="ring-label"></span> r1 <input type="number" id="ring-inner" min="0" max="30" step="1" value="3">
+            to r2 <input type="number" id="ring-outer" min="0" max="30" step="1" value="3">
+            <button class="tool-button" id="make-ring">Make</button>
+          </div>
+          <p class="muted small" id="tile-info"></p>
         </div>
 
         <h3 class="option-heading">Domain</h3>
@@ -277,7 +277,8 @@
           of the hyperbolic plane, or on a tree, drawn in a disk where the
           cells shrink toward the edge (the edge is infinitely far away). Drag
           to travel across the plane (or press Slide to slide the whole
-          picture), and zoom as in 2D to see the small cells near the edge. There, every patch of cells has a long
+          picture), and zoom as in 2D to see the small cells near the edge.
+          There, every patch of cells has a long
           edge compared to its size, so the base spreads fast and the mountain
           stays low: compare {7, 3} with the 2D grid. The whole tiling (or tree)
           is drawn in thin gray underneath, in 3D too; on a tree, each site is a
