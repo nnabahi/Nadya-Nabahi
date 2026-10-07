@@ -14,9 +14,9 @@
      - Hands everything to the walkers (random-walk-coloring-walk.js),
        which run in a second thread (a "Web Worker"), and draws every
        coloring they send back, with the statistics.
-   Small helpers used by every sim page (byId, chartPen, ...) are in
-   js/sim-page.js, and moving and zooming the torus is in
-   js/sim-view.js.
+   Small helpers used by every sim page (byId, readWhole, ...) are in
+   js/sim-page.js, the charts' (chartPen, ...) in js/sim-charts.js, and
+   moving and zooming the picture in js/sim-view.js.
 
    The file is split into numbered sections:
      1. Settings you might want to change
@@ -24,7 +24,7 @@
      3. The default start
      4. Running the walkers
      5. Drawing the coloring and the walkers
-     6. Dragging and zooming: walkers before the start, and the torus
+     6. Dragging and zooming: walkers before the start, and the picture
      7. Statistics
      8. Custom domains: the graph tool inside this page
      9. Connecting the buttons on the page
@@ -228,10 +228,10 @@ const player = connectPlay(worker, SPEEDS, DEFAULT_SPEED, "step", "steps", resta
    as round markers.
 
    The "view" (js/sim-view.js) says where the picture goes and which
-   squares show, as in the connected coloring sim. A box simply fills
-   the picture once. A torus (or a region drawn on one) wraps around,
-   and can be moved and zoomed (section 6). Zoomed out, it shows
-   several times side by side, and so do the walkers.
+   squares show, as in the connected coloring sim. The picture can be
+   moved and zoomed (section 6). A torus (or a region drawn on one)
+   wraps around, and zoomed out it shows several times side by side,
+   and so do the walkers.
 
    paintCells (js/sim-view.js) puts the squares' colors into a small
    image, one pixel per square, and blows it up with smoothing off so
@@ -244,10 +244,10 @@ const simCanvas = byId("sim-canvas");            // the canvas on the page
 // however many messages arrive in between).
 const drawSoon = oncePerFrame(function () { drawColoring(); showStats(); });
 
-// Where the picture goes, and the torus's zoom. PAD leaves room above
-// and below the picture for walkers on the edge, and cells with border
-// lines get a whole number of pixels, so every cell is exactly the same
-// size and the lines sit exactly on the cell edges.
+// Where the picture goes, and how far it is moved and zoomed. PAD
+// leaves room above and below the picture for walkers on the edge, and
+// cells with border lines get a whole number of pixels, so every cell is
+// exactly the same size and the lines sit exactly on the cell edges.
 const view = makeView(simCanvas, drawSoon, PAD, SMALLEST_BORDERED_CELL);
 
 // Hyperbolic plane or tree: which graph, how it is drawn, and how far
@@ -276,26 +276,14 @@ function drawColoring() {
 }
 
 // Hyperbolic plane or tree: the ball's cells in their colors, with the
-// rest of the tiling (or tree) in thin gray (js/sim-hyperbolic.js), and
-// the walkers on top.
+// rest of the tiling (or tree) in thin gray (drawBall,
+// js/sim-hyperbolic.js), and the walkers on top.
 function drawOnGraph() {
-  const height = pictureHeight(BALL_HEIGHT), colors = latest.colors;
-  let pen;
-  if (disk.picture === "spread") {
-    pen = drawSpreadTree(disk, height, domain.n,
-      function (v) { return domain.depth[v]; }, function (v) { return domain.angle[v]; },
-      function (v) { return colors[v] === -1 ? UNCOLORED_DOT : colorNames[colors[v]]; });
-  } else {
-    pen = diskPen(disk, height);
-    drawDiskFrame(disk, pen, height, OUTSIDE, UNDER_COLOR);
-    drawOnDisk(disk, pen, diskGraph(disk), domain.n, function (v) { return ballPlace(domain, v); },
-      function (v) { return colors[v] === -1 ? UNCOLORED : colorNames[colors[v]]; });
-  }
+  const colors = latest.colors;
+  const blank = disk.picture === "spread" ? UNCOLORED_DOT : UNCOLORED;
+  const pen = drawBall(disk, domain, function (v) { return colors[v] === -1 ? blank : colorNames[colors[v]]; });
   if (showWalkers) drawWalkers(pen);
 }
-
-// The size of a walker's marker, in screen pixels.
-function walkerRadius() { return Math.max(5, Math.min(14, view.cell * 0.7)); }
 
 // Where walker i is drawn on the screen, and how big: the middle of its
 // cell, in every copy of the torus that shows (just once on a box). Only
@@ -311,29 +299,24 @@ function walkerSpots(i) {
     columns = repeatsBetween(columns[0], d.wrap.xmax - d.wrap.xmin + 1, view.firstI, view.lastI);
     rows = repeatsBetween(rows[0], d.wrap.ymax - d.wrap.ymin + 1, view.firstK, view.lastK);
   }
+  const r = Math.max(5, Math.min(14, view.cell * 0.7));   // the marker's size, in screen pixels
   const spots = [];
   for (const column of columns) {
     for (const row of rows) {
       const x = (column + 0.5 + view.scroll.x) * view.cell, y = (row + 0.5 + view.scroll.y) * view.cell;
-      if (x >= 0 && x < view.width && y >= 0 && y < view.height) spots.push({ x: view.left + x, y: y, r: walkerRadius() });
+      if (x >= 0 && x < view.width && y >= 0 && y < view.height) spots.push({ x: view.left + x, y: y, r: r });
     }
   }
   return spots;
 }
 
+// On a hyperbolic tiling or tree: where cell v is on the screen
+// (ballSpot, js/sim-hyperbolic.js), if it is on the canvas.
 function graphSpots(v) {
-  let x, y, size;
-  if (disk.picture === "spread") {
-    [x, y] = spreadSpot(disk, domain.depth[v], domain.angle[v]);
-    size = 1.5 * spreadDot(disk, domain.depth[v]);
-  } else {
-    const A = seenFrom(disk, ballPlace(domain, v));
-    const [mx, my] = motionApply(A, 0, 0);
-    [x, y] = diskToScreen(disk, mx, my);
-    size = cellPixels(disk, mx, my);
-  }
-  if (x < 0 || x > simCanvas.clientWidth || y < 0 || y > simCanvas.clientHeight) return [];
-  return [{ x: x, y: y, r: Math.max(4, Math.min(10, size)) }];
+  const spot = ballSpot(disk, domain, v);
+  if (!spot || spot.x < 0 || spot.x > simCanvas.clientWidth || spot.y < 0 || spot.y > simCanvas.clientHeight) return [];
+  const size = disk.picture === "spread" ? 1.5 * spot.size : spot.size;
+  return [{ x: spot.x, y: spot.y, r: Math.max(4, Math.min(10, size)) }];
 }
 
 // The numbers t, t + period, t - period, t + 2 period, ... between lo and
@@ -385,8 +368,8 @@ window.addEventListener("resize", drawSoon);
    is redrawn at once. Once the run has started, Restart brings the
    walkers back to their starting cells, and they can be dragged again.
 
-   On a torus the picture can be moved and zoomed, as in the connected
-   coloring sim (and like a graph in Desmos). js/sim-view.js does that:
+   The picture can be moved and zoomed, as in the connected coloring
+   sim (and like a graph in Desmos). js/sim-view.js does that:
      drag (anywhere but a walker)     move it
      mouse wheel, or pinch            zoom in or out, around the pointer
      the + / − / Reset buttons        zoom in, zoom out, show it all again
@@ -396,9 +379,8 @@ window.addEventListener("resize", drawSoon);
    ===================================================================== */
 let dragWalker = -1;          // the walker being dragged, or -1
 let walkerPointer = -1;       // the pointer dragging it
-
-// On phones, let a finger drag on the picture instead of scrolling the page.
-simCanvas.style.touchAction = "none";
+// (On phones, a finger on the picture drags instead of scrolling the
+// page: "touch-action: none" in css/style.css.)
 
 // The walker under the pointer (the one drawn on top), or -1. Only
 // before the run has started, while paused.
@@ -412,10 +394,10 @@ function walkerUnder(spot) {
   return -1;
 }
 
-// The "hand" cursor where something can be dragged.
-function showCursor(spot) {
-  simCanvas.style.cursor = (dragWalker >= 0 || view.pointers.size > 0) ? "grabbing"
-    : (walkerUnder(spot) >= 0 || view.movable) ? "grab" : "default";
+// The "hand" cursor: open, or closed while something is dragged.
+// (Everything here can be dragged: a walker, or the picture.)
+function showCursor() {
+  simCanvas.style.cursor = (dragWalker >= 0 || view.pointers.size > 0) ? "grabbing" : "grab";
 }
 
 // A press on a walker drags the walker. Anywhere else, the pointer
@@ -424,9 +406,8 @@ function showCursor(spot) {
 // instead (startPlaneDrag and dragPlane, js/sim-hyperbolic.js), and two
 // fingers slide and zoom the picture.
 simCanvas.addEventListener("pointerdown", function (event) {
-  const spot = pointerSpot(view, event);
   if (dragWalker < 0 && view.pointers.size === 0) {
-    dragWalker = walkerUnder(spot);                   // a walker, if there's one under the pointer
+    dragWalker = walkerUnder(pointerSpot(view, event));   // a walker, if there's one under the pointer
     if (dragWalker >= 0) {
       walkerPointer = event.pointerId;
       simCanvas.setPointerCapture(event.pointerId);   // keep getting moves even off the canvas
@@ -434,13 +415,13 @@ simCanvas.addEventListener("pointerdown", function (event) {
   }
   if (dragWalker < 0) pressPointer(view, event);
   startDrag();
-  showCursor(spot);
+  showCursor();
 });
 
 simCanvas.addEventListener("pointermove", function (event) {
-  const spot = pointerSpot(view, event);
   if (dragWalker >= 0 && event.pointerId === walkerPointer) {
-    const cell = domainKind === "graph" ? ballCellUnder(disk, domain, event) : cellUnder(view, domain, spot);
+    const cell = domainKind === "graph" ? ballCellUnder(disk, domain, event)
+                                        : cellUnder(view, domain, pointerSpot(view, event));
     if (cell !== -1 && cell !== starts[dragWalker]) {
       starts[dragWalker] = cell;
       restart();
@@ -452,14 +433,14 @@ simCanvas.addEventListener("pointermove", function (event) {
   } else {
     movePointer(view, event);
   }
-  showCursor(spot);
+  showCursor();
 });
 
 function stopDragging(event) {
   if (event.pointerId === walkerPointer) { dragWalker = -1; walkerPointer = -1; }
   releasePointer(view, event);
   startDrag();
-  showCursor(pointerSpot(view, event));
+  showCursor();
 }
 
 // On a hyperbolic tiling or tree, exactly one pointer pressed drags
@@ -611,7 +592,6 @@ function drawPerimeterChart(regions) {
   pen.textAlign = "right";
   pen.textBaseline = "middle";
   for (let k = 0; k <= yTop; k++) pen.fillText(String(10 ** k), left - 5, sy(10 ** k));
-  pen.textAlign = "right";
   pen.textBaseline = "bottom";
   pen.fillText("area", w, bottom);
   pen.textAlign = "left";

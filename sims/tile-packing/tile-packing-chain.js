@@ -103,9 +103,10 @@
    HOW IT RUNS
    Everything is inside one function, tilePacking(). The sim page turns
    it into a "Web Worker" (a second thread, see startWorker in
-   js/sim-page.js), where it answers messages from the page (section 6).
-   The check page (tile-packing-check.html) calls tilePacking() directly
-   and uses the functions it hands back.
+   js/sim-page.js), with makeRunLoop (js/sim-worker.js) and cellAt and
+   wrap (js/sim-domains.js) copied in, where it answers messages from
+   the page (section 6). The check page (tile-packing-check.html) calls
+   tilePacking() directly and uses the functions it hands back.
    The one library used is seedrandom
    (https://github.com/davidbau/seedrandom), for random numbers that
    repeat exactly when the same seed is used.
@@ -135,6 +136,8 @@ function tilePacking() {
      centered at (x[v], y[v]), a box xmin..xmax by ymin..ymax around
      them, cellAt[] saying which cell is where in that box, and "wrap"
      (the x and y range that wraps around, for a torus; else null).
+     cellAt(domain, x, y), from the same file, says which cell is at a
+     grid point (wrapped around on a torus), or -1.
 
      A PLACEMENT is one tile in one position: an orientation (w by h)
      and the cell at its lower-left corner. All placements that fit in
@@ -150,9 +153,9 @@ function tilePacking() {
   let workLimit = 200000;    // skip a move whose listing takes more steps than this
 
   // The domain.
-  let n = 0, X = null, Y = null;
-  let xmin = 0, ymin = 0, boxWidth = 0, boxHeight = 0, cellGrid = null;
-  let wrapX0 = 0, wrapY0 = 0, wrapW = 0, wrapH = 0;   // wrapW = 0: no torus
+  let domain = null, n = 0, X = null, Y = null;
+  let xmin = 0, ymin = 0, boxWidth = 0, boxHeight = 0;
+  let wrapW = 0, wrapH = 0;   // the torus's width and height (0: no torus)
 
   // The tile orientations: orientation o is orientW[o] wide and orientH[o]
   // tall, and comes from tile number orientTile[o] of the list given.
@@ -190,28 +193,23 @@ function tilePacking() {
 
   // Read the settings and list all placements. Returns an error message,
   // or "" if all is well. "s" has: domain, tiles ([{w, h, weight}, ...],
-  // weight optional, 1 if left out),
-  // rotations, gaps, meanRadius, sizeLimit, workLimit, seed, and,
-  // for the check page only, touchChecks and randomFunction.
+  // weight optional, 1 if left out), rotations, gaps, meanRadius,
+  // sizeLimit, workLimit, seed, and, for the check page only,
+  // touchChecks and randomFunction.
   function setup(s) {
     gaps = !!s.gaps;
     touchChecks = s.touchChecks !== false;
     meanRadius = s.meanRadius;
     sizeLimit = s.sizeLimit;
     workLimit = s.workLimit;
-    if (s.randomFunction) random = s.randomFunction;
-    else if (Math.seedrandom) random = new Math.seedrandom(String(s.seed));
+    random = s.randomFunction || new Math.seedrandom(String(s.seed));
 
     const d = s.domain;
-    n = d.n; X = d.x; Y = d.y;
+    domain = d; n = d.n; X = d.x; Y = d.y;
     xmin = d.xmin; ymin = d.ymin;
     boxWidth = d.xmax - d.xmin + 1; boxHeight = d.ymax - d.ymin + 1;
-    cellGrid = d.cellAt;
-    wrapW = 0; wrapH = 0;
-    if (d.wrap) {
-      wrapX0 = d.wrap.xmin; wrapY0 = d.wrap.ymin;
-      wrapW = d.wrap.xmax - d.wrap.xmin + 1; wrapH = d.wrap.ymax - d.wrap.ymin + 1;
-    }
+    wrapW = d.wrap ? d.wrap.xmax - d.wrap.xmin + 1 : 0;
+    wrapH = d.wrap ? d.wrap.ymax - d.wrap.ymin + 1 : 0;
 
     // Orientations: each tile, and with rotations also the tile turned a
     // quarter turn. The same size twice is kept once (a 2x2 turned is
@@ -248,17 +246,6 @@ function tilePacking() {
     return gaps ? greedyStart() : directStart();
   }
 
-  // Which cell is at grid point (x, y)? -1 if none. On a torus (x, y) is
-  // first wrapped back into the grid (as cellAt in sim-domains.js).
-  function cellAtXY(x, y) {
-    if (wrapW) {
-      x = wrapX0 + (((x - wrapX0) % wrapW) + wrapW) % wrapW;
-      y = wrapY0 + (((y - wrapY0) % wrapH) + wrapH) % wrapH;
-    }
-    if (x < xmin || x >= xmin + boxWidth || y < ymin || y >= ymin + boxHeight) return -1;
-    return cellGrid[(y - ymin) * boxWidth + (x - xmin)];
-  }
-
   // Every orientation at every lower-left cell, kept if all its cells are
   // in the domain. On a torus a tile as wide as the torus covers the same
   // cells from every starting point; it is kept once.
@@ -267,16 +254,15 @@ function tilePacking() {
     const sameCells = new Map();   // the cells, written out, -> placement
     plByAnchor = new Map();
     for (let o = 0; o < orientW.length; o++) {
-      for (let v = 0; v < n; v++) {
+      anchor: for (let v = 0; v < n; v++) {
         const these = [];
         for (let j = 0; j < orientH[o]; j++) {
           for (let i = 0; i < orientW[o]; i++) {
-            const c = cellAtXY(X[v] + i, Y[v] + j);
-            if (c < 0 || these.includes(c)) { these.length = 0; j = orientH[o]; break; }
+            const c = cellAt(domain, X[v] + i, Y[v] + j);
+            if (c < 0 || these.includes(c)) continue anchor;   // doesn't fit here: try the next cell
             these.push(c);
           }
         }
-        if (these.length !== orientW[o] * orientH[o]) continue;
         // Repeats can only happen for a tile as wide or as tall as the torus.
         const p = orients.length;
         if (wrapW && (orientW[o] >= wrapW || orientH[o] >= wrapH)) {
@@ -400,15 +386,15 @@ function tilePacking() {
     let x0 = Math.floor(cx - r - 0.5), x1 = Math.ceil(cx + r + 0.5);
     let y0 = Math.floor(cy - r - 0.5), y1 = Math.ceil(cy + r + 0.5);
     if (wrapW) {
-      if (x1 - x0 + 1 > wrapW) { x0 = wrapX0; x1 = wrapX0 + wrapW - 1; }
-      if (y1 - y0 + 1 > wrapH) { y0 = wrapY0; y1 = wrapY0 + wrapH - 1; }
+      if (x1 - x0 + 1 > wrapW) { x0 = domain.wrap.xmin; x1 = domain.wrap.xmax; }
+      if (y1 - y0 + 1 > wrapH) { y0 = domain.wrap.ymin; y1 = domain.wrap.ymax; }
     } else {
       x0 = Math.max(x0, xmin); x1 = Math.min(x1, xmin + boxWidth - 1);
       y0 = Math.max(y0, ymin); y1 = Math.min(y1, ymin + boxHeight - 1);
     }
     for (let y = y0; y <= y1; y++) {
       for (let x = x0; x <= x1; x++) {
-        const v = cellAtXY(x, y);
+        const v = cellAt(domain, x, y);
         if (v < 0 || seenCell[v] === stamp) continue;
         seenCell[v] = stamp;
         if (!touches(v, cx, cy, r)) continue;
@@ -433,7 +419,10 @@ function tilePacking() {
       return false;
     };
     const result = listRefills(regionCells, mayStayEmpty, tileAllowed, sizeLimit, workLimit);
-    if (result.stopped || !result.kept) { skipped++; return; }   // (kept is never empty: the old packing is on the list)
+    // (The old packing is on the list, so there is always a refill to
+    // keep, except after a failed start with gaps off, when the old
+    // packing isn't a tiling and the list can be empty.)
+    if (result.stopped || !result.kept) { skipped++; return; }
     choicesTotal += result.count;
 
     // Step 4: put the chosen refill in (if it differs from the old one).
@@ -490,7 +479,6 @@ function tilePacking() {
     // blockersAt[k]: blockers whose last region cell is cell k, each as the
     // list of positions of its region cells.
     const startsAt = [], blockersAt = [];
-    const logWeightOf = function (p) { return orientLogWeight[plOrient[p]]; };
     for (let k = 0; k < m; k++) { startsAt.push([]); blockersAt.push([]); }
     for (let k = 0; k < m; k++) {
       const c = cells[k];
@@ -511,7 +499,7 @@ function tilePacking() {
           }
         }
         if (allInside && tileAllowed(p)) {
-          startsAt[Math.min(...inside)].push({ p: p, cells: inside, logWeight: logWeightOf(p) });
+          startsAt[Math.min(...inside)].push({ p: p, cells: inside, logWeight: orientLogWeight[plOrient[p]] });
         }
         if (gaps && othersEmpty && allMayBeEmpty) {
           blockersAt[Math.max(...inside)].push(inside);
@@ -596,14 +584,14 @@ function tilePacking() {
       const j = Math.floor(random() * (k + 1));
       const t = order[k]; order[k] = order[j]; order[j] = t;
     }
-    for (const p of order) {
-      let free = true;
-      for (let k = plStart[p]; k < plStart[p + 1]; k++) {
-        if (owner[plCell[k]] >= 0) { free = false; break; }
-      }
-      if (free) placeTile(p);
-    }
+    for (const p of order) if (isFree(p)) placeTile(p);
     return "";
+  }
+
+  // Are all the cells of placement p empty?
+  function isFree(p) {
+    for (let k = plStart[p]; k < plStart[p + 1]; k++) if (owner[plCell[k]] >= 0) return false;
+    return true;
   }
 
   // Gaps off: build a tiling directly, with no search.
@@ -638,7 +626,7 @@ function tilePacking() {
 
   // The placement of orientation o with lower-left corner at grid point (x, y).
   function placementAt(o, x, y) {
-    const v = cellAtXY(x, y);
+    const v = cellAt(domain, x, y);
     const p = v < 0 ? undefined : plByAnchor.get(o * n + v);
     return p === undefined ? -1 : p;
   }
@@ -689,16 +677,16 @@ function tilePacking() {
       if ((columns ? orientW[o] : orientH[o]) === 1) ones.push(o);
     }
     if (ones.length === 0) return null;
-    const lengthOf = function (o) { return columns ? orientH[o] : orientW[o]; };
-    const lengths = ones.map(lengthOf);
+    const lengths = ones.map(function (o) { return columns ? orientH[o] : orientW[o]; });
     const plan = [];
     const lines = columns ? boxWidth : boxHeight, along = columns ? boxHeight : boxWidth;
     for (let a = 0; a < lines; a++) {
+      // The cell k places along line a (-1 = none).
+      const at = function (k) {
+        return columns ? domain.cellAt[k * boxWidth + a] : domain.cellAt[a * boxWidth + k];
+      };
       let b = 0;
       while (b < along) {
-        const at = function (k) {
-          return columns ? cellGrid[k * boxWidth + a] : cellGrid[a * boxWidth + k];
-        };
         if (at(b) < 0) { b++; continue; }
         let end = b;
         while (end < along && at(end) >= 0) end++;
@@ -741,11 +729,7 @@ function tilePacking() {
       if (!gaps && count[v] === 0) return "cell " + v + " is not covered";
     }
     if (gaps) {
-      for (let p = 0; p < P; p++) {
-        let free = true;
-        for (let k = plStart[p]; k < plStart[p + 1]; k++) if (owner[plCell[k]] >= 0) free = false;
-        if (free) return "not maximal: a tile still fits (placement " + p + ")";
-      }
+      for (let p = 0; p < P; p++) if (isFree(p)) return "not maximal: a tile still fits (placement " + p + ")";
     }
     return "";
   }
@@ -785,16 +769,14 @@ function tilePacking() {
   }
 
   // Refill the given cells (exactly the cells of some tiles) at random
-  // among all their exact tilings (uniformly when all weights are 1). Used by the check page to test
-  // nadya's random-walk version of the move (tiling_mcmc.py).
+  // among all their exact tilings (no cell may stay empty), uniformly when
+  // all weights are 1. Used by the check page to test nadya's random-walk
+  // version of the move (tiling_mcmc.py).
   function refillUniform(cells) {
     const old = [];
     for (const c of cells) if (owner[c] >= 0 && !old.includes(owner[c])) old.push(owner[c]);
-    const savedGaps = gaps;
-    gaps = false;
     const result = listRefills(cells, function () { return false; }, function () { return true; },
                                Infinity, Infinity);
-    gaps = savedGaps;
     for (const p of old) removeTile(p);
     for (const p of result.kept) placeTile(p);
     return result.count;

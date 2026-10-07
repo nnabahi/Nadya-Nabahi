@@ -11,8 +11,8 @@
      - Hands everything to the chain (tile-packing-chain.js), which runs
        in a second thread (a "Web Worker"), and draws every packing it
        sends back, with the statistics.
-   Small helpers used by every sim page (byId, chartPen, ...) are in
-   js/sim-page.js.
+   Small helpers used by every sim page (byId, readWhole, ...) are in
+   js/sim-page.js, and the charts' (chartPen, ...) in js/sim-charts.js.
 
    The file is split into numbered sections:
      1. Settings you might want to change
@@ -79,8 +79,8 @@ let latest = null;              // the latest packing and numbers from the chain
 let trace = null;               // the run so far, for the chart: { moves: [], shares: [] }
 
 // A small helper for this page: is "Average over time" ticked? (checked
-// is in js/sim-page.js; wrapNumber and hexToRGB, used below, are in
-// js/sim-domains.js.)
+// is in js/sim-page.js. Used below: wrapNumber is in js/sim-domains.js,
+// defaultColor and hexToRGB in js/sim-colors.js.)
 function showingAverage() { return checked("show") === "average"; }
 
 
@@ -88,11 +88,11 @@ function showingAverage() { return checked("show") === "average"; }
    3. RUNNING THE CHAIN
    ---------------------------------------------------------------------
    The chain is the function tilePacking() in tile-packing-chain.js,
-   with the run loop (js/sim-worker.js) copied in. startWorker
-   (js/sim-page.js) runs it in a second thread, a "Web Worker", so the
-   page never freezes.
+   with the run loop (js/sim-worker.js) and cellAt and wrap
+   (js/sim-domains.js) copied in. startWorker (js/sim-page.js) runs it
+   in a second thread, a "Web Worker", so the page never freezes.
    ===================================================================== */
-const worker = startWorker(tilePacking, [makeRunLoop]);
+const worker = startWorker(tilePacking, [makeRunLoop, wrap, cellAt]);
 
 worker.onmessage = function (event) {
   const message = event.data;
@@ -329,7 +329,6 @@ function coverCounts(stats) {
 // Remember the shares after each report, for the chart. At most about
 // 600 points are kept: when there are more, every other one is dropped.
 function addToTrace(stats) {
-  if (!placements) return;
   const last = trace.moves.length - 1;
   if (last >= 0 && trace.moves[last] === stats.moves) return;   // nothing new
   const c = coverCounts(stats);

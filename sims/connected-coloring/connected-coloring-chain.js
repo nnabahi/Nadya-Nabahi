@@ -113,7 +113,6 @@ function chainWorker() {
   let nbr = null;          // all the neighbor lists, one after another
   let N = 0;               // number of colors
   let color = null;        // color[v] = color of cell v, 0 .. N-1
-  let size = null;         // size[c] = number of cells of color c
   let between = null;      // between[i*N + j] (i < j) = edges joining colors i and j
   let pairs = 0;           // A(X): how many pairs of colors touch
   let boundary = 0;        // edges whose two ends have different colors
@@ -149,13 +148,11 @@ function chainWorker() {
     oldColor = new Int32Array(n); newColor = new Int32Array(n);
     order = new Int32Array(n); position = new Int32Array(n); path = new Int32Array(n);
 
-    // Count the colors, and the edges between each pair of colors.
-    size = new Int32Array(N);
+    // Count the edges between each pair of colors.
     between = new Int32Array(N * N);
     pairs = 0;
     boundary = 0;
     for (let v = 0; v < n; v++) {
-      size[color[v]]++;
       for (let e = first[v]; e < first[v + 1]; e++) {
         const w = nbr[e];
         if (w < v || color[w] === color[v]) continue;   // each edge once; same color isn't a boundary
@@ -183,7 +180,6 @@ function chainWorker() {
 
   /* ===================================================================
      2. ONE MOVE OF THE CHAIN (steps 1-6 at the top of the file)
-     Returns true if the move was accepted.
      =================================================================== */
   function oneMove() {
     proposed++;
@@ -193,7 +189,7 @@ function chainWorker() {
     for (let i = 0; i < N; i++) {
       for (let j = i + 1; j < N; j++) if (between[i * N + j] > 0) touching.push(i * N + j);
     }
-    if (touching.length === 0) return false;   // only possible with a single color
+    if (touching.length === 0) return;   // only possible with a single color
     const key = touching[Math.floor(random() * touching.length)];
     const i = Math.floor(key / N), j = key % N;
     const pairsBefore = pairs;                 // A(X)
@@ -224,7 +220,7 @@ function chainWorker() {
       newColor[v] = (side[v] === 1) ? colorP : colorQ;
       if (newColor[v] !== color[v]) changed++;
     }
-    if (changed === 0) { accepted++; return true; }   // Y = X: alpha = 1 and nothing moves
+    if (changed === 0) { accepted++; return; }   // Y = X: alpha = 1 and nothing moves
 
     // Step 6: recolor for real, measure Y, then keep it or put X back.
     recolor(M, newColor);
@@ -243,23 +239,18 @@ function chainWorker() {
       logTau[i] = logTauI;
       logTau[j] = logTauJ;
       accepted++;
-      return true;
+    } else {
+      recolor(M, oldColor);                  // rejected: back to X
     }
-    recolor(M, oldColor);                    // rejected: back to X
-    return false;
   }
 
-  // Give each cell v of "cells" the color target[v], keeping size,
-  // between, pairs and boundary up to date. Only edges touching "cells"
-  // can change, so only those are taken out and put back.
+  // Give each cell v of "cells" the color target[v], keeping between,
+  // pairs and boundary up to date. Only edges touching "cells" can
+  // change, so only those are taken out and put back.
   // ("cells" is always M, the cells marked in inM.)
   function recolor(cells, target) {
     countEdges(cells, -1);
-    for (const v of cells) {
-      size[color[v]]--;
-      color[v] = target[v];
-      size[color[v]]++;
-    }
+    for (const v of cells) color[v] = target[v];
     countEdges(cells, +1);
   }
 

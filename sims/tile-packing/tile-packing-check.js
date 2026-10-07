@@ -309,10 +309,8 @@ const ARCTIC_COLORS = [[214, 69, 65], [240, 190, 50], [60, 110, 200], [70, 160, 
 
 let arctic = null;   // { chain, domain, order, timer }
 
-// (aztecDiamond(N), the domain, is in js/sim-domains.js.)
-
-function arcticSetup() {
-  const N = readWhole("arctic-order", 2, 60, 12);
+// A chain on the Aztec diamond of order N (aztecDiamond, js/sim-domains.js).
+function arcticSetup(N) {
   const radius = Math.max(Number(byId("arctic-radius").value) || 1.5, 0.1);
   const domain = aztecDiamond(N);
   const made = makeChain({ domain: domain, tiles: [{ w: 2, h: 1 }], gaps: false, meanRadius: radius }, "arctic");
@@ -323,7 +321,7 @@ function arcticSetup() {
 byId("arctic-start").addEventListener("click", function () {
   if (arctic && arctic.timer) return;
   const N = readWhole("arctic-order", 2, 60, 12);
-  if (!arctic || arctic.order !== N) arctic = arcticSetup();
+  if (!arctic || arctic.order !== N) arctic = arcticSetup(N);
   if (!arctic) return;
   (function chunk() {
     const until = performance.now() + 40;
@@ -368,7 +366,7 @@ function drawArctic() {
       }
     } else {
       const p = owner[v], a = pl.anchor[p];
-      rgb = ARCTIC_COLORS[2 * pl.orient[p] + (((d.x[a] + d.y[a]) % 2 + 2) % 2)];
+      rgb = ARCTIC_COLORS[2 * pl.orient[p] + wrapNumber(d.x[a] + d.y[a], 2)];
     }
     pen.fillStyle = "rgb(" + rgb.map(Math.round).join(",") + ")";
     // x grows to the right, y grows upward (so row 0 of the canvas is y = N - 1).

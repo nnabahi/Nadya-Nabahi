@@ -15,9 +15,9 @@
      - Hands both to the Markov chain (connected-coloring-chain.js),
        which runs in a second thread (a "Web Worker"), and draws every
        coloring it sends back, with the statistics.
-   Small helpers used by every sim page (byId, chartPen, ...) are in
-   js/sim-page.js, and moving and zooming the torus is in
-   js/sim-view.js.
+   Small helpers used by every sim page (byId, readWhole, ...) are in
+   js/sim-page.js, the charts' (chartPen, ...) in js/sim-charts.js, and
+   moving and zooming the picture in js/sim-view.js.
 
    The file is split into numbered sections:
      1. Settings you might want to change
@@ -227,13 +227,13 @@ const player = connectPlay(worker, SPEEDS, DEFAULT_SPEED, "move", "moves", resta
    where two cells of different colors meet, or where the domain ends.
 
    The "view" (js/sim-view.js) says where the picture goes and which
-   squares show, and paints them (paintCells), as in the other sims. A
-   box simply fills the picture once. A torus (or a region drawn on one)
-   wraps around, and can be moved and zoomed like a graph in Desmos:
+   squares show, and paints them (paintCells), as in the other sims.
+   The picture can be moved and zoomed like a graph in Desmos:
      drag it                          move it
      mouse wheel, or pinch            zoom in or out, around the pointer
      the + / − / Reset buttons        zoom in, zoom out, show it all again
-   Zoomed out, the torus shows several times side by side.
+   A torus (or a region drawn on one) wraps around, and zoomed out it
+   shows several times side by side.
 
    A ball of a hyperbolic tiling or a tree is drawn by
    js/sim-hyperbolic.js instead: in the disk or the half-plane (drag to
@@ -246,7 +246,7 @@ const simCanvas = byId("sim-canvas");         // the canvas on the page
 // however many colorings arrive in between).
 const drawSoon = oncePerFrame(function () { drawColoring(); showStats(); });
 
-const view = makeView(simCanvas, drawSoon);   // where the picture goes, and the torus's zoom
+const view = makeView(simCanvas, drawSoon);   // where the picture goes, and how far it is moved and zoomed
 
 // Hyperbolic plane or tree: which graph, how it is drawn, and how far
 // the plane has been moved (js/sim-hyperbolic.js). The view above zooms
@@ -270,21 +270,13 @@ function drawColoring() {
 }
 
 // Hyperbolic plane or tree: the ball's cells in their colors, with the
-// rest of the tiling (or tree) in thin gray, and on a tiling the lines
-// between different colors (js/sim-hyperbolic.js).
+// rest of the tiling (or tree) in thin gray, and in the disk or the
+// half-plane the lines between different colors (drawBall and
+// drawBallBorders, js/sim-hyperbolic.js).
 function drawOnGraph() {
-  const height = pictureHeight(BALL_HEIGHT);
   const paint = colorNames.map(function (name, c) { return shade(c); });
-  const colorOf = function (v) { return paint[colors[v]]; };
-  if (disk.picture === "spread") {
-    drawSpreadTree(disk, height, domain.n,
-      function (v) { return domain.depth[v]; }, function (v) { return domain.angle[v]; }, colorOf);
-    return;
-  }
-  const pen = diskPen(disk, height);
-  drawDiskFrame(disk, pen, height, OUTSIDE, UNDER_COLOR);
-  drawOnDisk(disk, pen, diskGraph(disk), domain.n, function (v) { return ballPlace(domain, v); }, colorOf);
-  drawBallBorders(disk, pen, domain, function (v) { return colors[v]; }, BORDER);
+  const pen = drawBall(disk, domain, function (v) { return paint[colors[v]]; });
+  if (disk.picture !== "spread") drawBallBorders(disk, pen, domain, function (v) { return colors[v]; }, BORDER);
 }
 
 window.addEventListener("resize", drawSoon);
@@ -321,15 +313,12 @@ function highlight(c) {
 
 // The line under the picture: how to highlight, or what is highlighted.
 function showHighlightInfo() {
-  if (highlighted >= N) highlighted = -1;       // fewer colors now
   const line = byId("highlight-info");
   if (highlighted === -1 || !colors) {
     line.textContent = "Click a color in the picture, or its bar under Statistics, to highlight it.";
     return;
   }
-  let cells = 0;
-  for (let v = 0; v < colors.length; v++) if (colors[v] === highlighted) cells++;
-  line.textContent = "Highlighted: color " + (highlighted + 1) + ", " + cells + " cells. " +
+  line.textContent = "Highlighted: color " + (highlighted + 1) + ", " + colorSizes()[highlighted] + " cells. " +
     (domainKind === "graph" ? "Click it again to show every color."
                             : "Click it again, or outside the cells, to show every color.");
 }
@@ -349,7 +338,7 @@ connectPicture(view, disk, function () { return domainKind === "graph"; }, funct
    6. STATISTICS
    ---------------------------------------------------------------------
    The table of numbers, and two small charts. The charts get their
-   canvas ready, and their colors, from js/sim-page.js.
+   canvas ready, and their colors, from js/sim-charts.js.
    ===================================================================== */
 function showStats() {
   if (!domain || !colors) return;
@@ -428,7 +417,7 @@ function keepForChart(message) {
 // The number of boundary edges against the number of moves tried. It
 // shows the whole run, rescaled to fit as the run goes on; zoom in with
 // the mouse wheel or a pinch, drag to move along, and double-click to
-// see the whole run again (chartZoom, js/sim-page.js).
+// see the whole run again (chartZoom, js/sim-charts.js).
 const traceZoom = chartZoom(byId("trace-chart"), drawTrace);
 
 function drawTrace() {
@@ -517,8 +506,8 @@ function checkDrawing(drawing) {
   if (toolStep === 1) {
     if (drawing.graph.vertices.length === 0) return ["Paint the region first.", ""];
     const region = drawnDomain(drawing.graph, drawing.grid);
-    const pieces = countPieces(region, new Int32Array(region.n), 1)[0];
     if (region.n < 2) return ["The region needs at least 2 cells.", ""];
+    const pieces = countPieces(region, new Int32Array(region.n), 1)[0];
     if (pieces > 1) return ["The region is in " + pieces + " pieces; it must be one connected piece.", ""];
     return ["", region.n + " cells in one connected piece."];
   }
@@ -621,9 +610,8 @@ function useDomain(kind, d, start, names) {
 }
 
 // The box or torus from the boxes on the page. (Choosing one while the
-// graph tool is open closes it.)
-// (Choosing one while the graph tool is open closes it, and carries on
-// running if it was running before the tool opened.)
+// graph tool is open closes it, and carries on running if it was
+// running before the tool opened.)
 function useBox() {
   const toolWasOpen = tool.isOpen;
   if (toolWasOpen) tool.close();
@@ -665,7 +653,7 @@ connectDomainChoice({ box: useBox, torus: useBox, custom: tool.open, graph: useG
 // N: the slider and the number box move together, and the chain restarts
 // live while you drag, like a Desmos slider.
 function setColorCount(value) {
-  N = Math.min(Math.max(Math.round(value) || 2, 2), Math.min(MAX_COLORS, domain.n));
+  N = Math.round(value) || 2;                  // useDomain keeps it from 2 to the most allowed
   useDomain(domainKind, domain, null, null);   // a new N always uses the automatic start
 }
 byId("colors-slider").addEventListener("input", function () { setColorCount(Number(this.value)); });
