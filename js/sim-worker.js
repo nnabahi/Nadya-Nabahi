@@ -3,8 +3,8 @@
    ---------------------------------------------------------------------
    Most sims do their work in a second thread (a Web Worker, started
    by startWorker in js/sim-page.js), so the page stays smooth while
-   the model runs. These two helpers were copied into six of those
-   workers; now they are written once, here:
+   the model runs. Six of those workers share these helpers, written
+   once, here:
 
      makeRunLoop(oneStep, report, isDone)   Play, Pause and Speed
      newTrace(), keepSample(...)            the run so far, for the
@@ -96,8 +96,7 @@ function keepSample(trace, time, values, now) {
   trace.next = time + trace.gap;
   const count = trace.times.length;
   if (count > MAX_SAMPLES) {
-    const even = function (x, k) { return k % 2 === 0; };
-    trace.times = trace.times.filter(even);
+    trace.times = trace.times.filter(function (x, k) { return k % 2 === 0; });
     for (const name in trace.lists) {
       const width = trace.lists[name].length / count;    // numbers per sample
       trace.lists[name] = trace.lists[name].filter(function (x, k) { return Math.floor(k / width) % 2 === 0; });

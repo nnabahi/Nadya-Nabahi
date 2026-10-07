@@ -28,27 +28,22 @@
 // pinned card first. Moving each card to the end of the list, in that
 // order, leaves them sorted.
 const cardGrid = document.querySelector(".card-grid");
-const sortedCards = Array.from(cardGrid.querySelectorAll(".card")).sort(function (a, b) {
+const cards = Array.from(cardGrid.querySelectorAll(".card")).sort(function (a, b) {
   const aPinned = a.classList.contains("pinned"), bPinned = b.classList.contains("pinned");
   if (aPinned !== bPinned) return aPinned ? -1 : 1;
   return a.querySelector("h3").textContent.localeCompare(b.querySelector("h3").textContent);
 });
-for (const card of sortedCards) cardGrid.appendChild(card);
+for (const card of cards) cardGrid.appendChild(card);
 
 
-// The box where the buttons go, and all the sim cards.
+// The box where the buttons go.
 const filterBar = document.getElementById("genre-filters");
-const cards = document.querySelectorAll(".card-grid .card");
 
 
 // Read the genre names off one card, e.g. ["Coloring", "Random walk"].
+// (trim() drops stray spaces.)
 function genresOf(card) {
-  const tagItems = card.querySelectorAll(".tags li");
-  const names = [];
-  for (const item of tagItems) {
-    names.push(item.textContent.trim());   // trim() drops stray spaces
-  }
-  return names;
+  return Array.from(card.querySelectorAll(".tags li"), function (item) { return item.textContent.trim(); });
 }
 
 
@@ -69,28 +64,26 @@ const genreNames = Object.keys(counts).sort();
 // chosen = null means "All": show every card.
 function applyFilter(chosen) {
   for (const card of cards) {
-    const matches = chosen === null || genresOf(card).includes(chosen);
-    card.hidden = !matches;   // hidden = true makes the card disappear
+    // hidden = true makes the card disappear.
+    card.hidden = chosen !== null && !genresOf(card).includes(chosen);
   }
 
   // Highlight the button that's currently selected.
   for (const button of filterBar.querySelectorAll("button")) {
-    const isSelected = button.dataset.genre === (chosen || "");
-    button.classList.toggle("selected", isSelected);
+    button.classList.toggle("selected", button.dataset.genre === (chosen || ""));
   }
 }
 
 
-// Make one button. "label" is the text shown; "genre" is what it filters by.
+// Make one button. "label" is the text shown; "genre" is what it filters
+// by (null for "All"), remembered on the button.
 function makeButton(label, genre) {
   const button = document.createElement("button");
   button.className = "filter-button";
   button.textContent = label;
-  button.dataset.genre = genre || "";        // remembered on the button
-  button.addEventListener("click", function () {
-    applyFilter(genre);                      // run applyFilter when clicked
-  });
-  filterBar.appendChild(button);             // put it on the page
+  button.dataset.genre = genre || "";
+  button.addEventListener("click", function () { applyFilter(genre); });
+  filterBar.appendChild(button);
 }
 
 

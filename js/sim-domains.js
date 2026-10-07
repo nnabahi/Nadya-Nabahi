@@ -48,14 +48,13 @@ function wrapNumber(v, size) { return ((v % size) + size) % size; }
 // true, the right edge is glued to the left and the top to the bottom.
 function boxDomain(width, height, neighbors, torus) {
   const xs = [], ys = [], edges = [];
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) { xs.push(x); ys.push(y); }
-  }
   // As in the graph tool: each cell looks right and up (and, with 8
   // neighbors, diagonally), wrapping around on a torus.
   const steps = neighbors === 8 ? [[1, 0], [0, 1], [1, 1], [1, -1]] : [[1, 0], [0, 1]];
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
+      xs.push(x);
+      ys.push(y);
       for (const [dx, dy] of steps) {
         let nx = x + dx, ny = y + dy;
         if (nx < 0 || nx >= width || ny < 0 || ny >= height) {

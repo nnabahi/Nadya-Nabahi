@@ -1,16 +1,16 @@
 /* =====================================================================
    check-page.js  —  small helpers the check pages share
    ---------------------------------------------------------------------
-   A check page (like sims/sandpiles/sandpiles-check.html) tests a sim's math on
-   its own and shows the results in a table. Every check page has a
-   link back to its sim at the top, and the same table: pass or FAIL,
-   what was checked, and what the test found. The check pages load
-   this file after js/sim-page.js (for byId) and before their own
-   tests.
+   A check page (like sims/sandpiles/sandpiles-check.html) tests a
+   sim's math on its own and shows the results in a table. Every check
+   page has a link back to its sim at the top, and the same table:
+   pass or FAIL, what was checked, and what the test found. The check
+   pages load this file after js/sim-page.js (for byId) and before
+   their own tests.
 
    Contents:
      addRow(test, pass, text)   one row of the results table
-     runChecksOnClick(tests)    the "Run the checks" button
+     runChecksOnClick(allTests) the "Run the checks" button
      readNumbers(text)          the numbers in a list pasted from Python
    and the tests several pages use (the p-values come from the library
    jStat, which those pages load):

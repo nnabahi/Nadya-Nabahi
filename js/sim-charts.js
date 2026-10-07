@@ -76,7 +76,7 @@ function plotOverTime(canvas, times, lines, word) {
 // and the two ends. With "trimmed", the range is the middle 90% of the
 // values, and anything outside goes into the first or last bar.
 function histogram(canvas, values, trimmed) {
-  const p = chartPen(canvas);
+  const pen = chartPen(canvas);
   if (values.length < 2) return;
   const w = canvas.clientWidth, h = canvas.clientHeight, top = 12, bottom = h - 14;
   const sorted = Float64Array.from(values).sort();
@@ -89,14 +89,14 @@ function histogram(canvas, values, trimmed) {
   for (const v of sorted) counts[Math.max(0, Math.min(bars - 1, Math.floor((v - lo) / (hi - lo) * bars)))]++;
 
   const biggest = Math.max(...counts), barWidth = w / bars;
-  p.fillText(biggest.toLocaleString(), 0, 9);
-  p.fillText(shortLabel(lo), 0, h - 2);
+  pen.fillText(biggest.toLocaleString(), 0, 9);
+  pen.fillText(shortLabel(lo), 0, h - 2);
   const last = shortLabel(hi);
-  p.fillText(last, w - p.measureText(last).width, h - 2);
-  p.fillStyle = CHART_LINE;
+  pen.fillText(last, w - pen.measureText(last).width, h - 2);
+  pen.fillStyle = CHART_LINE;
   counts.forEach(function (c, i) {
-    const barHeight = (bottom - top) * c / biggest;
-    if (c > 0) p.fillRect(i * barWidth, bottom - Math.max(1, barHeight), Math.max(1, barWidth - 1), Math.max(1, barHeight));
+    const barHeight = Math.max(1, (bottom - top) * c / biggest);
+    if (c > 0) pen.fillRect(i * barWidth, bottom - barHeight, Math.max(1, barWidth - 1), barHeight);
   });
 }
 

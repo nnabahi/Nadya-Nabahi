@@ -40,6 +40,8 @@
 
    A sim keeps one "disk view" (makeDiskView): which graph, which
    picture, and how far the plane has been moved. Then it calls
+     diskShape, diskGraph, isTree         the graph's first cell, the graph itself, is it a tree?
+     backToStart                          put the start back in the middle
      diskPen, drawDiskFrame, drawOnDisk   the disk or the half-plane
      drawUnder                            the whole tiling (or tree), in gray
      drawBallBorders                      lines between colors on a tiling
@@ -47,7 +49,7 @@
      drawSpreadTree, spreadSpot, spreadDot   the spread-out tree
      seenFrom, diskToScreen, cellPixels, onScreen   where a cell is on the screen
      startPlaneDrag, dragPlane            dragging across the plane
-     ballFromOptions, makeBall            the ball of R steps a sim runs on
+     ballFromOptions, makeBall, ballPlace the ball of R steps a sim runs on, and its cells' places
      drawBall, ballSpot                   drawing it, one color per cell
      ballCellUnder, ballCellAt            the cell of the ball under the pointer
      showGraphPresets, readGraphOptions   the Graph options on the page
@@ -88,8 +90,9 @@ const MOST_UNDER = 40000;          // and at most this many cells do
 const CELL_EDGE = "rgba(0, 0, 0, 0.25)";   // the thin line around each colored cell
 const SMALLEST_BORDER = 2;         // cells smaller than this (inradius, in pixels) get no lines between colors
 const BOND_GRAY = "#c9c6bf";       // closed edges, in drawBallBonds
-const ZOOM_CELLS = 60;             // the view counts the picture as this many "cells" across its
-                                   // shorter side (so it zooms in up to about 50 times; js/sim-view.js)
+// The view (js/sim-view.js) counts these pictures as ZOOM_CELLS "cells"
+// across their shorter side, so they zoom in up to about 50 times.
+const ZOOM_CELLS = 60;
 
 // A sim's ball (section 7), drawn by drawBall:
 const BALL_HEIGHT = 480;           // the picture's height, in screen pixels
@@ -297,9 +300,9 @@ function drawDiskFrame(dv, pen, height, inside, edge) {
 function traceOutline(dv, pen, A, size, place) {
   const outline = diskShape(dv).outline, every = size < 5 ? 4 : 1;
   for (let k = 0; k < outline.length; k += every) {
-    const [x, y] = place ? place(...motionApply(A, outline[k][0], outline[k][1]))
-                         : diskToScreen(dv, ...motionApply(A, outline[k][0], outline[k][1]));
-    if (k === 0) pen.moveTo(x, y); else pen.lineTo(x, y);
+    const [x, y] = motionApply(A, outline[k][0], outline[k][1]);
+    const [sx, sy] = place ? place(x, y) : diskToScreen(dv, x, y);
+    if (k === 0) pen.moveTo(sx, sy); else pen.lineTo(sx, sy);
   }
   pen.closePath();
 }
@@ -318,11 +321,11 @@ function traceSpokes(dv, pen, A, place) {
 // One of those lines: from the middle of the cell with motion A to the
 // middle of its side k.
 function traceSpoke(dv, pen, A, k, place) {
-  const POINTS = 6, [sx, sy] = diskShape(dv).sides[k];
+  const POINTS = 6, [mx, my] = diskShape(dv).sides[k];
   for (let j = 0; j <= POINTS; j++) {
-    const [x, y] = place ? place(...motionApply(A, sx * j / POINTS, sy * j / POINTS))
-                         : diskToScreen(dv, ...motionApply(A, sx * j / POINTS, sy * j / POINTS));
-    if (j === 0) pen.moveTo(x, y); else pen.lineTo(x, y);
+    const [x, y] = motionApply(A, mx * j / POINTS, my * j / POINTS);
+    const [sx, sy] = place ? place(x, y) : diskToScreen(dv, x, y);
+    if (j === 0) pen.moveTo(sx, sy); else pen.lineTo(sx, sy);
   }
 }
 
@@ -336,7 +339,7 @@ function traceSpoke(dv, pen, A, k, place) {
 // from, or null for none.
 function drawOnDisk(dv, pen, under, count, placeOf, colorOf) {
   const tree = isTree(dv.spec);
-  if (under) drawUnder(dv, pen, under);
+  drawUnder(dv, pen, under);
   pen.lineWidth = 0.5;
   pen.strokeStyle = CELL_EDGE;
   for (let i = 0; i < count; i++) {
@@ -510,7 +513,7 @@ function drawUnder(dv, pen, graph, place, pixels) {
     // or just off the screen.)
     if (n > 0 && (size < SMALLEST_UNDER || (!place && !onScreen(dv, mx, my)))) continue;
     if (tree) traceSpokes(dv, pen, A, place);
-    else { pen.moveTo(...(place ? place(mx, my) : diskToScreen(dv, mx, my))); traceOutline(dv, pen, A, size, place); }
+    else traceOutline(dv, pen, A, size, place);
     for (const w of graph.neighbors(queue[n])) {
       if (!seen.has(w)) { seen.add(w); queue.push(w); }
     }

@@ -13,7 +13,7 @@
      oncePerFrame(draw)               draw at the next screen refresh
      showPlaying(on)                  the Play button, while it plays
      speedText(speed, one, many)      "5 moves per second", for the Speed slider
-     connectPlay(worker, speeds, ...)  Play / Pause, Step, Restart and Speed
+     connectPlay(worker, ...)         Play / Pause, Step, Restart and Speed
      connectSeed(onChange)            the Seed box and its New seed button
      listenToTool(frame, useDrawing)  the drawing tool inside a sim page,
      showToolStatus(problem, good, buttons)   and the line that checks its drawing
@@ -42,10 +42,11 @@ function showMessage(text) { byId("sim-message").textContent = text; }
 // A whole number from a box, kept between lo and hi (else "fallback").
 // The box is updated to show the number actually used.
 function readWhole(id, lo, hi, fallback) {
-  let v = Math.round(Number(byId(id).value));
-  if (!isFinite(v) || byId(id).value === "") v = fallback;
+  const box = byId(id);
+  let v = Math.round(Number(box.value));
+  if (!isFinite(v) || box.value === "") v = fallback;
   v = Math.min(Math.max(v, lo), hi);
-  byId(id).value = v;
+  box.value = v;
   return v;
 }
 
@@ -86,8 +87,9 @@ function oncePerFrame(draw) {
 // The Play button (id="play") says "Pause" and looks pressed while the
 // sim plays.
 function showPlaying(on) {
-  byId("play").textContent = on ? "Pause" : "Play";
-  byId("play").classList.toggle("selected", on);
+  const button = byId("play");
+  button.textContent = on ? "Pause" : "Play";
+  button.classList.toggle("selected", on);
 }
 
 // A speed for the label next to the Speed slider: "5 moves per second"
@@ -128,11 +130,12 @@ function connectPlay(worker, speeds, startSpeed, one, many, restart) {
   });
   byId("restart").addEventListener("click", function () { restart(); });
 
-  byId("speed").max = speeds.length - 1;
-  byId("speed").value = speedIndex;
+  const slider = byId("speed");
+  slider.max = speeds.length - 1;
+  slider.value = speedIndex;
   showSpeed();
-  byId("speed").addEventListener("input", function () {
-    speedIndex = Number(this.value);
+  slider.addEventListener("input", function () {
+    speedIndex = Number(slider.value);
     showSpeed();
     if (player.playing) sendPlay();
   });
@@ -157,9 +160,9 @@ function connectSeed(onChange) {
    Choosing "Custom" on a sim page swaps the picture for the drawing
    tool (graph-tool.html), loaded in an <iframe> (a page inside the
    page) as ../graph-tool/graph-tool.html?embed. The sim checks the
-   drawing live and says under the tool what's wrong, if anything; Done
-   uses it.
-   makeCustomTool (js/sim-controls.js) does all of that with these two.
+   drawing live and says above the tool what's wrong, if anything; Done
+   uses it. makeCustomTool (js/sim-controls.js) does all of that with
+   these two.
    --------------------------------------------------------------------- */
 
 // Listen to the tool in the iframe "frame". It says how tall it is (so
@@ -175,7 +178,7 @@ function listenToTool(frame, useDrawing) {
   });
 }
 
-// The line under the tool: what's wrong with the drawing (in red), or a
+// The line above the tool: what's wrong with the drawing (in red), or a
 // tick and what's good about it (in green). The buttons that use the
 // drawing work only when nothing is wrong: Done, or the buttons with
 // the ids in the list "buttons".

@@ -280,6 +280,7 @@ a.card:hover {
   margin-bottom: 32px;
 }
 
+
 /* =====================================================================
    6. Toys n' Sims: the four-quadrant layout
    ---------------------------------------------------------------------
@@ -359,8 +360,8 @@ a.card:hover {
    ---------------------------------------------------------------------
    The rows of options with their buttons, formulas and sliders, and the
    numbers and small charts in the Statistics box. The graph tool
-   (sims/graph-tool/graph-tool.html) uses the same option rows, formulas and
-   sliders.
+   (sims/graph-tool/graph-tool.html) uses the same option rows, formulas
+   and sliders.
    ===================================================================== */
 
 /* Settings in the Options quadrant. */
@@ -532,9 +533,10 @@ a.card:hover {
   cursor: default;
 }
 
-/* The random matrix products' matrices: the boxes of one matrix, laid
-   out like the matrix itself, with its weight and a remove button
-   beside it (made by sims/random-matrix-products/random-matrix-products.js).
+/* The random matrix products' matrices (made by
+   sims/random-matrix-products/random-matrix-products.js): the boxes of
+   one matrix, laid out like the matrix itself, with its weight and a
+   remove button beside it.
 
        M1   [ 0.9 ] [ 0.8 ]    weight       ×
             [ 0.1 ] [ 0.2 ]    [    ]
@@ -808,9 +810,9 @@ body.popup-open {
    10. The graph tool (sims/graph-tool/graph-tool.html)
    ---------------------------------------------------------------------
    The buttons, color palette, drawing box and settings on the tool's
-   page. The drawing itself is styled in sims/graph-tool/graph-tool.js (section 3),
-   because Cytoscape draws it, not the browser's CSS. At the end: the
-   tool shown inside a sim page, for a custom domain.
+   page. The drawing itself is styled in sims/graph-tool/graph-tool.js
+   (section 3), because Cytoscape draws it, not the browser's CSS. At
+   the end: the tool shown inside a sim page, for a custom domain.
    ===================================================================== */
 
 /* A row of buttons above the drawing. */
@@ -997,8 +999,8 @@ body.embedded .graph-wrap {
 /* =====================================================================
    11. Check pages
    ---------------------------------------------------------------------
-   The check pages (like sims/random-mountain/random-mountain-check.html) test a sim's
-   math on its own.
+   The check pages (like sims/random-mountain/random-mountain-check.html)
+   test a sim's math on its own.
    ===================================================================== */
 
 /* The results table, with each test marked pass (green) or FAIL (red). */
