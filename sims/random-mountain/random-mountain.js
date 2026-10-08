@@ -389,8 +389,9 @@ const player = connectPlay(worker, SPEEDS, DEFAULT_SPEED, "block", "blocks", fun
 /* =====================================================================
    6. DRAWING THE MOUNTAIN
    ---------------------------------------------------------------------
-   Color shows height (heightColor below): height 1 is always red,
-   and the colors run up to blue at the largest height. Available sites
+   Color shows height (heightColor below): height 1 is always the
+   darkest (dark blue), and the colors run up to red at the largest
+   height. Available sites
    with no block yet are gray.
      1D: one bar per site, as tall as its height, on a line; the gray
          available sites are small marks under the line.
@@ -418,15 +419,16 @@ window.addEventListener("resize", function () {
 });
 
 // The color of height h (h = 1, 2, ...) when the tallest stack is
-// "highest" blocks tall. Height 1 is always red, and the colors run up
-// to blue at the tallest height, so the scale stretches upward as the
-// mountain grows. (The old site's colors, turned upside down: the hue
-// goes from 0 (red) up to 225 (blue), and the color gets darker on the
-// way.) The same colors are used in every view: a site seen from above
+// "highest" blocks tall. Height 1 is always the darkest color (dark
+// blue), and the colors run up to red at the tallest height, so the
+// scale stretches upward as the mountain grows. (Going down the
+// mountain, the hue goes from 0 (red) to 225 (blue), and the color
+// gets darker on the way.) The same colors are used in every view: a site seen from above
 // has the color of the top block of its stack. Returns [red, green,
 // blue], each 0..255.
 function heightColor(h, highest) {
-  const t = highest <= 1 ? 0 : (h - 1) / (highest - 1);   // 0 at height 1, 1 at the tallest
+  // t is 1 at height 1 (the bottom: dark blue) and 0 at the tallest (red).
+  const t = highest <= 1 ? 1 : (highest - h) / (highest - 1);
   const hue = 225 * t, saturation = 0.7, value = 0.9 - 0.55 * t;
   // The usual HSV -> RGB recipe.
   const c = value * saturation, k = hue / 60, x = c * (1 - Math.abs((k % 2) - 1)), m = value - c;

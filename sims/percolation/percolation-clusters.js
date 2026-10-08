@@ -46,11 +46,15 @@
    edge of the ball, so a cluster CROSSES when the start's cluster
    reaches the edge.
 
-   Colors that keep still. Each cluster is named after its OLDEST
-   element: the one with the smallest U, the first to open as p grows.
-   When two clusters join, the bigger cluster keeps the older name. The
-   sim colors each cluster by its name, so as p grows a cluster keeps
-   its color, and the clusters it swallows take that color too.
+   Colors that keep still. Every cluster has a name, and the sim colors
+   each cluster by its name, so as p grows a cluster keeps its color.
+     Site percolation: the cells open one at a time in order of U (the
+       smallest U first). A new cell joins the clusters next to it, and
+       the merged cluster keeps the name of the LARGEST of them (on a
+       tie, the older one). A new cell with no open neighbors starts a
+       cluster named after itself.
+     Bond percolation: a cluster is named after its OLDEST edge, the
+       one with the smallest U, the first to open as p grows.
 
    The file has no drawing and no buttons. The sim pages
    (percolation.js) and the check page (percolation-check.js) use it.
@@ -228,10 +232,37 @@ function percolate(d, kind, p, U, edges) {
   const uf = newUnionFind(d, U);
   let openCount = 0;
   if (kind === "site") {
-    for (let v = 0; v < d.n; v++) if (U[v] < p) { uf.name[v] = v; openCount++; }
-    for (let e = 0; e < edges.count; e++) {
-      const a = edges.a[e], b = edges.b[e];
-      if (U[a] < p && U[b] < p) union(uf, a, b, edges.dx[e], edges.dy[e]);
+    // Open the cells one at a time, smallest U first, as if p were
+    // raised slowly from 0. That way the names (and so the colors) come
+    // out the same as p grows, whatever p is.
+    const order = [];
+    for (let v = 0; v < d.n; v++) if (U[v] < p) order.push(v);
+    order.sort(function (s, t) { return U[s] - U[t]; });
+    const isOpen = new Uint8Array(d.n);
+    for (const v of order) {
+      isOpen[v] = 1;
+      uf.name[v] = v;
+      openCount++;
+      // The biggest cluster next to v, before they merge (on a tie,
+      // the one with the older name). -1: no open neighbor yet.
+      let best = -1;
+      for (let e = d.first[v]; e < d.first[v + 1]; e++) {
+        const w = d.nbr[e];
+        if (!isOpen[w]) continue;
+        const r = find(uf, w);
+        if (best === -1 || uf.size[r] > uf.size[best] ||
+            (uf.size[r] === uf.size[best] && uf.U[uf.name[r]] < uf.U[uf.name[best]])) best = r;
+      }
+      const bestName = best === -1 ? v : uf.name[best];
+      // Merge v with every open neighbor, then give the merged cluster
+      // the biggest one's name.
+      for (let e = d.first[v]; e < d.first[v + 1]; e++) {
+        const w = d.nbr[e];
+        if (!isOpen[w]) continue;
+        const step = stepBetween(d, v, w);
+        union(uf, v, w, step[0], step[1]);
+      }
+      uf.name[find(uf, v)] = bestName;
     }
   } else {
     for (let e = 0; e < edges.count; e++) {
