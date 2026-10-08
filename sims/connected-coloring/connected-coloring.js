@@ -77,7 +77,7 @@ let run = 0;                   // counts restarts, so leftovers from an older ru
 // The latest coloring and numbers from the chain.
 let colors = null;             // colors[v] = color of cell v
 let latest = null;             // { proposed, accepted, boundary, pairs }
-let trace = [];                // [moves tried, boundary edges] pairs, for the chart
+let trace = [];                // [moves accepted, boundary edges] pairs, for the chart
 let traceEvery = 1;            // the chart keeps one message in this many (section 6)
 let messages = 0;              // messages from the chain in this run
 let highlighted = -1;          // the color shown highlighted, or -1 for none (section 5b)
@@ -407,14 +407,14 @@ byId("sizes-chart").addEventListener("click", function (event) {
 function keepForChart(message) {
   messages++;
   if ((messages - 1) % traceEvery !== 0) return;
-  trace.push([message.proposed, message.boundary]);
+  trace.push([message.accepted, message.boundary]);
   if (trace.length >= TRACE_POINTS) {
     trace = trace.filter(function (p, k) { return k % 2 === 0; });
     traceEvery *= 2;
   }
 }
 
-// The number of boundary edges against the number of moves tried. It
+// The number of boundary edges against the number of moves accepted. It
 // shows the whole run, rescaled to fit as the run goes on; zoom in with
 // the mouse wheel or a pinch, drag to move along, and double-click to
 // see the whole run again (chartZoom, js/sim-charts.js).

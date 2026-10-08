@@ -138,8 +138,9 @@ function inCluster(v) {
 /* =====================================================================
    4. COLORS
    ---------------------------------------------------------------------
-   Each cluster is colored by its name (its oldest element, see
-   percolation-clusters.js), so it keeps its color as p grows. The hue
+   Each cluster is colored by its name (see percolation-clusters.js),
+   so it keeps its color as p grows. In site percolation, when clusters
+   merge, the new cluster takes the color of the biggest one. The hue
    of name k steps around the color wheel by the golden ratio, which
    keeps neighboring names far apart in color. Colors are remembered
    once worked out.
