@@ -66,7 +66,10 @@ const DEFAULT_SPEED = 5;
    ===================================================================== */
 
 let model = "discrete";         // "discrete" or "continuous"
-let domainKind = "torus";       // "line", "ring" (1D), "box", "torus", "custom" or "graph": the domain in use
+// The domain in use: "line" or "ring" (on the 1D page,
+// random-walk-coloring-1d.html), "box", "torus", "custom" or "graph".
+// It starts as the one ticked on the page.
+let domainKind = document.querySelector('input[name="domain"]:checked').value;
 let domain = null;              // the domain graph (js/sim-domains.js), or a ball (makeBall, js/sim-hyperbolic.js)
 let customDomain = null;        // the last custom domain drawn, if any
 let N = DEFAULTS.walkers;       // number of walkers
@@ -746,16 +749,18 @@ function useDomain(kind, d) {
   domainKind = kind;
   domain = d;
   // Moving and zooming; zooming out past the whole picture only on a
-  // torus (js/sim-view.js). The 1D ring is a circle that stays still.
-  if (kind === "ring") useTorus(view, false, false);
+  // torus (js/sim-view.js). In 1D the picture stays still: the ring is
+  // a circle, and the line is one strip across the picture.
+  if (kind === "ring" || kind === "line") useTorus(view, false, false);
   else useTorus(view, Boolean(d.wrap));
   showDomainChoice();
   setWalkerCount(N);
 }
 
 // The box or torus from the boxes on the page. (Choosing one while the
-// graph tool is open closes it.) With "1D line" or "1D ring" ticked it
-// makes the 1D domain instead, since changing the Size box comes here too.
+// graph tool is open closes it.) On the 1D page, with "Line" or "Ring"
+// ticked, it makes the 1D domain instead, since changing the Length box
+// comes here too.
 function useBox() {
   if (tool.isOpen) tool.close();
   const kind = checked("domain");
@@ -811,7 +816,8 @@ for (const radio of document.querySelectorAll('input[name="model"]')) {
   });
 }
 
-// Domain: 1D line / 1D ring / Box / Torus / Custom / Hyperbolic plane or tree, and their
+// Domain: Box / Torus / Custom / Hyperbolic plane or tree (or, on the
+// 1D page, Line / Ring), and their
 // options (js/sim-controls.js).
 connectDomainChoice({ line: useBox, ring: useBox, box: useBox, torus: useBox, custom: tool.open, graph: useGraph });
 
