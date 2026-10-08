@@ -1,5 +1,5 @@
 /* =====================================================================
-   genre-filter.js  —  the genre buttons on toys.html
+   genre-filter.js  —  the genre buttons on toysnsims.html
    ---------------------------------------------------------------------
    What it does, in plain words:
      0. Put the cards in alphabetical order by name, with the pinned
@@ -12,7 +12,7 @@
         genre, and show the ones that do.
 
    You never need to edit this file to add a sim or a genre. Just add
-   the genre as an <li> on a card in toys.html and a button appears;
+   the genre as an <li> on a card in toysnsims.html and a button appears;
    the card can go anywhere in the list, and it is sorted into place.
 
    A few JavaScript words used below:

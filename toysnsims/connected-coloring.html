@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Random connected coloring — Toys n' Sims</title>
+  <link rel="stylesheet" href="../css/style.css">
+  <!-- KaTeX's styles, for the typeset formulas in the About quadrant. -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/katex.min.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <nav>
+      <a href="../about.html">About Me</a>
+      <a href="../resume.html">Resume</a>
+      <a href="../index.html">Home</a>
+      <a href="../publications.html">Publications</a>
+      <a href="../toysnsims.html" class="active">Toys n' Sims</a>
+    </nav>
+  </header>
+
+  <main class="page">
+    <p><a href="../toysnsims.html">&larr; All sims</a></p>
+    <h1>Random connected coloring</h1>
+
+    <!-- The four quadrants, as on every sim page (their layout is in
+         section 6 of css/style.css). All the behavior lives in
+         connected-coloring.js; the ids below (id="...") are how that
+         script finds each button and box. -->
+    <div class="quadrants">
+
+      <!-- UPPER LEFT: the coloring. -->
+      <section class="quad quad-sim">
+        <h2>Simulation</h2>
+
+        <!-- The picture. Its height is set so the cells come out square
+             (js/sim-view.js). The zoom buttons sit in its top right corner. -->
+        <div class="sim-picture">
+          <canvas id="sim-canvas"></canvas>
+          <div class="zoom-buttons" id="zoom-buttons" hidden>
+            <button class="tool-button" id="zoom-in" title="Zoom in">+</button>
+            <button class="tool-button" id="zoom-out" title="Zoom out">&minus;</button>
+            <button class="tool-button" id="zoom-reset" title="Show the whole picture once again">Reset</button>
+            <!-- On a hyperbolic tiling or tree's disk or half-plane: put the start back in the middle. -->
+            <button class="tool-button" id="disk-reset" title="Put the start back in the middle" hidden>Back to the start</button>
+            <!-- ... and "Slide": dragging there slides the whole picture instead (js/sim-hyperbolic.js).
+                 It shows and hides with "Back to the start" (section 8 of css/style.css). -->
+            <button class="tool-button" id="disk-slide" title="Drag to slide the whole picture, instead of moving around the plane">Slide</button>
+          </div>
+        </div>
+
+        <!-- Shown instead of the picture while you draw a custom domain:
+             the steps, and the graph tool itself in an <iframe> (a page
+             inside this page). The buttons with data-step="1" show in
+             step 1, those with data-step="2" in step 2. -->
+        <div id="custom-area" hidden>
+          <div class="step-bar">
+            <p class="step-title" id="step-title"></p>
+            <p class="muted step-help" id="step-help"></p>
+            <p class="step-status" id="step-status"></p>
+            <div class="option-row">
+              <button class="tool-button" id="use-auto" data-step="1">Use automatic start</button>
+              <button class="tool-button" id="draw-own" data-step="1">Draw my own start</button>
+              <button class="tool-button tool-cancel" data-step="1">Cancel</button>
+              <button class="tool-button" id="tool-back" data-step="2">Back to the region</button>
+              <button class="tool-button" id="tool-done" data-step="2">Done</button>
+              <button class="tool-button tool-cancel" data-step="2">Cancel</button>
+            </div>
+          </div>
+          <iframe class="tool-frame" id="tool-frame" title="Graph and domain tool"></iframe>
+        </div>
+
+        <!-- How to highlight one color (section 5b of connected-coloring.js). -->
+        <p class="muted small" id="highlight-info"></p>
+        <!-- Messages, e.g. if the chain can't start. -->
+        <p class="muted" id="sim-message"></p>
+      </section>
+
+      <!-- UPPER RIGHT: settings. -->
+      <section class="quad quad-controls">
+        <h2>Options</h2>
+
+        <h3 class="option-heading">Domain</h3>
+        <div class="option-row">
+          <label><input type="radio" name="domain" value="box" checked> Box</label>
+          <label><input type="radio" name="domain" value="torus"> Torus</label>
+          <label><input type="radio" name="domain" value="custom"> Custom (draw it)</label>
+          <label><input type="radio" name="domain" value="graph"> Hyperbolic plane or tree</label>
+        </div>
+        <div class="option-row" id="size-row">
+          Size <input type="number" id="set-width" min="2" step="1">
+          &times; <input type="number" id="set-height" min="2" step="1">
+        </div>
+        <div class="option-row" id="neighbors-row">
+          Neighbors
+          <select id="set-neighbors">
+            <option value="4">4 (share a side)</option>
+            <option value="8">8 (sides or corners)</option>
+          </select>
+        </div>
+        <div class="option-row" id="custom-row" hidden>
+          <span id="custom-info"></span>
+          <button class="tool-button" id="edit-custom">Edit custom domain</button>
+        </div>
+
+        <!-- Hyperbolic plane or tree only: which graph, how big a ball of
+             it, and how it is drawn (the ids are the ones
+             js/sim-hyperbolic.js reads). -->
+        <div id="graph-rows" hidden>
+          <div class="option-row" id="graph-presets"></div>
+          <div class="option-row">
+            <label><input type="radio" name="graph-kind" value="tiling" checked> Tiling {p, q}:</label>
+            p <input type="number" id="set-p" min="3" max="12" step="1" value="7">
+            q <input type="number" id="set-q" min="3" max="12" step="1" value="3">
+          </div>
+          <div class="option-row">
+            <label><input type="radio" name="graph-kind" value="tree"> Tree, degree</label>
+            <input type="number" id="set-degree" min="3" max="12" step="1" value="3">
+          </div>
+          <p class="muted small" id="graph-info"></p>
+          <div class="option-row">
+            Ball: every cell within R =
+            <input type="number" id="set-ball-radius" min="1" step="1">
+            steps of the start
+          </div>
+          <p class="muted small" id="ball-info"></p>
+          <div class="option-row">
+            Drawn in
+            <label><input type="radio" name="picture" value="disk" checked> the disk</label>
+            <label><input type="radio" name="picture" value="half"> the half-plane</label>
+            <label id="spread-choice"><input type="radio" name="picture" value="spread"> spread out</label>
+          </div>
+        </div>
+
+        <h3 class="option-heading">Colors</h3>
+        <div class="option-row">
+          N = <input type="number" id="set-colors" min="2" step="1">
+          <input type="range" class="wide-range" id="colors-slider" min="2" step="1">
+        </div>
+        <p class="muted small" id="start-info"></p>
+
+        <h3 class="option-heading">Run</h3>
+        <div class="option-row">
+          <button class="tool-button" id="play">Play</button>
+          <button class="tool-button" id="step" title="One move">Step</button>
+          <button class="tool-button" id="restart" title="Back to the start, same seed">Restart</button>
+        </div>
+        <div class="option-row">
+          Speed <input type="range" class="wide-range" id="speed" min="0" step="1">
+          <span class="muted" id="speed-label"></span>
+        </div>
+        <div class="option-row">
+          Seed <input type="text" id="seed" size="8">
+          <button class="tool-button" id="new-seed" title="A random new seed">New seed</button>
+        </div>
+        <p class="muted small">The same seed always gives the same run.</p>
+      </section>
+
+      <!-- LOWER LEFT: numbers about the chain. -->
+      <section class="quad quad-stats">
+        <h2>Statistics</h2>
+        <table class="stats-table">
+          <tr><td>Cells</td><td id="stat-cells"></td></tr>
+          <tr><td>Colors N</td><td id="stat-colors"></td></tr>
+          <tr><td>Moves tried</td><td id="stat-proposed"></td></tr>
+          <tr><td>Moves accepted</td><td id="stat-accepted"></td></tr>
+          <tr><td>Boundary edges (joining two colors)</td><td id="stat-boundary"></td></tr>
+          <tr><td>Touching pairs of colors, A(X)</td><td id="stat-pairs"></td></tr>
+        </table>
+        <h3 class="option-heading">Size of each color, largest first</h3>
+        <canvas class="chart clickable" id="sizes-chart"></canvas>
+        <h3 class="option-heading">Boundary edges over the whole run</h3>
+        <canvas class="chart" id="trace-chart"></canvas>
+        <p class="muted small">Zoom with the mouse wheel or a pinch, drag to move along,
+          and double-click to see the whole run again.</p>
+      </section>
+
+      <!-- LOWER RIGHT: about the model, in two tabs (js/sim-page.js
+           switches them): a simple version, and all the details. Text in
+           class="tex" is typeset by KaTeX (<div> on its own line, <span>
+           inside a sentence). -->
+      <section class="quad quad-about">
+        <h2>About the model</h2>
+        <nav class="about-tabs">
+          <button class="about-tab selected" data-tab="simple">Simple</button>
+          <button class="about-tab" data-tab="details">All the details</button>
+        </nav>
+
+        <div data-panel="simple">
+        <p>
+          The domain is split into N colors, and each color is <strong>one
+          connected piece</strong>: you can walk between any two of its cells
+          without leaving the color.
+        </p>
+        <p>
+          <strong>Each move</strong> merges two neighboring colors into one
+          region and splits it again at random: a random tree is drawn through
+          the region, visiting every cell, and one of its links is cut. The tree
+          falls into two connected pieces, and those are the two new colors.
+        </p>
+        <p>
+          Some moves are refused, with just the right probability that, in the
+          long run, <strong>every such coloring is equally likely</strong>. The
+          other tab explains why, with references.
+        </p>
+        <p>
+          <strong>Things to try:</strong> press Play (or Step, for one move at a
+          time); change N; zoom in on the borders with the mouse wheel, a pinch,
+          or the + and &minus; buttons, and drag to look around; switch to the
+          torus (drag it and it wraps around); pick Custom to draw your own
+          region and even your own starting colors; or pick Hyperbolic plane
+          or tree to color a ball of a hyperbolic tiling or a tree (drag to
+          move around the plane, or press Slide to slide the whole picture).
+        </p>
+        </div>
+
+        <div data-panel="details" hidden>
+        <p>
+          A <strong>connected N-coloring</strong> of the domain gives every cell
+          one of N colors so that each color is used and forms one connected
+          piece. This sim moves randomly between them in such a way that, in the
+          long run, every connected N-coloring is equally likely.
+        </p>
+        <p>
+          <strong>One move</strong> (ReCom, short for recombination [1]), from the
+          current coloring <span class="tex">X</span>:
+        </p>
+        <ol class="about-steps">
+          <li>Pick two colors <span class="tex">i, j</span> that touch, uniformly
+            among the <span class="tex">A(X)</span> pairs that touch.</li>
+          <li>Merge them: <span class="tex">M = C_i \cup C_j</span>.</li>
+          <li>Draw a uniformly random spanning tree of <span class="tex">M</span>
+            with Wilson's algorithm [2].</li>
+          <li>Cut a uniformly random edge of the tree. It falls into two connected
+            pieces, <span class="tex">P</span> and <span class="tex">Q</span>.</li>
+          <li>A fair coin decides which piece gets color <span class="tex">i</span>;
+            the other gets <span class="tex">j</span>. Call this
+            <span class="tex">Y</span>.</li>
+          <li>Move to <span class="tex">Y</span> with probability
+            <div class="tex">\alpha = \min\left(1,\ \frac{A(X)}{A(Y)} \cdot \frac{\tau(C_i)\,\tau(C_j)}{\tau(P)\,\tau(Q)} \cdot \frac{k(C_i, C_j)}{k(P, Q)}\right),</div>
+            otherwise stay at <span class="tex">X</span>. Here
+            <span class="tex">\tau(S)</span> is the number of spanning trees of
+            <span class="tex">S</span>, and <span class="tex">k(S, R)</span> the
+            number of edges joining <span class="tex">S</span> to
+            <span class="tex">R</span>.</li>
+        </ol>
+        <p>
+          <strong>Why every coloring is equally likely.</strong> A spanning tree
+          of <span class="tex">M</span> with an edge that splits it into
+          <span class="tex">\{P, Q\}</span> is the same thing as a spanning tree of
+          <span class="tex">P</span>, one of <span class="tex">Q</span>, and an
+          edge joining them. So steps 1&ndash;5 propose <span class="tex">Y</span>
+          with probability
+        </p>
+        <div class="tex">q(X \to Y) = \frac{1}{A(X)} \cdot \frac{1}{2} \cdot \frac{\tau(P)\,\tau(Q)\,k(P, Q)}{\tau(M)\,(|M| - 1)},</div>
+        <p>
+          and the way back merges the same <span class="tex">M</span>. Accepting
+          with <span class="tex">\min(1, q(Y \to X) / q(X \to Y))</span>, which is
+          <span class="tex">\alpha</span> above, is the Metropolis&ndash;Hastings
+          rule for the uniform distribution [3, 4]: the chain is reversible with
+          respect to it, so the uniform distribution is stationary. (The long-run
+          claim also needs every connected coloring to be reachable from every
+          other; that is not proved here for every domain.) The coin matters:
+          without it, which piece gets color <span class="tex">i</span> depends on
+          where the tree was rooted, and <span class="tex">q</span> would not be
+          the formula above.
+        </p>
+        <p>
+          <strong>Counting spanning trees.</strong> By Kirchhoff's Matrix-Tree
+          Theorem [5, 6], <span class="tex">\tau(S)</span> is the determinant of
+          the Laplacian matrix of <span class="tex">S</span> with one row and the
+          matching column removed. It is computed (as a logarithm, since it is
+          huge) with a banded Cholesky factorization [7], numbering the cells in
+          breadth-first order so the matrix is banded. The count for each color
+          is remembered, so a move needs only two new determinants.
+        </p>
+        <p>
+          <strong>Domains and starts.</strong> A box or torus of cells, with 4 or 8
+          neighbors, or your own region drawn in the graph tool. The torus can
+          be moved by dragging it and zoomed with the mouse wheel, a pinch or
+          the buttons in its corner; zoomed out, it shows several times side
+          by side. The automatic start cuts the domain into a grid of N
+          rectangles; a drawn region that can't be cut that way with each
+          color in one piece starts from N compact blocks around spread-out
+          cells instead. Compact pieces matter: from thin stripes, almost
+          every move would be refused at first. With a custom domain you can
+          also paint your own start. The seed fixes the random numbers, so a
+          run can be repeated exactly.
+        </p>
+        <p>
+          <strong>Hyperbolic plane or tree.</strong> The domain can also be the
+          ball <span class="tex">B_R = \{ v : d(o, v) \le R \}</span> of a
+          regular tiling <span class="tex">\{p, q\}</span> of the hyperbolic
+          plane (<span class="tex">1/p + 1/q &lt; 1/2</span>; neighbors share a
+          side) or of the regular tree of degree <span class="tex">k</span>,
+          with <span class="tex">d</span> the graph distance,
+          <span class="tex">o</span> the start cell, and only the edges inside
+          the ball. The chain is the same. The number of cells grows
+          exponentially in <span class="tex">R</span> [9], so most of the ball
+          is near its edge. On a tree every color is a subtree, which has
+          exactly one spanning tree. The edges joining two colors are
+          <span class="tex">N - 1</span> edges of the tree (shrinking each
+          color to a point leaves a tree with <span class="tex">N</span>
+          points), and cutting any <span class="tex">N - 1</span> edges leaves
+          <span class="tex">N</span> connected pieces. So every ratio in
+          <span class="tex">\alpha</span> is 1 and every move is accepted, and
+          a uniform coloring is <span class="tex">N - 1</span> edges cut
+          uniformly at random, with the colors handed out at random. Most
+          edges of the ball are near its edge, so usually one color fills most
+          of the ball. The
+          breadth-first band is wide on these graphs, so
+          <span class="tex">\tau</span> is computed by removing the cells one
+          at a time instead (Gaussian elimination), always one with the fewest
+          neighbors left [8]; on a tree that is always a leaf. The automatic
+          start is <span class="tex">N</span> compact blocks around spread-out
+          cells. The pictures are the Poincar&eacute; disk and the upper
+          half-plane [10], and for a tree the usual radial drawing.
+        </p>
+        <p><strong>References</strong></p>
+        <ol class="references">
+          <li>D. DeFord, M. Duchin, J. Solomon, &ldquo;Recombination: A family of
+            Markov chains for redistricting&rdquo;, <em>Harvard Data Science
+            Review</em> 3(1), 2021.
+            <a href="https://doi.org/10.1162/99608f92.eb30390f">doi:10.1162/99608f92.eb30390f</a></li>
+          <li>D. B. Wilson, &ldquo;Generating random spanning trees more quickly
+            than the cover time&rdquo;, <em>Proceedings of STOC</em> 1996, 296&ndash;303.
+            <a href="https://doi.org/10.1145/237814.237880">doi:10.1145/237814.237880</a></li>
+          <li>N. Metropolis, A. W. Rosenbluth, M. N. Rosenbluth, A. H. Teller,
+            E. Teller, &ldquo;Equation of state calculations by fast computing
+            machines&rdquo;, <em>J. Chem. Phys.</em> 21 (1953), 1087&ndash;1092.
+            <a href="https://doi.org/10.1063/1.1699114">doi:10.1063/1.1699114</a></li>
+          <li>W. K. Hastings, &ldquo;Monte Carlo sampling methods using Markov chains
+            and their applications&rdquo;, <em>Biometrika</em> 57 (1970), 97&ndash;109.
+            <a href="https://doi.org/10.1093/biomet/57.1.97">doi:10.1093/biomet/57.1.97</a></li>
+          <li>G. Kirchhoff, &ldquo;Ueber die Aufl&ouml;sung der Gleichungen, auf welche
+            man bei der Untersuchung der linearen Vertheilung galvanischer
+            Str&ouml;me gef&uuml;hrt wird&rdquo;, <em>Annalen der Physik und
+            Chemie</em> 72 (1847), 497&ndash;508.</li>
+          <li>C. Godsil, G. Royle, <em>Algebraic Graph Theory</em>, Springer, 2001,
+            Section 13.2.</li>
+          <li>G. H. Golub, C. F. Van Loan, <em>Matrix Computations</em>, 4th ed.,
+            Johns Hopkins University Press, 2013, Sections 4.2&ndash;4.3.</li>
+          <li>A. George, J. W. H. Liu, &ldquo;The evolution of the minimum degree
+            ordering algorithm&rdquo;, <em>SIAM Review</em> 31 (1989), 1&ndash;19.</li>
+          <li>R. Lyons, Y. Peres, <em>Probability on Trees and Networks</em>,
+            Cambridge University Press, 2016.</li>
+          <li>A. F. Beardon, <em>The Geometry of Discrete Groups</em>,
+            Springer, 1983, Chapter 7.</li>
+        </ol>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <!-- KaTeX (https://katex.org) typesets the formulas. The version number
+       is fixed so an update can never change the site by surprise. -->
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/katex.min.js"></script>
+
+  <!-- The code the sims share (in js/, see the README): page helpers
+       (they also typeset the formulas, so they come after KaTeX), the
+       second thread's run loop, charts, colors, domains, the picture's
+       view (moving and zooming it), the hyperbolic tilings and trees and
+       their pictures, and the options and controls of the domain. Then
+       the chain (it runs in a second thread), then this page's code. -->
+  <script src="../js/sim-page.js"></script>
+  <script src="../js/sim-worker.js"></script>
+  <script src="../js/sim-charts.js"></script>
+  <script src="../js/sim-colors.js"></script>
+  <script src="../js/sim-domains.js"></script>
+  <script src="../js/sim-view.js"></script>
+  <script src="../js/sim-graphs.js"></script>
+  <script src="../js/sim-hyperbolic.js"></script>
+  <script src="../js/sim-controls.js"></script>
+  <script src="connected-coloring/connected-coloring-chain.js"></script>
+  <script src="connected-coloring/connected-coloring.js"></script>
+
+</body>
+</html>
