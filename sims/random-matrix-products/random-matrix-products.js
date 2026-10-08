@@ -217,6 +217,7 @@ function replay() {
     cloud.setModel(model);
   }
   shownRun = Math.min(shownRun, runs);
+  byId("set-run").value = shownRun;   // N may have dropped below it
   trajectory = [];
   remember();
   while (cloud.t < wantedT) stepOnce();
@@ -254,14 +255,14 @@ function playFrame(time) {
 
 function setPlaying(on) {
   playing = on && model !== null && cloud !== null;
-  byId("play").textContent = playing ? "Pause" : "Play";
+  showPlaying(playing);   // js/sim-page.js
   lastFrame = 0; owed = 0;
   if (playing) requestAnimationFrame(playFrame);
 }
 
 function showSpeed() {
   byId("speed").value = speedIndex;
-  byId("speed-label").textContent = SPEEDS[speedIndex] + " steps/s";
+  byId("speed-label").textContent = speedText(SPEEDS[speedIndex], "step", "steps");
 }
 
 

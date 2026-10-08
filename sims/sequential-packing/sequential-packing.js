@@ -326,14 +326,14 @@ function playFrame(time) {
 
 function setPlaying(on) {
   playing = on;
-  byId("play").textContent = on ? "Pause" : "Play";
+  showPlaying(on);   // js/sim-page.js
   lastFrame = 0; owed = 0;
   if (on) requestAnimationFrame(playFrame);
 }
 
 function showSpeed() {
   byId("speed").value = speedIndex;
-  byId("speed-label").textContent = SPEEDS[speedIndex].toLocaleString() + " attempts/s";
+  byId("speed-label").textContent = speedText(SPEEDS[speedIndex], "attempt", "attempts");
 }
 
 

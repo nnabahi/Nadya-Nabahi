@@ -227,7 +227,6 @@ function tilePacking() {
         orientW.push(w); orientH.push(h); orientTile.push(k); orientLogWeight.push(Math.log(weight));
       }
     });
-    if (orientW.length === 0) return "Every tile has weight 0: give at least one tile a weight above 0.";
 
     listPlacements();
 
@@ -243,6 +242,9 @@ function tilePacking() {
     startMoves = 0;
     makeScratch();
 
+    // Like a failed start (section 4): the message, and the empty packing
+    // made just above.
+    if (orientW.length === 0) return "Every tile has weight 0: give at least one tile a weight above 0.";
     return gaps ? greedyStart() : directStart();
   }
 

@@ -178,10 +178,12 @@ function restart() {
   player.carryOn();
 }
 
-// A new g, slider value or noise: the opinions carry on with them
-// (once the run has started).
+// A new g, slider value or noise: the opinions carry on with them.
+// The worker reads its messages in order, so a change made right after
+// Restart reaches the new run too. (Before the first run, at the start
+// of the page, there is nothing to change yet.)
 function sendParams() {
-  if (!latest) return;
+  if (!run) return;
   worker.postMessage({ type: "params", table: currentTable(), noise: noise });
 }
 
