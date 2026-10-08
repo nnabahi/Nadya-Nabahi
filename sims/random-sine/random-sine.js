@@ -477,14 +477,14 @@ function playFrame(time) {
 
 function setPlaying(on) {
   playing = on && law !== null;
-  byId("play").textContent = playing ? "Pause" : "Play";
+  showPlaying(playing);   // js/sim-page.js
   lastFrame = 0; owed = 0;
   if (playing) requestAnimationFrame(playFrame);
 }
 
 function showSpeed() {
   byId("speed").value = speedIndex;
-  byId("speed-label").textContent = SPEEDS[speedIndex].toLocaleString() + " samples/s";
+  byId("speed-label").textContent = speedText(SPEEDS[speedIndex], "sample", "samples");
 }
 
 function showHistograms() {

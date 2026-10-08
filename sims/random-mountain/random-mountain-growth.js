@@ -411,8 +411,8 @@ function mountainWorker() {
   }
 
   // Play, Pause and Speed: the run loop (js/sim-worker.js), dropping the
-  // blocks that are due.
-  const loop = makeRunLoop(oneStep, report);
+  // blocks that are due. At the step limit it pauses by itself.
+  const loop = makeRunLoop(oneStep, report, function () { return mountain !== null && mountain.steps >= MAX_STEPS; });
 
   self.onmessage = function (event) {
     const message = event.data;
