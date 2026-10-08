@@ -74,25 +74,29 @@
 
 
 // The first cell of the tiling {p,q} (q = Infinity for a tree): its
-// inradius r and circumradius (hyperbolic), where the middle of each side is in the disk
-// (sides[k] = [x, y]), and its outline as a list of points [x, y] in
-// the disk, going around it (each side bent along its circle arc).
+// inradius and circumradius (hyperbolic); "middle", how far a side's
+// middle is from 0 in the disk; where the middle of each side is
+// (sides[k] = [x, y]); and its outline, a list of points [x, y] in the
+// disk going around it (each side bent along its circle arc).
 function tilingShape(p, q) {
   const inradius = Math.acosh(Math.cos(Math.PI / q) / Math.sin(Math.PI / p));
-  // Half the length of a side: infinite for a tree (ideal corners).
-  const halfSide = q === Infinity ? Infinity
-    : Math.acosh(1 / (Math.tan(Math.PI / p) * Math.tan(Math.PI / q)) / Math.cosh(inradius));
+  const coshCircumradius = 1 / (Math.tan(Math.PI / p) * Math.tan(Math.PI / q));   // cot(pi/p) cot(pi/q)
+  // The circumradius (middle to a corner) and half the length of a
+  // side: both infinite for a tree (ideal corners).
+  const circumradius = q === Infinity ? Infinity : Math.acosh(coshCircumradius);
+  const halfSide = q === Infinity ? Infinity : Math.acosh(coshCircumradius / Math.cosh(inradius));
   const middle = Math.tanh(inradius / 2);   // a side's middle, as |z| in the disk
+  // Side k is the arc through its middle at right angles to the ray to
+  // it. Turned to face along the x axis, it is the image of the y axis
+  // under z -> (z + middle) / (1 + middle z); the point i t on the y
+  // axis lands on it, with t = tanh(distance along the side / 2), so the
+  // side runs from t = -tEnd to t = tEnd.
+  const tEnd = halfSide === Infinity ? 1 : Math.tanh(halfSide / 2);
+  const SAMPLES = 8;                        // points along each half of a side
   const sides = [], outline = [];
-  const SAMPLES = 8;                        // points along each side
   for (let k = 0; k < p; k++) {
     const angle = 2 * Math.PI * k / p;      // side k faces this way
     sides.push([middle * Math.cos(angle), middle * Math.sin(angle)]);
-    // Side k: the arc through its middle at right angles to the ray to
-    // it. Turned to face along the x axis, it is the image of the y
-    // axis under z -> (z + middle) / (1 + middle z); the point i t on
-    // the y axis lands on it, with t = tanh(distance along the side / 2).
-    const tEnd = halfSide === Infinity ? 1 : Math.tanh(halfSide / 2);
     for (let j = -SAMPLES; j < SAMPLES; j++) {
       const t = tEnd * Math.sin(Math.PI / 2 * j / SAMPLES);    // closer together near the corners
       // (i t + m) / (1 + m i t), worked out with complex numbers:
@@ -101,8 +105,6 @@ function tilingShape(p, q) {
       outline.push([x * Math.cos(angle) - y * Math.sin(angle), x * Math.sin(angle) + y * Math.cos(angle)]);
     }
   }
-  // The circumradius (middle to a corner): infinite for a tree.
-  const circumradius = q === Infinity ? Infinity : Math.acosh(1 / (Math.tan(Math.PI / p) * Math.tan(Math.PI / q)));
   return { p: p, q: q, inradius: inradius, circumradius: circumradius, middle: middle, sides: sides, outline: outline };
 }
 
@@ -218,7 +220,7 @@ function learnedRules(shape) {
   if (!learnedRules.kept.has(name)) {
     let kinds = null;
     for (const cells of [60000, 250000]) {
-      try { kinds = tilingRules(shape, cells); break; } catch (problem) { kinds = null; }
+      try { kinds = tilingRules(shape, cells); break; } catch (problem) { /* not enough: try more cells */ }
     }
     learnedRules.kept.set(name, kinds);
   }

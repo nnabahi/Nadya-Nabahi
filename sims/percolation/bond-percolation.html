@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bond percolation — Toys n' Sims</title>
+  <link rel="stylesheet" href="../../css/style.css">
+  <!-- KaTeX's styles, for the typeset formulas in the About quadrant. -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/katex.min.css">
+</head>
+<!-- data-kind="bond" tells percolation.js (shared with the site
+     percolation page) which of the two sims this is. -->
+<body data-kind="bond">
+
+  <header class="topbar">
+    <nav>
+      <a href="../../about.html">About Me</a>
+      <a href="../../resume.html">Resume</a>
+      <a href="../../index.html">Home</a>
+      <a href="../../publications.html">Publications</a>
+      <a href="../../toys.html" class="active">Toys n' Sims</a>
+    </nav>
+  </header>
+
+  <main class="page">
+    <p><a href="../../toys.html">&larr; All sims</a></p>
+    <h1>Bernoulli bond percolation</h1>
+
+    <!-- The four quadrants, as on every sim page (their layout is in
+         section 6 of css/style.css). All the behavior lives in
+         percolation.js; the ids below (id="...") are how that script
+         finds each button and box. -->
+    <div class="quadrants">
+
+      <!-- UPPER LEFT: the clusters. -->
+      <section class="quad quad-sim">
+        <h2>Simulation</h2>
+
+        <!-- The picture, with the zoom buttons in its top right corner
+             (js/sim-view.js). -->
+        <div class="sim-picture">
+          <canvas id="sim-canvas"></canvas>
+          <div class="zoom-buttons" id="zoom-buttons" hidden>
+            <button class="tool-button" id="zoom-in" title="Zoom in">+</button>
+            <button class="tool-button" id="zoom-out" title="Zoom out">&minus;</button>
+            <button class="tool-button" id="zoom-reset" title="Show the whole picture once again">Reset</button>
+            <!-- On a hyperbolic tiling or tree's disk or half-plane: put the start back in the middle. -->
+            <button class="tool-button" id="disk-reset" title="Put the start back in the middle" hidden>Back to the start</button>
+            <!-- ... and "Slide": dragging there slides the whole picture instead (js/sim-hyperbolic.js).
+                 It shows and hides with "Back to the start" (section 8 of css/style.css). -->
+            <button class="tool-button" id="disk-slide" title="Drag to slide the whole picture, instead of moving around the plane">Slide</button>
+          </div>
+        </div>
+
+        <!-- Shown instead of the picture while you draw a custom domain:
+             the graph tool itself, in an <iframe> (a page inside this
+             page), with a live check above it. -->
+        <div id="custom-area" hidden>
+          <div class="step-bar">
+            <p class="step-title">Draw the region</p>
+            <p class="muted step-help">Paint the cells (any color counts). Every pair of
+              neighboring cells gets an edge, open or closed. Then press Done.</p>
+            <p class="step-status" id="step-status"></p>
+            <div class="option-row">
+              <button class="tool-button" id="tool-done">Done</button>
+              <button class="tool-button" id="tool-cancel">Cancel</button>
+            </div>
+          </div>
+          <iframe class="tool-frame" id="tool-frame" title="Graph and domain tool"></iframe>
+        </div>
+
+        <p class="muted" id="sim-message"></p>
+      </section>
+
+      <!-- UPPER RIGHT: settings. -->
+      <section class="quad quad-controls">
+        <!-- The heading, with a small "model check" button on the right
+             that opens the page testing this sim's math. -->
+        <h2 class="heading-with-button">Options
+          <a class="tool-button model-check" href="percolation-check.html">model check</a></h2>
+
+        <h3 class="option-heading">Probability p</h3>
+        <div class="option-row">
+          p = <input type="number" id="p-box" min="0" max="1" step="0.001">
+          <input type="range" class="wide-range" id="p-slider" min="0" max="1" step="0.001">
+        </div>
+        <div class="option-row" id="critical-row">
+          <button class="tool-button" id="p-critical" title="Set p to the critical point">p = p<sub>c</sub></button>
+          <span class="muted">p<sub>c</sub> <span id="critical-value"></span> on this <span id="critical-where">grid</span></span>
+        </div>
+
+        <h3 class="option-heading">Domain</h3>
+        <div class="option-row">
+          <label><input type="radio" name="domain" value="box" checked> Box</label>
+          <label><input type="radio" name="domain" value="torus"> Torus</label>
+          <label><input type="radio" name="domain" value="custom"> Custom (draw it)</label>
+          <label><input type="radio" name="domain" value="graph"> Hyperbolic plane or tree</label>
+        </div>
+        <div class="option-row" id="size-row">
+          Size <input type="number" id="set-width" min="2" step="1">
+          &times; <input type="number" id="set-height" min="2" step="1">
+        </div>
+        <div class="option-row" id="neighbors-row">
+          Neighbors
+          <select id="set-neighbors">
+            <option value="4">4 (share a side)</option>
+            <option value="8">8 (sides or corners)</option>
+          </select>
+        </div>
+        <div class="option-row" id="custom-row" hidden>
+          <span id="custom-info"></span>
+          <button class="tool-button" id="edit-custom">Edit custom domain</button>
+        </div>
+
+        <!-- Hyperbolic plane or tree only: which graph, how big a ball of
+             it, and how it is drawn (the ids are the ones
+             js/sim-hyperbolic.js reads). -->
+        <div id="graph-rows" hidden>
+          <div class="option-row" id="graph-presets"></div>
+          <div class="option-row">
+            <label><input type="radio" name="graph-kind" value="tiling" checked> Tiling {p, q}:</label>
+            p <input type="number" id="set-p" min="3" max="12" step="1" value="7">
+            q <input type="number" id="set-q" min="3" max="12" step="1" value="3">
+          </div>
+          <div class="option-row">
+            <label><input type="radio" name="graph-kind" value="tree"> Tree, degree</label>
+            <input type="number" id="set-degree" min="3" max="12" step="1" value="3">
+          </div>
+          <p class="muted small" id="graph-info"></p>
+          <div class="option-row">
+            Ball: every cell within R =
+            <input type="number" id="set-ball-radius" min="1" step="1">
+            steps of the start
+          </div>
+          <p class="muted small" id="ball-info"></p>
+          <div class="option-row">
+            Drawn in
+            <label><input type="radio" name="picture" value="disk" checked> the disk</label>
+            <label><input type="radio" name="picture" value="half"> the half-plane</label>
+            <label id="spread-choice"><input type="radio" name="picture" value="spread"> spread out</label>
+          </div>
+        </div>
+
+        <h3 class="option-heading">Colors</h3>
+        <div class="option-row">
+          <select id="colors">
+            <option value="clusters">Each cluster its own color</option>
+            <option value="largest">The largest cluster</option>
+            <option value="open">Open edges only</option>
+          </select>
+        </div>
+        <p class="muted small">Click a cluster to highlight it; click it again to clear.</p>
+
+        <h3 class="option-heading">Run</h3>
+        <div class="option-row">
+          <button class="tool-button" id="play" title="Raise p slowly">Play</button>
+          <button class="tool-button" id="step" title="Raise p by 0.01">Step</button>
+          <button class="tool-button" id="p-zero" title="Back to p = 0">p = 0</button>
+        </div>
+        <div class="option-row">
+          Speed <input type="range" class="wide-range" id="speed" min="0" step="1">
+          <span class="muted" id="speed-label"></span>
+        </div>
+        <div class="option-row">
+          Seed <input type="text" id="seed" size="8">
+          <button class="tool-button" id="new-seed" title="A random new seed">New seed</button>
+        </div>
+        <p class="muted small">The same seed always gives the same random numbers, so
+          moving p only opens or closes edges, and the picture morphs smoothly.</p>
+      </section>
+
+      <!-- LOWER LEFT: numbers about this sample. -->
+      <section class="quad quad-stats">
+        <h2>Statistics</h2>
+        <table class="stats-table">
+          <tr><td>Cells</td><td id="stat-cells"></td></tr>
+          <tr><td>Neighbor pairs (edges)</td><td id="stat-edges"></td></tr>
+          <tr><td>p</td><td id="stat-p"></td></tr>
+          <tr><td>Open edges</td><td id="stat-open"></td></tr>
+          <tr><td>Clusters (a cell with no open edge counts as one)</td><td id="stat-clusters"></td></tr>
+          <tr><td>Largest cluster</td><td id="stat-largest"></td></tr>
+          <tr><td id="stat-cross-name"></td><td id="stat-cross"></td></tr>
+          <tr><td id="stat-cross-at-name"></td><td id="stat-cross-at"></td></tr>
+          <tr><td>Clicked cluster</td><td id="stat-selected"></td></tr>
+        </table>
+
+        <h3 class="option-heading">Largest cluster for every p (this sample)</h3>
+        <canvas class="chart tall" id="largest-chart"></canvas>
+        <h3 class="option-heading">Number of clusters for every p (this sample)</h3>
+        <canvas class="chart tall" id="clusters-chart"></canvas>
+        <h3 class="option-heading">Cluster sizes at this p (number of clusters of each size)</h3>
+        <canvas class="chart" id="sizes-chart"></canvas>
+      </section>
+
+      <!-- LOWER RIGHT: about the model, in two tabs (js/sim-page.js
+           switches them). Text in class="tex" is typeset by KaTeX. -->
+      <section class="quad quad-about">
+        <h2>About the model</h2>
+        <nav class="about-tabs">
+          <button class="about-tab selected" data-tab="simple">Simple</button>
+          <button class="about-tab" data-tab="details">All the details</button>
+        </nav>
+
+        <div data-panel="simple">
+        <p>
+          Every pair of neighboring cells is joined by an <strong>edge</strong>,
+          and every edge flips its own coin: it is <strong>open</strong> with
+          probability p and closed otherwise, all independently. Cells joined
+          by open edges form <strong>clusters</strong>, each drawn in its own
+          color (open edges are lines, cells are dots; zoomed far out, each
+          cell becomes a square in its cluster's color).
+        </p>
+        <p>
+          For small p the clusters are tiny. As p grows they join up, and on a
+          big grid there is a sharp change at the <strong>critical point</strong>
+          p<sub>c</sub>: below it every cluster is small, above it one giant
+          cluster spreads through the whole domain. On the square grid with 4
+          neighbors, p<sub>c</sub> is exactly 1/2, one of the famous theorems
+          of probability.
+        </p>
+        <p>
+          <strong>Hyperbolic plane or tree.</strong> Percolation also runs on a
+          ball of a hyperbolic tiling or of a tree: every cell within R steps
+          of a start cell (the one with the ring). It is drawn in the
+          Poincar&eacute; disk or the half-plane (drag to move around the
+          plane, or press Slide to slide the whole picture), or, for a tree,
+          spread out in rings, and all three zoom. It is drawn as the graph
+          itself: each open edge in its cluster's color, and the closed ones
+          in thin gray.
+          Statistics then say whether the start's cluster reaches the edge of
+          the ball. On a tree where every cell has d neighbors,
+          p<sub>c</sub> = 1/(d &minus; 1). The hyperbolic plane has two
+          critical points: between them there are infinitely many infinite
+          clusters at once, and above the second exactly one.
+        </p>
+        <p>
+          <strong>Things to try:</strong> drag the p slider, or press Play to
+          raise p slowly and watch clusters swallow each other (a cluster keeps
+          its color when it swallows a smaller one). At p = 1/2, try a box one
+          cell wider than tall: a cluster crosses from left to right exactly
+          half the time over many seeds. Click a cluster to follow it.
+        </p>
+        </div>
+
+        <div data-panel="details" hidden>
+        <p>
+          <strong>The model.</strong> The domain is a graph
+          <span class="tex">G = (V, E)</span>: the cells, joined to their 4 or
+          8 neighbors. A configuration is
+          <span class="tex">\omega \in \{0,1\}^E</span>, with
+          <span class="tex">\omega(e) = 1</span> meaning edge
+          <span class="tex">e</span> is open. Under
+          <span class="tex">\mathbb{P}_p</span> the
+          <span class="tex">\omega(e)</span> are independent Bernoulli(p). A
+          cluster is a connected component of the graph
+          <span class="tex">(V, \{e : \omega(e) = 1\})</span>, so a cell with
+          no open edge is a cluster of one cell [1, Chapter 1].
+        </p>
+        <p>
+          <strong>The coupling.</strong> Each edge gets one uniform number
+          <span class="tex">U_e \in [0,1)</span> from the seed, and
+        </p>
+        <div class="tex">\omega_p(e) = \mathbf{1}\{U_e &lt; p\}.</div>
+        <p>
+          For each p this has law <span class="tex">\mathbb{P}_p</span>, and
+          <span class="tex">\omega_p \le \omega_{p'}</span> for
+          <span class="tex">p \le p'</span>, so clusters only grow and merge as
+          p rises [1, Chapter 1]. This is why the slider morphs the picture.
+        </p>
+        <p>
+          <strong>Every p at once.</strong> Opening the edges one at a time in
+          order of <span class="tex">U_e</span> and merging clusters with
+          union-find gives the exact largest cluster and number of clusters of
+          this sample for every p in one pass (the Newman&ndash;Ziff algorithm
+          [2]); those are the two curves in Statistics. Union-find with path
+          compression and union by size takes almost constant time per step
+          [3].
+        </p>
+        <p>
+          <strong>The phase transition.</strong> On the infinite square grid
+          let <span class="tex">\theta(p)</span> be the probability that the
+          origin's cluster is infinite, and
+          <span class="tex">p_c = \sup\{p : \theta(p) = 0\}</span>. Below
+          <span class="tex">p_c</span> cluster sizes have an exponential tail
+          [1, Chapters 5 and 6], so the largest cluster in a domain of
+          <span class="tex">n</span> cells has only about
+          <span class="tex">\log n</span> cells; above it there is exactly one
+          infinite cluster [1, Chapter 8], and the largest cluster fills about
+          a fraction <span class="tex">\theta(p)</span> of the domain.
+        </p>
+        <p>
+          <strong>Exactly 1/2.</strong> With 4 neighbors,
+          <span class="tex">\theta(1/2) = 0</span> (Harris [4]) and
+          <span class="tex">p_c = 1/2</span> (Kesten [5]; see [1, Chapter 11]).
+          The reason is duality: put a dual cell in every square of the grid,
+          and let a dual edge be closed exactly when the edge it crosses is
+          closed. On the box with <span class="tex">n + 1</span> columns and
+          <span class="tex">n</span> rows of cells, exactly one of these
+          happens: an open crossing from left to right, or a closed dual
+          crossing from top to bottom. The dual box is the same shape turned on
+          its side, and at <span class="tex">p = 1/2</span> open and closed
+          look alike, so each happens with probability exactly
+          <span class="tex">1/2</span> [1, Chapter 11; 6, Chapter 3]. The check
+          page tests both facts.
+        </p>
+        <p>
+          <strong>Clusters per cell.</strong> The number of clusters per cell
+          tends to a smooth function <span class="tex">\kappa(p)</span> as the
+          domain grows [1, Chapter 4]. At the critical point of the 4-neighbor
+          grid it is known exactly:
+        </p>
+        <div class="tex">\kappa(1/2) = \frac{3\sqrt{3} - 5}{2} \approx 0.0981</div>
+        <p>
+          [7, 8]. With 8 neighbors there is no exact value of
+          <span class="tex">p_c</span>, so no dashed line is drawn.
+        </p>
+        <p>
+          <strong>Crossing and wrapping.</strong> On a box, a cluster crosses
+          when it touches both the left and the right column. On a torus, the
+          sim says whether a cluster wraps all the way around, found as in [2]:
+          each cell remembers where it sits in the unwrapped plane, and a
+          cluster wraps when two of its cells meet across an edge in different
+          copies.
+        </p>
+        <p>
+          <strong>Hyperbolic plane or tree.</strong> Here
+          <span class="tex">G</span> is the ball
+          <span class="tex">B_R = \{ v : d(o, v) \le R \}</span> of a regular
+          tiling <span class="tex">\{p, q\}</span> of the hyperbolic plane
+          (here the <span class="tex">p</span> of
+          <span class="tex">\{p, q\}</span> is the number of sides, not the
+          probability; <span class="tex">1/p + 1/q &lt; 1/2</span>, and
+          neighbors share a side) or of the regular tree of degree
+          <span class="tex">d</span>, with <span class="tex">d(o, v)</span> the
+          number of steps from the start cell <span class="tex">o</span>, and
+          only the edges inside the ball. The sim says whether
+          <span class="tex">o</span>'s cluster reaches the edge
+          <span class="tex">\partial B_R = \{ v : d(o, v) = R \}</span>.
+        </p>
+        <p>
+          On the tree, the start's cluster is a branching process: every cell
+          in it other than <span class="tex">o</span> has
+          <span class="tex">d - 1</span> children, each joined to it by an open edge with probability <span class="tex">p</span>, independently. So
+          <span class="tex">\theta(p) &gt; 0</span> exactly when
+          <span class="tex">(d - 1) p &gt; 1</span>, and
+          <span class="tex">p_c = 1/(d - 1)</span> [9, Chapter 5]. The same
+          reasoning gives the chance of reaching the edge exactly: with
+          the probability that a cell is joined to the cells <span class="tex">k</span> levels below it,
+        </p>
+        <div class="tex">f_0 = 1, \qquad f_k = 1 - (1 - p f_{k-1})^{d-1}, \qquad \mathbb{P}(o \leftrightarrow \partial B_R) = 1 - (1 - p f_{R-1})^{d},</div>
+        <p>
+          and the check page compares the sim with it.
+        </p>
+        <p>
+          On a hyperbolic tiling there are two critical points,
+          <span class="tex">0 &lt; p_c &lt; p_u &lt; 1</span>: for
+          <span class="tex">p \le p_c</span> there is no infinite cluster, for
+          <span class="tex">p_c &lt; p &lt; p_u</span> there are infinitely
+          many, and for <span class="tex">p \ge p_u</span> exactly one
+          (Benjamini and Schramm [10]). No exact values are known, so no dashed
+          line is drawn there.
+        </p>
+        <p><strong>References</strong></p>
+        <ol class="references">
+          <li>G. Grimmett, <em>Percolation</em>, 2nd ed., Springer, 1999.
+            <a href="https://doi.org/10.1007/978-3-662-03981-6">doi:10.1007/978-3-662-03981-6</a></li>
+          <li>M. E. J. Newman, R. M. Ziff, &ldquo;Efficient Monte Carlo
+            algorithm and high-precision results for percolation&rdquo;,
+            <em>Phys. Rev. Lett.</em> 85 (2000), 4104&ndash;4107.
+            <a href="https://doi.org/10.1103/PhysRevLett.85.4104">doi:10.1103/PhysRevLett.85.4104</a></li>
+          <li>R. E. Tarjan, &ldquo;Efficiency of a good but not linear set union
+            algorithm&rdquo;, <em>J. ACM</em> 22 (1975), 215&ndash;225.</li>
+          <li>T. E. Harris, &ldquo;A lower bound for the critical probability in
+            a certain percolation process&rdquo;, <em>Proc. Cambridge Philos.
+            Soc.</em> 56 (1960), 13&ndash;20.</li>
+          <li>H. Kesten, &ldquo;The critical probability of bond percolation on
+            the square lattice equals 1/2&rdquo;, <em>Comm. Math. Phys.</em> 74
+            (1980), 41&ndash;59.</li>
+          <li>B. Bollob&aacute;s, O. Riordan, <em>Percolation</em>, Cambridge
+            University Press, 2006.</li>
+          <li>H. N. V. Temperley, E. H. Lieb, &ldquo;Relations between the
+            &lsquo;percolation&rsquo; and &lsquo;colouring&rsquo; problem and
+            other graph-theoretical problems associated with regular planar
+            lattices&rdquo;, <em>Proc. R. Soc. London A</em> 322 (1971),
+            251&ndash;280.</li>
+          <li>R. M. Ziff, S. R. Finch, V. S. Adamchik, &ldquo;Universality of
+            finite-size corrections to the number of critical percolation
+            clusters&rdquo;, <em>Phys. Rev. Lett.</em> 79 (1997),
+            3447&ndash;3450.</li>
+          <li>R. Lyons, Y. Peres, <em>Probability on Trees and Networks</em>,
+            Cambridge University Press, 2016.</li>
+          <li>I. Benjamini, O. Schramm, &ldquo;Percolation in the hyperbolic
+            plane&rdquo;, <em>J. Amer. Math. Soc.</em> 14 (2001),
+            487&ndash;507.</li>
+        </ol>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <!-- KaTeX (https://katex.org) typesets the formulas, and seedrandom
+       (https://github.com/davidbau/seedrandom) gives random numbers that
+       repeat for the same seed. The version numbers are fixed so an
+       update can never change the site by surprise. -->
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/katex.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/seedrandom@3.0.5/seedrandom.min.js"></script>
+
+  <!-- The code the sims share (in js/, see the README): page helpers
+       (they also typeset the formulas, so they come after KaTeX),
+       charts, colors, domains, the picture's view (moving and zooming
+       it), the hyperbolic tilings and trees and their pictures, and the
+       options and controls of the domain. Then the clusters, then this
+       page's code. -->
+  <script src="../../js/sim-page.js"></script>
+  <script src="../../js/sim-charts.js"></script>
+  <script src="../../js/sim-colors.js"></script>
+  <script src="../../js/sim-domains.js"></script>
+  <script src="../../js/sim-view.js"></script>
+  <script src="../../js/sim-graphs.js"></script>
+  <script src="../../js/sim-hyperbolic.js"></script>
+  <script src="../../js/sim-controls.js"></script>
+  <script src="percolation-clusters.js"></script>
+  <script src="percolation.js"></script>
+
+</body>
+</html>

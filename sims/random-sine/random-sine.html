@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Random sine function — Toys n' Sims</title>
+  <link rel="stylesheet" href="../../css/style.css">
+  <!-- KaTeX's styles, for the typeset formulas. -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/katex.min.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <nav>
+      <a href="../../about.html">About Me</a>
+      <a href="../../resume.html">Resume</a>
+      <a href="../../index.html">Home</a>
+      <a href="../../publications.html">Publications</a>
+      <a href="../../toys.html" class="active">Toys n' Sims</a>
+    </nav>
+  </header>
+
+  <main class="page">
+    <p><a href="../../toys.html">&larr; All sims</a></p>
+    <h1>Random sine function</h1>
+
+    <!-- The four quadrants, as on every sim page (their layout is in
+         section 6 of css/style.css). All the behavior lives in
+         random-sine.js; the ids below (id="...") are how that script
+         finds each button and box. -->
+    <div class="quadrants">
+
+      <!-- UPPER LEFT: the graph of f. -->
+      <section class="quad quad-sim">
+        <h2>Simulation</h2>
+        <div class="sim-picture">
+          <canvas id="sim-canvas" title="Drag to move along the x axis; scroll or pinch to zoom"></canvas>
+          <div class="zoom-buttons">
+            <button class="tool-button" id="zoom-in" title="Zoom in">+</button>
+            <button class="tool-button" id="zoom-out" title="Zoom out">&minus;</button>
+            <button class="tool-button" id="zoom-reset" title="Back to x from -10 to 10">Reset</button>
+          </div>
+        </div>
+        <p class="muted small" id="legend"></p>
+        <p class="muted" id="sim-message"></p>
+      </section>
+
+      <!-- UPPER RIGHT: settings. -->
+      <section class="quad quad-controls">
+        <!-- The heading, with a small "model check" button on the right
+             that opens the page testing this sim's math. -->
+        <h2 class="heading-with-button">Options
+          <a class="tool-button model-check" href="random-sine-check.html">model check</a></h2>
+
+        <h3 class="option-heading">Roots</h3>
+        <div class="option-row">
+          Start from
+          <select id="preset">
+            <option value="slowly">Slowly random: gaps in [1, 1 + δ]</option>
+            <option value="sine">Sine wave: every gap 1</option>
+            <option value="d1">Your D1: gaps in [1 &minus; d, 1 + d]</option>
+            <option value="two">Two gaps: {2, 3}</option>
+            <option value="lattice">Jittered lattice: n + U, U in [&minus;1/2, 1/2]</option>
+            <option value="mirror">Mirror: roots at 0 and &plusmn;r, gaps {1, 2}</option>
+            <option value="custom" hidden>Your own</option>
+          </select>
+        </div>
+        <div class="option-row">
+          <label><input type="radio" name="model" value="walk" checked> Walk</label>
+          <label><input type="radio" name="model" value="lattice"> Jittered lattice</label>
+          <label><input type="radio" name="model" value="mirror"> Mirror</label>
+        </div>
+        <p class="small" id="set-label"></p>
+        <input type="text" class="formula-input" id="gap-set" spellcheck="false">
+        <div class="formula-preview" id="gap-preview"></div>
+        <div id="sliders"></div>
+        <p class="muted small" id="set-message"></p>
+        <p class="muted small">Type a set like {2, 3} (repeats count twice), an interval like
+          [1, 1 + δ], or a formula in u, where u is uniform on [0, 1], like 1 + δu^2.
+          Any other letter gets a slider.</p>
+
+        <div class="option-row">
+          Roots on each side N = <input type="number" id="set-n" min="10" max="20000" step="10">
+        </div>
+        <div class="option-row">
+          Seed <input type="text" id="seed" size="8">
+          <button class="tool-button" id="new-seed" title="A random new seed">New sample</button>
+        </div>
+        <p class="muted small">Each root keeps its own random number, so moving a slider bends
+          the curve instead of jumping to a new one. The same seed always gives the same roots.</p>
+
+        <h3 class="option-heading">Picture</h3>
+        <div class="option-row">
+          x from <input type="number" id="view-xmin" step="1">
+          to <input type="number" id="view-xmax" step="1">
+        </div>
+        <div class="option-row">
+          Height
+          <select id="y-scale">
+            <option value="fit">fit to f</option>
+            <option value="fixed">fixed</option>
+          </select>
+          <input type="number" id="set-height" min="0" step="0.5">
+          <label><input type="checkbox" id="log-scale"> log scale</label>
+        </div>
+        <div class="option-row">
+          <label><input type="checkbox" id="show-sine" checked> matching sine wave</label>
+          <label><input type="checkbox" id="show-roots" checked> roots</label>
+        </div>
+        <div class="option-row">
+          <label><input type="checkbox" id="show-F"> F, the integral of f</label>
+          <label><input type="checkbox" id="show-derivative"> f&prime;</label>
+        </div>
+
+        <h3 class="option-heading">Many samples</h3>
+        <div class="option-row">
+          Lobes counted: both roots in [&minus;A, A], A = <input type="number" id="set-a" min="1" step="1">
+        </div>
+        <div class="option-row">
+          <button class="tool-button" id="play">Play</button>
+          <button class="tool-button" id="step" title="One more sample">Step</button>
+          <button class="tool-button" id="restart" title="Start the histograms over">Restart</button>
+        </div>
+        <div class="option-row">
+          Speed <input type="range" class="wide-range" id="speed" min="0" step="1">
+          <span class="muted" id="speed-label"></span>
+        </div>
+        <div class="option-row">
+          Areas and peaks as
+          <select id="hist-mode">
+            <option value="signed">signed values</option>
+            <option value="log">log&#8321;&#8320; of the size</option>
+          </select>
+        </div>
+        <p class="muted small">Play draws new samples (seeds "seed:1", "seed:2", ...) and adds their
+          lobes to the histograms. Changing any setting starts them over.</p>
+      </section>
+
+      <!-- LOWER LEFT: numbers about this sample, and histograms. -->
+      <section class="quad quad-stats">
+        <h2>Statistics</h2>
+        <table class="stats-table">
+          <tr><td>Mean gap m</td><td id="stat-mean"></td></tr>
+          <tr><td>First root to the right of 0, R(0)</td><td id="stat-r0"></td></tr>
+          <tr><td>Gap covering 0</td><td id="stat-cover"></td></tr>
+          <tr><td>f&prime;(0) / f(0) = &minus;&sum; 1/R(n)</td><td id="stat-logder"></td></tr>
+          <tr><td>Lobes in [&minus;A, A]</td><td id="stat-lobes"></td></tr>
+        </table>
+
+        <h3 class="option-heading">The lobes of this sample</h3>
+        <div class="scroll-box">
+          <table class="stats-table">
+            <thead><tr><td>From</td><td>To</td><td>Area</td><td>Peak offset</td><td>Peak value</td></tr></thead>
+            <tbody id="lobe-rows"></tbody>
+          </table>
+        </div>
+
+        <h3 class="option-heading" id="samples-heading">Many samples</h3>
+        <h3 class="option-heading">Lobe areas I<sub>n</sub> (the integral of f over a lobe)</h3>
+        <canvas class="chart" id="areas-chart"></canvas>
+        <h3 class="option-heading">Peak offsets x<sub>n</sub> &minus; R(n) (from the lobe's left root)</h3>
+        <canvas class="chart" id="offsets-chart"></canvas>
+        <h3 class="option-heading">Peak values f(x<sub>n</sub>)</h3>
+        <canvas class="chart" id="peaks-chart"></canvas>
+        <h3 class="option-heading">f&prime;(0) / f(0)</h3>
+        <canvas class="chart" id="logder-chart"></canvas>
+        <p class="muted small">Signed areas, peaks and f&prime;(0)/f(0) can have huge outliers, so
+          those charts show the middle 90% of the values (the rest are counted in the end bars).</p>
+      </section>
+
+      <!-- LOWER RIGHT: about the model, in two tabs (js/sim-page.js
+           switches them). Text in class="tex" is typeset by KaTeX
+           (<div> on its own line, <span> inside a sentence). -->
+      <section class="quad quad-about">
+        <h2>About the model</h2>
+        <nav class="about-tabs">
+          <button class="about-tab selected" data-tab="simple">Simple</button>
+          <button class="about-tab" data-tab="details">All the details</button>
+        </nav>
+
+        <div data-panel="simple">
+        <p>
+          Pick points on the line, the <strong>roots</strong>, and multiply
+          one factor for each:
+        </p>
+        <div class="tex">f(x) = \prod_n \left(1 - \frac{x}{R(n)}\right).</div>
+        <p>
+          Then f is 0 at every root, and f(0) = 1. If the roots are evenly
+          spaced, 1 apart, f is exactly a <strong>sine wave</strong>. Here the
+          gaps between roots are random, and the sine wave bends: some humps
+          ("lobes") grow tall, others flatten.
+        </p>
+        <p>
+          The roots are <strong>stationary</strong>: the picture looks the same,
+          on average, wherever you stand on the line. So the origin is not a root;
+          it falls at a random place inside some gap.
+        </p>
+        <p>
+          <strong>Things to try:</strong> slide &delta; down to 0 and watch the
+          sine wave appear (dashed: the sine wave with the same first root and the
+          same mean gap); type your own gap set, like {1, 3} or 1 + &delta;u^3;
+          switch to the jittered lattice; press Play to collect histograms of the
+          lobes from many samples; drag the picture or zoom out to see far away.
+        </p>
+        </div>
+
+        <div data-panel="details" hidden>
+        <p>
+          <strong>The function.</strong> With roots
+          <span class="tex">\dots &lt; R(-2) &lt; R(-1) &lt; 0 &lt; R(0) &lt; R(1) &lt; \dots</span>,
+        </p>
+        <div class="tex">f(x) = \prod_{n=-N}^{N-1} \left(1 - \frac{x}{R(n)}\right), \qquad f(0) = 1.</div>
+        <p>
+          <strong>Sine wave.</strong> If every gap is 1, the roots are
+          <span class="tex">n + a</span> with <span class="tex">0 &lt; a &lt; 1</span>,
+          and as <span class="tex">N \to \infty</span> Euler's product
+          <span class="tex">\sin \pi z = \pi z \prod_{n \ge 1} (1 - z^2/n^2)</span> [1] gives
+        </p>
+        <div class="tex">f(x) = \frac{\sin \pi (a - x)}{\sin \pi a}.</div>
+        <p>
+          So even with equal gaps, the height <span class="tex">1/|\sin \pi a|</span> is
+          random: the wave is tall when a root lands near 0. With every gap equal to
+          <span class="tex">m</span>, replace <span class="tex">\pi</span> by
+          <span class="tex">\pi/m</span>; that is the dashed curve.
+        </p>
+        <p>
+          <strong>Walk.</strong> The gaps <span class="tex">R(n) - R(n-1)</span> are
+          independent and uniform on the typed set <span class="tex">G</span>, except the
+          gap covering 0. For stationarity that one is <em>size-biased</em>: it has length
+          <span class="tex">g</span> with probability proportional to
+          <span class="tex">g</span>, and 0 is uniform inside it. This is the stationary
+          renewal process, and the size-biasing is the "inspection paradox" [2, 3]. For
+          <span class="tex">G = [1-d, 1+d]</span> the covering gap is
+        </p>
+        <div class="tex">L = \sqrt{4du + (1-d)^2}, \qquad u \sim \mathrm{Uniform}[0, 1].</div>
+        <p>
+          <strong>Jittered lattice.</strong>
+          <span class="tex">R(n) = n + s + U(n)</span>, with
+          <span class="tex">U(n)</span> uniform on the typed set and one shift
+          <span class="tex">s</span> uniform on <span class="tex">[0, 1)</span>, which
+          makes it stationary.
+        </p>
+        <p>
+          <strong>Mirror.</strong> Roots at 0 and <span class="tex">\pm r(k)</span>, with
+          <span class="tex">r(k)</span> a walk with gaps uniform on
+          <span class="tex">G</span>, so
+          <span class="tex">f(x) = x \prod_k (1 - x^2/r(k)^2)</span> is odd, and
+          <span class="tex">f'(0) = 1</span>. It can't be stationary, since 0 is always a
+          root.
+        </p>
+        <p>
+          <strong>Random numbers.</strong> Gap <span class="tex">n</span> is
+          <span class="tex">g(u_n)</span> for a fixed uniform number
+          <span class="tex">u_n</span> (from the seed). A finite set picks element
+          <span class="tex">\lfloor m u_n \rfloor</span>, an interval
+          <span class="tex">[a, b]</span> gives <span class="tex">a + (b - a) u_n</span>.
+          Changing <span class="tex">G</span> keeps every <span class="tex">u_n</span>, so
+          the curve moves continuously.
+        </p>
+        <p>
+          <strong>Peaks.</strong> Between two neighboring roots,
+          <span class="tex">f'/f = \sum_n 1/(x - R(n))</span> falls from
+          <span class="tex">+\infty</span> to <span class="tex">-\infty</span>, and its
+          derivative <span class="tex">-\sum_n 1/(x - R(n))^2</span> is negative, so each
+          lobe has exactly one peak <span class="tex">x_n</span>, found by bisection. The
+          lobe areas <span class="tex">I_n</span> use 20-point Gauss&ndash;Legendre
+          quadrature [4]. f is computed as a sum of logarithms, so very large or very small
+          values don't overflow.
+        </p>
+        <p>
+          <strong>Truncation.</strong> Only <span class="tex">N</span> roots on each side are
+          used, so the picture is accurate only well inside the roots; the sim warns when
+          the window gets close to the last root. With equal gaps the error near
+          <span class="tex">x</span> is about <span class="tex">x^2/N</span>.
+        </p>
+        <p>
+          <strong>F.</strong> As in the Desmos version, F is the integral of f, minus its
+          average over the window (in place of the limit over the whole line).
+        </p>
+        <p><strong>References</strong></p>
+        <ol class="references">
+          <li>E. M. Stein, R. Shakarchi, <em>Complex Analysis</em>, Princeton University
+            Press, 2003, Chapter 5, Section 3.</li>
+          <li>W. Feller, <em>An Introduction to Probability Theory and Its
+            Applications</em>, Vol. II, 2nd ed., Wiley, 1971, Chapter XI.</li>
+          <li>R. Durrett, <em>Probability: Theory and Examples</em>, 5th ed., Cambridge
+            University Press, 2019, renewal theory.
+            <a href="https://doi.org/10.1017/9781108591034">doi:10.1017/9781108591034</a></li>
+          <li>W. H. Press, S. A. Teukolsky, W. T. Vetterling, B. P. Flannery,
+            <em>Numerical Recipes</em>, 3rd ed., Cambridge University Press, 2007,
+            Section 4.6.</li>
+        </ol>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <!-- math.js (https://mathjs.org) reads the typed gap set, KaTeX
+       (https://katex.org) typesets formulas, and seedrandom
+       (https://github.com/davidbau/seedrandom) makes random numbers that
+       repeat for the same seed. Version numbers are fixed so an update can
+       never change the site by surprise. -->
+  <script src="https://cdn.jsdelivr.net/npm/mathjs@15.2.0/lib/browser/math.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/katex.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/seedrandom@3.0.5/seedrandom.min.js"></script>
+
+  <!-- The code the sims share (in js/, see the README): page helpers
+       (they also typeset the formulas, so they come after KaTeX),
+       charts, and reading formulas with sliders. Then the math of this sim
+       (random-sine-roots.js, the same file the check page tests), then
+       this page. -->
+  <script src="../../js/sim-page.js"></script>
+  <script src="../../js/sim-charts.js"></script>
+  <script src="../../js/formulas.js"></script>
+  <script src="random-sine-roots.js"></script>
+  <script src="random-sine.js"></script>
+
+</body>
+</html>

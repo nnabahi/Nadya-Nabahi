@@ -1,5 +1,5 @@
 /* =====================================================================
-   sim-domains.js  —  domains and colors shared by the sims
+   sim-domains.js  —  the domains the sims live on
    ---------------------------------------------------------------------
    Every sim that lives on cells (a box, a torus, or a region drawn in
    the graph tool) turns its domain into the same kind of object, built
@@ -24,12 +24,13 @@
      boxDomain(...)           a box or torus of cells
      aztecDiamond(N)          the Aztec diamond of order N
      drawnDomain(...)         a region drawn in the graph tool
+     makeDomain(...)          a domain from its cells and edges (the
+                              three above use it)
      cellAt(d, x, y)          which cell is at (x, y)
      stepsFrom(d, starts)     distances through the domain
-     defaultColor(c, count)   the old site's colors
-     hsvToHex, hexToHSV       a color as hue, saturation and brightness,
-                              and back
-     hexToRGB, rgbToHex       a color "#rrggbb" as three numbers, and back
+     countPieces(d, colorOf, count)   the connected pieces of each color
+
+   (The colors the sims share are in js/sim-colors.js.)
    ===================================================================== */
 
 
@@ -47,14 +48,13 @@ function wrapNumber(v, size) { return ((v % size) + size) % size; }
 // true, the right edge is glued to the left and the top to the bottom.
 function boxDomain(width, height, neighbors, torus) {
   const xs = [], ys = [], edges = [];
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) { xs.push(x); ys.push(y); }
-  }
   // As in the graph tool: each cell looks right and up (and, with 8
   // neighbors, diagonally), wrapping around on a torus.
   const steps = neighbors === 8 ? [[1, 0], [0, 1], [1, 1], [1, -1]] : [[1, 0], [0, 1]];
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
+      xs.push(x);
+      ys.push(y);
       for (const [dx, dy] of steps) {
         let nx = x + dx, ny = y + dy;
         if (nx < 0 || nx >= width || ny < 0 || ny >= height) {
@@ -165,50 +165,26 @@ function stepsFrom(d, starts) {
   return steps;
 }
 
-// How color c (of "count" colors) is drawn: the old site's colors.
-// Hues are spread evenly from red (0 degrees) round to magenta (300; going
-// all the way to 360 would come back to red), each color a little more
-// saturated than the last, all bright. Hue, saturation and brightness
-// ("HSV") are turned into the usual "#rrggbb".
-function defaultColor(c, count) {
-  const hue = c / Math.max(count, 1) * 300;
-  const saturation = count <= 1 ? 0.85 : 0.55 + 0.30 * c / (count - 1);
-  return hsvToHex(hue, saturation, 0.95);
-}
-
-// Hue (0 .. 360), saturation and brightness (0 .. 1) -> "#rrggbb".
-function hsvToHex(hue, saturation, value) {
-  const chroma = value * saturation;
-  const x = chroma * (1 - Math.abs((hue / 60) % 2 - 1));
-  const m = value - chroma;
-  const [r, g, b] =
-    hue < 60  ? [chroma, x, 0] : hue < 120 ? [x, chroma, 0] : hue < 180 ? [0, chroma, x] :
-    hue < 240 ? [0, x, chroma] : hue < 300 ? [x, 0, chroma] : [chroma, 0, x];
-  return "#" + [r, g, b].map(function (t) {
-    return Math.round((t + m) * 255).toString(16).padStart(2, "0");
-  }).join("");
-}
-
-// "#rrggbb" -> [hue, saturation, brightness], the other way round, as in
-// nadya's ColorFunctions.js (the sandpiles sim mixes colors with it).
-function hexToHSV(hex) {
-  const [r, g, b] = hexToRGB(hex).map(function (t) { return t / 255; });
-  const most = Math.max(r, g, b), least = Math.min(r, g, b), spread = most - least;
-  let hue = 0;
-  if (spread > 0) {
-    if (most === r) hue = 60 * (((g - b) / spread) % 6);
-    else if (most === g) hue = 60 * (2 + (b - r) / spread);
-    else hue = 60 * (4 + (r - g) / spread);
+// How many connected pieces each color has: pieces[c] for the colors
+// c = 0 .. count-1, where colorOf[v] is cell v's color. A piece is found
+// by a search from one of its cells through the neighbors of the same
+// color. (Their sum is the number of pieces of one color in all; with
+// every cell color 0, pieces[0] is the number of pieces of the domain.)
+function countPieces(d, colorOf, count) {
+  const pieces = new Array(count).fill(0);
+  const seen = new Uint8Array(d.n);
+  for (let s = 0; s < d.n; s++) {
+    if (seen[s]) continue;
+    pieces[colorOf[s]]++;
+    seen[s] = 1;
+    const stack = [s];                    // explore everything joined to s in its color
+    while (stack.length > 0) {
+      const v = stack.pop();
+      for (let e = d.first[v]; e < d.first[v + 1]; e++) {
+        const w = d.nbr[e];
+        if (!seen[w] && colorOf[w] === colorOf[v]) { seen[w] = 1; stack.push(w); }
+      }
+    }
   }
-  if (hue < 0) hue += 360;
-  return [hue, most === 0 ? 0 : spread / most, most];
-}
-
-// "#rrggbb" -> [red, green, blue], each 0 .. 255 (for pictures drawn
-// pixel by pixel), and back.
-function hexToRGB(hex) {
-  return [1, 3, 5].map(function (k) { return parseInt(hex.slice(k, k + 2), 16); });
-}
-function rgbToHex(rgb) {
-  return "#" + rgb.map(function (t) { return Math.round(t).toString(16).padStart(2, "0"); }).join("");
+  return pieces;
 }

@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tile packing checks</title>
+  <link rel="stylesheet" href="../../css/style.css">
+</head>
+<body>
+  <main class="page">
+    <p><a href="tile-packing.html">&larr; Back to the sim</a></p>
+    <h1>Random tile packing: checks</h1>
+    <p class="muted">
+      This page opens from the sim's "model check" button. It tests the chain in
+      tile-packing-chain.js in your own browser. Each test runs only when you press its button.
+    </p>
+    <p id="invariant-status" class="check-pass">Invariants: no problems seen yet.</p>
+
+    <!-- 1. Every packing equally often (or by weight). Filled in by tile-packing-check.js. -->
+    <section class="check-section">
+      <h2>1. Is every packing equally likely (or as likely as its weight says)?</h2>
+      <p>
+        Each test is a tiny domain whose packings can all be listed. The chain runs for many moves,
+        and every few moves the page notes which packing it is in. One bar per packing shows how
+        often it was seen, divided by how often it should be seen: equally often for all packings,
+        or, in the tests with tile weights, in proportion to the product of its tiles' weights. A
+        correct chain gives bars all near the line at 1. Pearson's chi-square test (K. Pearson,
+        <i>Phil. Mag.</i> 50 (1900) 157) sums up how uneven the bars are: p is the chance of bars at
+        least this uneven if the chain were right. Below 0.001 counts as "NOT right".
+        Notes taken only a few moves apart are alike, which makes p too small, so leave enough moves
+        between notes; a short run can also flag a correct chain by chance.
+      </p>
+      <p>
+        Moves per version <input type="number" id="moves" value="1000000" min="1000" step="1000">
+        &nbsp; note the packing every <input type="number" id="every" value="100" min="1" step="1"> moves
+      </p>
+      <div id="tests"></div>
+    </section>
+
+    <!-- 2. Counting tilings. -->
+    <section class="check-section">
+      <h2>2. Does the search find every tiling?</h2>
+      <p>
+        The chain's refills come from a search that must find every tiling exactly once. Domino
+        tilings of an m &times; n box are counted exactly by Kasteleyn's formula (P. W. Kasteleyn,
+        <i>Physica</i> 27 (1961) 1209; H. N. V. Temperley &amp; M. E. Fisher, <i>Phil. Mag.</i>
+        6 (1961) 1061), so the search's counts are compared with it. The 2 &times; n row is the
+        Fibonacci numbers.
+      </p>
+      <button class="tool-button" id="count-small">Count boxes up to 6 &times; 6</button>
+      <button class="tool-button" id="count-8">Count the 8 &times; 8 board (slow: about 13 million)</button>
+      <div id="count-results"></div>
+    </section>
+
+    <!-- 3. Arctic circle. -->
+    <section class="check-section">
+      <h2>3. The arctic circle</h2>
+      <p>
+        A uniformly random domino tiling of an Aztec diamond is "frozen" (all dominoes lined up the
+        same way) in the four corners outside the inscribed circle, and mixed inside it
+        (W. Jockusch, J. Propp &amp; P. Shor, "Random domino tilings and the arctic circle theorem",
+        1998, arXiv:math/9801068). Dominoes are colored by direction and by which checkerboard color
+        their lower-left cell has (4 colors). "Average" mixes the colors by how long each cell has
+        spent in each, since the last reset. Let it run, press "Reset average" once the picture has
+        settled, and a circle should appear.
+      </p>
+      <p>
+        Order <input type="number" id="arctic-order" value="12" min="2" max="60" step="1">
+        &nbsp; mean radius <input type="number" id="arctic-radius" value="1.5" min="0.1" step="0.1">
+        <button class="tool-button" id="arctic-start">Start</button>
+        <button class="tool-button" id="arctic-stop">Stop</button>
+        <button class="tool-button" id="arctic-reset">Reset average</button>
+        <label><input type="radio" name="arctic-show" value="average" checked> Average</label>
+        <label><input type="radio" name="arctic-show" value="current"> Current tiling</label>
+      </p>
+      <p class="muted" id="arctic-status"></p>
+      <canvas id="arctic-canvas"></canvas>
+    </section>
+  </main>
+
+  <!-- seedrandom: random numbers that repeat for the same seed. jStat:
+       the chi-square p-values. Versions are fixed so an update can never
+       change the tests by surprise. -->
+  <script src="https://cdn.jsdelivr.net/npm/seedrandom@3.0.5/seedrandom.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jstat@1.9.6/dist/jstat.min.js"></script>
+  <script src="../../js/sim-page.js"></script>
+  <script src="../../js/sim-charts.js"></script>
+  <script src="../../js/sim-domains.js"></script>
+  <script src="tile-packing-chain.js"></script>
+  <script src="tile-packing-check.js"></script>
+</body>
+</html>

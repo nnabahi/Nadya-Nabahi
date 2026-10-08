@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ising and Potts model — Toys n' Sims</title>
+  <link rel="stylesheet" href="../../css/style.css">
+  <!-- KaTeX's styles, for the typeset formulas in the About quadrant. -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/katex.min.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <nav>
+      <a href="../../about.html">About Me</a>
+      <a href="../../resume.html">Resume</a>
+      <a href="../../index.html">Home</a>
+      <a href="../../publications.html">Publications</a>
+      <a href="../../toys.html" class="active">Toys n' Sims</a>
+    </nav>
+  </header>
+
+  <main class="page">
+    <p><a href="../../toys.html">&larr; All sims</a></p>
+    <h1>Ising and Potts model</h1>
+
+    <!-- The four quadrants, as on every sim page (their layout is in
+         section 6 of css/style.css). All the behavior lives in
+         ising-potts.js; the ids below (id="...") are how that script
+         finds each button and box. -->
+    <div class="quadrants">
+
+      <!-- UPPER LEFT: the coloring. -->
+      <section class="quad quad-sim">
+        <h2>Simulation</h2>
+
+        <!-- The picture, with the zoom buttons in its top right corner
+             (js/sim-view.js). -->
+        <div class="sim-picture">
+          <canvas id="sim-canvas"></canvas>
+          <div class="zoom-buttons" id="zoom-buttons" hidden>
+            <button class="tool-button" id="zoom-in" title="Zoom in">+</button>
+            <button class="tool-button" id="zoom-out" title="Zoom out">&minus;</button>
+            <button class="tool-button" id="zoom-reset" title="Show the whole picture once again">Reset</button>
+            <!-- On a hyperbolic tiling or tree's disk or half-plane: put the start back in the middle. -->
+            <button class="tool-button" id="disk-reset" title="Put the start back in the middle" hidden>Back to the start</button>
+            <!-- ... and "Slide": dragging there slides the whole picture instead (js/sim-hyperbolic.js).
+                 It shows and hides with "Back to the start" (section 8 of css/style.css). -->
+            <button class="tool-button" id="disk-slide" title="Drag to slide the whole picture, instead of moving around the plane">Slide</button>
+          </div>
+        </div>
+
+        <!-- Shown instead of the picture while you draw a custom domain:
+             the graph tool itself, in an <iframe> (a page inside this
+             page), with a live check above it. -->
+        <div id="custom-area" hidden>
+          <div class="step-bar">
+            <p class="step-title">Draw the region</p>
+            <p class="muted step-help">Paint the cells (any color counts); neighboring
+              cells interact. Then press Done.</p>
+            <p class="step-status" id="step-status"></p>
+            <div class="option-row">
+              <button class="tool-button" id="tool-done">Done</button>
+              <button class="tool-button" id="tool-cancel">Cancel</button>
+            </div>
+          </div>
+          <iframe class="tool-frame" id="tool-frame" title="Graph and domain tool"></iframe>
+        </div>
+
+        <p class="muted" id="sim-message"></p>
+      </section>
+
+      <!-- UPPER RIGHT: settings. -->
+      <section class="quad quad-controls">
+        <!-- The heading, with a small "model check" button on the right
+             that opens the page testing this sim's math. -->
+        <h2 class="heading-with-button">Options
+          <a class="tool-button model-check" href="ising-potts-check.html">model check</a></h2>
+
+        <h3 class="option-heading">Colors q</h3>
+        <div class="option-row">
+          q = <input type="number" id="q-box" min="2" step="1">
+          <input type="range" class="wide-range" id="q-slider" min="2" step="1">
+        </div>
+        <p class="muted small" id="ising-note"></p>
+
+        <h3 class="option-heading">Inverse temperature &beta;</h3>
+        <div class="option-row">
+          &beta; = <input type="number" id="beta-box" min="0" step="0.001">
+          <input type="range" class="wide-range" id="beta-slider" min="0" step="0.001">
+        </div>
+        <div class="option-row" id="critical-row">
+          <button class="tool-button" id="beta-critical" title="Set beta to the critical point">&beta; = &beta;<sub>c</sub></button>
+          <span class="muted">&beta;<sub>c</sub> = <span id="critical-value"></span> on this grid</span>
+        </div>
+
+        <h3 class="option-heading">Field h (pushes cells toward color 1)</h3>
+        <div class="option-row">
+          h = <input type="number" id="h-box" step="0.01">
+          <input type="range" class="wide-range" id="h-slider" step="0.01">
+        </div>
+
+        <h3 class="option-heading">Dynamics</h3>
+        <div class="option-row">
+          <label><input type="radio" name="dynamics" value="heat" checked> Heat bath (one cell at a time)</label>
+          <label><input type="radio" name="dynamics" value="sw"> Swendsen&ndash;Wang (clusters)</label>
+        </div>
+
+        <h3 class="option-heading">Domain</h3>
+        <div class="option-row">
+          <label><input type="radio" name="domain" value="box"> Box</label>
+          <label><input type="radio" name="domain" value="torus" checked> Torus</label>
+          <label><input type="radio" name="domain" value="custom"> Custom (draw it)</label>
+          <label><input type="radio" name="domain" value="graph"> Hyperbolic plane or tree</label>
+        </div>
+        <div class="option-row" id="size-row">
+          Size <input type="number" id="set-width" min="2" step="1">
+          &times; <input type="number" id="set-height" min="2" step="1">
+        </div>
+        <div class="option-row" id="neighbors-row">
+          Neighbors
+          <select id="set-neighbors">
+            <option value="4">4 (share a side)</option>
+            <option value="8">8 (sides or corners)</option>
+          </select>
+        </div>
+        <div class="option-row" id="custom-row" hidden>
+          <span id="custom-info"></span>
+          <button class="tool-button" id="edit-custom">Edit custom domain</button>
+        </div>
+
+        <!-- Hyperbolic plane or tree only: which graph, how big a ball of
+             it, and how it is drawn (the ids are the ones
+             js/sim-hyperbolic.js reads). -->
+        <div id="graph-rows" hidden>
+          <div class="option-row" id="graph-presets"></div>
+          <div class="option-row">
+            <label><input type="radio" name="graph-kind" value="tiling" checked> Tiling {p, q}:</label>
+            p <input type="number" id="set-p" min="3" max="12" step="1" value="7">
+            q <input type="number" id="set-q" min="3" max="12" step="1" value="3">
+          </div>
+          <div class="option-row">
+            <label><input type="radio" name="graph-kind" value="tree"> Tree, degree</label>
+            <input type="number" id="set-degree" min="3" max="12" step="1" value="3">
+          </div>
+          <p class="muted small" id="graph-info"></p>
+          <div class="option-row">
+            Ball: every cell within R =
+            <input type="number" id="set-ball-radius" min="1" step="1">
+            steps of the start
+          </div>
+          <p class="muted small" id="ball-info"></p>
+          <div class="option-row">
+            Drawn in
+            <label><input type="radio" name="picture" value="disk" checked> the disk</label>
+            <label><input type="radio" name="picture" value="half"> the half-plane</label>
+            <label id="spread-choice"><input type="radio" name="picture" value="spread"> spread out</label>
+          </div>
+        </div>
+
+        <h3 class="option-heading">Run</h3>
+        <div class="option-row">
+          Start
+          <select id="start">
+            <option value="random">Every cell a random color</option>
+            <option value="one">Every cell color 1</option>
+          </select>
+        </div>
+        <div class="option-row">
+          <button class="tool-button" id="play">Play</button>
+          <button class="tool-button" id="step" title="One sweep">Step</button>
+          <button class="tool-button" id="restart" title="Back to the start, same seed">Restart</button>
+        </div>
+        <div class="option-row">
+          Speed <input type="range" class="wide-range" id="speed" min="0" step="1">
+          <span class="muted" id="speed-label"></span>
+        </div>
+        <div class="option-row">
+          Seed <input type="text" id="seed" size="8">
+          <button class="tool-button" id="new-seed" title="A random new seed">New seed</button>
+        </div>
+        <p class="muted small">Moving &beta; or h, or switching the dynamics, changes the
+          chain as it runs, like turning a thermostat. Restart goes back to the same start
+          with the same random numbers.</p>
+      </section>
+
+      <!-- LOWER LEFT: numbers about this run. -->
+      <section class="quad quad-stats">
+        <h2>Statistics</h2>
+        <table class="stats-table">
+          <tr><td>Cells n</td><td id="stat-cells"></td></tr>
+          <tr><td>Neighbor pairs</td><td id="stat-pairs"></td></tr>
+          <tr><td>Sweeps</td><td id="stat-time"></td></tr>
+          <tr><td>&beta;</td><td id="stat-beta"></td></tr>
+          <tr><td>Agreeing neighbor pairs</td><td id="stat-agree"></td></tr>
+          <tr><td id="stat-magnetization-name"></td><td id="stat-magnetization"></td></tr>
+          <tr><td>Domains (connected pieces of one color)</td><td id="stat-domains"></td></tr>
+        </table>
+
+        <h3 class="option-heading">Each color</h3>
+        <table class="stats-table">
+          <thead><tr><td></td><td>Cells</td><td>Share</td></tr></thead>
+          <tbody id="color-rows"></tbody>
+        </table>
+
+        <h3 class="option-heading">Share of each color over time</h3>
+        <canvas class="chart" id="shares-chart"></canvas>
+        <h3 class="option-heading">Share of agreeing neighbor pairs over time</h3>
+        <canvas class="chart" id="agree-chart"></canvas>
+      </section>
+
+      <!-- LOWER RIGHT: about the model, in two tabs (js/sim-page.js
+           switches them). Text in class="tex" is typeset by KaTeX. -->
+      <section class="quad quad-about">
+        <h2>About the model</h2>
+        <nav class="about-tabs">
+          <button class="about-tab selected" data-tab="simple">Simple</button>
+          <button class="about-tab" data-tab="details">All the details</button>
+        </nav>
+
+        <div data-panel="simple">
+        <p>
+          Every cell has one of q colors. Neighbors <strong>like to agree</strong>:
+          a coloring is more likely the more neighbor pairs share a color, and
+          how much more is set by &beta;, one over the temperature. With
+          q = 2 colors this is the <strong>Ising model</strong> of a magnet;
+          with more colors it is the <strong>Potts model</strong>.
+        </p>
+        <p>
+          When &beta; is small (hot), the colors are a fine random speckle.
+          When &beta; is big (cold), one color takes over most of the domain.
+          In between, at the <strong>critical point</strong> &beta;<sub>c</sub>,
+          there are blobs of every size, inside blobs, inside blobs. On the
+          square grid &beta;<sub>c</sub> = log(1 + &radic;q).
+        </p>
+        <p>
+          The sim runs a random process that settles into this distribution.
+          The <strong>heat bath</strong> picks a random cell and recolors it,
+          with the odds of each color set by its neighbors.
+          <strong>Swendsen&ndash;Wang</strong> joins agreeing neighbors into
+          random clusters and recolors whole clusters at once, which is much
+          faster near the critical point.
+        </p>
+        <p>
+          <strong>Hyperbolic plane or tree.</strong> The model also runs on a
+          ball of a hyperbolic tiling or of a tree: every cell within R steps
+          of a start cell. It is drawn in the Poincar&eacute; disk or the
+          half-plane (drag to move around the plane, or press Slide to slide
+          the whole picture), or, for a tree, spread
+          out in rings, and all three zoom. Most of a ball's cells are on its
+          edge, so cooling it down looks quite different from the square grid.
+        </p>
+        <p>
+          <strong>Things to try:</strong> press Play at &beta;<sub>c</sub> and
+          watch the blobs grow; slide &beta; up to freeze the picture or down to
+          melt it. Push h a little to tilt the race toward color 1. Try q = 3
+          and q = 5: from q = 5 on, the change at &beta;<sub>c</sub> becomes a
+          sudden jump instead of a gradual one.
+        </p>
+        </div>
+
+        <div data-panel="details" hidden>
+        <p>
+          <strong>The model.</strong> The domain is a graph
+          <span class="tex">G = (V, E)</span>: the cells, joined to their 4 or
+          8 neighbors. A coloring is
+          <span class="tex">\sigma \in \{1, \dots, q\}^V</span>, and the
+          Potts model [1] gives it probability
+        </p>
+        <div class="tex">\pi(\sigma) = \frac{1}{Z} \exp\Big( \beta \sum_{\{u,v\} \in E} \mathbf{1}\{\sigma(u) = \sigma(v)\} + \beta h \sum_{v \in V} \mathbf{1}\{\sigma(v) = 1\} \Big),</div>
+        <p>
+          with <span class="tex">Z</span> the sum of the same over all
+          colorings. On a box the cells on the edge simply have fewer
+          neighbors (&ldquo;free boundary&rdquo;). For
+          <span class="tex">q = 2</span>, write
+          <span class="tex">s(v) = +1</span> for color 1 and
+          <span class="tex">-1</span> for color 2. Then
+          <span class="tex">\mathbf{1}\{\sigma(u) = \sigma(v)\} = \tfrac{1}{2}(1 + s(u)s(v))</span>,
+          so this is the Ising model [2] at inverse temperature
+          <span class="tex">\beta/2</span> and field
+          <span class="tex">h/2</span>.
+        </p>
+        <p>
+          <strong>Heat bath.</strong> Pick
+          <span class="tex">v</span> uniformly and draw its new color from
+          <span class="tex">\pi</span> given the others:
+        </p>
+        <div class="tex">\mathbb{P}(\sigma(v) = k \mid \text{rest}) \propto \exp\big(\beta\, n_k(v) + \beta h\, \mathbf{1}\{k = 1\}\big),</div>
+        <p>
+          where <span class="tex">n_k(v)</span> is the number of neighbors
+          of <span class="tex">v</span> with color
+          <span class="tex">k</span>. This is Glauber dynamics; it is
+          reversible with respect to <span class="tex">\pi</span>, and on a
+          connected graph it converges to <span class="tex">\pi</span>
+          [3; 4, Section 3.3]. A sweep is <span class="tex">|V|</span>
+          updates.
+        </p>
+        <p>
+          <strong>Swendsen&ndash;Wang.</strong> Open each edge whose ends
+          agree with probability <span class="tex">p = 1 - e^{-\beta}</span>;
+          then give each cluster <span class="tex">C</span> of open edges a
+          new color, color 1 with weight
+          <span class="tex">e^{\beta h |C|}</span> and each other color with
+          weight 1 [5]. This leaves <span class="tex">\pi</span> unchanged,
+          because <span class="tex">\pi</span> is a marginal of a joint law
+          of colorings and edges (the Edwards&ndash;Sokal coupling [6]) whose
+          edge marginal, for <span class="tex">h = 0</span>, is the
+          Fortuin&ndash;Kasteleyn random cluster model with parameters
+          <span class="tex">(p, q)</span> [7].
+        </p>
+        <p>
+          <strong>The phase transition.</strong> On the square grid with 4
+          neighbors and <span class="tex">h = 0</span>, the critical point is
+        </p>
+        <div class="tex">\beta_c(q) = \log(1 + \sqrt{q})</div>
+        <p>
+          for every <span class="tex">q \ge 1</span>, the self-dual point of
+          the random cluster model (Beffara and Duminil-Copin [8]); for
+          <span class="tex">q = 2</span> this is Onsager's
+          <span class="tex">\tfrac{1}{2}\log(1 + \sqrt{2})</span> in the
+          Ising convention [9]. The transition is continuous for
+          <span class="tex">q \le 4</span> [10] and discontinuous for
+          <span class="tex">q &gt; 4</span> [11]: one color suddenly takes
+          over a positive share of the domain. With 8 neighbors no exact
+          <span class="tex">\beta_c</span> is known.
+        </p>
+        <p>
+          <strong>Exact numbers for q = 2.</strong> Above the critical point,
+          the spontaneous magnetization of the infinite grid is (Yang [12],
+          in this page's <span class="tex">\beta</span>)
+        </p>
+        <div class="tex">m^*(\beta) = \big(1 - \sinh(\beta)^{-4}\big)^{1/8},</div>
+        <p>
+          and at <span class="tex">\beta_c</span> the share of agreeing
+          neighbor pairs is <span class="tex">\tfrac{1}{2}(1 + 1/\sqrt{2}) \approx 0.8536</span>
+          [9]. The check page compares the sim with both.
+        </p>
+        <p>
+          <strong>Hyperbolic plane or tree.</strong> Here
+          <span class="tex">G</span> is the ball
+          <span class="tex">B_R = \{ v : d(o, v) \le R \}</span> of a regular
+          tiling <span class="tex">\{p, q\}</span> of the hyperbolic plane
+          (<span class="tex">1/p + 1/q &lt; 1/2</span>; neighbors share a side)
+          or of the regular tree of degree <span class="tex">d</span>, with
+          <span class="tex">d(o, v)</span> the number of steps from the start
+          cell <span class="tex">o</span>, and only the edges inside the ball
+          (free boundary, as on a box). On the whole tree of degree
+          <span class="tex">d</span>, the Ising model
+          (<span class="tex">q = 2</span>, <span class="tex">h = 0</span>) has
+          more than one Gibbs measure exactly when
+          <span class="tex">(d - 1) \tanh(\beta/2) &gt; 1</span> [13], and the
+          one with free boundary stays extremal until
+          <span class="tex">(d - 1) \tanh^2(\beta/2) &gt; 1</span> [14]. On a
+          ball, though, the heat bath has relaxation time polynomial in the
+          number of cells for every fixed <span class="tex">\beta</span>, on
+          trees and on hyperbolic tilings alike [15]. The Ising model on
+          hyperbolic tilings also has a phase transition, at a
+          <span class="tex">\beta_c</span> not known exactly [16], so this page
+          offers no <span class="tex">\beta_c</span> button there.
+        </p>
+        <p><strong>References</strong></p>
+        <ol class="references">
+          <li>R. B. Potts, &ldquo;Some generalized order-disorder
+            transformations&rdquo;, <em>Proc. Cambridge Philos. Soc.</em> 48
+            (1952), 106&ndash;109.</li>
+          <li>E. Ising, &ldquo;Beitrag zur Theorie des
+            Ferromagnetismus&rdquo;, <em>Z. Physik</em> 31 (1925),
+            253&ndash;258.</li>
+          <li>R. J. Glauber, &ldquo;Time-dependent statistics of the Ising
+            model&rdquo;, <em>J. Math. Phys.</em> 4 (1963), 294&ndash;307.</li>
+          <li>D. A. Levin, Y. Peres, E. L. Wilmer, <em>Markov Chains and Mixing
+            Times</em>, 2nd ed., American Mathematical Society, 2017.</li>
+          <li>R. H. Swendsen, J.-S. Wang, &ldquo;Nonuniversal critical dynamics
+            in Monte Carlo simulations&rdquo;, <em>Phys. Rev. Lett.</em> 58
+            (1987), 86&ndash;88.</li>
+          <li>R. G. Edwards, A. D. Sokal, &ldquo;Generalization of the
+            Fortuin-Kasteleyn-Swendsen-Wang representation and Monte Carlo
+            algorithm&rdquo;, <em>Phys. Rev. D</em> 38 (1988),
+            2009&ndash;2012.</li>
+          <li>C. M. Fortuin, P. W. Kasteleyn, &ldquo;On the random-cluster
+            model I&rdquo;, <em>Physica</em> 57 (1972), 536&ndash;564.</li>
+          <li>V. Beffara, H. Duminil-Copin, &ldquo;The self-dual point of the
+            two-dimensional random-cluster model is critical for
+            <span class="tex">q \ge 1</span>&rdquo;, <em>Probab. Theory Related
+            Fields</em> 153 (2012), 511&ndash;542.</li>
+          <li>L. Onsager, &ldquo;Crystal statistics. I. A two-dimensional model
+            with an order-disorder transition&rdquo;, <em>Phys. Rev.</em> 65
+            (1944), 117&ndash;149.</li>
+          <li>H. Duminil-Copin, V. Sidoravicius, V. Tassion, &ldquo;Continuity
+            of the phase transition for planar random-cluster and Potts models
+            with <span class="tex">1 \le q \le 4</span>&rdquo;, <em>Comm. Math.
+            Phys.</em> 349 (2017), 47&ndash;107.</li>
+          <li>H. Duminil-Copin, M. Gagnebin, M. Harel, I. Manolescu,
+            V. Tassion, &ldquo;Discontinuity of the phase transition for the
+            planar random-cluster and Potts models with
+            <span class="tex">q &gt; 4</span>&rdquo;, <em>Ann. Sci. &Eacute;c.
+            Norm. Sup&eacute;r.</em> 54 (2021), 1363&ndash;1413.</li>
+          <li>C. N. Yang, &ldquo;The spontaneous magnetization of a
+            two-dimensional Ising model&rdquo;, <em>Phys. Rev.</em> 85 (1952),
+            808&ndash;816.</li>
+          <li>R. Lyons, &ldquo;The Ising model and percolation on trees and
+            tree-like graphs&rdquo;, <em>Comm. Math. Phys.</em> 125 (1989),
+            337&ndash;353.</li>
+          <li>P. M. Bleher, J. Ruiz, V. A. Zagrebnov, &ldquo;On the purity of the
+            limiting Gibbs state for the Ising model on the Bethe lattice&rdquo;,
+            <em>J. Stat. Phys.</em> 79 (1995), 473&ndash;482.</li>
+          <li>N. Berger, C. Kenyon, E. Mossel, Y. Peres, &ldquo;Glauber dynamics
+            on trees and hyperbolic graphs&rdquo;, <em>Probab. Theory Related
+            Fields</em> 131 (2005), 311&ndash;340.</li>
+          <li>C. C. Wu, &ldquo;Ising models on hyperbolic graphs&rdquo;,
+            <em>J. Stat. Phys.</em> 85 (1996), 251&ndash;259.</li>
+        </ol>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <!-- KaTeX (https://katex.org) typesets the formulas. The version number
+       is fixed so an update can never change the site by surprise. -->
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/katex.min.js"></script>
+
+  <!-- The code the sims share (in js/, see the README): page helpers
+       (they also typeset the formulas, so they come after KaTeX), the
+       second thread's run loop, charts, colors, domains, the picture's
+       view (moving and zooming it), the hyperbolic tilings and trees and
+       their pictures, and the options and controls of the domain. Then
+       the chains (they run in a second thread), then this page's code. -->
+  <script src="../../js/sim-page.js"></script>
+  <script src="../../js/sim-worker.js"></script>
+  <script src="../../js/sim-charts.js"></script>
+  <script src="../../js/sim-colors.js"></script>
+  <script src="../../js/sim-domains.js"></script>
+  <script src="../../js/sim-view.js"></script>
+  <script src="../../js/sim-graphs.js"></script>
+  <script src="../../js/sim-hyperbolic.js"></script>
+  <script src="../../js/sim-controls.js"></script>
+  <script src="ising-potts-chain.js"></script>
+  <script src="ising-potts.js"></script>
+
+</body>
+</html>
