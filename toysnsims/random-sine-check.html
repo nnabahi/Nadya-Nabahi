@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Random sine function — check page</title>
+  <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+  <main class="page">
+    <p><a href="random-sine.html">&larr; Back to the sim</a></p>
+    <h1>Random sine function: check page</h1>
+    <p>
+      This page tests <code>random-sine-roots.js</code>, the math behind the sim, on its own.
+      It opens from the sim's "model check" button. Everything runs in your browser when the page opens.
+      Each row says whether the check passed, what is checked, what the math says it should be, and what the code got.
+    </p>
+
+    <h2>1. One sample, live</h2>
+    <p>
+      Walk model, gaps uniform on [1, 1 + δ], stationary start, seed 1, N = 300 roots on each side.
+      Solid: f. Dashed: the sine wave with the same first root R(0) and the same mean gap.
+      At δ = 0 they are the same curve. Moving δ keeps every random number fixed, so the curve should bend smoothly.
+    </p>
+    <p>
+      δ = <input type="range" id="delta" min="0" max="2" step="0.01" value="0.1">
+      <span id="delta-value">0.1</span>
+    </p>
+    <canvas class="check-picture" id="plot"></canvas>
+
+    <h2>2. Checks</h2>
+    <table class="check-table">
+      <tbody id="results"></tbody>
+    </table>
+
+    <h2>3. Compare with your Python</h2>
+    <p>
+      Walk model, gaps uniform on {2, 3} (your randfuncsagain.py with p = 1/2), 300 samples,
+      every lobe with both roots in [-15, 15]. This histogram of peak offsets x<sub>n</sub> - X<sub>n</sub>
+      should look like the left column of the top row of your plot. (Areas and peak heights are scaled
+      differently here, since f(0) = 1 instead of your f'(0) = 1, so only offsets are compared.)
+    </p>
+    <canvas class="check-picture" id="offsets"></canvas>
+    <p id="offset-summary"></p>
+  </main>
+
+  <!-- math.js (https://mathjs.org) reads the typed gap sets (with the site's
+       Desmos-style helpers in js/formulas.js); seedrandom
+       (https://github.com/davidbau/seedrandom) makes repeatable random numbers. -->
+  <script src="https://cdn.jsdelivr.net/npm/mathjs@15.2.0/lib/browser/math.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/seedrandom@3.0.5/seedrandom.min.js"></script>
+  <script src="../js/sim-page.js"></script>
+  <script src="../js/check-page.js"></script>
+  <script src="../js/formulas.js"></script>
+  <script src="random-sine/random-sine-roots.js"></script>
+  <script src="random-sine/random-sine-check.js"></script>
+</body>
+</html>

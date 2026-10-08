@@ -159,7 +159,7 @@ function connectSeed(onChange) {
    ---------------------------------------------------------------------
    Choosing "Custom" on a sim page swaps the picture for the drawing
    tool (graph-tool.html), loaded in an <iframe> (a page inside the
-   page) as ../graph-tool/graph-tool.html?embed. The sim checks the
+   page) as graph-tool.html?embed. The sim checks the
    drawing live and says above the tool what's wrong, if anything; Done
    uses it. makeCustomTool (js/sim-controls.js) does all of that with
    these two.

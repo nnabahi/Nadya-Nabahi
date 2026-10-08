@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sandpiles — check page</title>
+  <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+
+  <!-- A test page for the sandpile's toppling rule (sandpiles-pile.js).
+       It opens from the sim's "model check" button. -->
+  <main class="page">
+    <p><a href="sandpiles.html">&larr; Back to the sim</a></p>
+    <h1>Sandpiles: check page</h1>
+    <p>
+      These tests check the toppling rule, Undo and the identity in
+      <code>sandpiles-pile.js</code>, the math behind the sim.
+      Press the button; it takes about 10 to 20 seconds. The tests use fixed
+      random seeds, so they do the same thing every time.
+    </p>
+
+    <p><button id="run-checks">Run the checks</button></p>
+
+    <table class="check-table">
+      <tbody id="results"></tbody>
+    </table>
+
+    <h2>Compare with a run of your own</h2>
+    <p>
+      In your Python file <code>sandpiles</code>, change the
+      <code>range(...)</code> to the n's you want, and add this line
+      at the very end, inside the loop (indented like
+      <code>toppleSeq(toTopple)</code>):
+    </p>
+    <pre>    print(gen, numTopples, sandpiles)</pre>
+    <p>
+      You may want to comment out <code>showIm(sandpiles)</code> and
+      the <code>showIm</code> inside <code>toppleSeq</code> first, so
+      no pictures open. Then paste the printed lines here, one run per line.
+    </p>
+    <p>
+      L = <input id="pasted-length" type="number" value="25" min="1" style="width: 5em">
+      W = <input id="pasted-width" type="number" value="25" min="1" style="width: 5em">
+    </p>
+    <textarea id="pasted-runs" class="text-box" rows="5"></textarea>
+    <p><button id="compare-pasted">Compare</button> <span id="pasted-result"></span></p>
+  </main>
+
+  <!-- seedrandom, for random numbers that repeat for the same seed. The
+       version is fixed so an update can never change the tests. -->
+  <script src="https://cdn.jsdelivr.net/npm/seedrandom@3.0.5/seedrandom.min.js"></script>
+  <!-- byId(), the results table shared by the check pages, the domains
+       and the hyperbolic balls, then the math being tested, then the
+       tests. -->
+  <script src="../js/sim-page.js"></script>
+  <script src="../js/check-page.js"></script>
+  <script src="../js/sim-domains.js"></script>
+  <script src="../js/sim-graphs.js"></script>
+  <script src="../js/sim-hyperbolic.js"></script>
+  <script src="sandpiles/sandpiles-pile.js"></script>
+  <script src="sandpiles/sandpiles-check.js"></script>
+</body>
+</html>

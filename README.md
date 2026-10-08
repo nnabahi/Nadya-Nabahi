@@ -20,36 +20,40 @@ and, on the check pages, [jStat](https://jstat.github.io) (statistics).
 | `about.html` | About Me |
 | `resume.html` | Resume |
 | `publications.html` | Publications |
-| `toys.html` | Toys n' Sims: a list of all simulations |
+| `toysnsims.html` | Toys n' Sims: a list of all simulations |
 | `css/style.css` | The single stylesheet for every page |
-| `js/genre-filter.js` | Sorts the cards on `toys.html` A to Z (the graph tool pinned first), builds the genre buttons and hides/shows cards |
+| `js/genre-filter.js` | Sorts the cards on `toysnsims.html` A to Z (the graph tool pinned first), builds the genre buttons and hides/shows cards |
 | `SIMS.md` | Planning list of candidate sims and their status (not shown on the site) |
 | `SIMS-priority.md` | Claude's ranking of the `SIMS.md` ideas, sims vs toys (not shown on the site) |
 | `MODELS.md` | Every model in nadya's Programming folder, sorted into families (not shown on the site) |
 
 ### One folder per sim
 
-Each sim has its own folder in `sims/`, and every folder follows the same
-pattern: the page is `name.html`, the page's code is `name.js`, its math
+Every sim page sits straight in `toysnsims/`, so its web address is
+`nnabahi.github.io/Nadya-Nabahi/toysnsims/name.html`. The page's code sits
+in its own folder next to it, `toysnsims/name/`. The pattern is the same
+for every sim: the page is `toysnsims/name.html`, the page's code is
+`toysnsims/name/name.js`, its math
 is `name-<something>.js` (for example `name-chain.js` for a Markov chain),
-and the page that tests the math is `name-check.html` with `name-check.js`.
+and the page that tests the math is `toysnsims/name-check.html` with
+`toysnsims/name/name-check.js`.
 Each check page opens from its sim's "model check" button and starts with
 a link back to the sim.
 
 | Folder | The sim | Its math | Its check page tests |
 | --- | --- | --- | --- |
-| `sims/graph-tool/` | Graph & domain tool: paint a domain on a grid (pinned first on `toys.html`); sims open it for a custom domain | | |
-| `sims/connected-coloring/` | Random connected coloring (box, torus, drawn domain, hyperbolic tilings and trees) | `-chain.js`: the Markov chain (ReCom with a uniform correction), in a second thread | |
-| `sims/random-walk-coloring/` | Random walk coloring (N walkers color cells by first arrival, in discrete or continuous time) | `-walk.js`: the walkers (both models), in a second thread | |
-| `sims/random-mountain/` | Random mountain (blocks pile up on a line, grid, drawn domain, hyperbolic tiling or tree; any tile; 3D view) | `-growth.js`: the growth rule, in a second thread | nadya's Python, exact odds, invariants, the graphs |
-| `sims/percolation/` | Site and bond percolation, two pages (`site-percolation.html`, `bond-percolation.html`) sharing `percolation.js` | `percolation-clusters.js`: the clusters at one p and at every p (union-find, Newman-Ziff), in the page | clusters, wrapping, Hex and duality crossings, trees |
-| `sims/ising-potts/` | Ising and Potts model (q colors; heat bath or Swendsen-Wang) | `-chain.js`: the two Markov chains, in a second thread | exact odds on tiny graphs, Yang, Onsager |
-| `sims/voter-model/` | Generalized voter model (a typed rule g of the neighbors' shares, with noise) | `-chain.js`: the update rule, in a second thread | the update odds, who wins, noise |
-| `sims/sandpiles/` | Sandpiles (the abelian sandpile, storms, avalanches, the identity) | `-pile.js`: the toppling rule, in a second thread | nadya's Python, the abelian property, the identity, no sink |
-| `sims/tile-packing/` | Random tile packing (rectangles, with or without gaps; every packing equally likely) | `-chain.js`: the Markov chain, in a second thread | every packing equally likely, counting tilings, the arctic circle |
-| `sims/sequential-packing/` | Random sequential packing (continuous space; any typed domain, tile and density) | `-growth.js`: growing each tile, in a second thread | nadya's gasket formula, known answers, invariants |
-| `sims/random-sine/` | Random sine function (roots at random gaps from a typed set; f, its lobes and their histograms) | `-roots.js`: the roots, f, peaks and lobes, in the page | Euler's sine product, stationarity, a picture to compare with nadya's Python |
-| `sims/random-matrix-products/` | Random matrix products toy (random 2x2 matrices multiply a cloud of vectors) | `-math.js`: reading the matrices, the runs, the growth rate, in the page | exact odds, averages, invariants, the growth rate |
+| `toysnsims/graph-tool/` | Graph & domain tool: paint a domain on a grid (pinned first on `toysnsims.html`); sims open it for a custom domain | | |
+| `toysnsims/connected-coloring/` | Random connected coloring (box, torus, drawn domain, hyperbolic tilings and trees) | `-chain.js`: the Markov chain (ReCom with a uniform correction), in a second thread | |
+| `toysnsims/random-walk-coloring/` | Random walk coloring (N walkers color cells by first arrival, in discrete or continuous time) | `-walk.js`: the walkers (both models), in a second thread | |
+| `toysnsims/random-mountain/` | Random mountain (blocks pile up on a line, grid, drawn domain, hyperbolic tiling or tree; any tile; 3D view) | `-growth.js`: the growth rule, in a second thread | nadya's Python, exact odds, invariants, the graphs |
+| `toysnsims/percolation/` | Site and bond percolation, two pages (`site-percolation.html`, `bond-percolation.html`) sharing `percolation.js` | `percolation-clusters.js`: the clusters at one p and at every p (union-find, Newman-Ziff), in the page | clusters, wrapping, Hex and duality crossings, trees |
+| `toysnsims/ising-potts/` | Ising and Potts model (q colors; heat bath or Swendsen-Wang) | `-chain.js`: the two Markov chains, in a second thread | exact odds on tiny graphs, Yang, Onsager |
+| `toysnsims/voter-model/` | Generalized voter model (a typed rule g of the neighbors' shares, with noise) | `-chain.js`: the update rule, in a second thread | the update odds, who wins, noise |
+| `toysnsims/sandpiles/` | Sandpiles (the abelian sandpile, storms, avalanches, the identity) | `-pile.js`: the toppling rule, in a second thread | nadya's Python, the abelian property, the identity, no sink |
+| `toysnsims/tile-packing/` | Random tile packing (rectangles, with or without gaps; every packing equally likely) | `-chain.js`: the Markov chain, in a second thread | every packing equally likely, counting tilings, the arctic circle |
+| `toysnsims/sequential-packing/` | Random sequential packing (continuous space; any typed domain, tile and density) | `-growth.js`: growing each tile, in a second thread | nadya's gasket formula, known answers, invariants |
+| `toysnsims/random-sine/` | Random sine function (roots at random gaps from a typed set; f, its lobes and their histograms) | `-roots.js`: the roots, f, peaks and lobes, in the page | Euler's sine product, stationarity, a picture to compare with nadya's Python |
+| `toysnsims/random-matrix-products/` | Random matrix products toy (random 2x2 matrices multiply a cloud of vectors) | `-math.js`: reading the matrices, the runs, the growth rate, in the page | exact odds, averages, invariants, the growth rate |
 
 ### Code the sims share (`js/`)
 
@@ -74,14 +78,14 @@ a link back to the sim.
 - **Add a page:** copy an existing page, then add its link to the top bar
   on *every* page (the top bar is copied into each file).
 - **Add a sim:**
-  1. Make a folder `sims/<name>/` and copy into it the page of the sim
-     closest to the new one (like `sims/random-walk-coloring/random-walk-coloring.html`),
-     renamed `<name>.html`. Its links (`../../css/style.css`, `../../js/...`)
-     already point the right way, and it already loads the shared files it
-     needs from `js/`.
+  1. Copy the page of the sim closest to the new one (like
+     `toysnsims/random-walk-coloring.html`) to `toysnsims/<name>.html`, and
+     make a folder `toysnsims/<name>/` for its code. Its shared links
+     (`../css/style.css`, `../js/...`) already point the right way; change
+     its own scripts to `<name>/<name>.js` and so on.
   2. Fill in the four boxes, and write the page's code in `<name>.js` and
      its math in `<name>-<something>.js`.
-  3. Add a card for it on `toys.html`, linking to `sims/<name>/<name>.html`,
+  3. Add a card for it on `toysnsims.html`, linking to `toysnsims/<name>.html`,
      with its genre labels (`<li>` items in the card's `<ul class="tags">`).
      New genres get a filter button automatically.
   4. Optionally a check page, `<name>-check.html` with `<name>-check.js`,
