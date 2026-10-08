@@ -261,6 +261,122 @@ a.card:hover {
   color: var(--color-surface);
 }
 
+/* ---------------------------------------------------------------------
+   Resume page (resume.html)
+   ---------------------------------------------------------------------
+   The page is a column of cards (Education, Experience, ...). Inside a
+   card, each job or degree is a "resume-entry". */
+
+/* A narrower column than other pages, so lines don't get too long to read. */
+.page.resume {
+  max-width: 860px;
+}
+
+/* Name on the left, Download button on the right, on one row. */
+.resume-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;           /* on phones the button drops below the name */
+  margin-bottom: 20px;
+}
+
+.resume-title h1 {
+  margin: 0;
+}
+
+.resume-title p {
+  margin: 4px 0 0;
+}
+
+/* Space between one job or degree and the next. */
+.resume-entry {
+  margin-top: 18px;
+}
+
+/* The row with "what and where" on the left and the dates on the right. */
+.resume-entry-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;     /* line up the bottoms of the text */
+  gap: 12px;
+  flex-wrap: wrap;           /* dates go under the title if there's no room */
+}
+
+.resume-entry-head h3 {
+  margin: 0;
+  font-size: 1.1em;
+}
+
+.resume-date {
+  color: var(--color-text-muted);
+  font-size: 0.9em;
+  white-space: nowrap;       /* keep a date range on one line */
+}
+
+/* The gray "school, city" line right under the title. */
+.resume-entry .muted {
+  margin: 2px 0 6px;
+}
+
+.resume ul {
+  margin: 6px 0;
+  padding-left: 22px;
+}
+
+/* Skills: labels in a left column, details in a right column. */
+.resume-skills {
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  gap: 8px 20px;
+  margin: 0;
+}
+
+.resume-skills dt {
+  font-weight: bold;
+}
+
+.resume-skills dd {
+  margin: 0;                 /* browsers indent <dd> by default; remove it */
+}
+
+/* PRINTING / "Save as PDF"
+   Everything inside "@media print { ... }" only applies when printing.
+   It hides the top bar and the Download button, and drops the card
+   boxes so the PDF looks like a plain paper resume. */
+@media print {
+  .topbar,
+  .no-print {
+    display: none;
+  }
+
+  body {
+    background: white;
+    font-size: 11pt;
+  }
+
+  .page {
+    padding: 0;
+  }
+
+  .card {
+    border: none;
+    padding: 0;
+    margin-bottom: 14px;
+  }
+
+  /* Don't split one job across two printed pages. */
+  .resume-entry {
+    break-inside: avoid;
+  }
+
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+}
+
 
 /* =====================================================================
    5. Home page image area
@@ -1103,6 +1219,15 @@ body.embedded .graph-wrap {
       "controls"
       "stats"
       "about";
+  }
+
+  /* Resume skills: stack each label above its details. */
+  .resume-skills {
+    grid-template-columns: 1fr;
+  }
+
+  .resume-skills dd {
+    margin-bottom: 8px;
   }
 
   /* A shorter drawing area in the graph tool. */
