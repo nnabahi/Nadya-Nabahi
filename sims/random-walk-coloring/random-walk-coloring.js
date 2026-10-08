@@ -268,6 +268,7 @@ const outsideRGB = hexToRGB(OUTSIDE), blankRGB = hexToRGB(UNCOLORED);
 function drawColoring() {
   if (!domain || !latest || simCanvas.hidden) return;
   if (domainKind === "graph") { drawOnGraph(); return; }
+  if (domainKind === "ring") { drawRing(); return; }
   const colors = latest.colors;
   const pen = fitPicture(view, domain, MAX_PICTURE_HEIGHT);
 
@@ -294,6 +295,90 @@ function drawOnGraph() {
   if (showWalkers) drawWalkers(pen);
 }
 
+// 1D ring: drawn as a circle, since its two ends are glued together.
+// Cell k is a piece of a thick band ("annulus"), going clockwise from
+// the top. ringShape says where the band is on the canvas.
+function ringShape() {
+  const w = simCanvas.clientWidth, h = Math.min(w, pictureHeight(MAX_PICTURE_HEIGHT));
+  const outer = Math.min(w, h) / 2 - PAD;               // the band's outer radius
+  const band = Math.max(10, Math.min(40, outer * 0.15));  // how thick the band is
+  return { w: w, h: h, x: w / 2, y: h / 2, outer: outer, inner: outer - band,
+           length: domain.n };
+}
+
+// The angle at the start of cell k (k = 0 at the top, going clockwise).
+function ringAngle(ring, k) {
+  return -Math.PI / 2 + 2 * Math.PI * k / ring.length;
+}
+
+function drawRing() {
+  const ring = ringShape(), colors = latest.colors;
+  // Size the canvas (sharp on sharp screens) and get its pen.
+  const ratio = window.devicePixelRatio || 1;
+  simCanvas.style.height = ring.h + "px";
+  simCanvas.width = Math.round(ring.w * ratio);
+  simCanvas.height = Math.round(ring.h * ratio);
+  const pen = simCanvas.getContext("2d");
+  pen.setTransform(ratio, 0, 0, ratio, 0, 0);
+  view.top = 0;   // pointerSpot then gives plain canvas positions
+
+  // Each cell: the piece of the band between its two angles. (Cell k is
+  // the cell at x = k; the ring has no cells off its one row.)
+  for (let v = 0; v < domain.n; v++) {
+    const k = domain.x[v] - domain.xmin;
+    const a = ringAngle(ring, k), b = ringAngle(ring, k + 1);
+    pen.beginPath();
+    pen.arc(ring.x, ring.y, ring.outer, a, b);
+    pen.arc(ring.x, ring.y, ring.inner, b, a, true);   // back along the inside
+    pen.closePath();
+    pen.fillStyle = colors[v] === -1 ? UNCOLORED : colorNames[colors[v]];
+    pen.fill();
+    // Cells of the same color touch without a gap: a hairline in their own color.
+    pen.strokeStyle = pen.fillStyle;
+    pen.lineWidth = 0.5;
+    pen.stroke();
+  }
+
+  // Lines between different colors, across the band, and the band's two edges.
+  pen.strokeStyle = BORDER;
+  pen.lineWidth = 1;
+  for (let v = 0; v < domain.n; v++) {
+    const k = domain.x[v] - domain.xmin;
+    const next = cellAt(domain, domain.xmin + (k + 1) % ring.length, domain.ymin);
+    if (colors[v] === colors[next]) continue;
+    const a = ringAngle(ring, k + 1);
+    pen.beginPath();
+    pen.moveTo(ring.x + ring.inner * Math.cos(a), ring.y + ring.inner * Math.sin(a));
+    pen.lineTo(ring.x + ring.outer * Math.cos(a), ring.y + ring.outer * Math.sin(a));
+    pen.stroke();
+  }
+  for (const radius of [ring.inner, ring.outer]) {
+    pen.beginPath();
+    pen.arc(ring.x, ring.y, radius, 0, 2 * Math.PI);
+    pen.stroke();
+  }
+
+  if (showWalkers) drawWalkers(pen);
+}
+
+// 1D ring: where cell v is drawn (the middle of its piece of the band).
+function ringSpot(v) {
+  const ring = ringShape(), k = domain.x[v] - domain.xmin;
+  const a = ringAngle(ring, k + 0.5), middle = (ring.inner + ring.outer) / 2;
+  const r = Math.max(5, Math.min(14, (ring.outer - ring.inner) * 0.35));
+  return { x: ring.x + middle * Math.cos(a), y: ring.y + middle * Math.sin(a), r: r };
+}
+
+// 1D ring: the cell under a spot on the canvas, or -1 off the band.
+function ringCellUnder(spot) {
+  const ring = ringShape();
+  const dx = spot.x - ring.x, dy = spot.y - ring.y, distance = Math.hypot(dx, dy);
+  if (distance < ring.inner - 10 || distance > ring.outer + 10) return -1;
+  // The angle from the top, clockwise, as a fraction of a full turn.
+  const turn = wrapNumber(Math.atan2(dy, dx) / (2 * Math.PI) + 0.25, 1);
+  return cellAt(domain, domain.xmin + Math.min(ring.length - 1, Math.floor(turn * ring.length)), domain.ymin);
+}
+
 // Where walker i is drawn on the screen, and how big: the middle of its
 // cell, in every copy of the torus that shows (just once on a box). Only
 // spots inside the picture's box count, so at zoom 1 each walker shows
@@ -303,6 +388,7 @@ function drawOnGraph() {
 function walkerSpots(i) {
   const d = domain, v = latest.positions[i];
   if (domainKind === "graph") return graphSpots(v);
+  if (domainKind === "ring") return [ringSpot(v)];
   let columns = [d.x[v] - d.xmin], rows = [d.ymax - d.y[v]];   // its square (column, row)
   if (d.wrap) {
     columns = repeatsBetween(columns[0], d.wrap.xmax - d.wrap.xmin + 1, view.firstI, view.lastI);
@@ -430,7 +516,8 @@ simCanvas.addEventListener("pointerdown", function (event) {
 simCanvas.addEventListener("pointermove", function (event) {
   if (dragWalker >= 0 && event.pointerId === walkerPointer) {
     const cell = domainKind === "graph" ? ballCellUnder(disk, domain, event)
-                                        : cellUnder(view, domain, pointerSpot(view, event));
+               : domainKind === "ring" ? ringCellUnder(pointerSpot(view, event))
+                                       : cellUnder(view, domain, pointerSpot(view, event));
     if (cell !== -1 && cell !== starts[dragWalker]) {
       starts[dragWalker] = cell;
       restart();
@@ -658,7 +745,10 @@ const tool = makeCustomTool({
 function useDomain(kind, d) {
   domainKind = kind;
   domain = d;
-  useTorus(view, Boolean(d.wrap));   // moving and zooming; zooming out past the whole picture only on a torus (js/sim-view.js)
+  // Moving and zooming; zooming out past the whole picture only on a
+  // torus (js/sim-view.js). The 1D ring is a circle that stays still.
+  if (kind === "ring") useTorus(view, false, false);
+  else useTorus(view, Boolean(d.wrap));
   showDomainChoice();
   setWalkerCount(N);
 }
@@ -675,7 +765,8 @@ function useBox() {
 }
 
 // 1D: a box one cell tall, its length from the Size box. A ring is a
-// torus one cell tall: the two ends are neighbors. (boxDomain drops the
+// torus one cell tall: the two ends are neighbors, and it is drawn as a
+// circle (drawRing). (boxDomain drops the
 // up and down neighbors, which would be the cell itself.)
 function useLine(kind) {
   const length = readWhole("set-width", 2, MAX_SIDE, DEFAULTS.width);
