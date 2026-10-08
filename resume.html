@@ -5,7 +5,8 @@
   <!-- Makes the page fit phone screens instead of showing a zoomed-out desktop view. -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Resume — Nadya Nabahi</title>
-  <!-- All the styling lives in this one file. -->
+  <!-- All the styling lives in this one file. The Resume styles are in
+       section 4 of it, under "Resume page". -->
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -23,22 +24,193 @@
     </nav>
   </header>
 
-  <main class="page">
-    <h1>Resume</h1>
+  <main class="page resume">
 
-    <!-- One card per section. Copy a card to add a new section. -->
+    <!-- The title row: your name on the left, the download button on the right.
+         The button opens the browser's Print window, where visitors can pick
+         "Save as PDF". The print styles in style.css hide the top bar and
+         this button, so the saved PDF is just the resume.
+         Your home address and phone number are left off on purpose,
+         since this page is public. -->
+    <div class="resume-title">
+      <div>
+        <h1>Nadya Nabahi</h1>
+        <p class="muted">
+          <a href="mailto:nadya@nabahi.com">nadya@nabahi.com</a> ·
+          <a href="https://nnabahi.github.io/Nadya-Nabahi">nnabahi.github.io/Nadya-Nabahi</a>
+        </p>
+      </div>
+      <!-- onclick="window.print()" is one line of JavaScript: it opens Print. -->
+      <button class="tool-button no-print" onclick="window.print()">Download PDF</button>
+    </div>
+
+    <!-- HOW EACH SECTION IS BUILT
+         One card per section. Inside a card, each job or degree is an
+         <div class="resume-entry"> with:
+           <div class="resume-entry-head">   a row holding
+             <h3>                            what and where (left)
+             <span class="resume-date">      the dates (right)
+           <p class="muted">                 an optional gray line under it
+           <ul>                              the bullet points, one <li> each
+         To add a job, copy a whole resume-entry block and change the text. -->
+
+    <!-- ============ EDUCATION ============ -->
     <div class="card">
       <h2>Education</h2>
-      <p class="muted">Placeholder: degrees, schools, years.</p>
+
+      <div class="resume-entry">
+        <div class="resume-entry-head">
+          <h3>M.S. in Mathematics</h3>
+          <span class="resume-date">August 2025 – present</span>
+        </div>
+        <p class="muted">CUNY City College of New York, New York City</p>
+        <ul>
+          <li>Selected courses: Stochastic Processes, Complex Analysis, Number Theory</li>
+          <li>Independent study aimed at completing and polishing recent research</li>
+        </ul>
+      </div>
+
+      <div class="resume-entry">
+        <div class="resume-entry-head">
+          <h3>B.S. in Mathematics</h3>
+          <span class="resume-date">January 2023 – May 2025</span>
+        </div>
+        <p class="muted">CUNY City College of New York, New York City</p>
+        <ul>
+          <li>Minor in Environmental Science</li>
+          <li>Cumulative GPA: 3.73</li>
+          <li>Selected courses: Probability and Measure Theory, Real Analysis, Topology, Algebra</li>
+        </ul>
+      </div>
+
+      <div class="resume-entry">
+        <div class="resume-entry-head">
+          <h3>CUNY Hunter College</h3>
+          <span class="resume-date">August 2020 – December 2022</span>
+        </div>
+        <p class="muted">New York City</p>
+        <ul>
+          <li>Transferred to City College to complete my degree</li>
+        </ul>
+      </div>
     </div>
 
+    <!-- ============ PUBLICATIONS ============
+         Kept short here; the full list with PDF links is on publications.html. -->
+    <div class="card">
+      <h2>Publications</h2>
+      <ul>
+        <li>
+          S. Chatterjee, N. Nabahi, G. Terlov (2026).
+          <em>Interface between competing random walks on a cycle.</em>
+          <a href="https://arxiv.org/abs/2608.21312">arXiv:2608.21312</a>
+        </li>
+        <li>
+          N. Nabahi, V. Shpilrain (2025).
+          <em>Easy estimates of Lyapunov exponents for random products of matrices.</em>
+          <a href="https://arxiv.org/abs/2509.18944">arXiv:2509.18944</a>
+        </li>
+      </ul>
+      <p class="muted"><a href="publications.html">See all publications</a></p>
+    </div>
+
+    <!-- ============ EXPERIENCE ============ -->
     <div class="card">
       <h2>Experience</h2>
-      <p class="muted">Placeholder: positions, places, years.</p>
+
+      <div class="resume-entry">
+        <div class="resume-entry-head">
+          <h3>Adjunct Lecturer</h3>
+          <span class="resume-date">August 2025 – present</span>
+        </div>
+        <p class="muted">CUNY City College of New York, New York City</p>
+        <ul>
+          <li>Teaching undergraduate courses, including College Algebra and Trigonometry and Mathematics in the Contemporary World</li>
+          <li>Develop lesson and homework plans, write and grade exams, and hold weekly office hours</li>
+        </ul>
+      </div>
+
+      <div class="resume-entry">
+        <div class="resume-entry-head">
+          <h3>Summer Rich Intern</h3>
+          <span class="resume-date">Summer 2025, Summer 2026</span>
+        </div>
+        <p class="muted">CUNY City College of New York, New York City</p>
+        <ul>
+          <li>Conducted mathematical research leading to two papers (see Publications)</li>
+          <li>Both explored stochastic processes; the first used more computational techniques, the second more analytical tools</li>
+        </ul>
+      </div>
+
+      <div class="resume-entry">
+        <div class="resume-entry-head">
+          <h3>Intern, Manhattan District Attorney's Office</h3>
+          <span class="resume-date">June 2024 – August 2024</span>
+        </div>
+        <p class="muted">New York City</p>
+        <ul>
+          <li>Conducted legal research for an Assistant District Attorney on a 30.30 motion</li>
+          <li>Organized and cataloged digital evidence from defendants' cellphones across several cases</li>
+          <li>Reviewed police bodycam footage for evidence relevant to cases</li>
+        </ul>
+      </div>
+
+      <div class="resume-entry">
+        <div class="resume-entry-head">
+          <h3>Zero Waste Island Intern, Earth Matter</h3>
+          <span class="resume-date">May 2023 – September 2023</span>
+        </div>
+        <p class="muted">Governors Island, New York City</p>
+        <ul>
+          <li>Processed all organic matter generated on the Island and ran experiments to refine the composting process</li>
+          <li>Audited waste streams and worked with third parties to keep Island activity zero waste</li>
+          <li>Facilitated community outreach and educational events for children during open farm days</li>
+        </ul>
+      </div>
+
+      <div class="resume-entry">
+        <div class="resume-entry-head">
+          <h3>Early Teaching Experience</h3>
+        </div>
+        <ul>
+          <li>
+            <strong>INSAN Refugee Assistance Program</strong>, Lebanon
+            <span class="muted">(June 2019 – August 2019)</span>:
+            taught music classes, aided in English classes, and supported staff in daily activities
+          </li>
+          <li>
+            <strong>Reel Works</strong>, New York City
+            <span class="muted">(October 2017 – August 2018)</span>:
+            teaching assistant for the teen film program, including storyboarding,
+            camera work, and video and music editing
+          </li>
+        </ul>
+      </div>
     </div>
 
-    <!-- Later, a downloadable PDF can be linked like this:
-         <a href="files/resume.pdf">Download PDF</a> -->
+    <!-- ============ SKILLS ============
+         A two-column list: the label on the left (<dt>), the details on
+         the right (<dd>). On phones it stacks into one column. -->
+    <div class="card">
+      <h2>Skills</h2>
+      <dl class="resume-skills">
+        <dt>Programming and software</dt>
+        <dd>LaTeX, Python, JavaScript, HTML, Microsoft Word, Excel, PowerPoint, Blender, Inventor, Final Cut Pro</dd>
+
+        <dt>Projects</dt>
+        <dd>Designed this academic portfolio website, including interactive
+            implementations of many stochastic models, using AI-assisted coding
+            for layout and presentation</dd>
+
+        <dt>Music</dt>
+        <dd>Nay, violin, oud, trombone, tenor saxophone; also trumpet, flute,
+            alto saxophone, banjo</dd>
+
+        <dt>Languages</dt>
+        <dd>Fluent in English, French, and Arabic</dd>
+      </dl>
+    </div>
+
   </main>
 
 </body>
