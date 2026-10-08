@@ -84,6 +84,10 @@
 
         <h3 class="option-heading">Domain</h3>
         <div class="option-row">
+          <!-- 1D: a line of cells one cell tall (the ends don't meet) or a
+               ring (the ends are glued together). Only the length shows. -->
+          <label><input type="radio" name="domain" value="line"> 1D line</label>
+          <label><input type="radio" name="domain" value="ring"> 1D ring</label>
           <label><input type="radio" name="domain" value="box"> Box</label>
           <label><input type="radio" name="domain" value="torus" checked> Torus</label>
           <label><input type="radio" name="domain" value="custom"> Custom (draw it)</label>
@@ -91,7 +95,8 @@
         </div>
         <div class="option-row" id="size-row">
           Size <input type="number" id="set-width" min="2" step="1">
-          &times; <input type="number" id="set-height" min="2" step="1">
+          <!-- hidden in 1D, where the height is always 1 -->
+          <span id="height-part">&times; <input type="number" id="set-height" min="2" step="1"></span>
         </div>
         <div class="option-row" id="neighbors-row">
           Neighbors
@@ -246,7 +251,8 @@
         <p>
           The domain is a graph <span class="tex">G = (V, E)</span>: the cells,
           joined to their 4 or 8 neighbors (on a torus, the edges wrap
-          around). Walker <span class="tex">i</span>, for
+          around). In 1D each cell has 2 neighbors, left and right (on the
+          line, the two end cells have only 1). Walker <span class="tex">i</span>, for
           <span class="tex">i = 1, \dots, N</span>, is at
           <span class="tex">X^i_t</span> and carries color
           <span class="tex">i</span>. Each step goes to a uniformly chosen

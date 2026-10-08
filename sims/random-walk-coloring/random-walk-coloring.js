@@ -66,7 +66,7 @@ const DEFAULT_SPEED = 5;
    ===================================================================== */
 
 let model = "discrete";         // "discrete" or "continuous"
-let domainKind = "torus";       // "box", "torus", "custom" or "graph": the domain in use
+let domainKind = "torus";       // "line", "ring" (1D), "box", "torus", "custom" or "graph": the domain in use
 let domain = null;              // the domain graph (js/sim-domains.js), or a ball (makeBall, js/sim-hyperbolic.js)
 let customDomain = null;        // the last custom domain drawn, if any
 let N = DEFAULTS.walkers;       // number of walkers
@@ -118,7 +118,16 @@ function showTime(t) {
 function defaultStarts(d, count) {
   if (domainKind === "graph") return spreadThroughRegion(d, count, 0);
   if (domainKind === "custom") return spreadThroughRegion(d, count, topLeftCell(d));
+  if (domainKind === "line" || domainKind === "ring") return lineStarts(d, count);
   return gridStarts(d, count);
+}
+
+// 1D: the walkers spread evenly along the line, the first on the
+// leftmost cell.
+function lineStarts(d, count) {
+  const length = d.xmax - d.xmin + 1, starts = [];
+  for (let k = 0; k < count; k++) starts.push(cellAt(d, d.xmin + Math.floor(k * length / count), d.ymin));
+  return starts;
 }
 
 function gridStarts(d, count) {
@@ -655,11 +664,22 @@ function useDomain(kind, d) {
 }
 
 // The box or torus from the boxes on the page. (Choosing one while the
-// graph tool is open closes it.)
+// graph tool is open closes it.) With "1D line" or "1D ring" ticked it
+// makes the 1D domain instead, since changing the Size box comes here too.
 function useBox() {
   if (tool.isOpen) tool.close();
+  const kind = checked("domain");
+  if (kind === "line" || kind === "ring") { useLine(kind); return; }
   const d = boxFromOptions(2, MAX_SIDE, DEFAULTS);
   useDomain(d.wrap ? "torus" : "box", d);
+}
+
+// 1D: a box one cell tall, its length from the Size box. A ring is a
+// torus one cell tall: the two ends are neighbors. (boxDomain drops the
+// up and down neighbors, which would be the cell itself.)
+function useLine(kind) {
+  const length = readWhole("set-width", 2, MAX_SIDE, DEFAULTS.width);
+  useDomain(kind, boxDomain(length, 1, 4, kind === "ring"));
 }
 
 // A ball of a hyperbolic tiling or a tree, from the options on the
@@ -675,6 +695,10 @@ function useGraph() {
 // Show the options that fit the domain in use, and tick its radio button.
 function showDomainChoice() {
   showDomainOptions(domainKind, customDomain, disk);
+  // In 1D only the length shows: no height and no Neighbors choice.
+  const oneD = (domainKind === "line" || domainKind === "ring");
+  byId("height-part").hidden = oneD;
+  if (oneD) byId("neighbors-row").hidden = true;
 }
 
 // N walkers, in the default start, with their colors. Restarts.
@@ -696,9 +720,9 @@ for (const radio of document.querySelectorAll('input[name="model"]')) {
   });
 }
 
-// Domain: Box / Torus / Custom / Hyperbolic plane or tree, and their
+// Domain: 1D line / 1D ring / Box / Torus / Custom / Hyperbolic plane or tree, and their
 // options (js/sim-controls.js).
-connectDomainChoice({ box: useBox, torus: useBox, custom: tool.open, graph: useGraph });
+connectDomainChoice({ line: useBox, ring: useBox, box: useBox, torus: useBox, custom: tool.open, graph: useGraph });
 
 // N: the slider and the number box move together, and the run restarts
 // live while you drag, like a Desmos slider.
