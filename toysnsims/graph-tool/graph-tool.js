@@ -90,7 +90,7 @@ const DOT_SIZE     = 0.45;        // width of a painted dot
 const CELL_OPACITY = 0.85;        // painted cells are slightly see-through, like Desmos shading
 
 const UNIT = 20;            // size of one cell, in Cytoscape units
-const MAX_CELLS = 10000;    // biggest grid allowed (e.g. 100 x 100)
+const MAX_CELLS = 250000;    // biggest grid allowed (e.g. 100 x 100)
 
 // (A new slider's settings, NEW_SLIDER, are in js/formulas.js.)
 
