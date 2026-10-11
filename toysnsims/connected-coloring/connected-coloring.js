@@ -39,7 +39,7 @@
 const DEFAULTS = { width: 24, height: 24, neighbors: 4, colors: 6, seed: "1" };
 
 const MAX_COLORS = 100;           // the most colors allowed
-const MAX_SIDE = 100;             // the biggest box or torus is 100 x 100
+const MAX_SIDE = 500;             // the biggest box or torus is 100 x 100
 const MAX_PICTURE_HEIGHT = 600;   // in screen pixels
 const BORDER = "#1e1e1e";         // the lines between colors
 const OUTSIDE = "#ecebe7";        // around a custom domain (cells not in it)
