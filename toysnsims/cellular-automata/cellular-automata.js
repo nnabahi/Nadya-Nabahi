@@ -303,51 +303,6 @@ function restart(keepStep) {
 const player = connectPlay(worker, SPEEDS, DEFAULT_SPEED, "step", "steps", function () { restart(false); });
 
 
-// 1D, scroll mode: the Scroll back slider, shown once the run has more
-// rows than the picture. It runs from the earliest rows kept to the
-// newest; at its right end the picture follows the newest row.
-function showHistory() {
-  const s = latest, rows = byId("tape-rows").value * 1, slider = byId("history");
-  const longer = dim === 1 && s.picture && s.time - s.oldest + 1 > rows;
-  byId("history-row").hidden = !longer;
-  if (!longer) return;
-  slider.min = s.oldest + rows - 1;
-  slider.max = s.time;
-  slider.value = s.shownLast;
-  byId("history-label").textContent = (look === null ? "the newest steps, " : "steps ") +
-    s.shownFirst.toLocaleString() + " to " + s.shownLast.toLocaleString() +
-    (s.oldest > 0 ? " (steps before " + s.oldest.toLocaleString() + " were dropped)" : "");
-}
-
-// Look at the rows up to step "last" (null, or the newest step, follows
-// the newest rows).
-function lookAt(last) {
-  const slider = byId("history");
-  look = last === null || last >= Number(slider.max) ? null : Math.max(last, Number(slider.min));
-  worker.postMessage({ type: "look", last: look });
-}
-
-byId("history").addEventListener("input", function () { lookAt(Number(this.value)); });
-
-// Dragging the picture up or down (mouse or finger) scrolls through the
-// history too, while the whole picture shows (not zoomed in; zoomed in,
-// a drag moves the picture as usual): pulling it down shows earlier
-// rows, one row per cell height dragged.
-let dragFrom = null;     // where the drag started: the pointer's y, and the last step shown then
-byId("sim-canvas").addEventListener("pointerdown", function (event) {
-  dragFrom = (!byId("history-row").hidden && view.zoom === 1 && latest)
-    ? { y: event.clientY, last: latest.shownLast } : null;
-});
-byId("sim-canvas").addEventListener("pointermove", function (event) {
-  if (!dragFrom) return;
-  const rows = Math.round((event.clientY - dragFrom.y) / view.cell);
-  if (rows !== 0) lookAt(dragFrom.last - rows);
-});
-for (const type of ["pointerup", "pointercancel"]) {
-  byId("sim-canvas").addEventListener(type, function () { dragFrom = null; });
-}
-
-
 /* =====================================================================
    6. DRAWING
    ---------------------------------------------------------------------
@@ -377,9 +332,101 @@ function drawPicture() {
   paintCells(view, pen, domain, function (v) { return colors[v]; },
     function (s) { return s < 0 ? emptyRGB : colorRGB[s]; }, emptyRGB);
   pen.restore();
+  placeHistoryBar();
 }
 
 window.addEventListener("resize", drawSoon);
+
+
+// 1D, scroll mode: the scroll bar on the right of the picture, shown
+// once the run has more rows than the picture. Its tall inner box stands
+// for every row kept, the bar's own height for the rows shown, so how
+// far it is scrolled says which rows show. At the bottom, the picture
+// follows the newest rows.
+const historyBar = byId("history-bar");
+let settingBar = false;      // true while the page itself moves the bar (so that isn't taken as you scrolling)
+
+// The rows kept and shown now: kept from step "oldest" to "time", and
+// the picture's "rows".
+function historyRows() {
+  const s = latest, rows = Number(byId("tape-rows").value);
+  return { oldest: s.oldest, newest: s.time, rows: rows, longer: dim === 1 && Boolean(s.picture) && s.time - s.oldest + 1 > rows };
+}
+
+function showHistory() {
+  const h = historyRows(), s = latest;
+  const changed = historyBar.hidden === h.longer;
+  historyBar.hidden = byId("history-label").hidden = !h.longer;
+  simCanvas.parentElement.classList.toggle("with-history", h.longer);
+  if (changed) window.dispatchEvent(new Event("resize"));   // the picture makes room for the bar, or takes it back
+  if (!h.longer) return;
+  byId("history-label").textContent = (look === null ? "Showing the newest steps, " : "Showing steps ") +
+    s.shownFirst.toLocaleString() + " to " + s.shownLast.toLocaleString() + " of " + s.time.toLocaleString() +
+    (s.oldest > 0 ? " (steps before " + s.oldest.toLocaleString() + " were dropped)" : "") +
+    ". Scroll, drag the picture, or use the bar on the right to go back.";
+  placeHistoryBar();
+}
+
+// Size the bar to the picture and scroll it to the rows shown.
+function placeHistoryBar() {
+  if (historyBar.hidden || !latest) return;
+  const h = historyRows(), height = view.height;
+  historyBar.style.top = view.top + "px";
+  historyBar.style.height = height + "px";
+  const total = h.newest - h.oldest + 1;
+  byId("history-length").style.height = Math.round(height * total / h.rows) + "px";
+  const room = historyBar.scrollHeight - historyBar.clientHeight;      // how far the bar can scroll, in pixels
+  const target = Math.round(room * (latest.shownFirst - h.oldest) / Math.max(1, total - h.rows));
+  if (Math.abs(historyBar.scrollTop - target) > 1) {
+    settingBar = true;
+    historyBar.scrollTop = target;
+  }
+}
+
+historyBar.addEventListener("scroll", function () {
+  if (settingBar) { settingBar = false; return; }
+  const h = historyRows(), room = historyBar.scrollHeight - historyBar.clientHeight;
+  if (room <= 0) return;
+  const first = h.oldest + Math.round(historyBar.scrollTop / room * (h.newest - h.oldest + 1 - h.rows));
+  lookAt(first + h.rows - 1);
+});
+
+// Look at the rows up to step "last" (null, or the newest step, follows
+// the newest rows).
+function lookAt(last) {
+  const h = historyRows();
+  look = last === null || last >= h.newest ? null : Math.max(last, h.oldest + h.rows - 1);
+  worker.postMessage({ type: "look", last: look });
+}
+
+// The mouse wheel over the picture scrolls through the history too,
+// while the whole picture shows (not zoomed in). Ctrl + wheel, or a
+// pinch on a trackpad, still zooms. This listens on the picture's box
+// before the picture itself hears the wheel ("capture"), so it can
+// keep the wheel from zooming.
+simCanvas.parentElement.addEventListener("wheel", function (event) {
+  if (event.target !== simCanvas || historyBar.hidden || view.zoom !== 1 || event.ctrlKey) return;
+  event.preventDefault();
+  event.stopPropagation();
+  historyBar.scrollTop += event.deltaY * (event.deltaMode === 1 ? 16 : 1);
+}, { capture: true, passive: false });
+
+// Dragging the picture up or down (mouse or finger) scrolls through the
+// history too, while the whole picture shows (zoomed in, a drag moves
+// the picture as usual): pulling it down shows earlier rows, one row
+// per cell height dragged.
+let dragFrom = null;     // where the drag started: the pointer's y, and the last step shown then
+simCanvas.addEventListener("pointerdown", function (event) {
+  dragFrom = (!historyBar.hidden && view.zoom === 1 && latest) ? { y: event.clientY, last: latest.shownLast } : null;
+});
+simCanvas.addEventListener("pointermove", function (event) {
+  if (!dragFrom) return;
+  const rows = Math.round((event.clientY - dragFrom.y) / view.cell);
+  if (rows !== 0) lookAt(dragFrom.last - rows);
+});
+for (const type of ["pointerup", "pointercancel"]) {
+  simCanvas.addEventListener(type, function () { dragFrom = null; });
+}
 
 // The picture's domain, for the current size, edges and the clusters'
 // neighbors. In 2D with wrapping edges it is a torus (so clusters join

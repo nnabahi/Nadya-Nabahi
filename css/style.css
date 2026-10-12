@@ -829,6 +829,25 @@ a.card:hover {
   gap: 4px;
 }
 
+/* The cellular automata's scroll bar (1D, scroll mode), on the right of
+   the picture: an ordinary light gray scroll bar. While it shows, the
+   picture leaves room for it ("with-history"). */
+.history-bar {
+  position: absolute;
+  right: 0;
+  width: 15px;
+  overflow-y: scroll;
+  scrollbar-color: #c9c6bf #f2f1ed;   /* light gray thumb on a lighter track */
+}
+
+.sim-picture.with-history > canvas {
+  width: calc(100% - 16px);
+}
+
+.sim-picture.with-history .zoom-buttons {
+  right: 24px;
+}
+
 .zoom-buttons .tool-button {
   min-width: 2.2em;         /* so "+" and "−" aren't tiny */
 }
