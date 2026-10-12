@@ -54,6 +54,7 @@ a link back to the sim.
 | `toysnsims/tile-packing/` | Random tile packing (rectangles, with or without gaps; every packing equally likely) | `-chain.js`: the Markov chain, in a second thread | every packing equally likely, counting tilings, the arctic circle |
 | `toysnsims/sequential-packing/` | Random sequential packing (continuous space; any typed domain, tile and density) | `-growth.js`: growing each tile, in a second thread | nadya's gasket formula, known answers, invariants |
 | `toysnsims/random-sine/` | Random sine function (roots at random gaps from a typed set; f, its lobes and their histograms) | `-roots.js`: the roots, f, peaks and lobes, in the page | Euler's sine product, stationarity, a picture to compare with nadya's Python |
+| `toysnsims/path-counting/` | Lattice path counting (paths home through edges with typed weights X and Y; f along a line a x + b y = c and its bell curve; 3D surface) | `-math.js`: log f on the grid, the line, the scaled heights, u(...), in the page | binomial coefficients, every path listed, the periodic rule, u(...) and coupling, the line, normalizing, the bell curve |
 | `toysnsims/random-matrix-products/` | Random matrix products toy (random 2x2 matrices multiply a cloud of vectors) | `-math.js`: reading the matrices, the runs, the growth rate, in the page | exact odds, averages, invariants, the growth rate |
 
 ### Code the sims share (`js/`)
@@ -63,14 +64,14 @@ a link back to the sim.
 | `js/sim-page.js` | Small helpers every sim page uses: the second thread, Play and the Speed and Seed boxes, the drawing tool's messages, the full screen button, the About tabs, typesetting the formulas, laying the four boxes out like bricks |
 | `js/sim-worker.js` | What the second threads share: Play, Pause and Speed (the run loop) and the run so far for the charts over time |
 | `js/sim-charts.js` | The small charts: lines over time, histograms, power-of-2 bars, perimeter against area, zooming a chart in time |
-| `js/sim-colors.js` | The old site's colors and color conversions |
+| `js/sim-colors.js` | The old site's colors, color conversions, and the blue-to-red colors of heights |
 | `js/sim-domains.js` | Domains: box, torus, Aztec diamond, a region drawn in the graph tool, and counting connected pieces (with their areas and perimeters) |
 | `js/sim-view.js` | The picture of a domain of square cells: where it goes, painting the cells, moving and zooming it |
 | `js/sim-graphs.js` | Graphs beyond the square grid, built cell by cell as a sim asks: the line, the grid, hyperbolic tilings {p,q} and regular trees |
 | `js/sim-hyperbolic.js` | Pictures of a hyperbolic tiling or tree (the disk, the half-plane, a tree spread out), dragging across the plane, and the ball a sim runs on |
 | `js/sim-controls.js` | The controls the sims on cells repeat: the Domain options, the graph tool inside the page, dragging, zooming and clicking the picture, and the clickable grid of offsets (a tile or a neighborhood) |
-| `js/sim-3d.js` | The 3D view (stacks of cubes or coins, turned with the mouse), loaded only when a sim switches to 3D |
-| `js/formulas.js` | Typed formulas and their sliders, like Desmos (the graph tool and the sims that take formulas) |
+| `js/sim-3d.js` | The 3D view (stacks of cubes or coins, or a colored surface with balls on it, turned with the mouse), loaded only when a sim switches to 3D |
+| `js/formulas.js` | Typed formulas and their sliders, like Desmos, with piecewise {condition: a, b} (the graph tool and the sims that take formulas) |
 | `js/check-page.js` | The check pages' results table, "Run the checks" button and shared tests (chi-square, z-score) |
 
 ## Common changes
