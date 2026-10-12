@@ -319,10 +319,33 @@ function showHistory() {
     (s.oldest > 0 ? " (steps before " + s.oldest.toLocaleString() + " were dropped)" : "");
 }
 
-byId("history").addEventListener("input", function () {
-  look = Number(this.value) >= Number(this.max) ? null : Number(this.value);
+// Look at the rows up to step "last" (null, or the newest step, follows
+// the newest rows).
+function lookAt(last) {
+  const slider = byId("history");
+  look = last === null || last >= Number(slider.max) ? null : Math.max(last, Number(slider.min));
   worker.postMessage({ type: "look", last: look });
+}
+
+byId("history").addEventListener("input", function () { lookAt(Number(this.value)); });
+
+// Dragging the picture up or down (mouse or finger) scrolls through the
+// history too, while the whole picture shows (not zoomed in; zoomed in,
+// a drag moves the picture as usual): pulling it down shows earlier
+// rows, one row per cell height dragged.
+let dragFrom = null;     // where the drag started: the pointer's y, and the last step shown then
+byId("sim-canvas").addEventListener("pointerdown", function (event) {
+  dragFrom = (!byId("history-row").hidden && view.zoom === 1 && latest)
+    ? { y: event.clientY, last: latest.shownLast } : null;
 });
+byId("sim-canvas").addEventListener("pointermove", function (event) {
+  if (!dragFrom) return;
+  const rows = Math.round((event.clientY - dragFrom.y) / view.cell);
+  if (rows !== 0) lookAt(dragFrom.last - rows);
+});
+for (const type of ["pointerup", "pointercancel"]) {
+  byId("sim-canvas").addEventListener(type, function () { dragFrom = null; });
+}
 
 
 /* =====================================================================
