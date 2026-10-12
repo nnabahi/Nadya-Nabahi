@@ -44,18 +44,18 @@ a link back to the sim.
 | --- | --- | --- | --- |
 | `toysnsims/graph-tool/` | Graph & domain tool: paint a domain on a grid (pinned first on `toysnsims.html`); sims open it for a custom domain | | |
 | `toysnsims/cellular-automata/` | Cellular automata (a tape over time or a grid; b states, any neighborhood, any rule number; wrapping, fixed or random edges) | `-rule.js`: the rule (Wolfram's numbering), in a second thread | reading the rule number, rule 30, the Game of Life, the edges, repeats |
-| `toysnsims/connected-coloring/` | Random connected coloring (box, torus, drawn domain, hyperbolic tilings and trees) | `-chain.js`: the Markov chain (ReCom with a uniform correction), in a second thread | |
+| `toysnsims/connected-coloring/` | Connected Coloring (box, torus, drawn domain, hyperbolic tilings and trees) | `-chain.js`: the Markov chain (ReCom with a uniform correction), in a second thread | |
 | `toysnsims/random-walk-coloring/` | Random walk coloring (N walkers color cells by first arrival, in discrete or continuous time) | `-walk.js`: the walkers (both models), in a second thread | |
-| `toysnsims/random-mountain/` | Random mountain (blocks pile up on a line, grid, drawn domain, hyperbolic tiling or tree; any tile; 3D view) | `-growth.js`: the growth rule, in a second thread | nadya's Python, exact odds, invariants, the graphs |
+| `toysnsims/random-mountain/` | Eden Mountain (blocks pile up on a line, grid, drawn domain, hyperbolic tiling or tree; any tile; 3D view) | `-growth.js`: the growth rule, in a second thread | nadya's Python, exact odds, invariants, the graphs |
 | `toysnsims/percolation/` | Site and bond percolation, two pages (`site-percolation.html`, `bond-percolation.html`) sharing `percolation.js` | `percolation-clusters.js`: the clusters at one p and at every p (union-find, Newman-Ziff), in the page | clusters, wrapping, Hex and duality crossings, trees |
 | `toysnsims/ising-potts/` | Ising and Potts model (q colors; heat bath or Swendsen-Wang) | `-chain.js`: the two Markov chains, in a second thread | exact odds on tiny graphs, Yang, Onsager |
 | `toysnsims/voter-model/` | Generalized voter model (a typed rule g of the neighbors' shares, with noise) | `-chain.js`: the update rule, in a second thread | the update odds, who wins, noise |
 | `toysnsims/sandpiles/` | Sandpiles (the abelian sandpile, storms, avalanches, the identity) | `-pile.js`: the toppling rule, in a second thread | nadya's Python, the abelian property, the identity, no sink |
-| `toysnsims/tile-packing/` | Random tile packing (rectangles, with or without gaps; every packing equally likely) | `-chain.js`: the Markov chain, in a second thread | every packing equally likely, counting tilings, the arctic circle |
-| `toysnsims/sequential-packing/` | Random sequential packing (continuous space; any typed domain, tile and density) | `-growth.js`: growing each tile, in a second thread | nadya's gasket formula, known answers, invariants |
-| `toysnsims/random-sine/` | Random sine function (roots at random gaps from a typed set; f, its lobes and their histograms) | `-roots.js`: the roots, f, peaks and lobes, in the page | Euler's sine product, stationarity, a picture to compare with nadya's Python |
+| `toysnsims/tile-packing/` | Uniform Tile Packing (rectangles, with or without gaps; every packing equally likely) | `-chain.js`: the Markov chain, in a second thread | every packing equally likely, counting tilings, the arctic circle |
+| `toysnsims/sequential-packing/` | Sequential Tile Packing (continuous space; any typed domain, tile and density) | `-growth.js`: growing each tile, in a second thread | nadya's gasket formula, known answers, invariants |
+| `toysnsims/random-sine/` | Sinusoid-ish (roots at random gaps from a typed set; f, its lobes and their histograms) | `-roots.js`: the roots, f, peaks and lobes, in the page | Euler's sine product, stationarity, a picture to compare with nadya's Python |
 | `toysnsims/path-counting/` | Lattice path counting (paths home through edges with typed weights X and Y; f along a line a x + b y = c and its bell curve; 3D surface) | `-math.js`: log f on the grid, the line, the scaled heights, u(...), in the page | binomial coefficients, every path listed, the periodic rule, u(...) and coupling, the line, normalizing, the bell curve |
-| `toysnsims/random-matrix-products/` | Random matrix products toy (random 2x2 matrices multiply a cloud of vectors) | `-math.js`: reading the matrices, the runs, the growth rate, in the page | exact odds, averages, invariants, the growth rate |
+| `toysnsims/random-matrix-products/` | Matrix Products toy (random 2x2 matrices multiply a cloud of vectors) | `-math.js`: reading the matrices, the runs, the growth rate, in the page | exact odds, averages, invariants, the growth rate |
 
 ### Code the sims share (`js/`)
 
