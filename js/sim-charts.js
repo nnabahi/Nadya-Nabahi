@@ -12,6 +12,7 @@
      histogram(...)                   a histogram of some numbers
      powerOfTwoBins(sizes)            sizes grouped by powers of 2 ...
      powerOfTwoBars(...)              ... drawn as bars
+     perimeterChart(...)              perimeter against area of each region
      chartZoom(canvas, redraw),       zoom a chart in time (wheel, pinch,
        shownTimes(zoom, first, last)    drag, double-click for all of it)
      niceStep, shortLabel, niceNumber numbers for axes and tables
@@ -137,6 +138,50 @@ function powerOfTwoBars(canvas, bins, word, label, logScale) {
     pen.fillRect(b * barWidth + 1, bottom - barHeight, Math.max(1, barWidth - 2), barHeight);
     pen.fillStyle = CHART_TEXT;
     pen.fillText(label(b), (b + 0.5) * barWidth, bottom + 2);
+  });
+}
+
+// Each region (from findRegions, js/sim-domains.js) as a dot: area
+// across, perimeter up, both on logarithmic scales (so 1, 10, 100, ...
+// are evenly spaced), filled with its color (colorNames[color], with a
+// thin "border" line around it). Regions with no other color next to
+// them (perimeter 0) are left out.
+function perimeterChart(canvas, regions, colorNames, border) {
+  const pen = chartPen(canvas);
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  const left = 34, up = 18, bottom = h - 16;
+  let maxArea = 10, maxPerimeter = 10;
+  regions.areas.forEach(function (area, r) {
+    maxArea = Math.max(maxArea, area);
+    maxPerimeter = Math.max(maxPerimeter, regions.perimeters[r]);
+  });
+  const xTop = Math.ceil(Math.log10(maxArea)), yTop = Math.ceil(Math.log10(maxPerimeter));
+  function sx(area) { return left + (w - left - 8) * Math.log10(area) / xTop; }
+  function sy(perimeter) { return bottom - (bottom - up) * Math.log10(perimeter) / yTop; }
+
+  // The axes' marks at 1, 10, 100, ...
+  pen.textAlign = "center";
+  pen.textBaseline = "top";
+  for (let k = 0; k <= xTop; k++) pen.fillText(String(10 ** k), sx(10 ** k), bottom + 3);
+  pen.textAlign = "right";
+  pen.textBaseline = "middle";
+  for (let k = 0; k <= yTop; k++) pen.fillText(String(10 ** k), left - 5, sy(10 ** k));
+  pen.textBaseline = "bottom";
+  pen.fillText("area", w, bottom);
+  pen.textAlign = "left";
+  pen.textBaseline = "top";
+  pen.fillText("perimeter", left + 4, 0);
+
+  regions.areas.forEach(function (area, r) {
+    const perimeter = regions.perimeters[r];
+    if (perimeter === 0) return;
+    pen.beginPath();
+    pen.arc(sx(area), sy(perimeter), 2.5, 0, 2 * Math.PI);
+    pen.fillStyle = colorNames[regions.color[r]];
+    pen.fill();
+    pen.lineWidth = 0.5;
+    pen.strokeStyle = border;
+    pen.stroke();
   });
 }
 

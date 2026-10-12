@@ -43,6 +43,7 @@ a link back to the sim.
 | Folder | The sim | Its math | Its check page tests |
 | --- | --- | --- | --- |
 | `toysnsims/graph-tool/` | Graph & domain tool: paint a domain on a grid (pinned first on `toysnsims.html`); sims open it for a custom domain | | |
+| `toysnsims/cellular-automata/` | Cellular automata (a tape over time or a grid; b states, any neighborhood, any rule number; wrapping, fixed or random edges) | `-rule.js`: the rule (Wolfram's numbering), in a second thread | reading the rule number, rule 30, the Game of Life, the edges, repeats |
 | `toysnsims/connected-coloring/` | Random connected coloring (box, torus, drawn domain, hyperbolic tilings and trees) | `-chain.js`: the Markov chain (ReCom with a uniform correction), in a second thread | |
 | `toysnsims/random-walk-coloring/` | Random walk coloring (N walkers color cells by first arrival, in discrete or continuous time) | `-walk.js`: the walkers (both models), in a second thread | |
 | `toysnsims/random-mountain/` | Random mountain (blocks pile up on a line, grid, drawn domain, hyperbolic tiling or tree; any tile; 3D view) | `-growth.js`: the growth rule, in a second thread | nadya's Python, exact odds, invariants, the graphs |
@@ -61,13 +62,13 @@ a link back to the sim.
 | --- | --- |
 | `js/sim-page.js` | Small helpers every sim page uses: the second thread, Play and the Speed and Seed boxes, the drawing tool's messages, the full screen button, the About tabs, typesetting the formulas, laying the four boxes out like bricks |
 | `js/sim-worker.js` | What the second threads share: Play, Pause and Speed (the run loop) and the run so far for the charts over time |
-| `js/sim-charts.js` | The small charts: lines over time, histograms, power-of-2 bars, zooming a chart in time |
+| `js/sim-charts.js` | The small charts: lines over time, histograms, power-of-2 bars, perimeter against area, zooming a chart in time |
 | `js/sim-colors.js` | The old site's colors and color conversions |
-| `js/sim-domains.js` | Domains: box, torus, Aztec diamond, a region drawn in the graph tool, and counting connected pieces |
+| `js/sim-domains.js` | Domains: box, torus, Aztec diamond, a region drawn in the graph tool, and counting connected pieces (with their areas and perimeters) |
 | `js/sim-view.js` | The picture of a domain of square cells: where it goes, painting the cells, moving and zooming it |
 | `js/sim-graphs.js` | Graphs beyond the square grid, built cell by cell as a sim asks: the line, the grid, hyperbolic tilings {p,q} and regular trees |
 | `js/sim-hyperbolic.js` | Pictures of a hyperbolic tiling or tree (the disk, the half-plane, a tree spread out), dragging across the plane, and the ball a sim runs on |
-| `js/sim-controls.js` | The controls the sims on cells repeat: the Domain options, the graph tool inside the page, and dragging, zooming and clicking the picture |
+| `js/sim-controls.js` | The controls the sims on cells repeat: the Domain options, the graph tool inside the page, dragging, zooming and clicking the picture, and the clickable grid of offsets (a tile or a neighborhood) |
 | `js/sim-3d.js` | The 3D view (stacks of cubes or coins, turned with the mouse), loaded only when a sim switches to 3D |
 | `js/formulas.js` | Typed formulas and their sliders, like Desmos (the graph tool and the sims that take formulas) |
 | `js/check-page.js` | The check pages' results table, "Run the checks" button and shared tests (chi-square, z-score) |

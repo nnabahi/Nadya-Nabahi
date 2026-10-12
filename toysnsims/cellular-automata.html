@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cellular automata — Toys n' Sims</title>
+  <link rel="stylesheet" href="../css/style.css">
+  <!-- KaTeX's styles, for the typeset formulas in the About quadrant. -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/katex.min.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <nav>
+      <a href="../about.html">About Me</a>
+      <a href="../resume.html">Resume</a>
+      <a href="../index.html">Home</a>
+      <a href="../publications.html">Publications</a>
+      <a href="../toysnsims.html" class="active">Toys n' Sims</a>
+    </nav>
+  </header>
+
+  <main class="page">
+    <p><a href="../toysnsims.html">&larr; All sims</a></p>
+    <h1>Cellular automata</h1>
+
+    <!-- The four quadrants, as on every sim page (their layout is in
+         section 6 of css/style.css). All the behavior lives in
+         cellular-automata.js; the ids below (id="...") are how that
+         script finds each button and box. -->
+    <div class="quadrants">
+
+      <!-- UPPER LEFT: the tape over time (1D) or the grid (2D). -->
+      <section class="quad quad-sim">
+        <h2>Simulation</h2>
+
+        <!-- The picture, with the zoom buttons in its top right corner
+             (js/sim-view.js). -->
+        <div class="sim-picture">
+          <canvas id="sim-canvas"></canvas>
+          <div class="zoom-buttons" id="zoom-buttons" hidden>
+            <button class="tool-button" id="zoom-in" title="Zoom in">+</button>
+            <button class="tool-button" id="zoom-out" title="Zoom out">&minus;</button>
+            <button class="tool-button" id="zoom-reset" title="Show the whole picture once again">Reset</button>
+          </div>
+        </div>
+        <p class="muted small" id="click-help"></p>
+        <p class="muted" id="sim-message"></p>
+      </section>
+
+      <!-- UPPER RIGHT: settings. -->
+      <section class="quad quad-controls">
+        <!-- The heading, with a small "model check" button on the right
+             that opens the page testing this sim's math. -->
+        <h2 class="heading-with-button">Options
+          <a class="tool-button model-check" href="cellular-automata-check.html">model check</a></h2>
+
+        <div class="option-row">
+          <button class="tool-button" id="preset-30">Rule 30 (1D)</button>
+          <button class="tool-button" id="preset-life">Conway's Game of Life (2D)</button>
+        </div>
+
+        <h3 class="option-heading">Dimension</h3>
+        <div class="option-row">
+          <label><input type="radio" name="dim" value="1" checked> 1D: a tape, over time</label>
+          <label><input type="radio" name="dim" value="2"> 2D: a grid</label>
+        </div>
+
+        <h3 class="option-heading">States <span class="tex">b</span></h3>
+        <div class="option-row">
+          <span class="tex">b =</span> <input type="number" id="b-box" min="2" step="1">
+          <input type="range" class="wide-range" id="b-slider" min="2" step="1">
+        </div>
+
+        <h3 class="option-heading">Neighborhood</h3>
+        <div class="option-row" id="neighborhood-presets"></div>
+        <p class="muted small">Click cells to add them to the neighborhood or take
+          them out. The outlined cell in the middle is the cell itself.</p>
+        <!-- The clickable cells; cellular-automata.js fills this in. -->
+        <div class="tile-grid small" id="neighborhood-grid"></div>
+        <p class="muted small" id="neighborhood-info"></p>
+
+        <h3 class="option-heading">Rule <span class="tex">n</span></h3>
+        <!-- The slider runs through the rules (evenly spread when there are
+             more than it has stops); the text box takes any exact n (a text
+             box, not a number box: rule numbers can have hundreds of digits). -->
+        <div class="option-row">
+          <input type="range" class="wide-range" id="rule-slider" min="0" step="1">
+          <button class="tool-button" id="random-rule" title="Every rule equally likely">Random rule</button>
+        </div>
+        <textarea class="formula-input" id="rule-box" rows="2" spellcheck="false"></textarea>
+        <p class="muted small" id="rule-info"></p>
+
+        <h3 class="option-heading">Edges</h3>
+        <div class="option-row">
+          <label><input type="radio" name="edge" value="wrap" checked> Wrap around</label>
+          <label><input type="radio" name="edge" value="fixed"> Fixed: every cell outside is
+            <input type="number" id="edge-state" min="0" step="1" value="0"></label>
+          <label><input type="radio" name="edge" value="random"> Random (new at every step)</label>
+        </div>
+
+        <h3 class="option-heading">Size</h3>
+        <div class="option-row" id="size-1d">
+          Tape length <input type="number" id="tape-length" min="3" step="1">
+          rows shown <input type="number" id="tape-rows" min="3" step="1">
+        </div>
+        <div class="option-row" id="size-2d" hidden>
+          Grid <input type="number" id="grid-width" min="3" step="1">
+          &times; <input type="number" id="grid-height" min="3" step="1">
+        </div>
+        <div class="option-row" id="mode-row">
+          When the picture is full
+          <label><input type="radio" name="mode" value="fill" checked> stop</label>
+          <label><input type="radio" name="mode" value="scroll"> scroll (new rows in at the bottom)</label>
+        </div>
+
+        <h3 class="option-heading">Run</h3>
+        <div class="option-row">
+          Start
+          <select id="start">
+            <option value="one">One cell in state 1, in the middle</option>
+            <option value="random">Every cell a random state</option>
+            <option value="zeros">Every cell in state 0</option>
+            <option value="drawn" id="drawn-option" hidden>Your drawing</option>
+          </select>
+        </div>
+        <div class="option-row">
+          <button class="tool-button" id="play">Play</button>
+          <button class="tool-button" id="step" title="One step">Step</button>
+          <button class="tool-button" id="restart" title="Back to the start, same seed">Restart</button>
+        </div>
+        <div class="option-row">
+          Speed <input type="range" class="wide-range" id="speed" min="0" step="1">
+          <span class="muted" id="speed-label"></span>
+        </div>
+        <div class="option-row">
+          Seed <input type="text" id="seed" size="8">
+          <button class="tool-button" id="new-seed" title="A random new seed">New seed</button>
+        </div>
+        <p class="muted small">Changing the rule, the states, the neighborhood, the edges or
+          the seed makes the run again with the change, up to the same step. Restart goes
+          back to step 0.</p>
+      </section>
+
+      <!-- LOWER LEFT: numbers about this run. -->
+      <section class="quad quad-stats">
+        <h2>Statistics</h2>
+        <div class="option-row">
+          Clusters connect through
+          <select id="links">
+            <option value="4">4 neighbors (share a side)</option>
+            <option value="8">8 neighbors (sides or corners)</option>
+          </select>
+        </div>
+        <table class="stats-table">
+          <tr><td>Cells</td><td id="stat-cells"></td></tr>
+          <tr><td>Step</td><td id="stat-step"></td></tr>
+          <tr><td>Repeats</td><td id="stat-repeat"></td></tr>
+          <tr><td id="stat-interface-name"></td><td id="stat-interface"></td></tr>
+          <tr><td id="stat-clusters-name"></td><td id="stat-clusters"></td></tr>
+          <tr><td>Largest cluster</td><td id="stat-largest"></td></tr>
+        </table>
+
+        <h3 class="option-heading">Each state</h3>
+        <table class="stats-table">
+          <thead><tr><td></td><td>Cells</td><td>Share</td><td>Clusters</td></tr></thead>
+          <tbody id="state-rows"></tbody>
+        </table>
+
+        <h3 class="option-heading" id="shares-heading"></h3>
+        <canvas class="chart" id="shares-chart"></canvas>
+        <h3 class="option-heading" id="interface-heading"></h3>
+        <canvas class="chart" id="interface-chart"></canvas>
+        <h3 class="option-heading" id="areas-heading"></h3>
+        <canvas class="chart" id="areas-chart"></canvas>
+        <h3 class="option-heading">Perimeter against area of each cluster</h3>
+        <canvas class="chart taller" id="perimeter-chart"></canvas>
+      </section>
+
+      <!-- LOWER RIGHT: about the model, in two tabs (js/sim-page.js
+           switches them). Text in class="tex" is typeset by KaTeX. -->
+      <section class="quad quad-about">
+        <h2>About the model</h2>
+        <nav class="about-tabs">
+          <button class="about-tab selected" data-tab="simple">Simple</button>
+          <button class="about-tab" data-tab="details">All the details</button>
+        </nav>
+
+        <div data-panel="simple">
+        <p>
+          A <strong>cellular automaton</strong> is a row (or grid) of cells,
+          each in one of b states (colors). At every step, every cell looks at
+          a few cells around it, its <strong>neighborhood</strong>, and all
+          the cells change at once, by the same rule. Nothing is random (unless
+          you make the edges random), and yet simple rules can make very
+          complicated pictures.
+        </p>
+        <p>
+          <strong>The rule as a number.</strong> Read the neighborhood's
+          states as a number written in base b, the leftmost cell first: with
+          2 states and the neighborhood {left, itself, right}, "1 0 0" is 4.
+          Then the new state is digit 4 of the rule number written in base b,
+          counting from the right, starting at 0. Rule 30 is 00011110 in base
+          2, and its digit 4 is 1. So every rule is one number.
+        </p>
+        <p>
+          In <strong>1D</strong>, the picture shows the tape over time: each
+          row is one step, the first at the top. Rule 30, started from one
+          cell, grows a triangle that looks random inside. In
+          <strong>2D</strong>, the picture is the grid itself, changing as
+          you watch. Conway's Game of Life is one such rule: a cell is born
+          with exactly 3 live cells around it, and survives with 2 or 3.
+        </p>
+        <p>
+          The <strong>statistics</strong> look at the picture as a coloring:
+          its clusters (connected pieces of one color), their sizes, and the
+          interface (the neighbor pairs of different colors), as in the
+          coloring sims.
+        </p>
+        <p>
+          <strong>Things to try:</strong> in 1D, rules 90, 110 and 184; the
+          random start; more states. In 2D, the Game of Life from a random
+          start, then click cells to draw your own shapes (pause first). Try
+          the edges: fixed at 1, or random.
+        </p>
+        </div>
+
+        <div data-panel="details" hidden>
+        <p>
+          <strong>The model.</strong> The cells are
+          <span class="tex">\Lambda = \mathbb{Z}_L</span> (a tape of length
+          <span class="tex">L</span>) or
+          <span class="tex">\Lambda = \mathbb{Z}_W \times \mathbb{Z}_H</span>
+          (a grid), with states
+          <span class="tex">\sigma \in \{0, \dots, b-1\}^{\Lambda}</span>.
+          The neighborhood is a list of offsets
+          <span class="tex">N = (u_0, \dots, u_{k-1})</span>, listed in 1D
+          from left to right and in 2D from the bottom-left offset, row by
+          row, to the top-right one; the offset 0 (the cell itself) may be
+          in it, in its place. The configuration of cell
+          <span class="tex">x</span> is
+        </p>
+        <div class="tex">C(x) = \sum_{i=0}^{k-1} \sigma(x + u_i)\, b^{\,k-1-i} \in \{0, \dots, b^k - 1\},</div>
+        <p>
+          and rule <span class="tex">n</span>, with
+          <span class="tex">0 \le n &lt; b^{\,b^k}</span>, makes the next state
+        </p>
+        <div class="tex">\sigma'(x) = \left\lfloor n / b^{\,C(x)} \right\rfloor \bmod b,</div>
+        <p>
+          digit <span class="tex">C(x)</span> of <span class="tex">n</span> in
+          base <span class="tex">b</span>, for every cell at once. This is
+          Wolfram's numbering [1]: with <span class="tex">b = 2</span> and
+          <span class="tex">N = (-1, 0, 1)</span> it gives his 256
+          "elementary" rules. A rule number past
+          <span class="tex">b^{\,b^k} - 1</span> is used mod
+          <span class="tex">b^{\,b^k}</span>.
+        </p>
+        <p>
+          <strong>Edges.</strong> Cells <span class="tex">x + u_i</span> off
+          the tape or grid are read as: the cell they wrap around to (a ring
+          or a torus), a fixed state <span class="tex">k</span>, or a uniform
+          random state drawn afresh at every step and for every outside cell.
+        </p>
+        <p>
+          <strong>Famous rules.</strong> Rule 30 from one cell looks random,
+          and its middle column was used as a random number generator [2].
+          Rule 90 from one cell draws Pascal's triangle mod 2, a Sierpi&#324;ski
+          triangle [3]. Rule 110 can carry out any computation [4]. Rule 184
+          is a simple traffic model: each 1 is a car that moves right when the
+          cell ahead is empty [2, p. 269]. The Game of Life [5] is, here, the
+          2-state rule on the 3 &times; 3 block around a cell (the cell
+          itself in the middle of the list) with digit
+          <span class="tex">C</span> equal to 1 exactly when the 8 cells
+          around hold 3 ones, or 2 ones and the cell itself is 1; its rule
+          number has 140 digits. Life too can carry out any computation [6].
+        </p>
+        <p>
+          <strong>Repeats.</strong> With wrapping or fixed edges, there are
+          only <span class="tex">b^{|\Lambda|}</span> states and each one
+          decides the next, so by the pigeonhole principle the run comes back
+          to an earlier state within <span class="tex">b^{|\Lambda|}</span>
+          steps, and from then on goes round the same cycle forever. The page
+          notices the first repeat: it keeps a 53-bit fingerprint (a hash) of
+          every state, for up to 200,000 steps, and says the step where the
+          cycle starts and its period <span class="tex">p</span>.
+        </p>
+        <p>
+          <strong>Statistics.</strong> A cluster is a connected piece of cells
+          in one state, joined through the 4 cells sharing a side (or the 8
+          sharing a side or a corner). Its area is its number of cells, its
+          perimeter the number of cell pairs side by side or one above the
+          other with one cell in it and one in another state (the perimeters
+          add up to twice the interface). The interface is the number of such
+          neighbor pairs in different states, with the corner pairs too when
+          clusters connect through 8. In 2D they are taken on the grid. In 1D
+          the share of each state and the interface are taken on the current
+          tape, and the clusters on the whole picture (the tape over time,
+          as a coloring of a rectangle, whose left and right sides are not
+          joined).
+        </p>
+        <p><strong>References</strong></p>
+        <ol class="references">
+          <li>S. Wolfram, &ldquo;Statistical mechanics of cellular
+            automata&rdquo;, <em>Rev. Mod. Phys.</em> 55 (1983),
+            601&ndash;644.</li>
+          <li>S. Wolfram, <em>A New Kind of Science</em>, Wolfram Media,
+            2002.</li>
+          <li>O. Martin, A. M. Odlyzko, S. Wolfram, &ldquo;Algebraic
+            properties of cellular automata&rdquo;, <em>Comm. Math.
+            Phys.</em> 93 (1984), 219&ndash;258.</li>
+          <li>M. Cook, &ldquo;Universality in elementary cellular
+            automata&rdquo;, <em>Complex Systems</em> 15 (2004),
+            1&ndash;40.</li>
+          <li>M. Gardner, &ldquo;Mathematical Games: The fantastic
+            combinations of John Conway's new solitaire game
+            &lsquo;life&rsquo;&rdquo;, <em>Scientific American</em> 223(4)
+            (1970), 120&ndash;123.</li>
+          <li>E. R. Berlekamp, J. H. Conway, R. K. Guy, <em>Winning Ways for
+            your Mathematical Plays</em>, Vol. 2, Academic Press, 1982,
+            Chapter 25.</li>
+        </ol>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <!-- KaTeX (https://katex.org) typesets the formulas. The version number
+       is fixed so an update can never change the site by surprise. -->
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/katex.min.js"></script>
+
+  <!-- The code the sims share (in js/, see the README): page helpers
+       (they also typeset the formulas, so they come after KaTeX), the
+       second thread's run loop, charts, colors, domains, the picture's
+       view (moving and zooming it) and the controls (clicking the
+       picture, the clickable neighborhood grid). Then the rule (it runs
+       in a second thread), then this page's code. -->
+  <script src="../js/sim-page.js"></script>
+  <script src="../js/sim-worker.js"></script>
+  <script src="../js/sim-charts.js"></script>
+  <script src="../js/sim-colors.js"></script>
+  <script src="../js/sim-domains.js"></script>
+  <script src="../js/sim-view.js"></script>
+  <script src="../js/sim-controls.js"></script>
+  <script src="cellular-automata/cellular-automata-rule.js"></script>
+  <script src="cellular-automata/cellular-automata.js"></script>
+
+</body>
+</html>

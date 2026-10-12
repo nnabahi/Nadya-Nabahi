@@ -557,49 +557,15 @@ simCanvas.addEventListener("pointercancel", stopDragging);
    ---------------------------------------------------------------------
    The interface and the number of cells of each color come from the
    walkers (they keep them up to date as cells get colored). The
-   regions are found here, each time the picture is drawn: a region is
-   a connected piece of one color, found by a search from each cell
-   through its neighbors of the same color (as nadya's Python does
-   with connected_components). For each region:
-     area       its number of cells
-     perimeter  the number of edges from it to a cell of another color
-                (uncolored cells don't count), so the perimeters of all
-                regions add up to twice the interface.
+   regions (connected pieces of one color, as nadya's Python finds with
+   connected_components), with each one's area and perimeter, are found
+   here each time the picture is drawn, by findRegions
+   (js/sim-domains.js); uncolored cells are in no region.
    ===================================================================== */
-function findRegions() {
-  const d = domain, colors = latest.colors;
-  const region = new Int32Array(d.n).fill(-1);   // region[v] = which region cell v is in
-  const areas = [], perimeters = [], regionColor = [];
-  const stack = [];
-  for (let s = 0; s < d.n; s++) {
-    if (colors[s] === -1 || region[s] !== -1) continue;
-    const r = areas.length;
-    let area = 0, perimeter = 0;
-    region[s] = r;
-    stack.push(s);
-    while (stack.length > 0) {
-      const v = stack.pop();
-      area++;
-      for (let e = d.first[v]; e < d.first[v + 1]; e++) {
-        const w = d.nbr[e];
-        if (colors[w] === colors[v]) {
-          if (region[w] === -1) { region[w] = r; stack.push(w); }
-        } else if (colors[w] !== -1) {
-          perimeter++;
-        }
-      }
-    }
-    areas.push(area);
-    perimeters.push(perimeter);
-    regionColor.push(colors[s]);
-  }
-  return { areas: areas, perimeters: perimeters, color: regionColor };
-}
-
 function showStats() {
   if (!domain || !latest) return;
   const s = latest;
-  const regions = findRegions();
+  const regions = findRegions(domain, latest.colors);
 
   byId("stat-cells").textContent = domain.n.toLocaleString();
   byId("stat-time-name").textContent = model === "discrete" ? "Steps n" : "Time t";
@@ -622,7 +588,7 @@ function showStats() {
   drawSizesChart();
   drawInterfaceChart();
   drawAreasChart(regions);
-  drawPerimeterChart(regions);
+  perimeterChart(byId("perimeter-chart"), regions, colorNames, BORDER);
 }
 
 // One row per color: cells, number of regions, largest region.
@@ -666,50 +632,6 @@ function drawInterfaceChart() {
 function drawAreasChart(regions) {
   powerOfTwoBars(byId("areas-chart"), powerOfTwoBins(regions.areas), " regions", function (b) { return String(2 ** b); });
 }
-
-// Each region as a dot: area across, perimeter up, both on logarithmic
-// scales (so 1, 10, 100, ... are evenly spaced), colored by its color.
-// Regions with no other color next to them (perimeter 0) are left out.
-function drawPerimeterChart(regions) {
-  const canvas = byId("perimeter-chart");
-  const pen = chartPen(canvas);
-  const w = canvas.clientWidth, h = canvas.clientHeight;
-  const left = 34, up = 18, bottom = h - 16;
-  let maxArea = 10, maxPerimeter = 10;
-  regions.areas.forEach(function (area, r) {
-    maxArea = Math.max(maxArea, area);
-    maxPerimeter = Math.max(maxPerimeter, regions.perimeters[r]);
-  });
-  const xTop = Math.ceil(Math.log10(maxArea)), yTop = Math.ceil(Math.log10(maxPerimeter));
-  function sx(area) { return left + (w - left - 8) * Math.log10(area) / xTop; }
-  function sy(perimeter) { return bottom - (bottom - up) * Math.log10(perimeter) / yTop; }
-
-  // The axes' marks at 1, 10, 100, ...
-  pen.textAlign = "center";
-  pen.textBaseline = "top";
-  for (let k = 0; k <= xTop; k++) pen.fillText(String(10 ** k), sx(10 ** k), bottom + 3);
-  pen.textAlign = "right";
-  pen.textBaseline = "middle";
-  for (let k = 0; k <= yTop; k++) pen.fillText(String(10 ** k), left - 5, sy(10 ** k));
-  pen.textBaseline = "bottom";
-  pen.fillText("area", w, bottom);
-  pen.textAlign = "left";
-  pen.textBaseline = "top";
-  pen.fillText("perimeter", left + 4, 0);
-
-  regions.areas.forEach(function (area, r) {
-    const perimeter = regions.perimeters[r];
-    if (perimeter === 0) return;
-    pen.beginPath();
-    pen.arc(sx(area), sy(perimeter), 2.5, 0, 2 * Math.PI);
-    pen.fillStyle = colorNames[regions.color[r]];
-    pen.fill();
-    pen.lineWidth = 0.5;
-    pen.strokeStyle = BORDER;
-    pen.stroke();
-  });
-}
-
 
 /* =====================================================================
    8. CUSTOM DOMAINS: THE GRAPH TOOL INSIDE THIS PAGE

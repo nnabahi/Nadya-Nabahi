@@ -125,16 +125,12 @@ function haveMountain() { return Boolean(latest && latest.height && latest.dim =
    3. THE TILE: THE CLICKABLE GRID AND PRESETS
    ---------------------------------------------------------------------
    As on the old site: a grid of cells around the site itself (the dark
-   one in the middle). Clicking a cell puts that offset in the tile, or
+   one in the middle; the grid is shared with other sims, in
+   js/sim-controls.js). Clicking a cell puts that offset in the tile, or
    takes it out. The preset buttons and the Make buttons (a disk, or a
    ring) fill the grid in. Every change takes effect at once, keeping
    the seed and the step, like a Desmos slider.
    ===================================================================== */
-
-// An offset's name, "x" in 1D or "x,y" in 2D, for the set below; and
-// as it is shown, "x" or "(x, y)".
-function offsetKey(t) { return dim === 1 ? String(t[0]) : t[0] + "," + t[1]; }
-function offsetText(t) { return dim === 1 ? String(t[0]) : "(" + t[0] + ", " + t[1] + ")"; }
 
 // Use these offsets as the tile (0 is left out: it changes nothing),
 // show them, and restart at the same step.
@@ -167,37 +163,11 @@ function showPresets() {
   byId("ring-label").textContent = dim === 1 ? "Only the offsets from" : "Ring, radius";
 }
 
-// Draw the clickable grid: one small button per offset, lit up when the
-// offset is in the tile.
+// Draw the clickable grid (showOffsetGrid, js/sim-controls.js): one
+// small button per offset, lit up when the offset is in the tile, with
+// the site itself dark in the middle.
 function showTileGrid() {
-  const grid = byId("tile-grid");
-  const reach = GRID_REACH[dim];
-  const inTile = new Set(tile.map(offsetKey));
-  grid.innerHTML = "";
-  grid.style.gridTemplateColumns = "repeat(" + (2 * reach + 1) + ", 1fr)";
-  grid.classList.toggle("one-row", dim === 1);
-  const rowsY = dim === 1 ? [0] : [];
-  if (dim === 2) for (let y = reach; y >= -reach; y--) rowsY.push(y);   // top row first: y goes up
-  for (const y of rowsY) {
-    for (let x = -reach; x <= reach; x++) {
-      const t = dim === 1 ? [x] : [x, y], key = offsetKey(t);
-      const cell = document.createElement("button");
-      cell.className = "tile-cell";
-      if (x === 0 && y === 0) {
-        cell.classList.add("center");
-        cell.title = "the site itself";
-        cell.disabled = true;
-      } else {
-        cell.title = offsetText(t);
-        if (inTile.has(key)) cell.classList.add("on");
-        cell.addEventListener("click", function () {
-          setTile(inTile.has(key) ? tile.filter(function (u) { return offsetKey(u) !== key; })
-                                  : tile.concat([t]));
-        });
-      }
-      grid.appendChild(cell);
-    }
-  }
+  showOffsetGrid(byId("tile-grid"), dim, GRID_REACH[dim], tile, setTile, "fixed");
 }
 
 // The Make buttons. In 2D: every (x, y) with r1 <= its distance from 0
