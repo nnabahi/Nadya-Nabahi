@@ -615,9 +615,12 @@ a.card:hover {
   margin-bottom: 8px;
 }
 
-/* A clickable grid of small square cells, for picking a tile (the
-   random mountain's Tile T): a lit cell is in the tile, the dark one in
-   the middle is the site itself. In 1D it is a single row. */
+/* A clickable grid of small square cells, for picking a set of offsets
+   (the random mountain's Tile T, a cellular automaton's neighborhood;
+   showOffsetGrid in js/sim-controls.js): a lit cell is in the set. The
+   middle cell is either dark (the mountain's site itself) or outlined
+   ("own": the cell itself, which a neighborhood may include). In 1D it
+   is a single row. */
 .tile-grid {
   display: grid;
   gap: 2px;
@@ -647,6 +650,10 @@ a.card:hover {
 .tile-cell.center {
   background: var(--color-text);
   cursor: default;
+}
+
+.tile-cell.own {
+  box-shadow: inset 0 0 0 2px var(--color-text);
 }
 
 /* The random matrix products' matrices (made by

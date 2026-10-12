@@ -6,7 +6,9 @@
      - the Domain options: Box, Torus, Custom (drawn in the graph tool),
        and on most sims "Hyperbolic plane or tree";
      - the graph tool itself, shown inside the page for Custom;
-     - a picture you can drag, zoom and click.
+     - a picture you can drag, zoom and click;
+     - a clickable grid of cells for picking a set of offsets (the random
+       mountain's tile, the cellular automata's neighborhood).
    Each sim used to have its own copy of the code for these. Now they
    are written once, here. Each helper is handed what is different on
    each page (what a click does, what makes a drawing good enough, ...)
@@ -25,6 +27,9 @@
           makeCustomTool(page)
      3. Dragging, zooming and clicking the picture
           connectPicture(view, disk, onGraph, onClick, cursor)
+     4. The clickable grid of offsets
+          offsetKey(t), offsetText(t)       an offset's name, and as shown
+          showOffsetGrid(grid, reach, offsets, setOffsets, center)
    ===================================================================== */
 
 
@@ -265,4 +270,60 @@ function connectPicture(view, disk, onGraph, onClick, cursor) {
   }
   canvas.addEventListener("pointerup", function (event) { release(event, true); });
   canvas.addEventListener("pointercancel", function (event) { release(event, false); });
+}
+
+
+/* =====================================================================
+   4. THE CLICKABLE GRID OF OFFSETS
+   ---------------------------------------------------------------------
+   As on the old site: a grid of small cells around a cell in the middle.
+   An "offset" says where a cell is from the middle one: [x] in 1D, or
+   [x, y] in 2D (x to the right, y up). Clicking a cell puts its offset
+   in the set, or takes it out. The random mountain picks its tile T
+   this way, and the cellular automata their neighborhood.
+   ===================================================================== */
+
+// An offset's name, "x" in 1D or "x,y" in 2D (to look it up in a Set),
+// and as it is shown, "x" or "(x, y)".
+function offsetKey(t) { return t.length === 1 ? String(t[0]) : t[0] + "," + t[1]; }
+function offsetText(t) { return t.length === 1 ? String(t[0]) : "(" + t[0] + ", " + t[1] + ")"; }
+
+// Fill the box "grid" (a <div class="tile-grid">) with one small button
+// per offset out to "reach" from the middle: a single row in 1D, a
+// square in 2D (top row first, as y goes up). A cell is lit up when its
+// offset is in the list "offsets", and clicking it calls
+// setOffsets(the new list), which should show the grid again.
+// The middle cell, offset 0: with center = "fixed" it is dark and can't
+// be clicked (the mountain's site itself); with center = "clickable" it
+// is outlined and can be clicked like the others (the cell itself, in a
+// cellular automaton's neighborhood). "dim" is 1 or 2.
+function showOffsetGrid(grid, dim, reach, offsets, setOffsets, center) {
+  const inSet = new Set(offsets.map(offsetKey));
+  grid.innerHTML = "";
+  grid.style.gridTemplateColumns = "repeat(" + (2 * reach + 1) + ", 1fr)";
+  grid.classList.toggle("one-row", dim === 1);
+  const rowsY = dim === 1 ? [0] : [];
+  if (dim === 2) for (let y = reach; y >= -reach; y--) rowsY.push(y);
+  for (const y of rowsY) {
+    for (let x = -reach; x <= reach; x++) {
+      const t = dim === 1 ? [x] : [x, y], key = offsetKey(t);
+      const cell = document.createElement("button");
+      cell.className = "tile-cell";
+      grid.appendChild(cell);
+      const middle = (x === 0 && y === 0);
+      if (middle && center === "fixed") {
+        cell.classList.add("center");
+        cell.title = "the site itself";
+        cell.disabled = true;
+        continue;
+      }
+      if (middle) cell.classList.add("own");
+      cell.title = middle ? "the cell itself" : offsetText(t);
+      if (inSet.has(key)) cell.classList.add("on");
+      cell.addEventListener("click", function () {
+        setOffsets(inSet.has(key) ? offsets.filter(function (u) { return offsetKey(u) !== key; })
+                                  : offsets.concat([t]));
+      });
+    }
+  }
 }

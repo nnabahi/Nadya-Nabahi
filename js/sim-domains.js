@@ -29,6 +29,7 @@
      cellAt(d, x, y)          which cell is at (x, y)
      stepsFrom(d, starts)     distances through the domain
      countPieces(d, colorOf, count)   the connected pieces of each color
+     findRegions(d, colors)   the same pieces, each with its area and perimeter
 
    (The colors the sims share are in js/sim-colors.js.)
    ===================================================================== */
@@ -187,4 +188,43 @@ function countPieces(d, colorOf, count) {
     }
   }
   return pieces;
+}
+
+// The regions of a coloring: a region is a connected piece of one
+// color, found by a search from each cell through its neighbors of the
+// same color. colors[v] is cell v's color, or -1 for a cell with no
+// color yet (it is in no region). For each region r:
+//   areas[r]       its number of cells
+//   perimeters[r]  the number of edges from it to a cell of another
+//                  color (cells with no color don't count), so the
+//                  perimeters of all regions add up to twice the
+//                  interface (the edges between two colors)
+//   color[r]       its color
+function findRegions(d, colors) {
+  const region = new Int32Array(d.n).fill(-1);   // region[v] = which region cell v is in
+  const areas = [], perimeters = [], regionColor = [];
+  const stack = [];
+  for (let s = 0; s < d.n; s++) {
+    if (colors[s] === -1 || region[s] !== -1) continue;
+    const r = areas.length;
+    let area = 0, perimeter = 0;
+    region[s] = r;
+    stack.push(s);
+    while (stack.length > 0) {
+      const v = stack.pop();
+      area++;
+      for (let e = d.first[v]; e < d.first[v + 1]; e++) {
+        const w = d.nbr[e];
+        if (colors[w] === colors[v]) {
+          if (region[w] === -1) { region[w] = r; stack.push(w); }
+        } else if (colors[w] !== -1) {
+          perimeter++;
+        }
+      }
+    }
+    areas.push(area);
+    perimeters.push(perimeter);
+    regionColor.push(colors[s]);
+  }
+  return { areas: areas, perimeters: perimeters, color: regionColor };
 }
