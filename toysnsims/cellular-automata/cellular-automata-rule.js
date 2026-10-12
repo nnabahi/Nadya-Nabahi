@@ -215,15 +215,19 @@ function stateHash(cells) {
    ---------------------------------------------------------------------
    The page sends:
      { type: "setup", run, dim, width, height, rows, b, offsets, table,
-       edge, edgeState, start, drawn, seed, mode, toStep }
+       edge, edgeState, start, drawn, seed, mode, toStep, look }
                          a new run from the start. In 1D, "rows" is how
                          many rows the picture shows and "mode" is
                          "fill" (stop when the picture is full) or
-                         "scroll" (the oldest row leaves at the top).
+                         "scroll" (the oldest row leaves at the top;
+                         every row is kept, so you can scroll back).
                          With toStep > 0, the run is made again up to
                          that step at once (a changed rule shows the
                          same moment of the run), for at most about a
-                         second of work.
+                         second of work. "look" is as below.
+     { type: "look", last }    1D: show the rows up to step "last" (to
+                               scroll back through the run), or the
+                               newest ones as they come (last = null)
      { type: "play", speed }   run "speed" steps per second
                                (Infinity = as fast as possible)
      { type: "pause" }
@@ -240,10 +244,13 @@ function automatonWorker() {
 
   const MAX_REMEMBERED = 200000;   // look for a repeat among this many states at most
   const REPLAY_BUDGET = 1000;      // milliseconds: the most time a "toStep" may take
+  const MAX_HISTORY = 20000000;    // 1D: keep at most this many cells of old rows (the oldest go first)
 
   let m = null;               // the setup message
   let auto = null, run = 0, time = 0;
-  let picture = null;         // 1D: the tape over time, rows x width, -1 where no row yet
+  let history = [];           // 1D: every row so far (the tape at each step), from step "oldest" on
+  let oldest = 0;
+  let look = null;            // 1D: the last step to show, or null for the newest
   let seen = null;            // fingerprint -> the step it was first seen at
   let repeat = null;          // { first, period } once the run comes back to an earlier state
   let trace = null;           // the run so far, for the charts over time (keepSample, js/sim-worker.js)
@@ -284,18 +291,27 @@ function automatonWorker() {
     interface8 = sides + corners;
   }
 
-  // 1D: put the tape into the picture: row t at the top-down place t,
-  // and once the picture is full (scroll mode), move every row up one
-  // and put the new one at the bottom. (Row y = 0 is the bottom row.)
-  function drawRow() {
+  // 1D: keep the tape as it is now. A very long run drops its oldest
+  // rows, 1000 at a time, to stay under MAX_HISTORY cells.
+  function keepRow() {
     if (m.dim !== 1) return;
-    const W = m.width, R = m.rows;
-    let y = R - 1 - time;
-    if (y < 0) {
-      picture.copyWithin(W, 0, (R - 1) * W);
-      y = 0;
+    history.push(auto.cells.slice());
+    if ((history.length - 1000) * m.width > MAX_HISTORY) {
+      history.splice(0, 1000);
+      oldest += 1000;
     }
-    picture.set(auto.cells, y * W);
+  }
+
+  // 1D: the picture, rows x width, -1 where there is no row: the rows
+  // up to step "look" (or the newest), the earliest at the top. (Row
+  // y = 0 is the bottom row.)
+  function makePicture() {
+    const W = m.width, R = m.rows;
+    const last = look === null ? time : Math.min(Math.max(look, oldest + R - 1), time);
+    const first = Math.max(oldest, last - R + 1);
+    const picture = new Int8Array(R * W).fill(-1);
+    for (let t = first; t <= last; t++) picture.set(history[t - oldest], (R - 1 - (t - first)) * W);
+    return { picture: picture, first: first, last: last };
   }
 
   // Look for the current state among the earlier ones. (With random
@@ -326,8 +342,10 @@ function automatonWorker() {
     repeat = null;
     seen = new Map();
     trace = newTrace();
-    picture = m.dim === 1 ? new Int8Array(m.rows * m.width).fill(-1) : null;
-    drawRow();
+    history = [];
+    oldest = 0;
+    look = m.look;
+    keepRow();
     lookForRepeat();
     measure();
     takeSample();
@@ -339,7 +357,7 @@ function automatonWorker() {
     if (isDone()) return;
     auto.step();
     time++;
-    drawRow();
+    keepRow();
     lookForRepeat();
     measure();
     takeSample();
@@ -355,14 +373,17 @@ function automatonWorker() {
     else if (message.type === "play") loop.play(message.speed);
     else if (message.type === "pause") loop.pause();
     else if (message.type === "step") { oneStep(); report(); }
+    else if (message.type === "look") { look = message.last; lastReported = -1; report(); }
   };
 
   function report() {
     if (time === lastReported) return;   // nothing new to show
     lastReported = time;
+    const shown = m.dim === 1 ? makePicture() : null;
     self.postMessage({
       type: "state", run: run, time: time, cells: auto.cells.slice(),
-      picture: picture ? picture.slice() : null, done: isDone(),
+      picture: shown && shown.picture, shownFirst: shown && shown.first, shownLast: shown && shown.last,
+      oldest: oldest, done: isDone(),
       counts: counts.slice(), interface4: interface4, interface8: interface8,
       repeat: repeat, checked: seen.size, randomEdges: m.edge === "random",
       traceTimes: Float64Array.from(trace.times), traceCounts: Int32Array.from(trace.lists.counts),

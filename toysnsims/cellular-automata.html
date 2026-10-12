@@ -44,6 +44,11 @@
             <button class="tool-button" id="zoom-reset" title="Show the whole picture once again">Reset</button>
           </div>
         </div>
+        <!-- 1D, scroll mode: scroll back through the whole run. -->
+        <div class="option-row" id="history-row" hidden>
+          Scroll back <input type="range" class="wide-range" id="history" min="0" step="1">
+          <span class="muted small" id="history-label"></span>
+        </div>
         <p class="muted small" id="click-help"></p>
         <p class="muted" id="sim-message"></p>
       </section>

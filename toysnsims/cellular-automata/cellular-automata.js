@@ -97,6 +97,7 @@ let domain = null;           // the picture as a domain of cells (js/sim-domains
 
 let run = 0;                 // counts restarts, so leftovers from an older run are ignored
 let latest = null;           // the latest message from the worker (part 2 of cellular-automata-rule.js)
+let look = null;             // 1D: the last step shown when scrolled back, or null for the newest
 
 
 /* =====================================================================
@@ -257,6 +258,7 @@ worker.onmessage = function (event) {
   const message = event.data;
   if (message.type !== "state" || message.run !== run) return;   // from an older run
   latest = message;
+  showHistory();
   if (message.done && player.playing) player.setPlaying(false);
   drawSoon();
 };
@@ -282,6 +284,7 @@ function sizes() {
 function restart(keepStep) {
   if (!table) return;        // the settings can't run (readRule said why)
   const toStep = keepStep && latest ? latest.time : 0;
+  if (!keepStep) look = null;
   const size = sizes();
   run++;
   latest = null;
@@ -290,7 +293,7 @@ function restart(keepStep) {
     type: "setup", run: run, dim: dim, width: size.width, height: size.height, rows: size.rows,
     b: b, offsets: neighborhood, table: table, edge: checked("edge"),
     edgeState: readWhole("edge-state", 0, b - 1, 0), start: byId("start").value, drawn: drawn,
-    seed: byId("seed").value, mode: checked("mode"), toStep: toStep,
+    seed: byId("seed").value, mode: checked("mode"), toStep: toStep, look: look,
   });
   player.carryOn();
 }
@@ -298,6 +301,28 @@ function restart(keepStep) {
 // Play / Pause, Step, Restart and the Speed slider (connectPlay,
 // js/sim-page.js). player.playing is true while the sim plays.
 const player = connectPlay(worker, SPEEDS, DEFAULT_SPEED, "step", "steps", function () { restart(false); });
+
+
+// 1D, scroll mode: the Scroll back slider, shown once the run has more
+// rows than the picture. It runs from the earliest rows kept to the
+// newest; at its right end the picture follows the newest row.
+function showHistory() {
+  const s = latest, rows = byId("tape-rows").value * 1, slider = byId("history");
+  const longer = dim === 1 && s.picture && s.time - s.oldest + 1 > rows;
+  byId("history-row").hidden = !longer;
+  if (!longer) return;
+  slider.min = s.oldest + rows - 1;
+  slider.max = s.time;
+  slider.value = s.shownLast;
+  byId("history-label").textContent = (look === null ? "the newest steps, " : "steps ") +
+    s.shownFirst.toLocaleString() + " to " + s.shownLast.toLocaleString() +
+    (s.oldest > 0 ? " (steps before " + s.oldest.toLocaleString() + " were dropped)" : "");
+}
+
+byId("history").addEventListener("input", function () {
+  look = Number(this.value) >= Number(this.max) ? null : Number(this.value);
+  worker.postMessage({ type: "look", last: look });
+});
 
 
 /* =====================================================================
