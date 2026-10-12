@@ -45,6 +45,7 @@ const MAX_ROWS = 400;              // the most rows shown
 const MAX_SIDE = 300;              // the biggest grid
 const MAX_TABLE = 1 << 20;         // the most configurations b^k a rule may have (about a million)
 const MAX_PICTURE_HEIGHT = 600;    // in screen pixels
+const SLIDER_STOPS = 1000;         // the rule slider's last stop: with more rules than this, its stops are spread evenly over them
 
 // The clickable neighborhood grid shows the offsets up to this far from
 // the cell itself: -5 .. 5 in 1D, a 5 x 5 square in 2D.
@@ -122,10 +123,10 @@ function setNeighborhood(offsets) {
     readRule();
     restart(true);
   }, "clickable");
-  byId("neighborhood-info").textContent = neighborhood.length === 0 ? "" :
-    "k = " + neighborhood.length + (neighborhood.length === 1 ? " cell" : " cells") +
+  byId("neighborhood-info").innerHTML = neighborhood.length === 0 ? "" :
+    tex("k = " + neighborhood.length) + (neighborhood.length === 1 ? " cell" : " cells") +
     ", read in this order (the first one is the most significant digit): " +
-    neighborhood.map(function (t) { return offsetKey(t) === "0" || offsetKey(t) === "0,0" ? "itself" : offsetText(t); }).join(", ") + ".";
+    neighborhood.map(function (t) { return offsetKey(t) === "0" || offsetKey(t) === "0,0" ? "itself" : tex(offsetText(t)); }).join(", ") + ".";
 }
 
 // The preset buttons for this dimension.
@@ -154,46 +155,91 @@ function showNeighborhoodPresets() {
    b and neighborhood, and says how big n may be.
    ===================================================================== */
 
+// A formula as typeset math, ready to put in a page's HTML (KaTeX), or
+// as plain text if KaTeX didn't load.
+function tex(formula) {
+  return window.katex ? katex.renderToString(formula, { throwOnError: false }) : formula;
+}
+
+// A whole number for a formula, with its thousands commas kept tight
+// ("{,}" in KaTeX, which otherwise puts a space after each comma).
+function texNumber(v) { return v.toLocaleString("en-US").replace(/,/g, "{,}"); }
+
+// How many rules there are now, b^(b^k), as a BigInt (or 0n if the
+// settings can't run).
+function ruleCount() {
+  return table ? BigInt(b) ** BigInt(table.length) : 0n;
+}
+
 // Read n from the box and make the table. Returns false (and says why
 // under the box) if the settings can't run; the last good run stays.
 function readRule() {
   const info = byId("rule-info");
   const text = byId("rule-box").value.replace(/[\s,]/g, "");   // spaces, line breaks and commas don't count
+  table = null;
   if (!/^\d+$/.test(text)) {
     info.textContent = "n has to be a whole number, 0 or more.";
-    table = null;
     return false;
   }
   ruleNumber = BigInt(text);
   const k = neighborhood.length;
   if (k === 0) {
     info.textContent = "Pick at least one cell for the neighborhood.";
-    table = null;
     return false;
   }
   const size = b ** k;      // the number of configurations
   if (size > MAX_TABLE) {
-    info.textContent = "With b = " + b + " and k = " + k + " cells there are " + size.toLocaleString() +
-      " configurations, more than the " + MAX_TABLE.toLocaleString() + " this page allows. " +
-      "Take out some cells, or lower b.";
-    table = null;
+    info.innerHTML = "With " + tex("b = " + b) + " and " + tex("k = " + k) + " cells there are " +
+      tex("b^k = " + texNumber(size)) + " configurations, more than the " + tex(texNumber(MAX_TABLE)) +
+      " this page allows. Take out some cells, or lower " + tex("b") + ".";
     return false;
   }
   table = ruleTable(ruleNumber, b, k);
   const digits = Math.ceil(size * Math.log10(b));   // how many digits the biggest rule number has
-  let text2 = "b^k = " + size.toLocaleString() + " configurations, so the rules are n = 0 to " +
-    b + "^" + size.toLocaleString() + " − 1 (" + digits.toLocaleString() + (digits === 1 ? " digit)." : " digits).");
-  if (ruleNumber >= BigInt(b) ** BigInt(size)) {
-    text2 += " This n is bigger, so only its last " + size.toLocaleString() + " digits in base " + b +
-      " count: it works as n mod " + b + "^" + size.toLocaleString() + ".";
+  let html = tex("b^k = " + b + "^{" + k + "} = " + texNumber(size)) + " configurations, so the rules are " +
+    tex("0 \\le n \\le " + b + "^{" + size + "} - 1") + " (" + digits.toLocaleString() + (digits === 1 ? " digit)." : " digits).");
+  if (ruleNumber >= ruleCount()) {
+    html += " This " + tex("n") + " is bigger, so only its last " + size.toLocaleString() + " digits in base " + b +
+      " count: it works as " + tex("n \\bmod " + b + "^{" + size + "}") + ".";
   }
-  info.textContent = text2;
+  info.innerHTML = html;
+  showSliderAt(ruleNumber);
   return true;
 }
 
 // Put the rule number n (a BigInt) in the box.
 function showRule(n) {
   byId("rule-box").value = n.toString();
+}
+
+// The rule slider. With at most SLIDER_STOPS + 1 rules, stop p is rule p;
+// with more, its stops are spread evenly from 0 to the last rule, so
+// stop p is rule floor(p (N - 1) / SLIDER_STOPS), N the number of rules.
+function sliderRule(p) {
+  const N = ruleCount();
+  if (N <= BigInt(SLIDER_STOPS + 1)) return BigInt(p);
+  return BigInt(p) * (N - 1n) / BigInt(SLIDER_STOPS);
+}
+
+// Move the slider to (the stop nearest below) rule n.
+function showSliderAt(n) {
+  const N = ruleCount(), slider = byId("rule-slider");
+  if (N <= BigInt(SLIDER_STOPS + 1)) {
+    slider.max = Number(N - 1n);
+    slider.value = Number(n < N ? n : n % N);
+  } else {
+    slider.max = SLIDER_STOPS;
+    slider.value = Number((n % N) * BigInt(SLIDER_STOPS) / (N - 1n));
+  }
+}
+
+// A uniformly random rule: each of its b^k digits in base b is an
+// independent uniform digit, so every rule 0 .. N - 1 is equally
+// likely.
+function randomRule() {
+  let n = 0n;
+  for (let C = 0; C < table.length; C++) n = n * BigInt(b) + BigInt(Math.floor(Math.random() * b));
+  return n;
 }
 
 
@@ -470,8 +516,19 @@ function changeB(value) {
 byId("b-slider").addEventListener("input", function () { changeB(this.value); });
 byId("b-box").addEventListener("change", function () { changeB(this.value); });
 
-// The rule number: every change made while typing (once it reads).
+// The rule number: every change made while typing (once it reads), the
+// slider, and the Random rule button.
 byId("rule-box").addEventListener("input", function () { if (readRule()) restart(true); });
+byId("rule-slider").addEventListener("input", function () {
+  if (!table) return;
+  showRule(sliderRule(Number(this.value)));
+  if (readRule()) restart(true);
+});
+byId("random-rule").addEventListener("click", function () {
+  if (!table) return;
+  showRule(randomRule());
+  if (readRule()) restart(true);
+});
 
 // The edges: wrapping changes the picture's shape in 2D (a torus or not).
 for (const radio of document.querySelectorAll('input[name="edge"]')) {

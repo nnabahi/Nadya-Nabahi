@@ -66,9 +66,9 @@
           <label><input type="radio" name="dim" value="2"> 2D: a grid</label>
         </div>
 
-        <h3 class="option-heading">States b</h3>
+        <h3 class="option-heading">States <span class="tex">b</span></h3>
         <div class="option-row">
-          b = <input type="number" id="b-box" min="2" step="1">
+          <span class="tex">b =</span> <input type="number" id="b-box" min="2" step="1">
           <input type="range" class="wide-range" id="b-slider" min="2" step="1">
         </div>
 
@@ -80,8 +80,14 @@
         <div class="tile-grid small" id="neighborhood-grid"></div>
         <p class="muted small" id="neighborhood-info"></p>
 
-        <h3 class="option-heading">Rule n</h3>
-        <!-- A text box, not a number box: rule numbers can have hundreds of digits. -->
+        <h3 class="option-heading">Rule <span class="tex">n</span></h3>
+        <!-- The slider runs through the rules (evenly spread when there are
+             more than it has stops); the text box takes any exact n (a text
+             box, not a number box: rule numbers can have hundreds of digits). -->
+        <div class="option-row">
+          <input type="range" class="wide-range" id="rule-slider" min="0" step="1">
+          <button class="tool-button" id="random-rule" title="Every rule equally likely">Random rule</button>
+        </div>
         <textarea class="formula-input" id="rule-box" rows="2" spellcheck="false"></textarea>
         <p class="muted small" id="rule-info"></p>
 
