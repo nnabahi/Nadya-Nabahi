@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lattice path counting — Toys n' Sims</title>
+  <link rel="stylesheet" href="../css/style.css">
+  <!-- KaTeX's styles, for the typeset formulas. -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/katex.min.css">
+  <!-- Where the 3D library three.js lives on the internet, for the 3D
+       view (js/sim-3d.js). It is only loaded when you switch to 3D. The
+       version number is fixed so an update can never change the site by
+       surprise. -->
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.186.1/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+
+  <header class="topbar">
+    <nav>
+      <a href="../about.html">About Me</a>
+      <a href="../resume.html">Resume</a>
+      <a href="../index.html">Home</a>
+      <a href="../publications.html">Publications</a>
+      <a href="../toysnsims.html" class="active">Toys n' Sims</a>
+    </nav>
+  </header>
+
+  <main class="page">
+    <p><a href="../toysnsims.html">&larr; All sims</a></p>
+    <h1>Lattice path counting</h1>
+
+    <!-- The four quadrants, as on every sim page (their layout is in
+         section 6 of css/style.css). All the behavior lives in
+         path-counting/path-counting.js; the ids below (id="...") are how
+         that script finds each button and box. -->
+    <div class="quadrants">
+
+      <!-- UPPER LEFT: the picture. -->
+      <section class="quad quad-sim">
+        <h2>Simulation</h2>
+
+        <!-- The picture. From above, the zoom buttons sit in its top right
+             corner; the full screen button (added by js/sim-page.js) in its
+             top left corner. -->
+        <div class="sim-picture">
+          <canvas id="sim-canvas"></canvas>
+          <div class="zoom-buttons" id="zoom-buttons" hidden>
+            <button class="tool-button" id="zoom-in" title="Zoom in">+</button>
+            <button class="tool-button" id="zoom-out" title="Zoom out">&minus;</button>
+            <button class="tool-button" id="zoom-reset" title="Show the whole picture once again">Reset</button>
+          </div>
+          <!-- The 3D view: js/sim-3d.js puts its picture in here, with a
+               button to look from the start again. -->
+          <div class="sim-3d" id="sim-3d" hidden></div>
+          <div class="zoom-buttons" id="view3d-buttons" hidden>
+            <button class="tool-button" id="view3d-reset" title="Look from the starting angle again">Reset view</button>
+          </div>
+        </div>
+
+        <!-- In gray under the picture: a weight other than 0 or 1 means f
+             is no longer a number of paths. -->
+        <p class="muted" id="weights-note"></p>
+        <!-- Messages, e.g. while the 3D view loads. -->
+        <p class="muted" id="sim-message"></p>
+      </section>
+
+      <!-- UPPER RIGHT: settings. -->
+      <section class="quad quad-controls">
+        <!-- The heading, with a small "model check" button on the right
+             that opens the page testing this sim's math. -->
+        <h2 class="heading-with-button">Options
+          <a class="tool-button model-check" href="path-counting-check.html">model check</a></h2>
+
+        <h3 class="option-heading">Weights</h3>
+        <div class="option-row">
+          Start from
+          <select id="preset">
+            <option value="periodic">Your periodic rule: d(y) is 2 or 3</option>
+            <option value="open">All edges open</option>
+            <option value="bernoulli">Each left step open with chance p</option>
+            <option value="custom" hidden>Your own formulas</option>
+          </select>
+        </div>
+        <div class="tex">f(0, 0) = 1,</div>
+        <div class="tex">f(x, y) = X\, f(x-1, y) + Y\, f(x, y-1)</div>
+        <!-- The two formulas. Any letter other than x, y and N gets a
+             slider below them. -->
+        <p class="small"><span class="tex">X(x, y)</span>, the weight of the step left from <span class="tex">(x, y)</span>:</p>
+        <input type="text" class="formula-input" id="formula-X" spellcheck="false">
+        <div class="formula-preview" id="preview-X"></div>
+        <p class="small"><span class="tex">Y(x, y)</span>, the weight of the step down from <span class="tex">(x, y)</span>:</p>
+        <input type="text" class="formula-input" id="formula-Y" spellcheck="false">
+        <div class="formula-preview" id="preview-Y"></div>
+        <div id="sliders"></div>
+        <p class="muted small" id="formula-message"></p>
+        <p class="muted small">Type them as in Desmos: <code>{x &gt; 2: 1, 0}</code> is 1 when
+          x &gt; 2 and 0 otherwise, and <code>mod(x, 3)</code> is the remainder.
+          <code>u(&hellip;)</code> is a random number from 0 to 1, fixed for each input:
+          <code>u(y)</code> is one number per row, <code>u(x, y)</code> one per point
+          (write <code>u(x, y, 2)</code> for a second, separate one). Moving a slider
+          never reshuffles them. N is the size of the grid.</p>
+
+        <div class="option-row">
+          Grid size N <input type="range" class="wide-range" id="size" min="10" max="250" step="1" value="60">
+          <span class="muted" id="size-label"></span>
+        </div>
+        <div class="option-row">
+          Seed <input type="text" id="seed" size="8" value="1">
+          <button class="tool-button" id="new-seed" title="New random numbers u(...)">New seed</button>
+        </div>
+
+        <h3 class="option-heading">The line <span class="tex">a x + b y = c</span></h3>
+        <div class="option-row">
+          Direction (a, b) = (<input type="number" id="dir-a" min="-20" max="20" step="1" value="1" style="width: 4em">,
+          <input type="number" id="dir-b" min="-20" max="20" step="1" value="1" style="width: 4em">)
+        </div>
+        <div class="option-row">
+          c <input type="range" class="wide-range" id="line-c" step="1">
+          <span class="muted" id="line-label"></span>
+        </div>
+        <p class="muted small">The red balls are the grid points on the line, which is at
+          right angles to (a, b). Click the picture (from above) to move the line through
+          that point.</p>
+
+        <h3 class="option-heading">View</h3>
+        <div class="option-row">
+          <label><input type="radio" name="view" value="flat" checked> From above</label>
+          <label><input type="radio" name="view" value="3d"> 3D</label>
+        </div>
+        <div class="option-row">Heights and colors:</div>
+        <div class="option-row">
+          <label><input type="radio" name="heights" value="line" checked> normalized: f divided
+            by the largest f on its own line a x + b y = k</label>
+        </div>
+        <div class="option-row">
+          <label><input type="radio" name="heights" value="all"> f divided by the largest f on the grid</label>
+        </div>
+        <div class="option-row">
+          <label><input type="radio" name="heights" value="log"> log f, scaled to go up to 1</label>
+        </div>
+        <div class="option-row" id="flat-options">
+          <label><input type="checkbox" id="show-edges" checked> Show the open edges</label>
+        </div>
+        <div id="view3d-options" hidden>
+          <div class="option-row">
+            <label><input type="checkbox" id="show-surface" checked> Show the whole surface</label>
+          </div>
+          <div class="option-row">
+            Heights <input type="range" id="stretch" min="-4" max="4" step="1" value="0">
+            <span class="muted" id="stretch-label"></span>
+          </div>
+          <p class="muted small">Drag to turn it around, use the mouse wheel or a pinch to
+            zoom, and right-drag (or two fingers) to slide it.</p>
+        </div>
+      </section>
+
+      <!-- LOWER LEFT: numbers about the line. -->
+      <section class="quad quad-stats">
+        <h2>Statistics</h2>
+        <table class="stats-table">
+          <tr><td>Grid points on the line</td><td id="stat-points"></td></tr>
+          <tr><td>... that a path reaches (f &gt; 0)</td><td id="stat-reached"></td></tr>
+          <tr><td>Largest f on the line</td><td id="stat-most"></td></tr>
+          <tr><td>Sum of f on the line</td><td id="stat-sum"></td></tr>
+          <tr><td>Mean position <span id="stat-axis">x</span></td><td id="stat-mean"></td></tr>
+          <tr><td>Standard deviation</td><td id="stat-sd"></td></tr>
+          <tr><td>Largest gap to the Gaussian</td><td id="stat-gap"></td></tr>
+        </table>
+
+        <h3 class="option-heading">f along the line (largest = 1), with the Gaussian of the same mean and standard deviation</h3>
+        <canvas class="chart taller" id="line-chart"></canvas>
+      </section>
+
+      <!-- LOWER RIGHT: about the model, in two tabs (js/sim-page.js
+           switches them). Text in class="tex" is typeset by KaTeX. -->
+      <section class="quad quad-about">
+        <h2>About the model</h2>
+        <nav class="about-tabs">
+          <button class="about-tab selected" data-tab="simple">Simple</button>
+          <button class="about-tab" data-tab="details">All the details</button>
+        </nav>
+
+        <div data-panel="simple">
+        <p>
+          Start at a point <span class="tex">(x, y)</span> of the grid and walk to
+          <span class="tex">(0, 0)</span>, one step left or one step down at a time.
+          Some steps are open and some are closed, by a rule you type:
+          <span class="tex">X(x, y) = 1</span> opens the step left from
+          <span class="tex">(x, y)</span>, and <span class="tex">Y(x, y) = 1</span> the
+          step down. The number <span class="tex">f(x, y)</span> counts the ways to get
+          home using only open steps. The picture colors every point by it, from blue
+          (few) to red (many).
+        </p>
+        <p>
+          The numbers grow very fast: with every step open, there are already about
+          <span class="tex">10^{35}</span> ways home from <span class="tex">(60, 60)</span>.
+          So the picture looks at one line at a time, the line
+          <span class="tex">a x + b y = c</span>, and divides by the largest number on
+          it. The red balls are its points, as high as their share of the largest. With
+          every step open and the line <span class="tex">x + y = c</span>, they make a bell
+          curve.
+        </p>
+        <p>
+          <strong>Things to try:</strong> "All edges open" with direction (1, 1), then
+          slide c and watch the bell get wider. Your periodic rule, where the step down
+          from row y is open only above every second or third point; slide p and try other
+          directions, like (1, 2) or (2, 5), to find where its curve looks most like a
+          bell. Switch to 3D and turn the picture around: the whole surface shows every
+          line's curve at once, a ridge running out from the corner.
+        </p>
+        <p>
+          <strong>Weights.</strong> X and Y can be any numbers 0 or above, not just 0 and 1.
+          Then f adds up, over the paths, the product of the weights along each path.
+          It is no longer a count of paths (the gray line under the picture says so),
+          but the same picture still works.
+        </p>
+        </div>
+
+        <div data-panel="details" hidden>
+        <p>
+          <strong>The rule.</strong> On the grid <span class="tex">\{0, \dots, N\}^2</span>,
+        </p>
+        <div class="tex">f(0, 0) = 1, \qquad f(x, y) = X(x, y)\, f(x-1, y) + Y(x, y)\, f(x, y-1),</div>
+        <p>
+          where the first term is left out when <span class="tex">x = 0</span> and the
+          second when <span class="tex">y = 0</span>. Unrolling the recursion,
+        </p>
+        <div class="tex">f(x, y) = \sum_{\pi : (x, y) \to (0, 0)} \ \prod_{e \in \pi} w(e),</div>
+        <p>
+          summing over the paths <span class="tex">\pi</span> with unit steps left and
+          down, where <span class="tex">w(e)</span> is <span class="tex">X</span> at the
+          right end of a horizontal step and <span class="tex">Y</span> at the top end of a
+          vertical one. With weights in <span class="tex">\{0, 1\}</span>,
+          <span class="tex">f(x, y)</span> is the number of paths through open edges.
+          A weight that is undefined (like <span class="tex">\{x &gt; 2: 1\}</span> at
+          <span class="tex">x = 1</span>) or below 0 counts as 0.
+        </p>
+        <p>
+          <strong>All edges open.</strong> Then <span class="tex">f(x, y) = \binom{x+y}{x}</span>,
+          the number of lattice paths [1]. On the line <span class="tex">x + y = c</span>,
+          <span class="tex">f(x, c - x) = \binom{c}{x} = 2^c\, P(S_c = x)</span> with
+          <span class="tex">S_c \sim \mathrm{Binomial}(c, 1/2)</span>, and the de
+          Moivre&ndash;Laplace theorem [2] says that, centered at
+          <span class="tex">c/2</span> and scaled by <span class="tex">\sqrt{c}/2</span>,
+          this tends to the standard Gaussian as <span class="tex">c \to \infty</span>:
+        </p>
+        <div class="tex">\binom{c}{x} \Big/ \binom{c}{\lfloor c/2 \rfloor} \approx \exp\!\Big(-\frac{(x - c/2)^2}{c/2}\Big).</div>
+        <p>
+          On another line <span class="tex">a x + b y = c</span> with
+          <span class="tex">a, b &gt; 0</span>, Stirling's formula [3] gives
+          <span class="tex">\log \binom{x+y}{x} \approx (x+y)\, H\!\big(\tfrac{x}{x+y}\big)</span>
+          with <span class="tex">H(t) = -t \log t - (1-t)\log(1-t)</span>. Along the line
+          this is <span class="tex">c</span> times a smooth function of
+          <span class="tex">x/c</span> with a single highest point inside, so expanding it to
+          second order there (Laplace's method [4]) gives a bell curve again, of width of
+          order <span class="tex">\sqrt{c}</span>.
+        </p>
+        <p>
+          <strong>Your periodic rule</strong> (the old site's default): for each row
+          <span class="tex">y</span>, <span class="tex">d_y = 3</span> with probability
+          <span class="tex">p</span> and <span class="tex">2</span> otherwise,
+          independently, and the step down from <span class="tex">(x, y)</span> is open
+          only when <span class="tex">d_y</span> divides <span class="tex">x</span>:
+        </p>
+        <div class="tex">X = 1, \qquad Y(x, y) = \begin{cases} 1 & \text{if } d_y \mid x \\ 0 & \text{otherwise.} \end{cases}</div>
+        <p>
+          A heuristic, not a theorem: a path needs on average about
+          <span class="tex">2 + p</span> horizontal steps per vertical one to line up with
+          the open columns, which suggests the most bell-like line moves from slope 1
+          toward <span class="tex">x + (2 + p) y = c</span> as <span class="tex">p</span>
+          goes from 0 to 1. Nothing here proves a Gaussian limit for this rule.
+        </p>
+        <p>
+          <strong>Other weights, and last passage percolation.</strong> With weights
+          <span class="tex">X, Y \ge 0</span>, <span class="tex">f</span> is the partition
+          function of a directed polymer [5]: writing <span class="tex">w(e) = e^{\beta \omega(e)}</span>,
+          <span class="tex">f = \sum_\pi e^{\beta\, \omega(\pi)}</span>, where
+          <span class="tex">\omega(\pi)</span> is the total of the
+          <span class="tex">\omega</span>'s along <span class="tex">\pi</span>. Since one path
+          is the heaviest and there are at most <span class="tex">\binom{x+y}{x}</span> paths,
+        </p>
+        <div class="tex">\max_\pi \omega(\pi) \;\le\; \tfrac{1}{\beta} \log f(x, y) \;\le\; \max_\pi \omega(\pi) + \tfrac{1}{\beta}\log \tbinom{x+y}{x},</div>
+        <p>
+          so as <span class="tex">\beta \to \infty</span>,
+          <span class="tex">\frac{1}{\beta}\log f</span> tends to the last passage time
+          <span class="tex">\max_\pi \omega(\pi)</span> [6]: the same recursion with
+          <span class="tex">(\max, +)</span> in place of <span class="tex">(+, \times)</span>.
+        </p>
+        <p>
+          <strong>Normalizing.</strong> "Normalized" divides each
+          <span class="tex">f(x, y)</span> by the largest <span class="tex">f</span> on its
+          own line <span class="tex">a x + b y = k</span>, so every line tops out at 1.
+          In 3D each square of the grid is cut into two triangles, each flat, with its
+          color fading linearly between its corners.
+        </p>
+        <p>
+          <strong>How it is computed.</strong> Row by row from the bottom, in
+          <span class="tex">\log f</span> (with <span class="tex">\log(e^s + e^t)</span>
+          worked out without forming <span class="tex">e^s</span>), so nothing overflows.
+          The statistics treat <span class="tex">f</span> along the line, divided by its
+          sum, as chances for the position <span class="tex">x</span> (or
+          <span class="tex">y</span> when <span class="tex">b = 0</span>); the Gaussian has
+          their mean and standard deviation. <code>u(&hellip;)</code> mixes the seed and its
+          inputs with the hash function cyrb53 [7], so the same seed and input always give
+          the same number.
+        </p>
+        <p><strong>References</strong></p>
+        <ol class="references">
+          <li>NIST Digital Library of Mathematical Functions, &sect;26.3, &ldquo;Lattice
+            Paths: Binomial Coefficients&rdquo;,
+            <a href="https://dlmf.nist.gov/26.3">dlmf.nist.gov/26.3</a>.</li>
+          <li>W. Feller, <em>An Introduction to Probability Theory and Its
+            Applications</em>, Vol. 1, 3rd ed., Wiley, 1968, Chapter VII.</li>
+          <li>NIST Digital Library of Mathematical Functions, &sect;5.11, Stirling's
+            formula, <a href="https://dlmf.nist.gov/5.11">dlmf.nist.gov/5.11</a>.</li>
+          <li>N. G. de Bruijn, <em>Asymptotic Methods in Analysis</em>, Dover, 1981,
+            Chapters 3&ndash;4.</li>
+          <li>F. Comets, <em>Directed Polymers in Random Environments</em>, Lecture Notes
+            in Mathematics 2175, Springer, 2017.</li>
+          <li>K. Johansson, &ldquo;Shape fluctuations and random matrices&rdquo;,
+            <em>Communications in Mathematical Physics</em> 209 (2000), 437&ndash;476.</li>
+          <li>bryc, cyrb53,
+            <a href="https://github.com/bryc/code/blob/master/jshash/experimental/cyrb53.js">github.com/bryc/code</a>.</li>
+        </ol>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <!-- KaTeX (https://katex.org) typesets the formulas, and math.js
+       (https://mathjs.org) reads the typed ones. The version numbers
+       are fixed so an update can never change the site by surprise. -->
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/katex.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjs@15.2.0/lib/browser/math.js"></script>
+
+  <!-- The code the sims share (in js/, see the README): page helpers
+       (they also typeset the formulas, so they come after KaTeX),
+       charts, colors, domains, the picture's view (moving and zooming
+       it), the picture's mouse and finger controls, and reading formulas
+       with sliders. Then the math, then this page's code. -->
+  <script src="../js/sim-page.js"></script>
+  <script src="../js/sim-charts.js"></script>
+  <script src="../js/sim-colors.js"></script>
+  <script src="../js/sim-domains.js"></script>
+  <script src="../js/sim-view.js"></script>
+  <script src="../js/sim-controls.js"></script>
+  <script src="../js/formulas.js"></script>
+  <script src="path-counting/path-counting-math.js"></script>
+  <script src="path-counting/path-counting.js"></script>
+
+</body>
+</html>

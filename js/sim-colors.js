@@ -9,6 +9,7 @@
      hsvToHex, hexToHSV       a color as hue, saturation and brightness,
                               and back
      hexToRGB, rgbToHex       a color "#rrggbb" as three numbers, and back
+     heatColor(t)             blue (t = 0) to red (t = 1), for heights
    ===================================================================== */
 
 
@@ -58,4 +59,13 @@ function hexToRGB(hex) {
 }
 function rgbToHex(rgb) {
   return "#" + rgb.map(function (t) { return Math.round(t).toString(16).padStart(2, "0"); }).join("");
+}
+
+// A height t from 0 (low: dark blue) to 1 (high: red), as [red, green,
+// blue], each 0 .. 255. The colors run smoothly in between, the same way
+// as the random mountain's heights: the hue goes from 225 (blue) to 0
+// (red), and the color gets brighter on the way up.
+function heatColor(t) {
+  const down = 1 - Math.min(Math.max(t, 0), 1);   // 1 at the bottom, 0 at the top
+  return hexToRGB(hsvToHex(225 * down, 0.7, 0.9 - 0.55 * down));
 }

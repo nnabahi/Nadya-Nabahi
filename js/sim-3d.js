@@ -3,11 +3,14 @@
    ---------------------------------------------------------------------
    What it does, in plain words:
      Draws a 3D picture that you can turn around with the mouse or your
-     fingers. For now it draws STACKS: a floor of cells, and on each
-     cell a stack of blocks (cubes or coins) as tall as that cell's
-     height. The random mountain uses it, on the square grid and on
-     hyperbolic tilings and trees (their edges drawn as lines on the
-     floor). Later sims can add their own kinds of pictures here.
+     fingers. It draws two kinds of picture:
+       STACKS: a floor of cells, and on each cell a stack of blocks
+         (cubes or coins) as tall as that cell's height. The random
+         mountain uses it, on the square grid and on hyperbolic tilings
+         and trees (their edges drawn as lines on the floor).
+       SURFACES: a colored surface over a grid, like a graph
+         z = h(x, y) in Desmos 3D, with balls on some of its points.
+         The path counting sim uses it.
 
        drag (left mouse, one finger)     turn the picture around
        mouse wheel, or pinch             zoom in or out
@@ -31,7 +34,8 @@
    Contents:
      make3DView(box, height)       a 3D picture inside the element "box"
      drawStacks(view3d, stacks)    a floor with stacks of blocks on it
-     resetCamera(view3d)           look from the starting angle again
+     drawSurface(view3d, surface)  a surface over a grid, with balls on it
+     resetCamera(view3d, toward)   look from the starting angle again
      setHeight(view3d, height)     make the picture taller or shorter (full screen popup)
    ===================================================================== */
 
@@ -111,10 +115,13 @@ export function make3DView(box, height) {
   return view3d;
 }
 
-// Look at the picture from the starting angle again.
-export function resetCamera(view3d) {
-  const angle = CAMERA_ANGLE * Math.PI / 180;
-  view3d.camera.position.set(0, CAMERA_DISTANCE * Math.sin(angle), CAMERA_DISTANCE * Math.cos(angle));
+// Look at the picture from the starting angle again. "toward"
+// (optional) is the direction [x, y] on the floor to look in; the
+// starting angle looks north, [0, 1].
+export function resetCamera(view3d, toward) {
+  const angle = CAMERA_ANGLE * Math.PI / 180, [tx, ty] = toward || [0, 1];
+  const back = CAMERA_DISTANCE * Math.cos(angle) / Math.hypot(tx, ty);   // the camera stands behind, facing "toward"
+  view3d.camera.position.set(-tx * back, CAMERA_DISTANCE * Math.sin(angle), ty * back);
   view3d.controls.target.set(0, 0.25, 0);
   view3d.controls.update();
   render(view3d);
@@ -143,11 +150,11 @@ function render(view3d) { view3d.renderer.render(view3d.scene, view3d.camera); }
    Shapes and colors
    --------------------------------------------------------------------- */
 
-// The shape of one block: a cube or a coin, one unit wide and one unit
-// tall, standing on the floor (its bottom at height 0).
+// The shape of one block: a cube, a coin or a ball, one unit wide and
+// one unit tall, standing on the floor (its bottom at height 0).
 function blockShape(shape) {
-  const geometry = shape === "coins"
-    ? new THREE.CylinderGeometry(0.5, 0.5, 1, COIN_SIDES)
+  const geometry = shape === "coins" ? new THREE.CylinderGeometry(0.5, 0.5, 1, COIN_SIDES)
+    : shape === "balls" ? new THREE.SphereGeometry(0.5, 16, 12)
     : new THREE.BoxGeometry(1, 1, 1);
   geometry.translate(0, 0.5, 0);   // from "centered at 0" to "standing on 0"
   return geometry;
@@ -290,25 +297,31 @@ export function drawStacks(view3d, stacks) {
   } else if (floorCells) {
     for (let i = 0; i < floorCount; i++) placeCopy(floorMesh, i, floorCells.x[i], -0.04, -floorCells.y[i], 1, 0.04, groundColor);
   } else {
-    // One big flat box under the whole floor (it is stretched to size).
-    const width = floor.xmax - floor.xmin + 1, depth = floor.ymax - floor.ymin + 1;
-    const m = floorMesh.instanceMatrix.array;
-    m.set([width, 0, 0, 0,  0, 0.04, 0, 0,  0, 0, depth, 0,
-           (floor.xmin + floor.xmax) / 2, -0.04, -(floor.ymin + floor.ymax) / 2, 1], 0);
-    floorMesh.instanceColor.array.set(groundColor, 0);
+    placeFloorBox(floorMesh, floor, groundColor);
   }
   floorMesh.instanceMatrix.needsUpdate = floorMesh.instanceColor.needsUpdate = true;
   drawLines(view3d, stacks.lines || NO_LINES, stacks.lineColor);
-
-  // Shrink the whole picture to fit: the floor's middle at the center,
-  // and the floor (or the tallest stack, if it is taller) PICTURE_SIZE
-  // across.
-  const size = Math.max(across, tallest * block);
-  const scale = PICTURE_SIZE / size;
-  view3d.world.scale.setScalar(scale);
-  view3d.world.position.set(-scale * (floor.xmin + floor.xmax) / 2, -scale * tallest * block / 4,
-                            scale * (floor.ymin + floor.ymax) / 2);
+  fitWorld(view3d, floor, across, tallest * block);
   render(view3d);
+}
+
+// One big flat box under a whole box floor { xmin, xmax, ymin, ymax }:
+// copy 0 of "mesh", stretched to size, in color rgb (from toThree).
+function placeFloorBox(mesh, floor, rgb) {
+  const width = floor.xmax - floor.xmin + 1, depth = floor.ymax - floor.ymin + 1;
+  mesh.instanceMatrix.array.set([width, 0, 0, 0,  0, 0.04, 0, 0,  0, 0, depth, 0,
+    (floor.xmin + floor.xmax) / 2, -0.04, -(floor.ymin + floor.ymax) / 2, 1], 0);
+  mesh.instanceColor.array.set(rgb, 0);
+}
+
+// Shrink the whole picture to fit: the floor's middle at the center,
+// and the floor ("across" wide) or the picture's height ("tall", if it
+// is taller) PICTURE_SIZE across.
+function fitWorld(view3d, floor, across, tall) {
+  const scale = PICTURE_SIZE / Math.max(across, tall);
+  view3d.world.scale.setScalar(scale);
+  view3d.world.position.set(-scale * (floor.xmin + floor.xmax) / 2, -scale * tall / 4,
+                            scale * (floor.ymin + floor.ymax) / 2);
 }
 
 // The thin lines on the floor, just above it. three.js draws them as
@@ -348,4 +361,102 @@ function floorBox(stacks) {
     ymin = Math.min(ymin, f.y[i]); ymax = Math.max(ymax, f.y[i]);
   }
   return { xmin: xmin, xmax: xmax, ymin: ymin, ymax: ymax };
+}
+
+
+/* ---------------------------------------------------------------------
+   Surfaces
+   --------------------------------------------------------------------- */
+
+// Draw a colored surface over a grid, like a graph z = h(x, y) in Desmos
+// 3D, with a row of balls on it joined by a line. "surface" has:
+//   size        the grid: the points (x, y) with x and y from 0 to size - 1
+//   height      each point's height, from 0 to 1, in a list where point
+//               (x, y) is number x + size * y; NaN where there is no surface
+//   show        false to hide the surface (the floor and balls still show)
+//   color(t)    the color [r, g, b] (0..255) of height t
+//   balls       { x: [...], y: [...], height: [...] }: a ball at each
+//               (x, y), at that height, joined in order by a line
+//   ballColor   the balls' and their line's color [r, g, b]
+//   ground      the floor's color [r, g, b]
+//   lines, lineColor    thin lines on the floor, as in drawStacks
+//   stretch     how tall: height 1 is drawn a quarter as tall as the
+//               floor is wide, times "stretch"
+//
+// How the surface is drawn: every square of the grid is cut into two
+// triangles along a diagonal. Each triangle is flat (three points always
+// lie on one plane), and its color fades evenly ("linearly") from one
+// corner's color to the next, so the whole surface is smooth in color.
+// A triangle with a corner where there is no surface is left out.
+export function drawSurface(view3d, surface) {
+  if (view3d.box.clientWidth && view3d.box.clientWidth !== view3d.width) fitToBox(view3d);   // the box changed size
+  const n = surface.size, top = surface.stretch * n / 4;   // the height of 1, in cells
+
+  // The surface: one corner ("vertex") per grid point, with its place
+  // and color, and a list of triangles, three corner numbers each.
+  // three.js colors each triangle from its corners' colors.
+  const places = new Float32Array(3 * n * n), colors = new Float32Array(3 * n * n);
+  const palette = [];                      // 256 colors, worked out once
+  for (let k = 0; k < 256; k++) palette.push(toThree(surface.color(k / 255)));
+  for (let y = 0; y < n; y++) {
+    for (let x = 0; x < n; x++) {
+      const p = x + n * y, h = surface.height[p];
+      places.set([x, (isNaN(h) ? 0 : h * top) + 0.03, -y], 3 * p);   // a hair above the floor, so they don't flicker into each other
+      colors.set(palette[isNaN(h) ? 0 : Math.round(255 * Math.min(Math.max(h, 0), 1))], 3 * p);
+    }
+  }
+  const triangles = [];
+  const there = function (p) { return !isNaN(surface.height[p]); };
+  for (let y = 0; y + 1 < n; y++) {
+    for (let x = 0; x + 1 < n; x++) {
+      const p = x + n * y, right = p + 1, up = p + n, upRight = p + n + 1;
+      if (there(p) && there(right) && there(upRight)) triangles.push(p, right, upRight);
+      if (there(p) && there(upRight) && there(up)) triangles.push(p, upRight, up);
+    }
+  }
+  if (!view3d.surface) {
+    // DoubleSide: both sides of the surface show (it can be seen from below).
+    view3d.surface = new THREE.Mesh(new THREE.BufferGeometry(),
+      new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide }));
+    view3d.world.add(view3d.surface);
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.BufferAttribute(places, 3));
+  geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+  geometry.setIndex(triangles);
+  geometry.computeVertexNormals();         // which way each corner faces, for the light
+  view3d.surface.geometry.dispose();
+  view3d.surface.geometry = geometry;
+  view3d.surface.visible = surface.show !== false;
+
+  // The balls, a little bigger than a cell so they show on a big grid,
+  // their middles on the surface.
+  const balls = surface.balls, count = balls.x.length;
+  const ballMesh = useMesh(view3d, "balls", "balls", count);
+  const ballColor = toThree(surface.ballColor), across = Math.max(0.6, n / 60);
+  const path = new Float32Array(3 * count);
+  for (let i = 0; i < count; i++) {
+    const h = balls.height[i] * top;
+    placeCopy(ballMesh, i, balls.x[i], h - across / 2, -balls.y[i], across, across, ballColor);
+    path.set([balls.x[i], h, -balls.y[i]], 3 * i);
+  }
+  ballMesh.instanceMatrix.needsUpdate = ballMesh.instanceColor.needsUpdate = true;
+  if (!view3d.ballLine) {
+    view3d.ballLine = new THREE.Line(new THREE.BufferGeometry(), new THREE.LineBasicMaterial());
+    view3d.ballLine.frustumCulled = false;
+    view3d.world.add(view3d.ballLine);
+  }
+  view3d.ballLine.geometry.dispose();
+  view3d.ballLine.geometry = new THREE.BufferGeometry();
+  view3d.ballLine.geometry.setAttribute("position", new THREE.BufferAttribute(path, 3));
+  view3d.ballLine.material.color.setRGB(ballColor[0], ballColor[1], ballColor[2]);   // already linear
+
+  // The floor: one flat box under the grid, with the lines on it.
+  const floor = { xmin: 0, xmax: n - 1, ymin: 0, ymax: n - 1 };
+  const floorMesh = useMesh(view3d, "floor", "cubes", 1);
+  placeFloorBox(floorMesh, floor, toThree(surface.ground));
+  floorMesh.instanceMatrix.needsUpdate = floorMesh.instanceColor.needsUpdate = true;
+  drawLines(view3d, surface.lines || NO_LINES, surface.lineColor);
+  fitWorld(view3d, floor, 1.2 * n, top);   // a little room around the floor
+  render(view3d);
 }

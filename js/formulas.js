@@ -8,6 +8,8 @@
 
    Contents:
      readTree(text)                 read a typed formula, Desmos style
+     formulaTex(tree)               the formula typeset by KaTeX, with
+                                      {condition: a, b} drawn as cases
      sliderLetters(tree)            the letters in it that need a slider
      isFunctionName(path, parent)   is this name used as a function?
      NEW_SLIDER, SMALLEST_STEP      a new slider's settings
@@ -16,7 +18,9 @@
 
 
 // Turn the typed text into a math.js expression "tree", made more
-// Desmos-like in two ways:
+// Desmos-like in three ways:
+//   - {condition: a, b} means "a if the condition holds, otherwise b",
+//     as in Desmos (see piecewise below).
 //   - "=" means "equals". math.js reads a single "=" as "set y to ...",
 //     and refuses  x^2 + y^2 = 4  outright, so before reading, every
 //     single "=" (not part of <=, >=, == or !=) becomes "==".
@@ -28,7 +32,7 @@
 // every piece of the tree; "path" says where that piece sits inside its
 // "parent".)
 function readTree(text) {
-  const equalsFixed = text.replace(/(^|[^<>=!])=(?!=)/g, "$1==");
+  const equalsFixed = piecewise(text).replace(/(^|[^<>=!])=(?!=)/g, "$1==");
   return math.parse(equalsFixed).transform(function (node, path, parent) {
     // \p{L} is any letter, Latin or Greek (the "u" flag lets the test use it).
     const isWord = node.isSymbolNode && /^\p{L}{2,}$/u.test(node.name);
@@ -40,6 +44,84 @@ function readTree(text) {
       return new math.OperatorNode("*", "multiply", [product, letter], true);
     });
   });
+}
+
+// Desmos's piecewise formulas, written the way math.js reads them:
+//   {c: a, b}          ->  (c ? a : b)        a if c holds, otherwise b
+//   {c1: a, c2: b, d}  ->  (c1 ? a : c2 ? b : d)
+//   {c: a}             ->  (c ? a : NaN)      no "otherwise": undefined, as in Desmos
+//   {c}                ->  (c ? 1 : NaN)
+// They can sit inside each other: {x > 0: {y > 0: 1, 2}, 3}.
+function piecewise(text) {
+  let out = "";
+  for (let i = 0; i < text.length; i++) {
+    if (text[i] !== "{") { out += text[i]; continue; }
+    const end = closingBrace(text, i);
+    const parts = splitOutside(text.slice(i + 1, end), ",").map(piecewise);
+    // Build it from the back: a last part with no ":" (after other
+    // parts) is the "otherwise".
+    let result = "NaN";
+    if (parts.length > 1 && splitOutside(parts[parts.length - 1], ":").length === 1) result = parts.pop();
+    for (let k = parts.length - 1; k >= 0; k--) {
+      const [condition, value] = splitOutside(parts[k], ":");
+      result = "(" + condition + ") ? (" + (value === undefined ? "1" : value) + ") : (" + result + ")";
+    }
+    out += "(" + result + ")";
+    i = end;
+  }
+  return out;
+}
+
+// Where the "}" that closes the "{" at position "start" is.
+function closingBrace(text, start) {
+  let depth = 0;
+  for (let i = start; i < text.length; i++) {
+    if (text[i] === "{") depth++;
+    if (text[i] === "}" && --depth === 0) return i;
+  }
+  throw new Error("a { has no matching }.");
+}
+
+// Split "text" at every "mark" (like "," or ":") that is not inside
+// brackets, so  mod(x, 3) = 0 : 1  splits at the ":" but not the ",".
+function splitOutside(text, mark) {
+  const parts = [];
+  let depth = 0, start = 0;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if ("([{".includes(ch)) depth++;
+    else if (")]}".includes(ch)) depth--;
+    else if (ch === mark && depth === 0) { parts.push(text.slice(start, i)); start = i + 1; }
+  }
+  parts.push(text.slice(start));
+  return parts;
+}
+
+// The formula typeset by KaTeX (as a string KaTeX draws), with a
+// piecewise formula drawn the way Desmos shows it, as cases:
+//   { a   if c
+//   { b   otherwise
+// (math.js asks "handler" about every piece of the tree first; it
+// answers only for the "c ? a : b" pieces, and math.js does the rest.)
+function formulaTex(tree) {
+  const options = { parenthesis: "keep", implicit: "hide", handler: casesTex };
+  return tree.toTex(options);
+  function casesTex(node) {
+    let n = bare(node);
+    if (!n.isConditionalNode) return undefined;
+    const rows = [];
+    while (n.isConditionalNode) {
+      rows.push(bare(n.trueExpr).toTex(options) + " & \\text{if } " + bare(n.condition).toTex(options));
+      n = bare(n.falseExpr);
+    }
+    if (!(n.isSymbolNode && n.name === "NaN")) rows.push(n.toTex(options) + " & \\text{otherwise}");
+    return "\\begin{cases}" + rows.join(" \\\\ ") + "\\end{cases}";
+  }
+  // Without the brackets piecewise put around each piece.
+  function bare(n) {
+    while (n.isParenthesisNode) n = n.content;
+    return n;
+  }
 }
 
 // The letters in the formula that need a slider: everything except x, y
