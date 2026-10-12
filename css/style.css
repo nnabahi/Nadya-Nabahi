@@ -632,6 +632,16 @@ a.card:hover {
   max-width: 100%;
 }
 
+/* A smaller grid, for fewer cells (a cellular automaton's neighborhood:
+   5 x 5 in 2D, 11 in a row in 1D). */
+.tile-grid.small {
+  max-width: 150px;
+}
+
+.tile-grid.small.one-row {
+  max-width: 330px;
+}
+
 .tile-cell {
   aspect-ratio: 1;
   min-width: 0;
