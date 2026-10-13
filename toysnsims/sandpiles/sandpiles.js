@@ -641,7 +641,7 @@ function drawTimelineChart() {
     ? "Start from an empty table, tick the storm (with \"Wait until stable\") and press Play " +
       "to watch the pile turn critical."
     : "Across: storm grains, " + width.toLocaleString() + (width === 1 ? " grain" : " grains") +
-      " per column. Up: avalanche sizes. Darkest: the most common size in that column.";
+      " per column. Up: avalanche sizes (0: the grain toppled nothing). Darkest: the most common size in that column.";
   if (columns.length === 0) return;
   const w = canvas.clientWidth, h = canvas.clientHeight;
   const left = 40, up = 4, bottom = h - 16;
@@ -676,9 +676,9 @@ function drawAvalancheChart() {
   const canvas = byId("avalanche-chart");
   const pen = chartPen(canvas);
   const bins = latest.avalancheBins, total = latest.avalancheCount;
-  const sized = total - (bins[0] || 0);       // avalanches with at least one topple
+  const sized = total - (bins[0] || 0);       // grains that toppled something
   byId("avalanche-info").textContent = total === 0 ? ""
-    : total.toLocaleString() + " avalanches so far, " + sized.toLocaleString() + " with at least one topple. " +
+    : total.toLocaleString() + " grains dropped so far; " + sized.toLocaleString() + " of them set off an avalanche. " +
       "Both scales are logarithmic, so a power law shows as a straight line.";
   const dots = [];                            // [log10 size, log10 fraction]
   for (let b = 1; b < bins.length; b++) {
