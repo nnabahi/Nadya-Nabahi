@@ -300,7 +300,7 @@ function customStart(d) {
 const worker = startWorker(mountainWorker,
   [newMountain, newGraphMountain, makeGraph, tilingShape, motionTimes, motionApply, halfTurn, coshFromStart,
    learnedRules, tilingByGeometry, tilingByRules, tilingRules, testRules, hashTable, ballAround, spreadPlace,
-   makeRunLoop, newTrace, keepSample, pickSite]);
+   makeRunLoop, newTrace, keepSample, pickSite, newClocks]);
 
 worker.onmessage = function (event) {
   const message = event.data;
@@ -326,8 +326,7 @@ worker.onmessage = function (event) {
 };
 
 worker.onerror = function () {
-  showMessage("The sim couldn't start. It loads one small library (seedrandom) from the " +
-              "internet, so check the connection and reload the page.");
+  showMessage("The sim couldn't start. Try reloading the page.");
 };
 
 // A new mountain with the current tile, domain and seed. With
