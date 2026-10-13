@@ -56,7 +56,7 @@
   --corner-radius: 10px;
 
   /* The widest the page content gets on big screens. */
-  --page-width: 1100px;
+  --page-width: 1240px;
 }
 
 
@@ -82,7 +82,7 @@ body {
   background: var(--color-background);
   color: var(--color-text);
   font-family: var(--font-body);
-  font-size: 17px;
+  font-size: 15px;
   line-height: 1.6;                       /* space between lines of text */
 }
 
@@ -420,8 +420,9 @@ a.card:hover {
    a box, just change this picture.
 
    The statistics and the big charts join into one L-shaped box (the
-   last rules of this section). A page with no big charts just leaves
-   out the panel-charts section.
+   last rules of this section). js/sim-page.js fits it: the tables and
+   charts fill the space under the picture down to where the options
+   end, and the rest go in the full-width row, in their HTML order.
 
    Inside both, each table or chart (with its heading) is a
    <div class="stat">, laid out by .stat-grid: side by side when there
@@ -468,12 +469,12 @@ a.card:hover {
 .panel-charts   { grid-area: charts; }
 .panel-about    { grid-area: about; }
 
-/* The L shape. When a page has big charts (":has" = "contains"), the
+/* The L shape. When the full-width row shows (":has" = "contains"), the
    statistics box reaches down over the 20px gap and 1px further, so it
    covers the top edge of the charts box under it: the two read as one
    L-shaped box. Its bottom corners are square, and so is the charts
    box's top left corner, where the two meet. */
-.sim-layout:has(.panel-charts) .panel-stats {
+.sim-layout:has(.panel-charts:not([hidden])) .panel-stats {
   align-self: stretch;        /* as tall as its row, down to the charts */
   margin-bottom: -21px;       /* the gap, plus the charts box's top edge */
   border-bottom: 0;
