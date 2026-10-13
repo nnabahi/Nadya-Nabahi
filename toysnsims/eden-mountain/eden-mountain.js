@@ -95,7 +95,7 @@ const UNDER_COLOR_3D = "#8a877f";
 // The speeds on the Speed slider, in blocks per second. Infinity means
 // "as fast as the computer can". The default is slow, so you can watch
 // every block land.
-const SPEEDS = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 5000, 20000, 100000, Infinity];
+const SPEEDS = [1, 100, Infinity];   // the slider's starting min and max (boxes at its ends change them)
 const DEFAULT_SPEED = 20;
 
 

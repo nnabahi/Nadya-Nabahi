@@ -13,6 +13,8 @@
      oncePerFrame(draw)               draw at the next screen refresh
      showPlaying(on)                  the Play button, while it plays
      speedText(speed, one, many)      "5 moves per second", for the Speed slider
+     addRangeBoxes(slider, lo, hi, ...)  "min" and "max" boxes at a slider's ends
+     connectSpeedSlider(id, speeds, ...) a Speed slider with those boxes
      connectPlay(worker, ...)         Play / Pause, Step, Restart and Speed
      connectSeed(onChange)            the Seed box and its New seed button
      listenToTool(frame, useDrawing)  the drawing tool inside a sim page,
@@ -99,11 +101,79 @@ function speedText(speed, one, many) {
   return speed.toLocaleString() + " " + (speed === 1 ? one : many) + " per second";
 }
 
+// Editable "min" and "max" boxes at the two ends of a slider, like
+// Desmos's. A long slider range makes a slider jump (2, 5, 10, ... at a
+// time, as each pixel is many steps), so typing a smaller range in the
+// boxes lets it move one step at a time (its own step, 1 for whole
+// numbers). lo and hi are the starting range. With extraNotch, the
+// slider goes one step past "max" (for "as fast as possible").
+// onChange() runs when a box changes the range (the browser may have
+// moved the slider's value to stay inside it).
+function addRangeBoxes(slider, lo, hi, onChange, extraNotch) {
+  const step = Number(slider.step) || 1;
+  const floor = slider.min === "" ? -Infinity : Number(slider.min);   // the lowest "min" allowed
+  function box(value, title) {
+    const input = document.createElement("input");
+    input.type = "number";
+    input.className = "range-end";
+    input.step = step;
+    input.value = value;
+    input.title = title;
+    input.addEventListener("change", setRange);
+    return input;
+  }
+  const low = box(lo, "The slider's left end (min)");
+  const high = box(hi, "The slider's right end (max)");
+  slider.before(low);
+  slider.after(high);
+  let range = [lo, hi];            // the last good range, kept if a box gets nonsense
+  function setRange() {
+    const a = Number(low.value), b = Number(high.value);
+    if (low.value !== "" && high.value !== "" && a >= floor && a < b) range = [a, b];
+    low.value = range[0];
+    high.value = range[1];
+    slider.min = range[0];
+    slider.max = extraNotch ? range[1] + step : range[1];
+    if (onChange) onChange();
+  }
+  const keep = onChange;
+  onChange = null;                 // no onChange for the first setRange
+  setRange();
+  onChange = keep;
+}
+
+// A Speed slider (or a rate slider like it): its value is the speed
+// itself, from "min" to "max" (boxes at its ends, addRangeBoxes) in
+// steps of 1 (or of the slowest speed, if that is less than 1).
+//   id          the slider's id="..."
+//   speeds      the slowest and fastest speeds are its starting range;
+//               if the list ends in Infinity, one notch past "max" is
+//               "as fast as possible"
+//   startSpeed  where it starts
+//   onChange(speed)  runs whenever it moves, and once at the start
+function connectSpeedSlider(id, speeds, startSpeed, onChange) {
+  const slider = byId(id);
+  const finite = speeds.filter(isFinite);
+  const fastest = speeds[speeds.length - 1] === Infinity;
+  const slowest = finite[0], top = finite[finite.length - 1];
+  slider.step = Math.min(1, slowest);
+  slider.min = Math.min(1, slowest);   // "min" can't go below one step
+  function read() {
+    const value = Number(slider.value);
+    onChange(fastest && value > Number(slider.max) - Number(slider.step) / 2 ? Infinity : value);
+  }
+  addRangeBoxes(slider, slowest, top, read, fastest);
+  slider.value = startSpeed === Infinity ? slider.max : startSpeed;
+  slider.addEventListener("input", read);
+  read();
+}
+
 // Play / Pause, Step, Restart and the Speed slider, for a sim whose math
 // runs in a second thread on the shared run loop (makeRunLoop,
 // js/sim-worker.js), which understands "play", "pause" and "step".
-//   speeds      the Speed slider's stops, per second (Infinity = as fast
-//               as possible); startSpeed is one of them
+//   speeds      the Speed slider's slowest and fastest speeds, per
+//               second, ending in Infinity for "as fast as possible"
+//               (connectSpeedSlider); startSpeed is where it starts
 //   one, many   what one step is called, e.g. "sweep" and "sweeps"
 //   restart()   what the Restart button does
 // Returns "player": player.playing is true while the sim plays,
@@ -112,9 +182,8 @@ function speedText(speed, one, many) {
 // (Sandpiles and percolation run differently and have their own.)
 function connectPlay(worker, speeds, startSpeed, one, many, restart) {
   const player = { playing: false };
-  let speedIndex = speeds.indexOf(startSpeed);
-  function sendPlay() { worker.postMessage({ type: "play", speed: speeds[speedIndex] }); }
-  function showSpeed() { byId("speed-label").textContent = speedText(speeds[speedIndex], one, many); }
+  let speed = startSpeed;
+  function sendPlay() { worker.postMessage({ type: "play", speed: speed }); }
 
   player.setPlaying = function (on) {
     player.playing = on;
@@ -130,13 +199,9 @@ function connectPlay(worker, speeds, startSpeed, one, many, restart) {
   });
   byId("restart").addEventListener("click", function () { restart(); });
 
-  const slider = byId("speed");
-  slider.max = speeds.length - 1;
-  slider.value = speedIndex;
-  showSpeed();
-  slider.addEventListener("input", function () {
-    speedIndex = Number(slider.value);
-    showSpeed();
+  connectSpeedSlider("speed", speeds, startSpeed, function (newSpeed) {
+    speed = newSpeed;
+    byId("speed-label").textContent = speedText(speed, one, many);
     if (player.playing) sendPlay();
   });
   return player;

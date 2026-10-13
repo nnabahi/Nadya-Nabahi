@@ -56,7 +56,7 @@ const BALL = { R: 5, most: 20, cells: 20000 };
 // The speeds on the Speed slider, in moves per second.
 // Infinity means "as fast as the computer can". The default is low, so
 // you can follow the moves; the Speed slider goes faster.
-const SPEEDS = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, Infinity];
+const SPEEDS = [1, 100, Infinity];   // the slider's starting min and max (boxes at its ends change them)
 const DEFAULT_SPEED = 10;
 
 

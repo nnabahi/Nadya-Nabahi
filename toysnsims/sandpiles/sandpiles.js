@@ -44,7 +44,7 @@ const DEFAULTS = {
 const MAX_SIDE = 300;             // the biggest box or torus is 300 x 300
 const MIN_TORUS = 3;              // a torus at least 3 x 3, so every cell has 4 (or 8) different neighbors
 const MAX_GRAINS = 1000000;       // the most grains in the center pile
-const GRAINS_SLIDER_MAX = 5000;   // the slider goes up to this; the box can go higher
+const GRAINS_SLIDER_MAX = 5000;   // the slider's starting max (its max box and the n box can go higher)
 const MAX_HEIGHT_SETTING = 50;    // "Random: up to" and "Full: height" go up to this
 const MAX_PICTURE_HEIGHT = 600;   // in screen pixels
 const OUTSIDE = "#ecebe7";        // around a custom domain (cells not on the table)
@@ -60,12 +60,12 @@ const BALL = { R: 5, most: 20, cells: 20000 };
 // The speeds on the Speed slider, in topples (or rounds) per second.
 // Infinity means "as fast as the computer can". The default is slow, so
 // you can watch every topple.
-const SPEEDS = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 5000, 20000, Infinity];
-const DEFAULT_SPEED = SPEEDS.indexOf(10);
+const SPEEDS = [1, 100, Infinity];   // the slider's starting min and max (boxes at its ends change them)
+const DEFAULT_SPEED = 10;
 
 // The storm's rates, in grains per second.
-const STORM_RATES = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, Infinity];
-const DEFAULT_STORM_RATE = STORM_RATES.indexOf(2);
+const STORM_RATES = [1, 100, Infinity];   // the slider's starting min and max (boxes at its ends change them)
+const DEFAULT_STORM_RATE = 2;
 
 
 /* =====================================================================
@@ -85,8 +85,8 @@ let customNeighbors = 4;        // the graph tool's neighbors for it
 let ballSteps = null;
 
 let playing = false;            // it starts paused; Play sets it going
-let speedIndex = DEFAULT_SPEED;
-let stormRateIndex = DEFAULT_STORM_RATE;
+let speed = DEFAULT_SPEED;
+let stormRate = DEFAULT_STORM_RATE;
 let run = 0;                    // counts restarts, so leftovers from an older run are ignored
 let playId = 0;                 // counts presses of Play and Pause (see section 4)
 
@@ -246,9 +246,9 @@ function sendSettings() {
   worker.postMessage({
     type: "settings",
     rounds: checked("order") === "rounds",
-    speed: SPEEDS[speedIndex],
+    speed: speed,
     storm: byId("storm").checked,
-    stormRate: STORM_RATES[stormRateIndex],
+    stormRate: stormRate,
     stormWait: byId("storm-wait").checked,
   });
 }
@@ -679,19 +679,16 @@ for (const radio of document.querySelectorAll('input[name="order"]')) {
 }
 function showSpeed() {
   const what = checked("order") === "rounds" ? "round" : "topple";
-  byId("speed-label").textContent = speedText(SPEEDS[speedIndex], what, what + "s");
+  byId("speed-label").textContent = speedText(speed, what, what + "s");
 }
-byId("speed").addEventListener("input", function () {
-  speedIndex = Number(this.value);
+connectSpeedSlider("speed", SPEEDS, DEFAULT_SPEED, function (newSpeed) {
+  speed = newSpeed;
   showSpeed();
   sendSettings();
 });
-function showStormRate() {
-  byId("storm-label").textContent = speedText(STORM_RATES[stormRateIndex], "grain", "grains");
-}
-byId("storm-rate").addEventListener("input", function () {
-  stormRateIndex = Number(this.value);
-  showStormRate();
+connectSpeedSlider("storm-rate", STORM_RATES, DEFAULT_STORM_RATE, function (newRate) {
+  stormRate = newRate;
+  byId("storm-label").textContent = speedText(stormRate, "grain", "grains");
   sendSettings();
 });
 byId("storm").addEventListener("change", function () { sendSettings(); drawSoon(); });
@@ -711,9 +708,9 @@ connectSeed(function () { restart(); });
 // --- Start ------------------------------------------------------------
 fillDomainOptions(DEFAULTS, MAX_SIDE, BALL);
 byId("start-kind").value = DEFAULTS.start;
+addRangeBoxes(byId("grains-slider"), 0, GRAINS_SLIDER_MAX);   // min and max boxes (js/sim-page.js)
 byId("set-grains").value = byId("grains-slider").value = DEFAULTS.grains;
 byId("set-grains").max = MAX_GRAINS;
-byId("grains-slider").max = GRAINS_SLIDER_MAX;
 byId("set-most").value = byId("most-slider").value = DEFAULTS.most;
 byId("set-full").value = byId("full-slider").value = DEFAULTS.full;
 byId("set-most").max = byId("most-slider").max = MAX_HEIGHT_SETTING;
@@ -721,12 +718,6 @@ byId("set-full").max = byId("full-slider").max = MAX_HEIGHT_SETTING;
 byId("set-value").value = DEFAULTS.value;
 byId("set-slope").value = DEFAULTS.slope;
 byId("seed").value = DEFAULTS.seed;
-byId("speed").max = SPEEDS.length - 1;
-byId("speed").value = speedIndex;
-byId("storm-rate").max = STORM_RATES.length - 1;
-byId("storm-rate").value = stormRateIndex;
-showSpeed();
-showStormRate();
 showStartChoice();
 sendSettings();
 useBox();

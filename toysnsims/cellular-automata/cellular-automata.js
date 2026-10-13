@@ -77,7 +77,7 @@ const BORDER = "#1e1e1e";          // around the dots of the perimeter chart
 
 // The speeds on the Speed slider, in steps per second. Infinity means
 // "as fast as the computer can". The default is slow, so you can watch.
-const SPEEDS = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, Infinity];
+const SPEEDS = [1, 100, Infinity];   // the slider's starting min and max (boxes at its ends change them)
 const DEFAULT_SPEED = 10;
 
 
