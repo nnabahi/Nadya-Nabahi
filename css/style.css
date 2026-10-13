@@ -617,7 +617,7 @@ a.card:hover {
 }
 
 /* A clickable grid of small square cells, for picking a set of offsets
-   (the random mountain's Tile T, a cellular automaton's neighborhood;
+   (Eden Growth's Tile T, a cellular automaton's neighborhood;
    showOffsetGrid in js/sim-controls.js): a lit cell is in the set. The
    middle cell is either dark (the mountain's site itself) or outlined
    ("own": the cell itself, which a neighborhood may include). In 1D it
@@ -1152,7 +1152,7 @@ body.embedded .graph-wrap {
 /* =====================================================================
    11. Check pages
    ---------------------------------------------------------------------
-   The check pages (like toysnsims/eden-mountain-check.html)
+   The check pages (like toysnsims/eden-growth-check.html)
    test a sim's math on its own.
    ===================================================================== */
 

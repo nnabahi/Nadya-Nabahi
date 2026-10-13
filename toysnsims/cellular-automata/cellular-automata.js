@@ -4,7 +4,7 @@
    What it does, in plain words:
      - Reads the settings: 1D or 2D, the number of states b, the
        neighborhood (from the clickable grid of cells, shared with the
-       random mountain: showOffsetGrid in js/sim-controls.js), the rule
+       Eden Growth: showOffsetGrid in js/sim-controls.js), the rule
        number n, the edges, the size and the start.
      - Turns n into the rule's table (ruleTable, in
        cellular-automata-rule.js) and hands everything to the rule,
@@ -103,7 +103,7 @@ let look = null;             // 1D: the last step shown when scrolled back, or n
 /* =====================================================================
    3. THE NEIGHBORHOOD: THE CLICKABLE GRID AND PRESETS
    ---------------------------------------------------------------------
-   As on the random mountain: a grid of cells around the cell itself
+   As on Eden Growth: a grid of cells around the cell itself
    (outlined, in the middle; here it can be in the neighborhood too).
    Clicking a cell puts it in the neighborhood or takes it out. Every
    change makes the run again up to the same step.

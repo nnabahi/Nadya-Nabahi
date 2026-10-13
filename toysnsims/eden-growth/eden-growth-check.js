@@ -1,7 +1,7 @@
 /* =====================================================================
-   eden-mountain-check.js  —  the tests on eden-mountain-check.html
+   eden-growth-check.js  —  the tests on eden-growth-check.html
    ---------------------------------------------------------------------
-   Four kinds of test of the growth rule in eden-mountain-growth.js:
+   Four kinds of test of the growth rule in eden-growth-rule.js:
 
      1. Same mountain as nadya's Python. Her randmountain.py and
         randonesidedmountain.py turn a list of uniform numbers u into a

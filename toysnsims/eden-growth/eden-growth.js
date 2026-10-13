@@ -1,5 +1,5 @@
 /* =====================================================================
-   eden-mountain.js  —  the page of the "Random mountain" sim
+   eden-growth.js  —  the page of the "Eden Growth" sim
    ---------------------------------------------------------------------
    What it does, in plain words:
      - Reads the tile T from the clickable grid of cells (as on the old
@@ -9,7 +9,7 @@
      - Or, for "Hyperbolic plane or tree": the graph (a tiling {p,q} or
        a tree, built as needed by js/sim-graphs.js) and the radius r of
        the tile "every cell within distance r".
-     - Hands them to the growth rule (eden-mountain-growth.js), which
+     - Hands them to the growth rule (eden-growth-rule.js), which
        runs in a second thread (a "Web Worker"), and draws every
        mountain it sends back, with the statistics.
    Small helpers used by every sim page (byId, readWhole, ...) are in
@@ -113,7 +113,7 @@ let blockShape = "cubes";    // the 3D view's blocks: "cubes" or "coins"
 let stretch = 1;             // the 3D view's Heights: 2^(slider / 2), the slider from -4 (flatter) to 4 (taller)
 
 // The latest message from the mountain (see part 2 of
-// eden-mountain-growth.js): the sites, their heights, the numbers.
+// eden-growth-rule.js): the sites, their heights, the numbers.
 let latest = null;
 
 // Whether "latest" is a mountain to show: not just a problem, and not
@@ -291,7 +291,7 @@ function customStart(d) {
 /* =====================================================================
    5. RUNNING THE MOUNTAIN
    ---------------------------------------------------------------------
-   The growth rule is mountainWorker() in eden-mountain-growth.js,
+   The growth rule is mountainWorker() in eden-growth-rule.js,
    with newMountain(), newGraphMountain(), the hyperbolic tilings and
    trees, and the run loop and the trace (js/sim-worker.js) copied in.
    startWorker (js/sim-page.js) runs it in a second thread, so the page
@@ -665,7 +665,7 @@ async function start3D() {
   loading3D = true;
   showMessage("Loading the 3D view...");
   try {
-    // The path is counted from this .js file (toysnsims/eden-mountain/), not the page.
+    // The path is counted from this .js file (toysnsims/eden-growth/), not the page.
     sim3d = await import("../../js/sim-3d.js");
   } catch (error) {
     loading3D = false;
@@ -857,7 +857,7 @@ byId("set-radius").addEventListener("change", function () { restart(true); });
    ---------------------------------------------------------------------
    All for the run on the screen. The growth rule keeps the numbers up
    to date, and a sample of them every so often for the charts (see
-   part 2 of eden-mountain-growth.js).
+   part 2 of eden-growth-rule.js).
    ===================================================================== */
 function showStats() {
   if (!haveMountain()) return;
