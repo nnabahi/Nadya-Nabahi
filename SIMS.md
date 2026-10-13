@@ -61,6 +61,8 @@ Claude wrote from the formulas, so rename them freely.
 | DLA from the inside | | | idea | |
 | Forest-fire model | | | idea | |
 | Invasion percolation | | | idea | |
+| Random sequential adsorption (RSA) | | | idea | |
+| Directed percolation | | | idea | |
 | D1: Product over a random walk with positive steps | Desmos | | idea | |
 | D2: Random sequence shifted left/right with weight α | Desmos | | idea | |
 | D3: Binomial average of a random sequence | Desmos | | idea | |
