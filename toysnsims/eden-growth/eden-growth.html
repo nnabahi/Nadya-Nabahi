@@ -335,75 +335,16 @@
 
         <div data-panel="simple">
         <p>
-          Blocks are dropped one at a time and pile up into a mountain. The
-          <strong>base</strong> is the set of sites that already have a block.
-          A block may land on any site of the base, or on a site the
-          <strong>tile</strong> reaches from the base. It picks one of these
-          <strong>available sites</strong> completely at random, all equally
-          likely.
+        The origins of this model are in studying bacterial colonies, growing outwards at their boundaries into the empty surroundings. To simplify, we cut up space into a grid and give each cell a 1 if it contains bacteria, or a 0 if it’s empty. The <strong>boundary</strong> is all the empty cells directly next to an occupied one. At each step, the colony expands by picking a boundary cell at random and filling it, adding it to the current cluster. This is the <strong>Eden model</strong>, introduced by Murray Eden in 1961, and it’s about as simple as growth gets. But don’t let its simplicity fool you! These basic rules create a model which is notoriously difficult to study.
         </p>
         <p>
-          With the tile {&minus;1, +1} on a line, a block lands on the base or one
-          site past either end, so the base only grows when a block lands just
-          past an end. Most blocks land on the base, and the mountain gets
-          taller much faster than it gets wider.
+        There are two things to watch. First, the shape. Although the cluster grows at random, this randomness naturally averages out along the boundary. If it is allowed to grow for long enough, then the cluster forms into a <strong>limit shape</strong>, a round-ish blob. Surprisingly, nobody knows exactly what this shape is! Simulations suggest it’s not quite a circle, but no one has proved it yet. Secondly, the holes. Sometimes, the cluster wraps around an empty pocket, leaving it uncovered before coming back in later to fill it. Turn on <strong>Shade the holes</strong> to watch them come and go.
         </p>
         <p>
-          <strong>Capacity.</strong> Every site has a capacity
-          <span class="tex">M</span>: a site with <span class="tex">M</span>
-          blocks is full, and blocks stop landing on it. It starts at
-          <span class="tex">M = 1</span>, where each block lands on a new site
-          next to the base: Eden's growth model. Raise
-          <span class="tex">M</span> with the slider, or uncheck the box for
-          unlimited capacity, and the blocks pile up into a mountain.
+        What if each cell counted the number of bacteria it held? Instead of a simple 0 or 1, each cell can pile up bacteria, until it reaches the <strong>Max Capacity</strong>. When in the <strong>3D</strong> view, each block represents a bacterium. Once each cell can have more than 1 bacterium, the weight slider <strong>s</strong> comes in to bias where the next bacterium is born. A positive <strong>s</strong> favors crowded cells, leading to dense colonies; a negative <strong>s</strong>  favors emptier ones, spreading the colony out faster; setting <strong>s</strong> back to 0 removes the bias.
         </p>
         <p>
-          <strong>Weight.</strong> Like bacteria, where more bacteria in a cell
-          means more new ones born there, the slider s makes tall sites more
-          likely (s &gt; 0) or less likely (s &lt; 0) to get the next block. At
-          s = 0 every available site is equally likely. Empty sites always count
-          the same, so s only matters once a site can hold 2 or more blocks.
-        </p>
-        <p>
-          <strong>Holes.</strong> In 2D the base can close off empty pockets:
-          holes. A hole is born when a block closes it off (or cuts an older one
-          in two) and dies when its last square fills. The charts count the holes
-          over time and how long each one lived; tick "Shade the
-          holes" in the options to see them in the picture.
-        </p>
-        <p>
-          <strong>Shape.</strong> In 2D the base grows into a roundish blob.
-          Convexity says how close it is to having no bays or holes (1 = none),
-          and the radius charts show how far it reaches in each direction,
-          compared with its average, now and over time.
-        </p>
-        <p>
-          <strong>Things to try:</strong> click an available site to drop the
-          next block there yourself; the one-sided tile {+1}; a tile with a
-          gap, like {&minus;2, +1}; 2D with 4 or 8 neighbors; a tile of your own,
-          clicked in the grid; a thin ring, which spreads more than it stacks;
-          or a small domain, where the base soon fills it and
-          the mountain only gets taller. In 2D, zoom with the mouse wheel, a
-          pinch, or the + and &minus; buttons, and drag the picture to look
-          around; on a torus, zoomed out, it shows several times side by
-          side. Or switch the 2D view to 3D, to see each site's blocks as a
-          stack of cubes or coins, and turn the mountain around. The button in
-          the picture's top left corner shows it on the whole screen.
-        </p>
-        <p>
-          <strong>Hyperbolic plane or tree.</strong> The same mountain on a tiling
-          of the hyperbolic plane, or on a tree, drawn in a disk where the
-          cells shrink toward the edge (the edge is infinitely far away). Drag
-          to travel across the plane (or press Slide to slide the whole
-          picture), and zoom as in 2D to see the small cells near the edge.
-          There, every patch of cells has a long
-          edge compared to its size, so the base spreads fast and the mountain
-          stays low: compare {7, 3} with the 2D grid. The whole tiling (or tree)
-          is drawn in thin gray underneath, in 3D too; on a tree, each site is a
-          coin on its vertex. Besides the disk, the plane can be
-          drawn as the half-plane above a line, and a tree can be spread out,
-          with the start in the middle and each step away on the next ring
-          (drag it and zoom it as in 2D).
+        What counts as a neighbor? Usually, two squares are neighbors if they share an edge, but many models allow diagonal neighbors as well. The <strong>Tile</strong> lets you build your own neighborhood: once a cell gains its first bacterium, those squares around the cell join the boundary. In 1973, Daniel Richardson proved a beautiful theorem: each custom tile pushes the cluster into its own limit shape! Draw your own and watch what shape it creates!
         </p>
         </div>
 
