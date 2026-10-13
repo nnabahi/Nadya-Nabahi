@@ -18,7 +18,7 @@
      7. Sim pages: options, statistics and charts
      8. Sim pages: the picture and its buttons
      9. Sim pages: the About box
-    10. The graph tool (toysnsims/graph-tool.html), also inside a sim page
+    10. The graph tool (toysnsims/graph-tool/graph-tool.html), also inside a sim page
     11. Check pages
     12. Phones and narrow screens
    ===================================================================== */
@@ -401,7 +401,7 @@ a.card:hover {
 /* =====================================================================
    6. Toys n' Sims: the sim page layout
    ---------------------------------------------------------------------
-   HTML shape (see toysnsims/random-walk-coloring.html):
+   HTML shape (see toysnsims/random-walk-coloring/random-walk-coloring.html):
      <div class="quadrants">
        <section class="quad quad-sim">      main simulation     </section>
        <section class="quad quad-controls"> options / controls  </section>
@@ -464,7 +464,7 @@ a.card:hover {
    ---------------------------------------------------------------------
    The rows of options with their buttons, formulas and sliders, and the
    numbers and small charts in the Statistics box. The graph tool
-   (toysnsims/graph-tool.html) uses the same option rows, formulas
+   (toysnsims/graph-tool/graph-tool.html) uses the same option rows, formulas
    and sliders.
    ===================================================================== */
 
@@ -964,7 +964,7 @@ body.popup-open {
 
 
 /* =====================================================================
-   10. The graph tool (toysnsims/graph-tool.html)
+   10. The graph tool (toysnsims/graph-tool/graph-tool.html)
    ---------------------------------------------------------------------
    The buttons, color palette, drawing box and settings on the tool's
    page. The drawing itself is styled in toysnsims/graph-tool/graph-tool.js
@@ -1157,7 +1157,7 @@ body.embedded .graph-wrap {
 /* =====================================================================
    11. Check pages
    ---------------------------------------------------------------------
-   The check pages (like toysnsims/eden-growth-check.html)
+   The check pages (like toysnsims/eden-growth/eden-growth-check.html)
    test a sim's math on its own.
    ===================================================================== */
 

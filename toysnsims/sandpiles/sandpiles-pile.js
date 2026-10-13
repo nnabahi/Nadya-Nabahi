@@ -51,7 +51,7 @@
 
    The file has two parts, with no drawing and no buttons:
      1. newPile(options): the toppling rule itself. The check page
-        (toysnsims/sandpiles-check.html) tests it in the browser.
+        (sandpiles-check.html) tests it in the browser.
      2. pileWorker(): runs a pile in a second thread (a "Web Worker")
         for the sim page, sandpiles.js, so the page never freezes.
         startWorker (js/sim-page.js) starts it, with newPile,

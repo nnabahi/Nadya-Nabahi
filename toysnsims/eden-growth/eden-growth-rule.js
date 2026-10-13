@@ -62,7 +62,7 @@
 
    The file has these parts, with no drawing and no buttons:
      1. newMountain(options): the growth rule itself. The check page
-        (toysnsims/eden-growth-check.html) tests it in the browser.
+        (eden-growth-check.html) tests it in the browser.
      1b. newGraphMountain(options): the same rule on any graph.
      2. mountainWorker(): runs a mountain in a second thread (a "Web
         Worker") for the sim page, eden-growth.js, so the page never

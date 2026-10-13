@@ -29,14 +29,13 @@ and, on the check pages, [jStat](https://jstat.github.io) (statistics).
 
 ### One folder per sim
 
-Every sim page sits straight in `toysnsims/`, so its web address is
-`nnabahi.github.io/Nadya-Nabahi/toysnsims/name.html`. The page's code sits
-in its own folder next to it, `toysnsims/name/`. The pattern is the same
-for every sim: the page is `toysnsims/name.html`, the page's code is
-`toysnsims/name/name.js`, its math
-is `name-<something>.js` (for example `name-chain.js` for a Markov chain),
-and the page that tests the math is `toysnsims/name-check.html` with
-`toysnsims/name/name-check.js`.
+Every sim has its own folder, `toysnsims/name/`, holding its pages and
+their code, so its web address is
+`nnabahi.github.io/Nadya-Nabahi/toysnsims/name/name.html`. The pattern is
+the same for every sim: the page is `name.html`, the page's code is
+`name.js`, its math is `name-<something>.js` (for example `name-chain.js`
+for a Markov chain), and the page that tests the math is
+`name-check.html` with `name-check.js`.
 Each check page opens from its sim's "model check" button and starts with
 a link back to the sim.
 
@@ -81,13 +80,13 @@ a link back to the sim.
   on *every* page (the top bar is copied into each file).
 - **Add a sim:**
   1. Copy the page of the sim closest to the new one (like
-     `toysnsims/random-walk-coloring.html`) to `toysnsims/<name>.html`, and
-     make a folder `toysnsims/<name>/` for its code. Its shared links
-     (`../css/style.css`, `../js/...`) already point the right way; change
-     its own scripts to `<name>/<name>.js` and so on.
+     `toysnsims/random-walk-coloring/random-walk-coloring.html`) into a new
+     folder, as `toysnsims/<name>/<name>.html`. Its shared links
+     (`../../css/style.css`, `../../js/...`) already point the right way;
+     change its own scripts to `<name>.js` and so on.
   2. Fill in the four boxes, and write the page's code in `<name>.js` and
      its math in `<name>-<something>.js`.
-  3. Add a card for it on `toysnsims.html`, linking to `toysnsims/<name>.html`,
+  3. Add a card for it on `toysnsims.html`, linking to `toysnsims/<name>/<name>.html`,
      with its genre labels (`<li>` items in the card's `<ul class="tags">`).
      New genres get a filter button automatically.
   4. Optionally a check page, `<name>-check.html` with `<name>-check.js`,

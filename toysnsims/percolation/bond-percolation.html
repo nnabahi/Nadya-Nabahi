@@ -3,28 +3,28 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Site Percolation — Toys n' Sims</title>
-  <link rel="stylesheet" href="../css/style.css">
+  <title>Bond Percolation — Toys n' Sims</title>
+  <link rel="stylesheet" href="../../css/style.css">
   <!-- KaTeX's styles, for the typeset formulas in the About quadrant. -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/katex.min.css">
 </head>
-<!-- data-kind="site" tells percolation.js (shared with the bond
+<!-- data-kind="bond" tells percolation.js (shared with the site
      percolation page) which of the two sims this is. -->
-<body data-kind="site">
+<body data-kind="bond">
 
   <header class="topbar">
     <nav>
-      <a href="../about.html">About Me</a>
-      <a href="../resume.html">Resume</a>
-      <a href="../index.html">Home</a>
-      <a href="../publications.html">Publications</a>
-      <a href="../toysnsims.html" class="active">Toys n' Sims</a>
+      <a href="../../about.html">About Me</a>
+      <a href="../../resume.html">Resume</a>
+      <a href="../../index.html">Home</a>
+      <a href="../../publications.html">Publications</a>
+      <a href="../../toysnsims.html" class="active">Toys n' Sims</a>
     </nav>
   </header>
 
   <main class="page">
-    <p><a href="../toysnsims.html">&larr; All sims</a></p>
-    <h1>Bernoulli Site Percolation</h1>
+    <p><a href="../../toysnsims.html">&larr; All sims</a></p>
+    <h1>Bernoulli Bond Percolation</h1>
 
     <!-- The four quadrants, as on every sim page (their layout is in
          section 6 of css/style.css). All the behavior lives in
@@ -58,8 +58,8 @@
         <div id="custom-area" hidden>
           <div class="step-bar">
             <p class="step-title">Draw the region</p>
-            <p class="muted step-help">Paint the cells that can be open (any color counts).
-              Then press Done.</p>
+            <p class="muted step-help">Paint the cells (any color counts). Every pair of
+              neighboring cells gets an edge, open or closed. Then press Done.</p>
             <p class="step-status" id="step-status"></p>
             <div class="option-row">
               <button class="tool-button" id="tool-done">Done</button>
@@ -146,7 +146,7 @@
           <select id="colors">
             <option value="clusters">Each cluster its own color</option>
             <option value="largest">The largest cluster</option>
-            <option value="open">Open or closed</option>
+            <option value="open">Open edges only</option>
           </select>
         </div>
         <p class="muted small">Click a cluster to highlight it; click it again to clear.</p>
@@ -166,7 +166,7 @@
           <button class="tool-button" id="new-seed" title="A random new seed">New seed</button>
         </div>
         <p class="muted small">The same seed always gives the same random numbers, so
-          moving p only opens or closes cells, and the picture morphs smoothly.</p>
+          moving p only opens or closes edges, and the picture morphs smoothly.</p>
       </section>
 
       <!-- LOWER LEFT: numbers about this sample. -->
@@ -176,8 +176,8 @@
           <tr><td>Cells</td><td id="stat-cells"></td></tr>
           <tr><td>Neighbor pairs (edges)</td><td id="stat-edges"></td></tr>
           <tr><td>p</td><td id="stat-p"></td></tr>
-          <tr><td>Open cells</td><td id="stat-open"></td></tr>
-          <tr><td>Clusters</td><td id="stat-clusters"></td></tr>
+          <tr><td>Open edges</td><td id="stat-open"></td></tr>
+          <tr><td>Clusters (a cell with no open edge counts as one)</td><td id="stat-clusters"></td></tr>
           <tr><td>Largest cluster</td><td id="stat-largest"></td></tr>
           <tr><td id="stat-cross-name"></td><td id="stat-cross"></td></tr>
           <tr><td id="stat-cross-at-name"></td><td id="stat-cross-at"></td></tr>
@@ -203,18 +203,20 @@
 
         <div data-panel="simple">
         <p>
-          Every cell flips its own coin: it is <strong>open</strong> with
-          probability p and <strong>closed</strong> (white) otherwise, all
-          independently. Open cells that are neighbors stick together into
-          <strong>clusters</strong>, each drawn in its own color.
+          Every pair of neighboring cells is joined by an <strong>edge</strong>,
+          and every edge flips its own coin: it is <strong>open</strong> with
+          probability p and closed otherwise, all independently. Cells joined
+          by open edges form <strong>clusters</strong>, each drawn in its own
+          color (open edges are lines, cells are dots; zoomed far out, each
+          cell becomes a square in its cluster's color).
         </p>
         <p>
-          For small p the clusters are tiny. As p grows they join up, and on
-          a big grid there is a sharp change at the <strong>critical point</strong>
-          p<sub>c</sub>: just below it every cluster is small, and just above
-          it one giant cluster spreads through the whole domain. On the square
-          grid with 4 neighbors, p<sub>c</sub> is about 0.5927, and nobody
-          knows an exact formula for it.
+          For small p the clusters are tiny. As p grows they join up, and on a
+          big grid there is a sharp change at the <strong>critical point</strong>
+          p<sub>c</sub>: below it every cluster is small, above it one giant
+          cluster spreads through the whole domain. On the square grid with 4
+          neighbors, p<sub>c</sub> is exactly 1/2, one of the famous theorems
+          of probability.
         </p>
         <p>
           <strong>Hyperbolic plane or tree.</strong> Percolation also runs on a
@@ -222,7 +224,9 @@
           of a start cell (the one with the ring). It is drawn in the
           Poincar&eacute; disk or the half-plane (drag to move around the
           plane, or press Slide to slide the whole picture), or, for a tree,
-          spread out in rings, and all three zoom.
+          spread out in rings, and all three zoom. It is drawn as the graph
+          itself: each open edge in its cluster's color, and the closed ones
+          in thin gray.
           Statistics then say whether the start's cluster reaches the edge of
           the ball. On a tree where every cell has d neighbors,
           p<sub>c</sub> = 1/(d &minus; 1). The hyperbolic plane has two
@@ -231,10 +235,10 @@
         </p>
         <p>
           <strong>Things to try:</strong> drag the p slider, or press Play to
-          raise p slowly and watch clusters swallow each other (when clusters
-          merge, the new cluster takes the color of the biggest one). Press p = p<sub>c</sub> and
-          zoom in: the clusters look alike at every scale. Click a cluster to
-          follow it. Switch to 8 neighbors and see p<sub>c</sub> move.
+          raise p slowly and watch clusters swallow each other (a cluster keeps
+          its color when it swallows a smaller one). At p = 1/2, try a box one
+          cell wider than tall: a cluster crosses from left to right exactly
+          half the time over many seeds. Click a cluster to follow it.
         </p>
         </div>
 
@@ -243,19 +247,20 @@
           <strong>The model.</strong> The domain is a graph
           <span class="tex">G = (V, E)</span>: the cells, joined to their 4 or
           8 neighbors. A configuration is
-          <span class="tex">\omega \in \{0,1\}^V</span>, with
-          <span class="tex">\omega(v) = 1</span> meaning cell
-          <span class="tex">v</span> is open. Under
+          <span class="tex">\omega \in \{0,1\}^E</span>, with
+          <span class="tex">\omega(e) = 1</span> meaning edge
+          <span class="tex">e</span> is open. Under
           <span class="tex">\mathbb{P}_p</span> the
-          <span class="tex">\omega(v)</span> are independent Bernoulli(p). A
-          cluster is a connected component of the open cells in
-          <span class="tex">G</span> [1, Chapter 1].
+          <span class="tex">\omega(e)</span> are independent Bernoulli(p). A
+          cluster is a connected component of the graph
+          <span class="tex">(V, \{e : \omega(e) = 1\})</span>, so a cell with
+          no open edge is a cluster of one cell [1, Chapter 1].
         </p>
         <p>
-          <strong>The coupling.</strong> Each cell gets one uniform number
-          <span class="tex">U_v \in [0,1)</span> from the seed, and
+          <strong>The coupling.</strong> Each edge gets one uniform number
+          <span class="tex">U_e \in [0,1)</span> from the seed, and
         </p>
-        <div class="tex">\omega_p(v) = \mathbf{1}\{U_v &lt; p\}.</div>
+        <div class="tex">\omega_p(e) = \mathbf{1}\{U_e &lt; p\}.</div>
         <p>
           For each p this has law <span class="tex">\mathbb{P}_p</span>, and
           <span class="tex">\omega_p \le \omega_{p'}</span> for
@@ -263,49 +268,59 @@
           p rises [1, Chapter 1]. This is why the slider morphs the picture.
         </p>
         <p>
-          <strong>Every p at once.</strong> Opening the cells one at a time in
-          order of <span class="tex">U_v</span> and merging clusters with
+          <strong>Every p at once.</strong> Opening the edges one at a time in
+          order of <span class="tex">U_e</span> and merging clusters with
           union-find gives the exact largest cluster and number of clusters of
           this sample for every p in one pass (the Newman&ndash;Ziff algorithm
           [2]); those are the two curves in Statistics. Union-find with path
           compression and union by size takes almost constant time per step
-          [3]. The number of clusters per cell tends to a smooth function
-          <span class="tex">\kappa(p)</span> as the domain grows [1, Chapter 4].
+          [3].
         </p>
         <p>
           <strong>The phase transition.</strong> On the infinite square grid
           let <span class="tex">\theta(p)</span> be the probability that the
           origin's cluster is infinite, and
-          <span class="tex">p_c = \sup\{p : \theta(p) = 0\}</span>. Then
-          <span class="tex">0 &lt; p_c &lt; 1</span> [1, Chapter 1]. Below
-          <span class="tex">p_c</span> the size of a cluster has an exponential
-          tail [1, Chapters 5 and 6], so in a domain of
-          <span class="tex">n</span> cells the largest cluster has only about
-          <span class="tex">\log n</span> cells; above it, there is exactly one
-          infinite cluster [1, Chapter 8], and the largest cluster in the
-          domain fills about a fraction <span class="tex">\theta(p)</span> of
-          it.
+          <span class="tex">p_c = \sup\{p : \theta(p) = 0\}</span>. Below
+          <span class="tex">p_c</span> cluster sizes have an exponential tail
+          [1, Chapters 5 and 6], so the largest cluster in a domain of
+          <span class="tex">n</span> cells has only about
+          <span class="tex">\log n</span> cells; above it there is exactly one
+          infinite cluster [1, Chapter 8], and the largest cluster fills about
+          a fraction <span class="tex">\theta(p)</span> of the domain.
         </p>
         <p>
-          <strong>The critical point.</strong> For 4 neighbors no exact value
-          of <span class="tex">p_c</span> is known; the best estimate is
-          <span class="tex">p_c = 0.592746050792\ldots</span> [4] (the dashed
-          line uses 0.592746 [2]). The grid with 8 neighbors is the
-          &ldquo;matching lattice&rdquo; of the grid with 4: a closed path with
-          8 neighbors blocks every open path with 4. So
-          <span class="tex">p_c^{(8)} = 1 - p_c^{(4)} \approx 0.407254</span>
-          [5; 6, Chapter 3].
+          <strong>Exactly 1/2.</strong> With 4 neighbors,
+          <span class="tex">\theta(1/2) = 0</span> (Harris [4]) and
+          <span class="tex">p_c = 1/2</span> (Kesten [5]; see [1, Chapter 11]).
+          The reason is duality: put a dual cell in every square of the grid,
+          and let a dual edge be closed exactly when the edge it crosses is
+          closed. On the box with <span class="tex">n + 1</span> columns and
+          <span class="tex">n</span> rows of cells, exactly one of these
+          happens: an open crossing from left to right, or a closed dual
+          crossing from top to bottom. The dual box is the same shape turned on
+          its side, and at <span class="tex">p = 1/2</span> open and closed
+          look alike, so each happens with probability exactly
+          <span class="tex">1/2</span> [1, Chapter 11; 6, Chapter 3]. The check
+          page tests both facts.
         </p>
         <p>
-          <strong>Crossing.</strong> On a box, a cluster crosses when it touches
-          both the left and the right column. Exactly one of these happens: an
-          open 4-neighbor crossing from left to right, or a closed 8-neighbor
-          crossing from top to bottom (the same fact as &ldquo;Hex never ends
-          in a draw&rdquo; [7]; see [6, Chapter 2]). The check page tests this
-          on thousands of samples. On a torus, the sim instead says whether a
-          cluster wraps all the way around, found as in [2]: each cell
-          remembers where it sits in the unwrapped plane, and a cluster wraps
-          when two of its cells meet across an edge in different copies.
+          <strong>Clusters per cell.</strong> The number of clusters per cell
+          tends to a smooth function <span class="tex">\kappa(p)</span> as the
+          domain grows [1, Chapter 4]. At the critical point of the 4-neighbor
+          grid it is known exactly:
+        </p>
+        <div class="tex">\kappa(1/2) = \frac{3\sqrt{3} - 5}{2} \approx 0.0981</div>
+        <p>
+          [7, 8]. With 8 neighbors there is no exact value of
+          <span class="tex">p_c</span>, so no dashed line is drawn.
+        </p>
+        <p>
+          <strong>Crossing and wrapping.</strong> On a box, a cluster crosses
+          when it touches both the left and the right column. On a torus, the
+          sim says whether a cluster wraps all the way around, found as in [2]:
+          each cell remembers where it sits in the unwrapped plane, and a
+          cluster wraps when two of its cells meet across an edge in different
+          copies.
         </p>
         <p>
           <strong>Hyperbolic plane or tree.</strong> Here
@@ -325,14 +340,14 @@
         <p>
           On the tree, the start's cluster is a branching process: every cell
           in it other than <span class="tex">o</span> has
-          <span class="tex">d - 1</span> children, each open with probability <span class="tex">p</span>, independently. So
+          <span class="tex">d - 1</span> children, each joined to it by an open edge with probability <span class="tex">p</span>, independently. So
           <span class="tex">\theta(p) &gt; 0</span> exactly when
           <span class="tex">(d - 1) p &gt; 1</span>, and
           <span class="tex">p_c = 1/(d - 1)</span> [9, Chapter 5]. The same
           reasoning gives the chance of reaching the edge exactly: with
-          the probability that a cell is open and joined to the cells <span class="tex">k</span> levels below it,
+          the probability that a cell is joined to the cells <span class="tex">k</span> levels below it,
         </p>
-        <div class="tex">g_0 = p, \qquad g_k = p\,\big(1 - (1 - g_{k-1})^{d-1}\big), \qquad \mathbb{P}(o \leftrightarrow \partial B_R) = p\,\big(1 - (1 - g_{R-1})^{d}\big),</div>
+        <div class="tex">f_0 = 1, \qquad f_k = 1 - (1 - p f_{k-1})^{d-1}, \qquad \mathbb{P}(o \leftrightarrow \partial B_R) = 1 - (1 - p f_{R-1})^{d},</div>
         <p>
           and the check page compares the sim with it.
         </p>
@@ -345,12 +360,6 @@
           (Benjamini and Schramm [10]). No exact values are known, so no dashed
           line is drawn there.
         </p>
-        <p>
-          <strong>At the critical point</strong> the clusters are random
-          fractals. On the triangular lattice their crossing probabilities have
-          an exact limit (Cardy's formula, proved by Smirnov [8]); on the
-          square grid that is still open.
-        </p>
         <p><strong>References</strong></p>
         <ol class="references">
           <li>G. Grimmett, <em>Percolation</em>, 2nd ed., Springer, 1999.
@@ -361,20 +370,23 @@
             <a href="https://doi.org/10.1103/PhysRevLett.85.4104">doi:10.1103/PhysRevLett.85.4104</a></li>
           <li>R. E. Tarjan, &ldquo;Efficiency of a good but not linear set union
             algorithm&rdquo;, <em>J. ACM</em> 22 (1975), 215&ndash;225.</li>
-          <li>J. L. Jacobsen, &ldquo;Critical points of Potts and O(N) models
-            from eigenvalue identities in periodic Temperley&ndash;Lieb
-            algebras&rdquo;, <em>J. Phys. A</em> 48 (2015), 454003.</li>
-          <li>M. F. Sykes, J. W. Essam, &ldquo;Exact critical percolation
-            probabilities for site and bond problems in two dimensions&rdquo;,
-            <em>J. Math. Phys.</em> 5 (1964), 1117&ndash;1127.</li>
-          <li>H. Kesten, <em>Percolation Theory for Mathematicians</em>,
-            Birkh&auml;user, 1982.</li>
-          <li>D. Gale, &ldquo;The game of Hex and the Brouwer fixed-point
-            theorem&rdquo;, <em>Amer. Math. Monthly</em> 86 (1979),
-            818&ndash;827.</li>
-          <li>S. Smirnov, &ldquo;Critical percolation in the plane: conformal
-            invariance, Cardy's formula, scaling limits&rdquo;, <em>C. R. Acad.
-            Sci. Paris S&eacute;r. I Math.</em> 333 (2001), 239&ndash;244.</li>
+          <li>T. E. Harris, &ldquo;A lower bound for the critical probability in
+            a certain percolation process&rdquo;, <em>Proc. Cambridge Philos.
+            Soc.</em> 56 (1960), 13&ndash;20.</li>
+          <li>H. Kesten, &ldquo;The critical probability of bond percolation on
+            the square lattice equals 1/2&rdquo;, <em>Comm. Math. Phys.</em> 74
+            (1980), 41&ndash;59.</li>
+          <li>B. Bollob&aacute;s, O. Riordan, <em>Percolation</em>, Cambridge
+            University Press, 2006.</li>
+          <li>H. N. V. Temperley, E. H. Lieb, &ldquo;Relations between the
+            &lsquo;percolation&rsquo; and &lsquo;colouring&rsquo; problem and
+            other graph-theoretical problems associated with regular planar
+            lattices&rdquo;, <em>Proc. R. Soc. London A</em> 322 (1971),
+            251&ndash;280.</li>
+          <li>R. M. Ziff, S. R. Finch, V. S. Adamchik, &ldquo;Universality of
+            finite-size corrections to the number of critical percolation
+            clusters&rdquo;, <em>Phys. Rev. Lett.</em> 79 (1997),
+            3447&ndash;3450.</li>
           <li>R. Lyons, Y. Peres, <em>Probability on Trees and Networks</em>,
             Cambridge University Press, 2016.</li>
           <li>I. Benjamini, O. Schramm, &ldquo;Percolation in the hyperbolic
@@ -400,16 +412,16 @@
        it), the hyperbolic tilings and trees and their pictures, and the
        options and controls of the domain. Then the clusters, then this
        page's code. -->
-  <script src="../js/sim-page.js"></script>
-  <script src="../js/sim-charts.js"></script>
-  <script src="../js/sim-colors.js"></script>
-  <script src="../js/sim-domains.js"></script>
-  <script src="../js/sim-view.js"></script>
-  <script src="../js/sim-graphs.js"></script>
-  <script src="../js/sim-hyperbolic.js"></script>
-  <script src="../js/sim-controls.js"></script>
-  <script src="percolation/percolation-clusters.js"></script>
-  <script src="percolation/percolation.js"></script>
+  <script src="../../js/sim-page.js"></script>
+  <script src="../../js/sim-charts.js"></script>
+  <script src="../../js/sim-colors.js"></script>
+  <script src="../../js/sim-domains.js"></script>
+  <script src="../../js/sim-view.js"></script>
+  <script src="../../js/sim-graphs.js"></script>
+  <script src="../../js/sim-hyperbolic.js"></script>
+  <script src="../../js/sim-controls.js"></script>
+  <script src="percolation-clusters.js"></script>
+  <script src="percolation.js"></script>
 
 </body>
 </html>
