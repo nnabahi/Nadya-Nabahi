@@ -89,6 +89,15 @@
    2008, call this the weighted version of the same idea). The weights
    are multiplied as logarithms, so big products can't overflow.
 
+   TRIANGLES AND HEXAGONS. On a domain of triangles or hexagons (see
+   js/sim-domains.js) the only tile is a pair of neighboring cells: on
+   triangles that is a rhombus, so a tiling of a hexagon is a "lozenge
+   tiling", the picture of a pile of cubes in a corner. A pair has one
+   of 3 directions, its orientations. The disk is a disk in the picture,
+   and a cell "touches" it when any point of the triangle or hexagon is
+   inside it. The move and the proof above don't change: they never used
+   the shape of the cells.
+
    The starting packing (section 4):
      - Gaps on: go through all tile positions in random order and place
        each one that fits. The result is maximal (a tile that fits at
@@ -99,12 +108,17 @@
        cells with 1-tall tiles (or each column's runs with 1-wide tiles).
        Which lengths add up is the "coin problem", solved by a small
        table. If nothing works, the sim says so.
+     - Gaps off, on triangles or hexagons: each row's cells paired left
+       to right, if every row's runs have an even length. Otherwise, on
+       the hexagon of triangles, the "empty room" tiling: the hexagon cut
+       into 3 big rhombi from its middle, each filled with rhombi of one
+       direction (the picture of an empty corner, with no cubes).
 
    HOW IT RUNS
    Everything is inside one function, tilePacking(). The sim page turns
    it into a "Web Worker" (a second thread, see startWorker in
-   js/sim-page.js), with makeRunLoop (js/sim-worker.js) and cellAt and
-   wrap (js/sim-domains.js) copied in, where it answers messages from
+   js/sim-page.js), with makeRunLoop (js/sim-worker.js) and cellAt,
+   wrap, cellCorners and pointInCell (js/sim-domains.js) copied in, where it answers messages from
    the page (section 6). The check page (uniform-tiling-check.html) calls
    tilePacking() directly and uses the functions it hands back.
    The one library used is seedrandom
@@ -156,6 +170,9 @@ function tilePacking() {
   let domain = null, n = 0, X = null, Y = null;
   let xmin = 0, ymin = 0, boxWidth = 0, boxHeight = 0;
   let wrapW = 0, wrapH = 0;   // the torus's width and height (0: no torus)
+  let lattice = null;         // "triangle" or "hexagon", or null for squares
+  let periodU = 0, periodW = 0;   // on a torus of triangles or hexagons: how far the picture repeats across and up
+  const ROW = Math.sqrt(3) / 2;   // the height of a row of triangles or hexagons
 
   // The tile orientations: orientation o is orientW[o] wide and orientH[o]
   // tall, and comes from tile number orientTile[o] of the list given.
@@ -210,6 +227,9 @@ function tilePacking() {
     boxWidth = d.xmax - d.xmin + 1; boxHeight = d.ymax - d.ymin + 1;
     wrapW = d.wrap ? d.wrap.xmax - d.wrap.xmin + 1 : 0;
     wrapH = d.wrap ? d.wrap.ymax - d.wrap.ymin + 1 : 0;
+    lattice = d.lattice || null;
+    periodU = wrapW * (lattice === "triangle" ? 0.5 : 1);
+    periodW = wrapH * ROW;
 
     // Orientations: each tile, and with rotations also the tile turned a
     // quarter turn. The same size twice is kept once (a 2x2 turned is
@@ -228,7 +248,17 @@ function tilePacking() {
       }
     });
 
-    listPlacements();
+    // Triangles and hexagons: one tile, a pair of neighboring cells, in
+    // its 3 directions (the first tile's weight).
+    if (lattice) {
+      const weight = (s.tiles[0].weight === undefined) ? 1 : s.tiles[0].weight;
+      orientW = []; orientH = []; orientTile = []; orientLogWeight = [];
+      if (weight > 0) {
+        for (let o = 0; o < 3; o++) { orientW.push(2); orientH.push(1); orientTile.push(0); orientLogWeight.push(Math.log(weight)); }
+      }
+    }
+
+    if (lattice) listPairs(); else listPlacements();
 
     owner = new Int32Array(n).fill(-1);
     tileCount = orientW.map(function () { return 0; });
@@ -301,6 +331,79 @@ function tilePacking() {
     cellPl = Int32Array.from(all);
   }
 
+  // Triangles and hexagons: a placement for every pair of neighbors v, w
+  // (each pair once). Its "lower-left" cell is the left one of the two,
+  // or the lower one, and its orientation is its direction:
+  //   0  the two cells one above the other (on triangles: a standing
+  //      rhombus; on hexagons: side by side in a row)
+  //   1, 2  the two other directions (see pairDirection)
+  // Then the same lists as listPlacements.
+  let pairAt = new Map();   // "v,w" (v < w) -> placement
+  function listPairs() {
+    const starts = [0], cells = [], orients = [], anchors = [];
+    pairAt = new Map();
+    for (let v = 0; v < n; v++) {
+      for (let e = domain.first[v]; e < domain.first[v + 1]; e++) {
+        const w = domain.nbr[e];
+        if (w < v) continue;
+        const [first, o] = pairDirection(v, w);
+        pairAt.set(v + "," + w, orients.length);
+        cells.push(first, first === v ? w : v);
+        starts.push(cells.length);
+        orients.push(o);
+        anchors.push(first);
+      }
+    }
+    P = orients.length;
+    plStart = Int32Array.from(starts);
+    plCell = Int32Array.from(cells);
+    plOrient = Int32Array.from(orients);
+    plAnchor = Int32Array.from(anchors);
+    const lists = [];
+    for (let v = 0; v < n; v++) lists.push([]);
+    for (let p = 0; p < P; p++) {
+      for (let k = plStart[p]; k < plStart[p + 1]; k++) lists[plCell[k]].push(p);
+    }
+    cellPlStart = new Int32Array(n + 1);
+    const all = [];
+    for (let v = 0; v < n; v++) {
+      cellPlStart[v] = all.length;
+      for (const p of lists[v]) all.push(p);
+    }
+    cellPlStart[n] = all.length;
+    cellPl = Int32Array.from(all);
+  }
+
+  // The steps from cell a to its neighbor b, as whole numbers -1, 0 or 1
+  // (on a torus, the short way round).
+  function stepBetween(a, b) {
+    let dx = X[b] - X[a], dy = Y[b] - Y[a];
+    if (wrapW && Math.abs(dx) > 1) dx = -Math.sign(dx);
+    if (wrapH && Math.abs(dy) > 1) dy = -Math.sign(dy);
+    return [dx, dy];
+  }
+
+  // The pair's first ("lower-left") cell and its direction.
+  //   triangles: 0 if one is above the other; else 1 if the left one
+  //              points up, 2 if it points down
+  //   hexagons:  0 if they are side by side; else 1 if the upper one is
+  //              up and to the right of the lower one, 2 if up and left
+  function pairDirection(v, w) {
+    const [dx, dy] = stepBetween(v, w);
+    if (dy === 0) {
+      const left = dx > 0 ? v : w;
+      if (lattice === "hexagon") return [left, 0];
+      return [left, ((X[left] + Y[left]) % 2 + 2) % 2 === 1 ? 1 : 2];
+    }
+    const lower = dy > 0 ? v : w, upper = lower === v ? w : v;
+    if (lattice === "triangle") return [lower, 0];
+    // Hexagons: in an odd row the one above-right has the same x, in an
+    // even row it has x + 1.
+    const odd = ((Y[lower] % 2) + 2) % 2 === 1;
+    const right = stepBetween(lower, upper)[0] === (odd ? 1 : 0);
+    return [lower, right ? 1 : 2];
+  }
+
   // Put placement p on the board, or take it off.
   function placeTile(p) {
     for (let k = plStart[p]; k < plStart[p + 1]; k++) setOwner(plCell[k], p);
@@ -349,6 +452,7 @@ function tilePacking() {
   // centered at (X[v], Y[v]). On a torus, distances are measured the short
   // way round.
   function touches(v, cx, cy, r) {
+    if (lattice) return touchesShape(v, cx, cy, r);
     let dx = Math.abs(cx - X[v]), dy = Math.abs(cy - Y[v]);
     if (wrapW) {
       dx %= wrapW; dx = Math.min(dx, wrapW - dx);
@@ -358,21 +462,72 @@ function tilePacking() {
     return ex * ex + ey * ey < r * r;
   }
 
+  // Triangles and hexagons: does the disk touch cell v, that is, is some
+  // point of the triangle or hexagon closer than r to the center? It is
+  // when the center is inside the cell, or closer than r to one of its
+  // sides. On a torus every copy of the cell near the disk is tried.
+  function touchesShape(v, cx, cy, r) {
+    const corners = cellCorners(lattice, X[v], Y[v]);
+    let mu = 0, mw = 0;                   // the cell's middle
+    for (const c of corners) { mu += c[0] / corners.length; mw += c[1] / corners.length; }
+    const shiftsU = [0], shiftsW = [0];
+    if (wrapW) {
+      // The copies of the cell (shifted by whole tori) that could be
+      // within r of the center.
+      shiftsU.length = shiftsW.length = 0;
+      for (let a = Math.floor((cx - r - mu) / periodU) - 1; a <= Math.ceil((cx + r - mu) / periodU) + 1; a++) shiftsU.push(a * periodU);
+      for (let b = Math.floor((cy - r - mw) / periodW) - 1; b <= Math.ceil((cy + r - mw) / periodW) + 1; b++) shiftsW.push(b * periodW);
+    }
+    for (const su of shiftsU) {
+      for (const sw of shiftsW) {
+        const u = cx - su, w = cy - sw;   // the center, seen from this copy
+        if (Math.hypot(u - mu, w - mw) >= r + 1) continue;   // too far (a cell is less than 1 across from its middle)
+        if (pointInCell(corners, u, w)) return true;
+        for (let k = 0; k < corners.length; k++) {
+          if (distanceToSide(u, w, corners[k], corners[(k + 1) % corners.length]) < r) return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  // The distance from the point (u, w) to the side from corner p to corner q.
+  function distanceToSide(u, w, p, q) {
+    const du = q[0] - p[0], dw = q[1] - p[1];
+    const t = Math.max(0, Math.min(1, ((u - p[0]) * du + (w - p[1]) * dw) / (du * du + dw * dw)));
+    return Math.hypot(u - p[0] - t * du, w - p[1] - t * dw);
+  }
+
+  // A uniform point of cell v (a triangle or hexagon): a uniform point
+  // of the box around it, tried again until it falls in the cell.
+  function pointIn(v) {
+    const corners = cellCorners(lattice, X[v], Y[v]);
+    const us = corners.map(function (c) { return c[0]; }), ws = corners.map(function (c) { return c[1]; });
+    const u0 = Math.min(...us), u1 = Math.max(...us), w0 = Math.min(...ws), w1 = Math.max(...ws);
+    for (;;) {
+      const u = u0 + (u1 - u0) * random(), w = w0 + (w1 - w0) * random();
+      if (pointInCell(corners, u, w)) return [u, w];
+    }
+  }
+
   // "at" is left out for a normal move. A click on the picture gives
-  // the cell { x, y } that was clicked: then the disk is centered there
+  // the middle { x, y } of the cell that was clicked (in the picture, for
+  // triangles and hexagons): then the disk is centered there
   // (its radius is still random), as if the chain had picked that point.
   function oneMove(at) {
     moves++;
 
     // Step 1: the disk. A uniform point of the domain: a uniform cell,
-    // then a uniform point in its square. An exponential radius:
+    // then a uniform point in it (all cells have the same area). An
+    // exponential radius:
     // -mean * log(1 - u) for u uniform in [0, 1).
     let cx, cy;
     if (at) {
       cx = at.x; cy = at.y;               // the middle of the clicked cell
     } else {
       const v0 = Math.floor(random() * n);
-      cx = X[v0] - 0.5 + random(); cy = Y[v0] - 0.5 + random();
+      if (lattice) [cx, cy] = pointIn(v0);
+      else { cx = X[v0] - 0.5 + random(); cy = Y[v0] - 0.5 + random(); }
     }
     const r = -meanRadius * Math.log(1 - random());
     lastDisk = { x: cx, y: cy, r: r };
@@ -387,6 +542,13 @@ function tilePacking() {
     // most once round in each direction).
     let x0 = Math.floor(cx - r - 0.5), x1 = Math.ceil(cx + r + 0.5);
     let y0 = Math.floor(cy - r - 0.5), y1 = Math.ceil(cy + r + 0.5);
+    if (lattice) {
+      // Rows are ROW high; triangles are half a unit apart in a row,
+      // hexagons a whole one (with a margin for shifted rows and corners).
+      const perUnit = lattice === "triangle" ? 2 : 1;
+      x0 = Math.floor(perUnit * (cx - r)) - 2; x1 = Math.ceil(perUnit * (cx + r)) + 2;
+      y0 = Math.floor((cy - r) / ROW) - 2; y1 = Math.ceil((cy + r) / ROW) + 2;
+    }
     if (wrapW) {
       if (x1 - x0 + 1 > wrapW) { x0 = domain.wrap.xmin; x1 = domain.wrap.xmax; }
       if (y1 - y0 + 1 > wrapH) { y0 = domain.wrap.ymin; y1 = domain.wrap.ymax; }
@@ -598,6 +760,7 @@ function tilePacking() {
 
   // Gaps off: build a tiling directly, with no search.
   function directStart() {
+    if (lattice) return pairStart();
     const fullBox = n === boxWidth * boxHeight &&
                     (!wrapW || (boxWidth === wrapW && boxHeight === wrapH));
     const plan = fullBox ? (strips(false) || strips(true)) : (runs(false) || runs(true));
@@ -607,6 +770,67 @@ function tilePacking() {
     }
     for (const t of plan) placeTile(t);
     return "";
+  }
+
+  // Triangles and hexagons, gaps off: pair up each row's cells, left to
+  // right; or else, on the hexagon of triangles, the empty room.
+  function pairStart() {
+    const plan = rowPairs() || (lattice === "triangle" ? emptyRoom() : null);
+    if (!plan) {
+      return "Couldn't build a starting tiling without a search. " +
+             "Try allowing gaps, or an even width.";
+    }
+    for (const p of plan) placeTile(p);
+    return "";
+  }
+
+  // The pair of neighbors v and w, or -1 if they aren't a pair.
+  function pairOf(v, w) {
+    const p = pairAt.get(Math.min(v, w) + "," + Math.max(v, w));
+    return p === undefined ? -1 : p;
+  }
+
+  // Each row's runs of cells cut into pairs, left to right (as "runs"
+  // does for squares). null if some run has an odd length.
+  function rowPairs() {
+    const plan = [];
+    for (let y = ymin; y < ymin + boxHeight; y++) {
+      for (let x = xmin; x < xmin + boxWidth; x++) {
+        const v = cellAt(domain, x, y);
+        if (v < 0) continue;
+        const right = x + 1 < xmin + boxWidth ? cellAt(domain, x + 1, y) : -1;
+        const p = right < 0 ? -1 : pairOf(v, right);
+        if (p < 0) return null;
+        plan.push(p);
+        x++;   // its partner is taken
+      }
+    }
+    return plan;
+  }
+
+  // The hexagon of triangles cut into 3 big rhombi from its middle (the
+  // corner (0, 0)), each filled with rhombi of one direction: the
+  // picture of an empty corner of a room. Each triangle pointing up,
+  // with its middle at angle a from the middle of the hexagon, pairs with
+  //   from -60 to 60 degrees    the triangle below it (direction 0)
+  //   from 60 to 180 degrees    the triangle to its right (direction 1)
+  //   from 180 to 300 degrees   the triangle to its left (direction 2)
+  // (The 3 lines between the big rhombi run along the triangles' sides,
+  // so no triangle is cut by them.)
+  function emptyRoom() {
+    const plan = [], used = new Uint8Array(n);
+    for (let v = 0; v < n; v++) {
+      if (((X[v] + Y[v]) % 2 + 2) % 2 !== 1) continue;   // only the ones pointing up
+      const u = X[v] / 2, w = (Y[v] + 1 / 3) * ROW;
+      const angle = (Math.atan2(w, u) * 180 / Math.PI + 360 + 60) % 360;   // 0 at -60 degrees
+      const other = angle < 120 ? cellAt(domain, X[v], Y[v] - 1)
+                  : angle < 240 ? cellAt(domain, X[v] + 1, Y[v]) : cellAt(domain, X[v] - 1, Y[v]);
+      const p = other < 0 ? -1 : pairOf(v, other);
+      if (p < 0 || used[other]) return null;
+      used[v] = used[other] = 1;
+      plan.push(p);
+    }
+    return plan.length * 2 === n ? plan : null;
   }
 
   // The coin problem: write "length" as a sum of numbers from "sizes"

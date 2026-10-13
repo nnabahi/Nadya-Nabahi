@@ -73,11 +73,22 @@
           <a class="tool-button model-check" href="uniform-tiling-check.html">model check</a></h2>
 
         <h3 class="option-heading">Domain</h3>
+        <!-- The cells: squares, or triangles or hexagons (then the tile is
+             two neighboring cells, and some domains change). -->
+        <div class="option-row">
+          Cells
+          <select id="set-lattice">
+            <option value="square">Squares</option>
+            <option value="triangle">Triangles</option>
+            <option value="hexagon">Hexagons</option>
+          </select>
+        </div>
         <div class="option-row">
           <label><input type="radio" name="domain" value="box" checked> Box</label>
           <label><input type="radio" name="domain" value="torus"> Torus</label>
-          <label><input type="radio" name="domain" value="aztec"> Aztec diamond</label>
-          <label><input type="radio" name="domain" value="custom"> Custom (draw it)</label>
+          <label id="aztec-choice"><input type="radio" name="domain" value="aztec"> Aztec diamond</label>
+          <label id="hexagon-choice" hidden><input type="radio" name="domain" value="hexagon"> Hexagon</label>
+          <label id="custom-choice"><input type="radio" name="domain" value="custom"> Custom (draw it)</label>
         </div>
         <div class="option-row" id="size-row">
           Size <input type="number" id="set-width" min="1" step="1">
@@ -88,12 +99,23 @@
           Order <input type="number" id="set-order" min="1" step="1">
           <span class="muted small">(choosing it switches to dominoes with no gaps, colored by direction and checkerboard; you can change all of them)</span>
         </div>
+        <!-- The hexagon of triangles: N triangles along each side. -->
+        <div class="option-row" id="side-row" hidden>
+          Side <input type="number" id="set-side" min="1" step="1">
+          <span class="muted small">(choosing it switches to no gaps, colored by direction)</span>
+        </div>
         <div class="option-row" id="custom-row" hidden>
           <span id="custom-info"></span>
           <button class="tool-button" id="edit-custom">Edit custom domain</button>
         </div>
 
         <h3 class="option-heading">Tiles</h3>
+        <!-- On triangles or hexagons the tile is fixed. -->
+        <p class="muted small" id="pair-tiles" hidden>
+          The tile is two neighboring cells: on triangles a rhombus (also called a lozenge), on
+          hexagons two hexagons side by side. It comes in 3 directions.
+        </p>
+        <div id="square-tiles">
         <div class="option-row">
           Preset
           <select id="preset">
@@ -111,13 +133,16 @@
         </div>
         <div class="option-row">
           <label><input type="checkbox" id="rotations" checked> Allow rotations</label>
-          <label><input type="checkbox" id="gaps" checked> Allow gaps</label>
         </div>
-        <p class="muted small" id="gaps-info"></p>
         <p class="muted small">
           Weights: a packing's chance is proportional to the product of its tiles' weights.
           All 1 = uniform. Weight 0 leaves the tile out.
         </p>
+        </div>
+        <div class="option-row">
+          <label><input type="checkbox" id="gaps" checked> Allow gaps</label>
+        </div>
+        <p class="muted small" id="gaps-info"></p>
 
         <h3 class="option-heading">The move</h3>
         <div class="option-row">
@@ -212,6 +237,12 @@
           many moves, the packing looks like a uniform one.
         </p>
         <p>
+          The cells can also be <strong>triangles</strong> or
+          <strong>hexagons</strong>. Then the tile is two neighboring cells: on
+          triangles a <strong>rhombus</strong>. Rhombi tiling a hexagon look like a
+          pile of cubes in a corner, seen from far away.
+        </p>
+        <p>
           Each tile can also get a <strong>weight</strong>. Then a packing's chance
           is proportional to the product of its tiles' weights: a heavier tile shows
           up more often. All weights 1 is the uniform packing.
@@ -223,7 +254,8 @@
           "Average over time". Click a spot to make one move there
           yourself. Slide a tile's weight while it runs and watch that
           tile take over or die out. Pick the Aztec diamond and look at the
-          average to see the arctic circle. Zoom in with the mouse wheel, a pinch,
+          average to see the arctic circle, or pick Triangles and watch the empty
+          corner fill with cubes. Zoom in with the mouse wheel, a pinch,
           or the + and &minus; buttons, and drag to look around; on the torus,
           zoomed out, it shows several times side by side.
         </p>
@@ -327,6 +359,24 @@
           even for simple tiles [4]), so it can fail when a tiling exists.
         </p>
         <p>
+          <strong>Triangles and hexagons.</strong> The cells can also be the
+          triangles or the hexagons of side 1 that tile the plane. Then the only tile
+          is a pair of neighboring cells, in 3 directions, and a cell touches the
+          disk when some point of it is in the disk; the move and the proof above
+          don't change. A tiling of a hexagon of triangles by rhombi is a lozenge
+          tiling, and it is the same as a pile of cubes in a box, seen along the
+          box's diagonal. The hexagon with sides <span class="tex">a, b, c</span> has
+          <span class="tex">\prod_{i=1}^{a}\prod_{j=1}^{b}\prod_{k=1}^{c} \frac{i+j+k-1}{i+j+k-2}</span>
+          of them [7], and a uniformly random one is frozen near the corners, outside
+          the circle inscribed in the hexagon, and random inside it [8]. Without gaps
+          the start is each row cut into pairs, or on the hexagon the empty corner
+          (3 big rhombi, each filled with rhombi of one direction). The chain starts
+          far from a typical tiling, so on a big hexagon the circle takes many moves
+          to appear: moves that change the tiling only near the disk move the
+          picture slowly, like heat spreading (for the similar chain on domino
+          tilings, see [9]).
+        </p>
+        <p>
           <strong>Checks.</strong> On tiny domains every packing is listed and the
           chain visits each about equally often (or in proportion to its weight); domino counts agree with Kasteleyn's
           formula [5]; and dominoes on an Aztec diamond show the arctic circle [6].
@@ -352,6 +402,16 @@
           <li>W. Jockusch, J. Propp, P. Shor, &ldquo;Random domino tilings and the
             arctic circle theorem&rdquo;, 1998.
             <a href="https://arxiv.org/abs/math/9801068">arXiv:math/9801068</a></li>
+          <li>P. A. MacMahon, <em>Combinatory Analysis</em>, vol. 2, Cambridge
+            University Press, 1916.</li>
+          <li>H. Cohn, M. Larsen, J. Propp, &ldquo;The shape of a typical boxed plane
+            partition&rdquo;, <em>New York Journal of Mathematics</em> 4 (1998),
+            137&ndash;165.
+            <a href="https://arxiv.org/abs/math/9801059">arXiv:math/9801059</a></li>
+          <li>B. Laslier, F. L. Toninelli, &ldquo;How quickly can we sample a uniform
+            domino tiling of the 2L &times; 2L square via Glauber dynamics?&rdquo;,
+            <em>Probability Theory and Related Fields</em> 161 (2015), 509&ndash;559.
+            <a href="https://arxiv.org/abs/1210.5456">arXiv:1210.5456</a></li>
         </ol>
         </div>
       </section>
