@@ -623,16 +623,15 @@ function drawHeightsChart() {
 }
 
 // The avalanche sizes, grouped by powers of 2 (the pile counts them:
-// group 0 is no topples, group b > 0 from 2^(b-1) to 2^b - 1).
+// group 0 is a grain that toppled nothing, group b > 0 is from 2^(b-1)
+// to 2^b - 1 topples). Both charts leave group 0 out: they are about
+// the avalanches themselves.
 
-// The label of group b: its smallest size.
-function groupLabel(b) { return b === 0 ? "0" : (2 ** (b - 1)).toLocaleString(); }
-
-// Avalanches over time: column c is the avalanches number c * width to
-// (c + 1) * width - 1 (the pile's timeline), row b (from the bottom) is
-// group b, and the color is how many of the column's avalanches are in
-// that group, from white (none) to dark blue (as many as its most
-// common group).
+// Avalanches over time: column c is the storm grains number c * width
+// to (c + 1) * width - 1 (the pile's timeline), row b (from the bottom,
+// starting at b = 1) is group b, and the color is how many of the
+// column's avalanches are in that group, from white (none) to dark blue
+// (as many as its most common group).
 function drawTimelineChart() {
   const canvas = byId("timeline-chart");
   const pen = chartPen(canvas);
@@ -641,18 +640,19 @@ function drawTimelineChart() {
     ? "Start from an empty table, tick the storm (with \"Wait until stable\") and press Play " +
       "to watch the pile turn critical."
     : "Across: storm grains, " + width.toLocaleString() + (width === 1 ? " grain" : " grains") +
-      " per column. Up: avalanche sizes. Darkest: the most common size in that column.";
+      " per column. Up: avalanche sizes, from 1 topple. Darkest: the most common size in that column.";
   if (columns.length === 0) return;
   const w = canvas.clientWidth, h = canvas.clientHeight;
   const left = 40, up = 4, bottom = h - 16;
-  const rows = latest.avalancheBins.length;
+  const rows = latest.avalancheBins.length - 1;   // groups 1, 2, ... (not 0)
+  if (rows < 1) return;
   const colWidth = (w - left) / Math.max(columns.length, 20), rowHeight = (bottom - up) / rows;
   columns.forEach(function (column, c) {
-    const most = Math.max(...column);
+    const most = Math.max(0, ...column.slice(1));
     column.forEach(function (count, b) {
-      if (count === 0) return;
-      pen.fillStyle = rgbToHex(colorOfTopples(Math.log1p(count), Math.log1p(most)));   // log: rare sizes still show
-      pen.fillRect(left + c * colWidth, bottom - (b + 1) * rowHeight, Math.ceil(colWidth), Math.ceil(rowHeight));
+      if (b === 0 || count === 0) return;
+      pen.fillStyle = rgbToHex(colorOfTopples(count, most));
+      pen.fillRect(left + c * colWidth, bottom - b * rowHeight, Math.ceil(colWidth), Math.ceil(rowHeight));
     });
   });
   // Labels: some of the sizes on the left, the grains along the bottom.
@@ -660,7 +660,7 @@ function drawTimelineChart() {
   pen.textAlign = "right";
   pen.textBaseline = "middle";
   const every = Math.ceil(rows / Math.max(1, Math.floor((bottom - up) / 14)));
-  for (let b = 0; b < rows; b += every) pen.fillText(groupLabel(b), left - 4, bottom - (b + 0.5) * rowHeight);
+  for (let b = 1; b <= rows; b += every) pen.fillText((2 ** (b - 1)).toLocaleString(), left - 4, bottom - (b - 0.5) * rowHeight);
   pen.textBaseline = "bottom";
   pen.textAlign = "left";
   pen.fillText("0", left, h);
@@ -670,19 +670,20 @@ function drawTimelineChart() {
 
 // Avalanche sizes on logarithmic scales: for each group b >= 1, a dot at
 // its smallest size 2^(b-1) across and, up, the fraction of avalanches
-// in it divided by its width (2^(b-1) sizes), the fraction of avalanches
-// of each size in the group, on average. A power law is a straight line.
+// (at least one topple) in it divided by its width (2^(b-1) sizes): the
+// fraction of avalanches of each size in the group, on average. A power
+// law is a straight line.
 function drawAvalancheChart() {
   const canvas = byId("avalanche-chart");
   const pen = chartPen(canvas);
   const bins = latest.avalancheBins, total = latest.avalancheCount;
-  const sized = total - (bins[0] || 0);       // avalanches with at least one topple
+  const sized = total - (bins[0] || 0);       // grains that toppled something
   byId("avalanche-info").textContent = total === 0 ? ""
-    : total.toLocaleString() + " avalanches so far, " + sized.toLocaleString() + " with at least one topple. " +
+    : total.toLocaleString() + " grains dropped so far; " + sized.toLocaleString() + " of them set off an avalanche. " +
       "Both scales are logarithmic, so a power law shows as a straight line.";
   const dots = [];                            // [log10 size, log10 fraction]
   for (let b = 1; b < bins.length; b++) {
-    if (bins[b] > 0) dots.push([(b - 1) * Math.log10(2), Math.log10(bins[b] / 2 ** (b - 1) / total)]);
+    if (bins[b] > 0) dots.push([(b - 1) * Math.log10(2), Math.log10(bins[b] / 2 ** (b - 1) / sized)]);
   }
   if (dots.length < 2) return;
   const w = canvas.clientWidth, h = canvas.clientHeight;

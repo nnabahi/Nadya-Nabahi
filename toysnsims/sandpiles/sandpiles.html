@@ -387,15 +387,17 @@
         </p>
         <p>
           <strong>Statistics.</strong> An avalanche is the number of topples
-          caused by one grain of the storm. They follow a rough power law, the
+          caused by one grain of the storm; the charts only count grains
+          that topple at least one cell. They follow a rough power law, the
           "self-organized criticality" of [1]. "Avalanches over time" shows
           the pile becoming critical: across is the number of storm grains so
           far, in columns of equally many grains, and up are the avalanche
-          sizes, grouped by powers of 2 (0, 1, 2&ndash;3, 4&ndash;7, ...). Each
+          sizes, grouped by powers of 2 (1, 2&ndash;3, 4&ndash;7, ...). Each
           square's color is how many of that column's avalanches have that
           size, from white (none) to dark blue (the most common size in the
           column). Starting from an
-          empty table, the first avalanches are all of size 0; once the
+          empty table, the first grains topple nothing, so the first columns
+          are empty; once the
           pile is recurrent the columns stop changing. "Avalanche sizes"
           plots, on logarithmic scales, the fraction of all avalanches of
           each size <span class="tex">s \ge 1</span> (the count in each
