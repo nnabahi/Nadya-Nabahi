@@ -301,7 +301,7 @@ function customStart(d) {
 const worker = startWorker(mountainWorker,
   [newMountain, newGraphMountain, makeGraph, tilingShape, motionTimes, motionApply, halfTurn, coshFromStart,
    learnedRules, tilingByGeometry, tilingByRules, tilingRules, testRules, hashTable, ballAround, spreadPlace,
-   makeRunLoop, newTrace, keepSample, pickSite, newClocks, holeHistory]);
+   makeRunLoop, newTrace, keepSample, pickSite, newClocks, holeHistory, convexity]);
 
 worker.onmessage = function (event) {
   const message = event.data;
@@ -872,6 +872,14 @@ function showStats() {
   const capped = maxHeight() < Infinity;
   for (const e of document.querySelectorAll(".cap-only")) e.hidden = !capped;
   for (const e of document.querySelectorAll(".no-cap-only")) e.hidden = capped;
+  // The shape: in 2D, not on a torus (the worker sends it then).
+  for (const e of document.querySelectorAll(".shape-only")) e.hidden = !s.radii;
+  if (s.radii) {
+    byId("stat-convexity").textContent = s.convexity.toFixed(3);
+    plotOverTime(byId("convexity-chart"), s.traceSteps, [{ values: s.traceConvexity, color: CHART_LINE }], "step");
+    radiusChart(byId("radius-chart"), s.radii);
+    radiusHeatChart(byId("radius-heat-chart"), s.traceSteps, s.traceRadii, s.radii.length);
+  }
   // The holes: in 2D, not on a torus (the worker sends them then).
   for (const e of document.querySelectorAll(".holes-only")) e.hidden = !s.holes;
   if (s.holes) {
@@ -902,6 +910,97 @@ function showStats() {
   }
 }
 
+
+// The farthest base site in each direction (radii[k] for the slice k of
+// the circle, from -180 degrees), over their average, as a loop around
+// the start: a disk would be the gray circle (radius 1). Directions with
+// no site yet are left out.
+function radiusChart(canvas, radii) {
+  const pen = chartPen(canvas);
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  const average = meanRadius(radii, 0, radii.length);
+  if (average === 0) return;
+  let biggest = 1.2;
+  for (const r of radii) biggest = Math.max(biggest, r / average);
+  const cx = w / 2, cy = h / 2, unit = (Math.min(w, h) / 2 - 6) / biggest;   // screen pixels for radius 1
+  pen.strokeStyle = EMPTY;
+  pen.lineWidth = 1;
+  pen.beginPath();
+  pen.arc(cx, cy, unit, 0, 2 * Math.PI);
+  pen.stroke();
+  pen.textAlign = "left";
+  pen.textBaseline = "top";
+  pen.fillText("gray: the average", 0, 0);
+  pen.beginPath();
+  let drawing = false;
+  radii.forEach(function (r, k) {
+    if (r === 0) { drawing = false; return; }
+    const angle = -Math.PI + (k + 0.5) * 2 * Math.PI / radii.length;
+    const x = cx + unit * (r / average) * Math.cos(angle), y = cy - unit * (r / average) * Math.sin(angle);
+    if (drawing) pen.lineTo(x, y); else pen.moveTo(x, y);
+    drawing = true;
+  });
+  if (drawing && radii[0] > 0) {   // close the loop
+    const r = radii[0];
+    const angle = -Math.PI + 0.5 * 2 * Math.PI / radii.length;
+    pen.lineTo(cx + unit * (r / average) * Math.cos(angle), cy - unit * (r / average) * Math.sin(angle));
+  }
+  pen.strokeStyle = CHART_LINE;
+  pen.lineWidth = 1.5;
+  pen.stroke();
+}
+
+// The average of radii[from .. to - 1], leaving out the 0s (no site yet).
+function meanRadius(radii, from, to) {
+  let total = 0, count = 0;
+  for (let k = from; k < to; k++) if (radii[k] > 0) { total += radii[k]; count++; }
+  return count === 0 ? 0 : total / count;
+}
+
+// The radii over time: one column per sample (times[j]), one row per
+// direction (bins of them, -180 degrees at the bottom), colored by the
+// radius over that sample's average: blue below, white at 1, red above
+// (full color at 25% off). Gray: no site that way yet.
+function radiusHeatChart(canvas, times, radii, bins) {
+  const pen = chartPen(canvas);
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  const columns = times.length;
+  if (columns < 2) return;
+  const left = 44, up = 6, bottom = h - 16;
+  const tiny = document.createElement("canvas");   // one pixel per sample and direction
+  tiny.width = columns;
+  tiny.height = bins;
+  const tinyPen = tiny.getContext("2d");
+  const image = tinyPen.createImageData(columns, bins);
+  const blue = hexToRGB("#3b6fb6"), red = hexToRGB("#c8402f"), gray = hexToRGB(EMPTY);
+  for (let j = 0; j < columns; j++) {
+    const average = meanRadius(radii, j * bins, (j + 1) * bins);
+    for (let k = 0; k < bins; k++) {
+      const r = radii[j * bins + k];
+      let rgb = gray;
+      if (r > 0) {
+        const off = Math.max(-1, Math.min(1, (r / average - 1) / 0.25));   // -1 .. 1
+        const to = off < 0 ? blue : red, a = Math.abs(off);
+        rgb = [0, 1, 2].map(function (c) { return Math.round(255 + (to[c] - 255) * a); });
+      }
+      const p = 4 * ((bins - 1 - k) * columns + j);   // -180 degrees at the bottom
+      image.data[p] = rgb[0]; image.data[p + 1] = rgb[1]; image.data[p + 2] = rgb[2]; image.data[p + 3] = 255;
+    }
+  }
+  tinyPen.putImageData(image, 0, 0);
+  pen.imageSmoothingEnabled = false;
+  pen.drawImage(tiny, left, up, w - left, bottom - up);
+  // The labels: directions on the left, steps under.
+  pen.textAlign = "right";
+  pen.textBaseline = "middle";
+  for (const [angle, label] of [[180, "180°"], [90, "90°"], [0, "0°"], [-90, "−90°"], [-180, "−180°"]]) {
+    pen.fillText(label, left - 5, up + (bottom - up) * (180 - angle) / 360);
+  }
+  pen.textBaseline = "bottom";
+  pen.fillText("step " + times[columns - 1].toLocaleString(), w, h);
+  pen.textAlign = "left";
+  pen.fillText("0", left, h);
+}
 
 // Each hole that has closed, as a dot: how long it lived (its
 // persistence, died - born, in steps) up, against the step it was born
