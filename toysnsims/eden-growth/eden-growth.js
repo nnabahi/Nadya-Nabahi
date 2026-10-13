@@ -320,7 +320,7 @@ worker.onmessage = function (event) {
   }
   if (message.allFull) {  // with a capacity: every site is full, so the run is over
     if (player.playing) player.setPlaying(false);
-    showMessage("Every site is full (it holds M blocks), so no more blocks can land.");
+    showMessage("Every site is full (it has capacity M), so no more blocks can land.");
   }
   byId("play").disabled = byId("step").disabled = Boolean(message.atMax || message.allFull);
   drawSoon();
@@ -593,7 +593,7 @@ function clickAt(event) {
   if (!haveMountain() || tool.isOpen) return;
   const site = siteUnder(event);
   if (site >= 0 && latest.height[site] >= maxHeight()) {
-    showMessage("That site is full: it already holds M blocks.");
+    showMessage("That site is full: it already has capacity M.");
   } else if (site >= 0) {
     if (player.playing) player.setPlaying(false);
     worker.postMessage({ type: "click", site: site });
