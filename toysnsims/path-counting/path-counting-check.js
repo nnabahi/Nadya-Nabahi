@@ -11,25 +11,24 @@
      2. Every path listed: on small grids, every path from (x, y) to
         (0, 0) is walked one by one, written separately from the sim,
         and the products of the weights along them are added up. That
-        must match f, for random open/closed edges and for random
-        weights.
+        must match f, for random open/closed edges, random weights and
+        your periodic rule.
 
-     3. Reading formulas: Desmos's piecewise {condition: a, b} and the
-        rest, on a few formulas with known answers.
+     3. Reading formulas: Desmos's piecewise {condition: a, b}, your own
+        functions and the rest, on formulas with known answers.
 
-     4. Your periodic rule, as typed in the sim, must open exactly the
-        edges its definition says (d(y) = 3 when u(y) < p, else 2; the
-        step down from (x, y) is open when d(y) divides x).
+     4. Your periodic rule, as typed in the sim: d(y) is one number per
+        row, and the edges open are exactly those where d(y) divides x.
 
-     5. u(...): the same input and seed give the same number; another
-        seed gives another; and 100,000 of them fall equally often in 10
-        equal parts of [0, 1) (Pearson's chi-square test, from
-        js/check-page.js). Coupling: an edge open at p = 0.3 is still
-        open at p = 0.6.
+     5. Coupled random(): worked out again it gives the same number;
+        another seed, X instead of Y, or another point gives another;
+        and 100,489 of them fall equally often in 10 equal parts of
+        [0, 1) (Pearson's chi-square test, from js/check-page.js).
+        Coupling: an edge open at p = 0.3 is still open at p = 0.6.
 
-     6. The line a x + b y = c: every point listed is on it and in the
-        grid, and no point is missing (checked against all the grid
-        points).
+     6. The lines at angle t: every grid point is on exactly one line,
+        each line has one point per column (or row), within half a step
+        of the true line, and at 45 degrees line k is exactly x + y = k.
 
      7. Normalizing: with "normalized", the largest height on every line
         that a path reaches is exactly 1; the other two ways go from
@@ -47,9 +46,11 @@
    "outside {0,1}", a weight of 2 does, and negative weights are counted.
    ===================================================================== */
 
-// A weight function from formula text, as the sim makes it.
-function typed(text, values, N, seed) {
-  return weightFunction(readTree(text), values || {}, N, uniformFor(seed || "check"));
+// The weights { X, Y } from formula text, as the sim makes them: X, Y,
+// your own functions (one per line), the sliders' values, N and the seed.
+function typed(X, Y, definitions, values, N, seed) {
+  const defs = definitions.split("\n").filter(function (t) { return t.trim() !== ""; }).map(readDefinition);
+  return makeWeights({ X: readTree(X), Y: readTree(Y) }, defs, values || {}, N, seed || "check");
 }
 
 // Close enough, for numbers that may be huge: relative error below "tolerance".
@@ -97,17 +98,17 @@ function sumOverPaths(x, y, weightX, weightY) {
 function testEveryPath() {
   const N = 7;
   const cases = [
-    ["open with chance 0.6", "{u(x, y, 1) < 0.6: 1, 0}", "{u(x, y, 2) < 0.6: 1, 0}"],
-    ["weights uniform on [0, 2]", "2 u(x, y, 1)", "2 u(x, y, 2)"],
-    ["your periodic rule, p = 0.5", "1", "{mod(x, {u(y) < 0.5: 3, 2}) = 0: 1, 0}"],
+    ["open with chance 0.6", "{random() < 0.6: 1, 0}", "{random() < 0.6: 1, 0}", ""],
+    ["weights uniform on [0, 2]", "2 random()", "2 random()", ""],
+    ["your periodic rule, p = 0.5", "1", "{mod(x, d(y)) = 0: 1, 0}", "d(y) = {random() < 0.5: 3, 2}"],
   ];
-  for (const [name, X, Y] of cases) {
+  for (const [name, X, Y, defs] of cases) {
     let worst = 0;
     for (const seed of ["a", "b", "c"]) {
-      const wx = typed(X, {}, N, seed), wy = typed(Y, {}, N, seed);
-      const paths = countPaths(N, wx, wy);
+      const w = typed(X, Y, defs, {}, N, seed);
+      const paths = countPaths(N, w.X, w.Y);
       for (let y = 0; y <= N; y++) for (let x = 0; x <= N; x++) {
-        const listed = sumOverPaths(x, y, wx, wy), L = paths.logF[spot(N, x, y)];
+        const listed = sumOverPaths(x, y, w.X, w.Y), L = paths.logF[spot(N, x, y)];
         const error = listed === 0 ? (L === -Infinity ? 0 : 1) : Math.abs(Math.exp(L) - listed) / listed;
         worst = Math.max(worst, error);
       }
@@ -126,114 +127,138 @@ function testFormulas() {
     ["{x < 1: 1, x < 3: 2, 3}", 2, 0, 2], ["{x < 1: 1, x < 3: 2, 3}", 5, 0, 3],
     ["{x > 0: {y > 0: 1, 2}, 3}", 1, 0, 2], ["{x > 0: {y > 0: 1, 2}, 3}", 0, 4, 3],
     ["{mod(x, 3) = 0: 1, 0}", 6, 0, 1], ["{mod(x, 3) = 0: 1, 0}", 7, 0, 0],
-    ["xy + 1", 3, 4, 13], ["u(x) < 2", 5, 0, 1],
+    ["xy + 1", 3, 4, 13], ["random() < 2", 5, 0, 1], ["g(x + 1, 2)", 3, 0, 10],
   ];
   const wrong = [];
   for (const [text, x, y, want] of cases) {
-    const got = typed(text, {}, 10)(x, y);
+    const got = typed(text, "0", "g(a, b) = a b + b", {}, 10).X(x, y);
     if (!(got === want || (isNaN(got) && isNaN(want)))) wrong.push(text + " at (" + x + ", " + y + ") gave " + got + ", not " + want);
   }
-  let braceError = false;
+  let braceError = false, definitionError = false;
   try { readTree("{x > 2: 1"); } catch (problem) { braceError = true; }
-  const letters = sliderLetters(readTree("{u(x, y) < p: 1, 0} + N")).filter(function (l) { return l !== "N"; });
-  const ok = wrong.length === 0 && braceError && letters.join() === "p";
-  addRow("Reading formulas: piecewise {c: a, b}, mod, xy, u", ok,
+  try { readDefinition("d = 3"); } catch (problem) { definitionError = true; }
+  const letters = sliderLetters(readTree("{random() < p: 1, 0} + N")).filter(function (l) { return l !== "N"; });
+  const ok = wrong.length === 0 && braceError && definitionError && letters.join() === "p";
+  addRow("Reading formulas: piecewise {c: a, b}, mod, xy, random(), your own functions", ok,
     wrong.length ? wrong.join("; ") : (braceError ? "" : "A missing } gave no error. ") +
-      "All " + cases.length + " formulas gave the right values; the sliders of {u(x, y) < p: 1, 0} + N are [" +
+      (definitionError ? "" : "\"d = 3\" was read as a function. ") +
+      "All " + cases.length + " formulas gave the right values; the sliders of {random() < p: 1, 0} + N are [" +
       letters.join(", ") + "] (should be [p]).");
 }
 
 
 /* 4. Your periodic rule -------------------------------------------------- */
 function testPeriodic() {
-  const N = 40, p = 0.37, u = uniformFor("periodic");
-  const wy = weightFunction(readTree("{mod(x, {u(y) < p: 3, 2}) = 0: 1, 0}"), { p: p }, N, u);
-  let wrong = 0, threes = 0;
+  const N = 40, p = 0.37;
+  const w = typed("1", "{mod(x, d(y)) = 0: 1, 0}", "d(y) = {random() < p: 3, 2}", { p: p }, N, "periodic");
+  const rows = typed("d(y)", "0", "d(y) = {random() < p: 3, 2}", { p: p }, N, "periodic").X;   // d(y) itself
+  let wrong = 0, threes = 0, notPerRow = 0;
   for (let y = 1; y <= N; y++) {
-    const d = u(y) < p ? 3 : 2;
+    const d = rows(1, y);
     if (d === 3) threes++;
-    for (let x = 0; x <= N; x++) if (wy(x, y) !== (x % d === 0 ? 1 : 0)) wrong++;
+    for (let x = 0; x <= N; x++) {
+      if (rows(x, y) !== d) notPerRow++;
+      if (w.Y(x, y) !== (x % d === 0 ? 1 : 0)) wrong++;
+    }
   }
-  addRow("Your periodic rule opens exactly the edges where d(y) divides x", wrong === 0,
-    wrong + " edges differ from the definition (" + threes + " of the 40 rows have d = 3, at p = 0.37).");
+  addRow("Your periodic rule: one d per row, and the open edges are where d(y) divides x",
+    wrong === 0 && notPerRow === 0 && threes > 0 && threes < 40,
+    wrong + " edges differ from the definition; d(y) changed along a row " + notPerRow + " times; " +
+    threes + " of the 40 rows have d = 3, at p = 0.37.");
 }
 
 
-/* 5. u(...) and coupling ------------------------------------------------ */
-function testUniform() {
-  const u = uniformFor("1"), again = uniformFor("1"), other = uniformFor("2");
-  const same = u(3, 4) === again(3, 4) && u(7) === again(7);
-  const differs = u(3, 4) !== other(3, 4);
+/* 5. Coupled random() ---------------------------------------------------- */
+function testRandom() {
+  const N = 316;                       // 317 x 317 = 100,489 points
+  const a = typed("random()", "random()", "", {}, N, "1"), again = typed("random()", "random()", "", {}, N, "1");
+  const other = typed("random()", "random()", "", {}, N, "2");
+  const same = a.X(3, 4) === again.X(3, 4) && a.X(3, 4) === a.X(3, 4);
+  const differs = a.X(3, 4) !== other.X(3, 4) && a.X(3, 4) !== a.Y(3, 4) && a.X(3, 4) !== a.X(4, 3);
+  const two = typed("random() - random()", "0", "", {}, N, "1").X(3, 4) !== 0;   // two random()s in one formula
   const counts = new Array(10).fill(0);
-  for (let i = 0; i < 100000; i++) {
-    const v = u(i);
-    if (v < 0 || v >= 1) { counts.fill(0); break; }
-    counts[Math.floor(10 * v)]++;
+  let outside = 0;
+  for (let y = 0; y <= N; y++) for (let x = 0; x <= N; x++) {
+    const v = a.X(x, y);
+    if (v < 0 || v >= 1) outside++; else counts[Math.floor(10 * v)]++;
   }
   const test = equalChiSquare(counts);
-  addRow("u(...): fixed for each input and seed, and uniform on [0, 1)", same && differs && test.pValue > 0.001,
-    (same ? "Same input and seed, same number. " : "Same input gave different numbers! ") +
-    (differs ? "Another seed, another number. " : "Another seed gave the same number! ") +
-    "10 equal parts of [0, 1): chi-square " + test.statistic.toFixed(2) + " with " + test.degrees +
-    " degrees of freedom, p-value " + test.pValue.toFixed(3) + ".");
+  addRow("random(): kept for each place, separate for X and Y, and uniform on [0, 1)",
+    same && differs && two && outside === 0 && test.pValue > 0.001,
+    (same ? "Same seed and place, same number. " : "Worked out again, it changed! ") +
+    (differs ? "Another seed, X vs Y, or another point: another number. " : "Two different places gave the same number! ") +
+    (two ? "" : "Two random()s in one formula were equal! ") +
+    "10 equal parts of [0, 1), 100,489 points: chi-square " + test.statistic.toFixed(2) + " with " + test.degrees +
+    " degrees of freedom, p-value " + test.pValue.toFixed(3) + (outside ? ", " + outside + " outside [0, 1)" : "") + ".");
 
-  const N = 30, tree = readTree("{u(x, y) < p: 1, 0}");
-  const low = weightFunction(tree, { p: 0.3 }, N, u), high = weightFunction(tree, { p: 0.6 }, N, u);
+  const small = 30;
+  const low = typed("{random() < p: 1, 0}", "1", "", { p: 0.3 }, small, "1").X;
+  const high = typed("{random() < p: 1, 0}", "1", "", { p: 0.6 }, small, "1").X;
   let closed = 0;
-  for (let y = 0; y <= N; y++) for (let x = 0; x <= N; x++) if (low(x, y) === 1 && high(x, y) !== 1) closed++;
+  for (let y = 0; y <= small; y++) for (let x = 0; x <= small; x++) if (low(x, y) === 1 && high(x, y) !== 1) closed++;
   addRow("Coupling: moving p up only opens edges", closed === 0,
     closed + " edges open at p = 0.3 were closed at p = 0.6.");
 }
 
 
-/* 6. The line a x + b y = c ---------------------------------------------- */
+/* 6. The lines ------------------------------------------------------------ */
 function testLines() {
   const N = 20, problems = [];
-  for (const [a, b] of [[1, 1], [2, 5], [1, -1], [3, 0], [0, 2], [-2, 3]]) {
-    const range = levelRange(N, a, b);
-    for (let c = range.lo - 1; c <= range.hi + 1; c++) {
-      const listed = linePoints(N, a, b, c);
+  for (let degrees = 0; degrees <= 90; degrees += 7.5) {
+    const line = makeLine(N, degrees * Math.PI / 180);
+    let total = 0;
+    for (let k = 0; k <= line.most; k++) {
+      const listed = linePoints(N, line, k);
+      total += listed.length;
       let all = 0;
-      for (let y = 0; y <= N; y++) for (let x = 0; x <= N; x++) if (a * x + b * y === c) all++;
-      const bad = listed.filter(function (p) { return a * p.x + b * p.y !== c || p.x < 0 || p.x > N || p.y < 0 || p.y > N; });
-      if (bad.length > 0 || listed.length !== all) problems.push("(" + a + ", " + b + "), c = " + c);
+      for (let y = 0; y <= N; y++) for (let x = 0; x <= N; x++) if (line.number(x, y) === k) all++;
+      const across = listed.map(function (p) { return line.alongX ? p.x : p.y; });
+      const once = new Set(across).size === across.length;
+      const far = listed.filter(function (p) { return Math.abs(p.x * line.cos + p.y * line.sin - k * line.step) > line.step / 2 + 1e-9; });
+      if (listed.length !== all || !once || far.length > 0) problems.push(degrees + "°, line " + k);
     }
+    if (total !== (N + 1) * (N + 1)) problems.push(degrees + "°: " + total + " points in all");
   }
-  addRow("The line a x + b y = c: its grid points, no more and no fewer", problems.length === 0,
-    problems.length ? "Wrong for " + problems.slice(0, 5).join("; ") : "Right for 6 directions and every c, on the 21 × 21 grid.");
+  const diagonal = makeLine(N, Math.PI / 4);
+  const exact = linePoints(N, diagonal, 15).every(function (p) { return p.x + p.y === 15; });
+  addRow("The lines: every grid point on exactly one, one point per column (or row), nearest the line",
+    problems.length === 0 && exact,
+    problems.length ? "Wrong for " + problems.slice(0, 5).join("; ")
+      : "Right for every angle 0°, 7.5°, ..., 90° and every line, on the 21 × 21 grid; at 45° line 15 is exactly x + y = 15.");
 }
 
 
 /* 7. Normalizing ------------------------------------------------------- */
 function testHeights() {
-  const N = 40, u = uniformFor("heights");
-  const paths = countPaths(N, function (x, y) { return u(x, y, 1) < 0.7 ? 1 : 0; },
-                              function (x, y) { return 2 * u(x, y, 2); });
+  const N = 40;
+  const w = typed("{random() < 0.7: 1, 0}", "2 random()", "", {}, N, "heights");
+  const paths = countPaths(N, w.X, w.Y);
   const problems = [];
-  for (const [a, b] of [[1, 1], [2, 5], [1, -1]]) {
-    const h = scaledHeights(paths, a, b, "line"), range = levelRange(N, a, b);
-    for (let c = range.lo; c <= range.hi; c++) {
+  for (const degrees of [45, 70, 20]) {
+    const line = makeLine(N, degrees * Math.PI / 180), h = scaledHeights(paths, line, "line");
+    for (let k = 0; k <= line.most; k++) {
       let most = -Infinity;
-      for (const p of linePoints(N, a, b, c)) { const v = h[spot(N, p.x, p.y)]; if (!isNaN(v)) most = Math.max(most, v); }
-      if (most !== -Infinity && Math.abs(most - 1) > 1e-12) problems.push("(" + a + ", " + b + ") c = " + c + ": " + most);
+      for (const p of linePoints(N, line, k)) { const v = h[spot(N, p.x, p.y)]; if (!isNaN(v)) most = Math.max(most, v); }
+      if (most !== -Infinity && Math.abs(most - 1) > 1e-12) problems.push(degrees + "° line " + k + ": " + most);
     }
   }
   for (const how of ["all", "log"]) {
     let lo = Infinity, hi = -Infinity;
-    for (const v of scaledHeights(paths, 1, 1, how)) if (!isNaN(v)) { lo = Math.min(lo, v); hi = Math.max(hi, v); }
+    for (const v of scaledHeights(paths, makeLine(N, Math.PI / 4), how)) if (!isNaN(v)) { lo = Math.min(lo, v); hi = Math.max(hi, v); }
     if (lo < 0 || Math.abs(hi - 1) > 1e-12) problems.push(how + ": from " + lo + " to " + hi);
   }
   addRow("Normalizing: every line tops out at 1; the other two go from 0 to 1", problems.length === 0,
-    problems.length ? problems.slice(0, 4).join("; ") : "Right on a 41 × 41 grid with random weights, for 3 directions.");
+    problems.length ? problems.slice(0, 4).join("; ") : "Right on a 41 × 41 grid with random weights, at 45°, 70° and 20°.");
 }
 
 
 /* 8. The bell curve ---------------------------------------------------- */
 function testBell() {
   const N = 200, c = 200, paths = countPaths(N, function () { return 1; }, function () { return 1; });
-  const stats = lineStats(linePoints(N, 1, 1, c), paths.logF, N, false);
+  const line = makeLine(N, Math.PI / 4);
+  const stats = lineStats(linePoints(N, line, c), paths.logF, N, line.alongX);
   const ok = Math.abs(stats.mean - c / 2) < 1e-9 && Math.abs(stats.sd - Math.sqrt(c) / 2) < 1e-9 && stats.worstGap < 0.005;
-  addRow("Bell curve: all edges open, line x + y = 200", ok,
+  addRow("Bell curve: all edges open, 45°, the line x + y = 200", ok,
     "Mean " + stats.mean.toFixed(6) + " (should be 100), standard deviation " + stats.sd.toFixed(6) +
     " (should be " + (Math.sqrt(c) / 2).toFixed(6) + "), largest gap to the Gaussian " + stats.worstGap.toFixed(5) +
     " (should be below 0.005).");
@@ -243,17 +268,16 @@ function testBell() {
 /* The gray note -------------------------------------------------------- */
 function testNote() {
   const N = 10;
-  const gates = countPaths(N, typed("{u(x, y) < 0.5: 1, 0}", {}, N), typed("1", {}, N));
-  const twos = countPaths(N, typed("2", {}, N), typed("u(y) < 0.5", {}, N));
-  const negative = countPaths(N, typed("1", {}, N), typed("x - 3", {}, N));
-  const ok = !gates.notZeroOne.X && !gates.notZeroOne.Y && twos.notZeroOne.X && !twos.notZeroOne.Y &&
-    negative.notZeroOne.Y && negative.negative > 0;
+  const gates = typed("{random() < 0.5: 1, 0}", "1", "", {}, N), twos = typed("2", "random() < 0.5", "", {}, N);
+  const negative = typed("1", "x - 3", "", {}, N);
+  const a = countPaths(N, gates.X, gates.Y), b = countPaths(N, twos.X, twos.Y), c = countPaths(N, negative.X, negative.Y);
+  const ok = !a.notZeroOne.X && !a.notZeroOne.Y && b.notZeroOne.X && !b.notZeroOne.Y && c.notZeroOne.Y && c.negative > 0;
   addRow("The gray note: only weights other than 0 and 1 count", ok,
-    "0/1 gates: X " + gates.notZeroOne.X + ", Y " + gates.notZeroOne.Y + " (should be false, false). " +
-    "X = 2: " + twos.notZeroOne.X + " (should be true). Y = x - 3: " + negative.negative + " weights below 0.");
+    "0/1 gates: X " + a.notZeroOne.X + ", Y " + a.notZeroOne.Y + " (should be false, false). " +
+    "X = 2: " + b.notZeroOne.X + " (should be true). Y = x - 3: " + c.negative + " weights below 0.");
 }
 
 
 runChecksOnClick(function () {
-  return [testBinomial, testEveryPath, testFormulas, testPeriodic, testUniform, testLines, testHeights, testBell, testNote];
+  return [testBinomial, testEveryPath, testFormulas, testPeriodic, testRandom, testLines, testHeights, testBell, testNote];
 });
