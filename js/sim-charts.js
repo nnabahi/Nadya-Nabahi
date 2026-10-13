@@ -172,6 +172,8 @@ function perimeterChart(canvas, regions, colorNames, border) {
   pen.textBaseline = "top";
   pen.fillText("perimeter", left + 4, 0);
 
+  pen.lineWidth = 0.5;
+  pen.strokeStyle = border;
   regions.areas.forEach(function (area, r) {
     const perimeter = regions.perimeters[r];
     if (perimeter === 0) return;
@@ -179,8 +181,6 @@ function perimeterChart(canvas, regions, colorNames, border) {
     pen.arc(sx(area), sy(perimeter), 2.5, 0, 2 * Math.PI);
     pen.fillStyle = colorNames[regions.color[r]];
     pen.fill();
-    pen.lineWidth = 0.5;
-    pen.strokeStyle = border;
     pen.stroke();
   });
 }

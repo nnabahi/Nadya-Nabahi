@@ -158,11 +158,10 @@ function connectSeed(onChange) {
    The drawing tool inside a sim page
    ---------------------------------------------------------------------
    Choosing "Custom" on a sim page swaps the picture for the drawing
-   tool (graph-tool.html), loaded in an <iframe> (a page inside the
-   page) as graph-tool.html?embed. The sim checks the
-   drawing live and says above the tool what's wrong, if anything; Done
-   uses it. makeCustomTool (js/sim-controls.js) does all of that with
-   these two.
+   tool, loaded in an <iframe> (a page inside the page) as
+   graph-tool.html?embed. The sim checks the drawing live and says above
+   the tool what's wrong, if anything; Done uses it. makeCustomTool
+   (js/sim-controls.js) does all of that with these two.
    --------------------------------------------------------------------- */
 
 // Listen to the tool in the iframe "frame". It says how tall it is (so

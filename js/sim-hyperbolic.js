@@ -768,10 +768,10 @@ function makeBall(graph, R, most) {
 function ballPlace(ball, i) { return ball.place.subarray(4 * i, 4 * i + 4); }
 
 // For each edge of the ball (entry e of ball.nbr, from cell i to cell
-// j), which side k of cell i the cell j is across (on a tree too). Moved back
-// by the inverse of cell i's motion, cell i is the first cell, and j's
-// middle is straight out from the middle of side k, at the angle
-// 2 pi k / p. (The inverse of the motion [a, b] is [conj(a), -b];
+// j), which side k of cell i the cell j is across (on a tree too).
+// Moved back by the inverse of cell i's motion, cell i is the first
+// cell, and j's middle is straight out from the middle of side k, at the
+// angle 2 pi k / p. (The inverse of the motion [a, b] is [conj(a), -b];
 // Beardon, Chapter 7.) Worked out once per ball, as ball.side.
 function ballSides(ball, p) {
   if (ball.side) return ball.side;
@@ -864,7 +864,6 @@ function ballCellUnder(dv, ball, event) {
   }
   return best;
 }
-
 
 // The cell of the ball under the pointer, or -1 if the pointer isn't on
 // one: like ballCellUnder, but only if the pointer is within the cell's

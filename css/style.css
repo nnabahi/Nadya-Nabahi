@@ -265,7 +265,8 @@ a.card:hover {
    Resume page (resume.html)
    ---------------------------------------------------------------------
    The page is a column of cards (Education, Experience, ...). Inside a
-   card, each job or degree is a "resume-entry". */
+   card, each job or degree is a "resume-entry".
+   --------------------------------------------------------------------- */
 
 /* A narrower column than other pages, so lines don't get too long to read. */
 .page.resume {
@@ -829,6 +830,10 @@ a.card:hover {
   gap: 4px;
 }
 
+.zoom-buttons .tool-button {
+  min-width: 2.2em;         /* so "+" and "−" aren't tiny */
+}
+
 /* The cellular automata's scroll bar (1D, scroll mode), on the right of
    the picture: an ordinary light gray scroll bar. While it shows, the
    picture leaves room for it ("with-history"). */
@@ -846,10 +851,6 @@ a.card:hover {
 
 .sim-picture.with-history .zoom-buttons {
   right: 24px;
-}
-
-.zoom-buttons .tool-button {
-  min-width: 2.2em;         /* so "+" and "−" aren't tiny */
 }
 
 /* The "Slide" button (hyperbolic pictures, js/sim-hyperbolic.js) comes
