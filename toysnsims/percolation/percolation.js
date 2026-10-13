@@ -68,8 +68,8 @@ const BALL = { R: 6, most: 20, cells: 20000 };
 const CRITICAL = KIND === "site" ? { 4: 0.592746, 8: 1 - 0.592746 } : { 4: 0.5, 8: null };
 
 // Play raises p by this much per second (the Speed slider).
-const SPEEDS = [0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.1];
-const DEFAULT_SPEED = SPEEDS.indexOf(0.005);
+const SPEEDS = [0.001, 0.1];   // the slider's starting min and max (boxes at its ends change them)
+const DEFAULT_SPEED = 0.005;
 const STEP = 0.01;                // how much one press of Step raises p
 
 
@@ -89,7 +89,7 @@ let result = null;          // the clusters at p (percolate in percolation-clust
 let selected = -1;          // a clicked cell: its cluster is highlighted (-1: none)
 
 let playing = false;        // it starts paused; Play raises p
-let speedIndex = DEFAULT_SPEED;
+let speed = DEFAULT_SPEED;
 let lastFrame = 0;          // when Play last moved p (milliseconds)
 
 
@@ -542,7 +542,7 @@ function setPlaying(on) {
 }
 function playFrame(now) {
   if (!playing) return;
-  const next = p + SPEEDS[speedIndex] * (now - lastFrame) / 1000;
+  const next = p + speed * (now - lastFrame) / 1000;
   lastFrame = now;
   setP(next);
   if (p >= 1) setPlaying(false);
@@ -571,12 +571,9 @@ byId("p-zero").addEventListener("click", function () {
 });
 
 // Speed.
-function showSpeed() {
-  byId("speed-label").textContent = "p rises " + SPEEDS[speedIndex] + " per second";
-}
-byId("speed").addEventListener("input", function () {
-  speedIndex = Number(this.value);
-  showSpeed();
+connectSpeedSlider("speed", SPEEDS, DEFAULT_SPEED, function (newSpeed) {
+  speed = newSpeed;
+  byId("speed-label").textContent = "p rises " + speed + " per second";
 });
 
 // Colors.
@@ -589,9 +586,6 @@ connectSeed(function () { selected = -1; newNumbers(); });
 // --- Start ------------------------------------------------------------
 fillDomainOptions(DEFAULTS, MAX_SIDE, BALL);
 byId("seed").value = DEFAULTS.seed;
-byId("speed").max = SPEEDS.length - 1;
-byId("speed").value = speedIndex;
-showSpeed();
 byId("p-slider").value = byId("p-box").value = p;
 useBox();
 setPlaying(false);   // paused: press Play to raise p

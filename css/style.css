@@ -530,6 +530,15 @@ a.card:hover {
   flex: 1 1 120px;
 }
 
+/* The "min" and "max" boxes at the two ends of a slider
+   (addRangeBoxes, js/sim-page.js): small and quiet, like Desmos's. */
+.option-row input.range-end {
+  width: 4.6em;
+  padding: 2px 3px;
+  font-size: 0.8em;
+  color: #777;
+}
+
 /* The formula box, its typeset preview, and its sliders. */
 .formula-input {
   width: 100%;

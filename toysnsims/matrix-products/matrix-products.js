@@ -34,8 +34,8 @@
    ===================================================================== */
 
 // Play speeds, in steps per second. The toy starts paused, at 2.
-const SPEEDS = [1, 2, 5, 10, 20, 50, 100];
-const START_SPEED = 1;
+const SPEEDS = [1, 100];   // the slider's starting min and max (boxes at its ends change them)
+const START_SPEED = 2;
 const START_RUNS = 2000;
 const START_TMAX = 100;
 const MOST_PIXELS_TALL = 520;      // the picture is square, up to this tall
@@ -71,7 +71,7 @@ let trajectory = [];
 
 let viewKind = "cloud";   // "cloud", "histogram" or "trajectory"
 let playing = false;
-let speedIndex = START_SPEED;
+let speed = START_SPEED;
 
 
 /* =====================================================================
@@ -234,14 +234,14 @@ function playFrame(time) {
   if (!playing) return;
   let stepped = false;
   if (lastFrame > 0) {
-    owed += SPEEDS[speedIndex] * Math.min(0.1, (time - lastFrame) / 1000);
+    owed += speed * Math.min(0.1, (time - lastFrame) / 1000);
     const started = performance.now();
     while (owed >= 1 && cloud.t < tMax && performance.now() - started < 12) {
       stepOnce();
       owed--;
       stepped = true;
     }
-    owed = Math.min(owed, SPEEDS[speedIndex]);     // don't pile up work if the computer is slow
+    owed = Math.min(owed, speed);     // don't pile up work if the computer is slow
   }
   lastFrame = time;
   wantedT = cloud.t;
@@ -258,11 +258,6 @@ function setPlaying(on) {
   showPlaying(playing);   // js/sim-page.js
   lastFrame = 0; owed = 0;
   if (playing) requestAnimationFrame(playFrame);
-}
-
-function showSpeed() {
-  byId("speed").value = speedIndex;
-  byId("speed-label").textContent = speedText(SPEEDS[speedIndex], "step", "steps");
 }
 
 
@@ -655,8 +650,10 @@ byId("restart").addEventListener("click", function () {
   wantedT = 0;
   replay();
 });
-byId("speed").max = SPEEDS.length - 1;
-byId("speed").addEventListener("input", function () { speedIndex = Number(byId("speed").value); showSpeed(); });
+connectSpeedSlider("speed", SPEEDS, START_SPEED, function (newSpeed) {
+  speed = newSpeed;
+  byId("speed-label").textContent = speedText(speed, "step", "steps");
+});
 
 byId("set-tmax").addEventListener("change", function () { tMax = readWhole("set-tmax", 1, 5000, START_TMAX); });
 byId("set-runs").addEventListener("change", function () {
@@ -699,7 +696,6 @@ if (!window.math || !window.alea) {
   byId("set-run").value = shownRun;
   byId("set-run").max = runs;
   byId("preset").value = "d13";
-  showSpeed();
   setViewKind("cloud");
   usePreset("d13");
 }

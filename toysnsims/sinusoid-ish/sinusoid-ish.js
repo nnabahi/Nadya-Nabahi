@@ -46,8 +46,8 @@ const SET_LABELS = {
 };
 
 // Play speeds, in samples per second. The sim starts paused, at 10.
-const SPEEDS = [1, 3, 10, 30, 100, 300, 1000];
-const START_SPEED = 2;
+const SPEEDS = [1, 100];   // the slider's starting min and max (boxes at its ends change them)
+const START_SPEED = 10;
 const MOST_SAMPLES = 100000;
 const DEFAULT_VIEW = { xmin: -10, xmax: 10 };
 const PICTURE_HEIGHT = 420;           // pixels
@@ -78,7 +78,7 @@ let view = { xmin: -10, xmax: 10, ymin: -4, ymax: 4 };   // the part of the plan
 let samples = 0;
 let collected = { areas: [], offsets: [], peaks: [], logders: [] };
 let playing = false;
-let speedIndex = START_SPEED;
+let speed = START_SPEED;
 
 
 /* =====================================================================
@@ -532,13 +532,13 @@ let lastFrame = 0, owed = 0, lastCharts = 0;
 function playFrame(time) {
   if (!playing) return;
   if (lastFrame > 0) {
-    owed += SPEEDS[speedIndex] * Math.min(0.1, (time - lastFrame) / 1000);
+    owed += speed * Math.min(0.1, (time - lastFrame) / 1000);
     const started = performance.now();
     while (owed >= 1 && samples < MOST_SAMPLES && performance.now() - started < 12) {
       addSample();
       owed--;
     }
-    owed = Math.min(owed, SPEEDS[speedIndex]);     // don't pile up work if the computer is slow
+    owed = Math.min(owed, speed);     // don't pile up work if the computer is slow
   }
   lastFrame = time;
   if (time - lastCharts > 250) { lastCharts = time; showHistograms(); }
@@ -551,11 +551,6 @@ function setPlaying(on) {
   showPlaying(playing);   // js/sim-page.js
   lastFrame = 0; owed = 0;
   if (playing) requestAnimationFrame(playFrame);
-}
-
-function showSpeed() {
-  byId("speed").value = speedIndex;
-  byId("speed-label").textContent = speedText(SPEEDS[speedIndex], "sample", "samples");
 }
 
 function showHistograms() {
@@ -627,8 +622,10 @@ byId("step").addEventListener("click", function () {
   if (law) { addSample(); showHistograms(); }
 });
 byId("restart").addEventListener("click", function () { setPlaying(false); restartSamples(); });
-byId("speed").max = SPEEDS.length - 1;
-byId("speed").addEventListener("input", function () { speedIndex = Number(byId("speed").value); showSpeed(); });
+connectSpeedSlider("speed", SPEEDS, START_SPEED, function (newSpeed) {
+  speed = newSpeed;
+  byId("speed-label").textContent = speedText(speed, "sample", "samples");
+});
 byId("hist-mode").addEventListener("change", showHistograms);
 window.addEventListener("resize", function () { sizeCanvas(); draw(); showHistograms(); });
 
@@ -644,6 +641,5 @@ if (!window.math || !Math.seedrandom) {
   byId("set-a").value = 10;
   resetView();
   byId("preset").value = "slowly";
-  showSpeed();
   usePreset("slowly");
 }

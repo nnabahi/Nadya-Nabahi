@@ -45,8 +45,8 @@ const PRESETS = {
 };
 
 // Play speeds, in attempts per second. The sim starts paused, at 10.
-const SPEEDS = [1, 3, 10, 30, 100, 300, 1000, 3000, 10000, 30000, 100000];
-const START_SPEED = 2;
+const SPEEDS = [1, 100];   // the slider's starting min and max (boxes at its ends change them)
+const START_SPEED = 10;
 const MOST_ATTEMPTS = 1000000;
 const PALETTE = 12;               // colors used for the tiles (the old site's colors)
 const MAX_PICTURE_HEIGHT = 700;   // pixels
@@ -85,7 +85,7 @@ let edgeChildren = 0;
 let coveredArea = 0, biggestGeneration = 0, biggestDegree = 0;
 
 let playing = false;
-let speedIndex = START_SPEED;
+let speed = START_SPEED;
 
 
 /* =====================================================================
@@ -319,11 +319,11 @@ let lastFrame = 0, owed = 0;
 function playFrame(time) {
   if (!playing) return;
   if (lastFrame > 0) {
-    owed += SPEEDS[speedIndex] * Math.min(0.1, (time - lastFrame) / 1000);
+    owed += speed * Math.min(0.1, (time - lastFrame) / 1000);
     const whole = Math.floor(owed);
     owed -= whole;
     // Don't run far ahead of the worker: the picture can only show what it has done.
-    if (whole > 0 && wanted - computed < 2 * SPEEDS[speedIndex]) setWanted(wanted + whole);
+    if (whole > 0 && wanted - computed < 2 * speed) setWanted(wanted + whole);
   }
   lastFrame = time;
   if (wanted >= MOST_ATTEMPTS) setPlaying(false); else requestAnimationFrame(playFrame);
@@ -334,11 +334,6 @@ function setPlaying(on) {
   showPlaying(on);   // js/sim-page.js
   lastFrame = 0; owed = 0;
   if (on) requestAnimationFrame(playFrame);
-}
-
-function showSpeed() {
-  byId("speed").value = speedIndex;
-  byId("speed-label").textContent = speedText(SPEEDS[speedIndex], "attempt", "attempts");
 }
 
 
@@ -783,15 +778,16 @@ byId("restart").addEventListener("click", function () {
   setWanted(0);
   if (Object.keys(clicks).length > 0) { clicks = {}; sendSetup(); }
 });
-byId("speed").max = SPEEDS.length - 1;
-byId("speed").addEventListener("input", function () { speedIndex = Number(byId("speed").value); showSpeed(); });
+connectSpeedSlider("speed", SPEEDS, START_SPEED, function (newSpeed) {
+  speed = newSpeed;
+  byId("speed-label").textContent = speedText(speed, "attempt", "attempts");
+});
 connectSeed(function () { clicks = {}; sendSetup(); });   // js/sim-page.js
 byId("color-by").addEventListener("change", drawAll);
 
 // Start: your gasket, no attempts yet, paused at a low speed.
 byId("seed").value = "1";
 byId("preset").value = "gasket";
-showSpeed();
 setWanted(0);
 startTheWorker();
 usePreset("gasket");
