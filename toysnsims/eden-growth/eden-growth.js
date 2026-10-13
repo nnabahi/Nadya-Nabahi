@@ -103,7 +103,7 @@ const DEFAULT_SPEED = 20;
    2. WHAT THE PAGE REMEMBERS (the "state")
    ===================================================================== */
 
-let dim = 1;                 // 1, 2 or "graph" (the hyperbolic plane or a tree)
+let dim = 2;                 // 1, 2 or "graph" (the hyperbolic plane or a tree)
 let tile = [];               // the offsets, e.g. [[-1], [1]] or [[1, 0], ...]
 let domainKind = "whole";    // "whole", "box", "torus" or "custom"; on a graph "whole" or "ball"
 let customDomain = null;     // the last custom domain drawn (js/sim-domains.js), if any
@@ -959,5 +959,5 @@ byId("seed").value = DEFAULT_SEED;
 byId("goto-steps").value = 1000;
 showMaxHeight();
 showGraphPresets(useGraph);
-setDimension(1);
+setDimension(2);   // 2D by default: with M = 1 it is the Eden model
 player.setPlaying(false);   // paused: press Play
