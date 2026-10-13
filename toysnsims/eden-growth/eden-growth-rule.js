@@ -92,6 +92,8 @@
      1. newMountain(options): the growth rule itself. The check page
         (eden-growth-check.html) tests it in the browser.
      1b. newGraphMountain(options): the same rule on any graph.
+     1c. holeHistory(...): the holes of a 2D mountain's base, with the
+        step each one was born and the step it died.
      2. mountainWorker(): runs a mountain in a second thread (a "Web
         Worker") for the sim page, eden-growth.js, so the page never
         freezes. startWorker (js/sim-page.js) starts it, with
@@ -133,6 +135,7 @@ function newMountain(options) {
   const siteX = [];        // its coordinates
   const siteY = [];
   const height = [];       // how many blocks are on it (0 = not in the base yet)
+  const bornAt = [];       // the step its first block landed (0 for the start)
   const numberOf = new Map();   // a site's key (below) -> its number
 
   // The available sites, as a list of site numbers. In 1D the list is
@@ -216,7 +219,7 @@ function newMountain(options) {
   // The mountain's numbers, kept up to date by step() below.
   const m = {
     dim: dim,
-    siteX: siteX, siteY: siteY, height: height, available: available,
+    siteX: siteX, siteY: siteY, height: height, available: available, bornAt: bornAt,
     steps: 0,          // n, the number of steps so far
     time: 0,           // with clocks: when the last block landed
     blocks: 0,         // blocks dropped, including the first one (= n + 1)
@@ -254,6 +257,7 @@ function newMountain(options) {
     }
     if (clocks) clocks.set(i, siteX[i], siteY[i], height[i] < cap ? height[i] : -1, m.time);
     if (height[i] === 1) {
+      bornAt[i] = m.blocks - 1;   // the start's block is block 1, step n's is block n + 1
       m.baseSize += 1;
       for (const t of tile) makeAvailable(siteX[i] + t[0], siteY[i] + t[1]);
     }
@@ -505,6 +509,141 @@ function newGraphMountain(options) {
 
 
 /* =====================================================================
+   1c. THE HOLES OF A 2D MOUNTAIN
+   ---------------------------------------------------------------------
+   Only which sites have a block matters here (the base), not how tall
+   they are. The base is the union of the closed unit squares of its
+   sites. A HOLE is a bounded piece of what is left: a group of empty
+   squares joined side to side (two empty squares that only touch at a
+   corner are cut apart there, since the filled squares meet at that
+   corner), with no way out to infinity. Squares outside the domain
+   count as empty. beta_1, the first Betti number, is how many holes
+   there are.
+
+   A hole is BORN at the step whose block closes it off from the outside,
+   or splits an older hole in two. It DIES at the step that fills its
+   last square. When a hole splits, the piece that lives longer keeps
+   the old birth and the other pieces are born at the split: the elder
+   rule of persistent homology (H. Edelsbrunner, D. Letscher and
+   A. Zomorodian, "Topological persistence and simplification", Discrete
+   Comput. Geom. 28 (2002) 511-533). These are the holes studied in
+   F. Manin, E. Roldan and B. Schweinhart, "Topology and local geometry
+   of the Eden model", Discrete Comput. Geom. (2023), arXiv:2005.12349.
+
+   How (exact, in one pass): backwards in time. Start from the base now
+   and take its squares away, last-born first. A square taken away joins
+   its empty neighbors (a "union-find": every group of empty squares
+   has one square that speaks for it, and each square points toward it).
+   Going backwards:
+     - a square with no empty neighbor is a hole of one square that,
+       forwards, died at that step;
+     - a square joining several groups is, forwards, a split: the group
+       that dies last (the outside never dies) carries on, and each of
+       the others was born at that step.
+   Every group carries the step it dies at. Groups that are still holes
+   now die "later than now", and the outside later than everything.
+   ===================================================================== */
+
+// The holes of a 2D base. The base is given by its sites: siteX, siteY,
+// bornAt (the step each site's first block landed; the start's is 0;
+// -1, or a height of 0, means no block) and height, and "now" is the
+// step the mountain is at. Returns
+//   births, deaths   one entry per hole that has died: born at step
+//                    births[k], died at step deaths[k]
+//   openBirths       the birth step of each hole still open now
+//   holeCells        the squares of the holes now, as x0, y0, x1, y1, ...
+// beta_1 at step t is (births and openBirths up to t) - (deaths up to t).
+function holeHistory(siteX, siteY, bornAt, height, now) {
+  // The box around the base, one square bigger all round, so its edge
+  // is outside the base and joins the outside.
+  let xmin = Infinity, xmax = -Infinity, ymin = Infinity, ymax = -Infinity;
+  const base = [];
+  for (let i = 0; i < height.length; i++) {
+    if (height[i] === 0) continue;
+    base.push(i);
+    xmin = Math.min(xmin, siteX[i]); xmax = Math.max(xmax, siteX[i]);
+    ymin = Math.min(ymin, siteY[i]); ymax = Math.max(ymax, siteY[i]);
+  }
+  const result = { births: [], deaths: [], openBirths: [], holeCells: [] };
+  if (base.length === 0) return result;
+  xmin -= 1; xmax += 1; ymin -= 1; ymax += 1;
+  const across = xmax - xmin + 1, down = ymax - ymin + 1;
+  const count = across * down, OUTSIDE = count;   // square number y * across + x, and one more for the outside
+
+  // The step each square was filled (-1 = empty now).
+  const filledAt = new Float64Array(count).fill(-1);
+  for (const i of base) filledAt[(siteY[i] - ymin) * across + (siteX[i] - xmin)] = bornAt[i];
+
+  // The union-find. leader[c] points toward the square that speaks for
+  // c's group; diesAt[leader] is when that group dies (forwards).
+  const LATER = now + 1;        // still a hole now: it dies after now
+  const leader = new Int32Array(count + 1);
+  const diesAt = new Float64Array(count + 1);
+  for (let c = 0; c <= count; c++) leader[c] = c;
+  diesAt[OUTSIDE] = Infinity;
+  function find(c) {
+    while (leader[c] !== c) { leader[c] = leader[leader[c]]; c = leader[c]; }   // (halving the path on the way)
+    return c;
+  }
+  // Join two groups; the one that dies later speaks for both.
+  function join(a, b) {
+    a = find(a); b = find(b);
+    if (a === b) return;
+    if (diesAt[a] < diesAt[b]) leader[a] = b; else leader[b] = a;
+  }
+
+  // Now: the empty squares, joined side to side, and the box's edge
+  // joined to the outside.
+  for (let y = 0; y < down; y++) {
+    for (let x = 0; x < across; x++) {
+      const c = y * across + x;
+      if (filledAt[c] >= 0) continue;
+      diesAt[c] = LATER;
+      if (x === 0 || y === 0 || x === across - 1 || y === down - 1) join(c, OUTSIDE);
+      if (x > 0 && filledAt[c - 1] < 0) join(c, c - 1);
+      if (y > 0 && filledAt[c - across] < 0) join(c, c - across);
+    }
+  }
+  const outside = find(OUTSIDE);
+  for (let c = 0; c < count; c++) {
+    if (filledAt[c] < 0 && find(c) !== outside) result.holeCells.push(c % across + xmin, Math.floor(c / across) + ymin);
+  }
+
+  // Backwards: take the squares away, last-born first (the start, born
+  // at step 0, stays).
+  const order = base.filter(function (i) { return bornAt[i] > 0; });
+  order.sort(function (i, j) { return bornAt[j] - bornAt[i]; });
+  for (const i of order) {
+    const x = siteX[i] - xmin, y = siteY[i] - ymin, c = y * across + x, step = bornAt[i];
+    filledAt[c] = -1;
+    // The groups of its empty neighbors (each once).
+    const groups = [];
+    for (const n of [c - 1, c + 1, c - across, c + across]) {
+      if (filledAt[n] >= 0) continue;
+      const g = find(n);
+      if (!groups.includes(g)) groups.push(g);
+    }
+    if (groups.length === 0) {   // forwards: a hole of one square, filled at this step
+      diesAt[c] = step;
+      continue;
+    }
+    // Forwards, filling c split one group into these: the one that dies
+    // last carries on, the others were born at this step.
+    let elder = groups[0];
+    for (const g of groups) if (diesAt[g] > diesAt[elder]) elder = g;
+    for (const g of groups) {
+      if (g === elder) continue;
+      if (diesAt[g] === LATER) result.openBirths.push(step);
+      else { result.births.push(step); result.deaths.push(diesAt[g]); }
+    }
+    diesAt[c] = diesAt[elder];
+    for (const g of groups) join(c, g);
+  }
+  return result;
+}
+
+
+/* =====================================================================
    2. THE MOUNTAIN IN A SECOND THREAD
    ---------------------------------------------------------------------
    Random numbers. The page picks with clocks (see the top of this
@@ -552,6 +691,11 @@ function mountainWorker() {
   // has to be sent once: each message carries the places of the sites
   // made since the last message, starting with site number placesFrom.
   let placesSent = 0;
+  // The holes (part 1c), in 2D off a torus. Worked out again for each
+  // message, but while playing at most a fifth of the time: "holes" is
+  // the last answer, for the step holesStep, and holesFree is when the
+  // next one may start.
+  let holes = null, holesStep = -1, holesFree = 0;
 
   // Start again from one block, and grow to "steps" steps.
   function setup(steps) {
@@ -618,6 +762,7 @@ function mountainWorker() {
       loop.play(message.speed);
     } else if (message.type === "pause") {
       loop.pause();
+      report();
     } else if (message.type === "step") {
       oneStep();
       report();
@@ -659,6 +804,7 @@ function mountainWorker() {
       traceFull: Float64Array.from(trace.lists.full),
       traceGrowing: Float64Array.from(trace.lists.growing),
     };
+    if (holesWanted()) addHoles(message);
     if (m.dim === "graph") {
       addPlaces(message);
     } else {
@@ -668,6 +814,40 @@ function mountainWorker() {
     // Hand the lists of sites over instead of copying them again.
     const lists = [message.height, message.x, message.y, message.places].filter(Boolean);
     self.postMessage(message, lists.map(function (list) { return list.buffer; }));
+  }
+
+  // Holes only make sense in 2D, off a torus (where "bounded" means nothing).
+  function holesWanted() {
+    const d = options.domain;
+    return options.dim === 2 && !(d.kind === "box" && d.torus) && !(d.kind === "cells" && d.wrap);
+  }
+
+  // The holes now, their births and deaths, and beta_1 at the times of
+  // the charts' samples.
+  function addHoles(message) {
+    const m = mountain, now = performance.now();
+    if (holesStep !== m.steps && (!loop.playing || now >= holesFree)) {
+      holes = holeHistory(m.siteX, m.siteY, m.bornAt, m.height, m.steps);
+      holesStep = m.steps;
+      holesFree = now + 4 * (performance.now() - now);
+    }
+    // beta_1 at step t: births up to t minus deaths up to t (at the
+    // samples up to holesStep; the holes may be a little behind).
+    const births = holes.births.concat(holes.openBirths).sort(function (a, b) { return a - b; });
+    const deaths = holes.deaths.slice().sort(function (a, b) { return a - b; });
+    const times = trace.times.filter(function (t) { return t <= holesStep; });
+    const beta = new Float64Array(times.length);
+    let b = 0, d = 0;
+    times.forEach(function (t, k) {
+      while (b < births.length && births[b] <= t) b++;
+      while (d < deaths.length && deaths[d] <= t) d++;
+      beta[k] = b - d;
+    });
+    message.holes = {
+      step: holesStep, now: holes.openBirths.length, closed: holes.deaths.length,
+      births: Float64Array.from(holes.births), deaths: Float64Array.from(holes.deaths),
+      cells: Int32Array.from(holes.holeCells), times: Float64Array.from(times), beta: beta,
+    };
   }
 
   // On a graph: the places of the sites made since the last message,
