@@ -221,6 +221,9 @@ function toThree(rgb) {
 //               (0, 0), drawn under everything
 //   shape       "cubes" or "coins"
 //   stretch     how tall the stacks look: 1 is normal, 2 twice as tall
+//   fixedSize   (optional) true: every block stays a cube however tall
+//               the stacks get, and the picture fits the floor only, so
+//               a tall stack shoots up out of the top of the picture
 //   color(k, tallest)   the color [r, g, b] (0..255) of block k (the
 //               bottom one is k = 1) when the tallest stack has
 //               "tallest" blocks; the top of each stack has the color a
@@ -233,8 +236,8 @@ function toThree(rgb) {
 //
 // Heights: a block starts out as tall as a cell of width 1 is wide (a
 // cube). Once the tallest stack would be more than half as tall as the
-// floor is wide, every block is squashed so it is exactly that tall;
-// "stretch" then makes it taller or flatter.
+// floor is wide, every block is squashed so it is exactly that tall
+// (unless fixedSize); "stretch" then makes it taller or flatter.
 export function drawStacks(view3d, stacks) {
   const n = stacks.x.length, shape = stacks.shape;
   if (view3d.box.clientWidth && view3d.box.clientWidth !== view3d.width) fitToBox(view3d);   // the box changed size
@@ -251,8 +254,10 @@ export function drawStacks(view3d, stacks) {
     if (stacks.height[i] === 0) emptyCells++;
   }
   // One block's height (a cube on a cell of width 1, until the tallest
-  // stack would be more than half as tall as the floor is wide).
-  const block = stacks.stretch * Math.min(1, across / 2 / Math.max(tallest, 1));
+  // stack would be more than half as tall as the floor is wide; with
+  // fixedSize, always a cube).
+  const squash = stacks.fixedSize ? 1 : Math.min(1, across / 2 / Math.max(tallest, 1));
+  const block = stacks.stretch * squash;
 
   // The colors, worked out once per level (not once per block):
   // levelColor[k] is the color of the (k+1)-th block from the bottom.
@@ -300,7 +305,7 @@ export function drawStacks(view3d, stacks) {
   }
   floorMesh.instanceMatrix.needsUpdate = floorMesh.instanceColor.needsUpdate = true;
   drawLines(view3d, stacks.lines || NO_LINES, stacks.lineColor);
-  fitWorld(view3d, floor, across, tallest * block);
+  fitWorld(view3d, floor, across, stacks.fixedSize ? 0 : tallest * block);
   render(view3d);
 }
 
