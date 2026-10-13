@@ -667,7 +667,7 @@ a.card:hover {
 }
 
 /* The random matrix products' matrices (made by
-   toysnsims/random-matrix-products/random-matrix-products.js): the boxes of
+   toysnsims/matrix-products/matrix-products.js): the boxes of
    one matrix, laid out like the matrix itself, with its weight and a
    remove button beside it.
 
@@ -1151,7 +1151,7 @@ body.embedded .graph-wrap {
 /* =====================================================================
    11. Check pages
    ---------------------------------------------------------------------
-   The check pages (like toysnsims/random-mountain-check.html)
+   The check pages (like toysnsims/eden-mountain-check.html)
    test a sim's math on its own.
    ===================================================================== */
 

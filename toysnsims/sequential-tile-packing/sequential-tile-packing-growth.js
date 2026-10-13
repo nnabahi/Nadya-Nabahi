@@ -1,5 +1,5 @@
 /* =====================================================================
-   sequential-packing-growth.js  —  the math behind the "Random
+   sequential-tile-packing-growth.js  —  the math behind the "Random
    sequential packing" sim (continuous space)
    ---------------------------------------------------------------------
    THE MODEL (nadya's, as on the old site)
@@ -833,7 +833,7 @@ function packingCore() {
 /* =====================================================================
    8. THE WORKER: RUNNING THE PACKING IN A SECOND THREAD
    ---------------------------------------------------------------------
-   The sim page (sequential-packing.js) turns this function into a "Web
+   The sim page (sequential-tile-packing.js) turns this function into a "Web
    Worker", together with packingCore() above, so the work never freezes
    the page. They talk by messages:
 

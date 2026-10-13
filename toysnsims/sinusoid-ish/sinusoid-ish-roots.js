@@ -1,5 +1,5 @@
 /* =====================================================================
-   random-sine-roots.js  —  the math behind the "Random sine function"
+   sinusoid-ish-roots.js  —  the math behind the "Random sine function"
    sim (nadya's Desmos idea D1, "random roots")
    ---------------------------------------------------------------------
    What it does, in plain words:
@@ -61,7 +61,7 @@
      4. Evaluating f
      5. Peaks and lobes (the statistics)
    Nothing here draws or touches the page, so the check page
-   (random-sine-check.html) can test it on its own.
+   (sinusoid-ish-check.html) can test it on its own.
    ===================================================================== */
 
 

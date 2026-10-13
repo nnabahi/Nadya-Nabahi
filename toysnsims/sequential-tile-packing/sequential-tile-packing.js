@@ -1,7 +1,7 @@
 /* =====================================================================
-   sequential-packing.js  —  the "Random sequential packing" sim page
+   sequential-tile-packing.js  —  the "Random sequential packing" sim page
    ---------------------------------------------------------------------
-   The math lives in sequential-packing-growth.js and runs in a second
+   The math lives in sequential-tile-packing-growth.js and runs in a second
    thread (a Web Worker), so the page never freezes. This file does
    everything else:
      1. The starting shapes (presets)
@@ -198,7 +198,7 @@ function readWindow() {
    4. TALKING TO THE WORKER
    ---------------------------------------------------------------------
    The worker is made from packingWorker() and packingCore() (both in
-   sequential-packing-growth.js). A setup takes the worker a moment
+   sequential-tile-packing-growth.js). A setup takes the worker a moment
    (it traces the edge of S), so while one is being worked on, newer
    changes wait, and only the latest is sent after it.
 

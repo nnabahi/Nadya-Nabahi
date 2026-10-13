@@ -1,8 +1,8 @@
 /* =====================================================================
-   random-matrix-products-check.js  —  the tests on
-   random-matrix-products-check.html
+   matrix-products-check.js  —  the tests on
+   matrix-products-check.html
    ---------------------------------------------------------------------
-   Six kinds of test of random-matrix-products-math.js:
+   Six kinds of test of matrix-products-math.js:
 
      1. Exact odds. With fixed matrices, after t steps there are only
         (number of matrices)^t possible products, and each one's

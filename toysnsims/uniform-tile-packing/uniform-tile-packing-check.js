@@ -1,7 +1,7 @@
 /* =====================================================================
-   tile-packing-check.js  —  the tests on tile-packing-check.html
+   uniform-tile-packing-check.js  —  the tests on uniform-tile-packing-check.html
    ---------------------------------------------------------------------
-   Runs the chain from tile-packing-chain.js directly on this page (no
+   Runs the chain from uniform-tile-packing-chain.js directly on this page (no
    Web Worker), a little at a time so the page never freezes.
 
    Sections:

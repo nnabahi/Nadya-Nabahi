@@ -1,5 +1,5 @@
 /* =====================================================================
-   random-matrix-products-math.js  —  the math behind the "Random matrix
+   matrix-products-math.js  —  the math behind the "Random matrix
    products" toy (nadya's Desmos ideas D12 and D13)
    ---------------------------------------------------------------------
    What it does, in plain words:
@@ -58,7 +58,7 @@
      4. The cloud: many runs at once
      5. Statistics
    Nothing here draws or touches the page, so the check page
-   (random-matrix-products-check.html) can test it on its own.
+   (matrix-products-check.html) can test it on its own.
    The page loads math.js, seedrandom's alea and js/formulas.js
    (for readTree) before this file.
    ===================================================================== */
@@ -70,7 +70,7 @@
    Each preset is a list of matrices, and each matrix is
    { entries: [top left, top right, bottom left, bottom right], weight },
    all as typed text. A blank weight means "no weight given". (Their
-   names, shown in the menu, are in random-matrix-products.html.)
+   names, shown in the menu, are in matrix-products.html.)
    ===================================================================== */
 
 const PRESETS = {

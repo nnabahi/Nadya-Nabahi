@@ -1,8 +1,8 @@
 /* =====================================================================
-   sequential-packing-check.js  —  the checks on the check page
+   sequential-tile-packing-check.js  —  the checks on the check page
    ---------------------------------------------------------------------
    Each check below builds a packing with packingCore() (from
-   sequential-packing-growth.js), compares it with something known, and
+   sequential-tile-packing-growth.js), compares it with something known, and
    returns { name, pass, details }. The end of the file runs them one
    after another and fills in the table on the page (addRow, in
    js/check-page.js, like the other check pages).

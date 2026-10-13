@@ -1,8 +1,8 @@
 /* =====================================================================
-   random-sine.js  —  the "Random sine function" sim page
+   sinusoid-ish.js  —  the "Random sine function" sim page
    ---------------------------------------------------------------------
-   The math lives in random-sine-roots.js (placing the roots, f, the
-   peaks and lobe areas), the same file random-sine-check.html tests.
+   The math lives in sinusoid-ish-roots.js (placing the roots, f, the
+   peaks and lobe areas), the same file sinusoid-ish-check.html tests.
    This file does everything else:
      1. The starting sets (presets)
      2. The state of the page
@@ -67,7 +67,7 @@ const simCanvas = byId("sim-canvas");
 
 let model = "walk";           // "walk", "lattice" or "mirror"
 let sliders = {};             // letter -> { value, min, max, step }
-let law = null;               // the gap law read from the box (random-sine-roots.js, section 2)
+let law = null;               // the gap law read from the box (sinusoid-ish-roots.js, section 2)
 let N = 300;                  // roots on each side of 0
 let seed = "1";
 let uniforms = null;          // the fixed random numbers for this seed and N
@@ -84,7 +84,7 @@ let speedIndex = START_SPEED;
 /* =====================================================================
    3. READING THE GAP SET, WITH SLIDERS
    ---------------------------------------------------------------------
-   The box is read by readGapSet (random-sine-roots.js). Every letter
+   The box is read by readGapSet (sinusoid-ish-roots.js). Every letter
    other than u gets a slider (makeSlider, js/formulas.js); moving one
    re-reads the set and redraws.
    ===================================================================== */

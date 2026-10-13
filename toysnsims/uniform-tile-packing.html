@@ -26,7 +26,7 @@
 
     <!-- The four quadrants, as on every sim page (their layout is in
          section 6 of css/style.css). All the behavior lives in
-         tile-packing.js; the ids below (id="...") are how that script
+         uniform-tile-packing.js; the ids below (id="...") are how that script
          finds each button and box. -->
     <div class="quadrants">
 
@@ -70,7 +70,7 @@
         <!-- The heading, with a small "model check" button on the right
              that opens the page testing this sim's math. -->
         <h2 class="heading-with-button">Options
-          <a class="tool-button model-check" href="tile-packing-check.html">model check</a></h2>
+          <a class="tool-button model-check" href="uniform-tile-packing-check.html">model check</a></h2>
 
         <h3 class="option-heading">Domain</h3>
         <div class="option-row">
@@ -104,7 +104,7 @@
           </select>
         </div>
         <!-- One row per tile (width x height, and its weight with a slider),
-             filled in by tile-packing.js. -->
+             filled in by uniform-tile-packing.js. -->
         <div id="tile-rows"></div>
         <div class="option-row">
           <button class="tool-button" id="add-tile">+ Add a tile</button>
@@ -376,8 +376,8 @@
   <script src="../js/sim-domains.js"></script>
   <script src="../js/sim-view.js"></script>
   <script src="../js/sim-controls.js"></script>
-  <script src="tile-packing/tile-packing-chain.js"></script>
-  <script src="tile-packing/tile-packing.js"></script>
+  <script src="uniform-tile-packing/uniform-tile-packing-chain.js"></script>
+  <script src="uniform-tile-packing/uniform-tile-packing.js"></script>
 
 </body>
 </html>

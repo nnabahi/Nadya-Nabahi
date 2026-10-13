@@ -1,9 +1,9 @@
 /* =====================================================================
-   random-matrix-products.js  —  the "Random matrix products" page
+   matrix-products.js  —  the "Random matrix products" page
    ---------------------------------------------------------------------
-   The math lives in random-matrix-products-math.js (reading the matrices,
+   The math lives in matrix-products-math.js (reading the matrices,
    the runs, the statistics), the same file
-   random-matrix-products-check.html tests. This file does everything
+   matrix-products-check.html tests. This file does everything
    else:
      1. Settings
      2. The state of the page

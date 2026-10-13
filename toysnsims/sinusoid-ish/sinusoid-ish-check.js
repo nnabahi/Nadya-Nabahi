@@ -1,7 +1,7 @@
 /* =====================================================================
-   random-sine-check.js  —  the tests on random-sine-check.html
+   sinusoid-ish-check.js  —  the tests on sinusoid-ish-check.html
    ---------------------------------------------------------------------
-   Tests of random-sine-roots.js, the math behind the sim. They run when
+   Tests of sinusoid-ish-roots.js, the math behind the sim. They run when
    the page opens; each one adds a row to the table (addRow, in
    js/check-page.js, like the other check pages):
      check(what, shouldBe, got, passed)

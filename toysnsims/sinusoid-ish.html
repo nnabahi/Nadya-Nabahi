@@ -26,7 +26,7 @@
 
     <!-- The four quadrants, as on every sim page (their layout is in
          section 6 of css/style.css). All the behavior lives in
-         random-sine.js; the ids below (id="...") are how that script
+         sinusoid-ish.js; the ids below (id="...") are how that script
          finds each button and box. -->
     <div class="quadrants">
 
@@ -50,7 +50,7 @@
         <!-- The heading, with a small "model check" button on the right
              that opens the page testing this sim's math. -->
         <h2 class="heading-with-button">Options
-          <a class="tool-button model-check" href="random-sine-check.html">model check</a></h2>
+          <a class="tool-button model-check" href="sinusoid-ish-check.html">model check</a></h2>
 
         <h3 class="option-heading">Roots</h3>
         <div class="option-row">
@@ -308,13 +308,13 @@
   <!-- The code the sims share (in js/, see the README): page helpers
        (they also typeset the formulas, so they come after KaTeX),
        charts, and reading formulas with sliders. Then the math of this sim
-       (random-sine-roots.js, the same file the check page tests), then
+       (sinusoid-ish-roots.js, the same file the check page tests), then
        this page. -->
   <script src="../js/sim-page.js"></script>
   <script src="../js/sim-charts.js"></script>
   <script src="../js/formulas.js"></script>
-  <script src="random-sine/random-sine-roots.js"></script>
-  <script src="random-sine/random-sine.js"></script>
+  <script src="sinusoid-ish/sinusoid-ish-roots.js"></script>
+  <script src="sinusoid-ish/sinusoid-ish.js"></script>
 
 </body>
 </html>

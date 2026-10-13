@@ -38,7 +38,7 @@
 
     <!-- The four quadrants, as on every sim page (their layout is in
          section 6 of css/style.css). All the behavior lives in
-         random-mountain.js; the ids below (id="...") are how that script
+         eden-mountain.js; the ids below (id="...") are how that script
          finds each button and box. -->
     <div class="quadrants">
 
@@ -46,7 +46,7 @@
       <section class="quad quad-sim">
         <h2>Simulation</h2>
 
-        <!-- The picture. random-mountain.js sets its height. In 2D and on
+        <!-- The picture. eden-mountain.js sets its height. In 2D and on
              a graph, the zoom buttons sit in its top right corner; the full
              screen button (added by js/sim-page.js) in its top left corner. -->
         <div class="sim-picture">
@@ -96,7 +96,7 @@
         <!-- The heading, with a small "model check" button on the right
              that opens the page testing this sim's math. -->
         <h2 class="heading-with-button">Options
-          <a class="tool-button model-check" href="random-mountain-check.html">model check</a></h2>
+          <a class="tool-button model-check" href="eden-mountain-check.html">model check</a></h2>
 
         <h3 class="option-heading">Dimension</h3>
         <div class="option-row">
@@ -165,7 +165,7 @@
           <div class="option-row" id="tile-presets"></div>
           <p class="muted small">Click cells to add them to the tile or take them out.
             The dark cell in the middle is the site itself.</p>
-          <!-- The clickable cells; random-mountain.js fills this in. -->
+          <!-- The clickable cells; eden-mountain.js fills this in. -->
           <div class="tile-grid" id="tile-grid"></div>
           <div class="option-row">
             <span id="disk-label"></span> r <input type="number" id="disk-radius" min="1" max="30" step="1" value="2">
@@ -449,8 +449,8 @@
   <script src="../js/sim-graphs.js"></script>
   <script src="../js/sim-hyperbolic.js"></script>
   <script src="../js/sim-controls.js"></script>
-  <script src="random-mountain/random-mountain-growth.js"></script>
-  <script src="random-mountain/random-mountain.js"></script>
+  <script src="eden-mountain/eden-mountain-growth.js"></script>
+  <script src="eden-mountain/eden-mountain.js"></script>
 
 </body>
 </html>

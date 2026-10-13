@@ -1,5 +1,5 @@
 /* =====================================================================
-   random-mountain-growth.js  —  the growth rule behind the "Random
+   eden-mountain-growth.js  —  the growth rule behind the "Random
    mountain" sim
    ---------------------------------------------------------------------
    What it does, in plain words:
@@ -55,10 +55,10 @@
 
    The file has these parts, with no drawing and no buttons:
      1. newMountain(options): the growth rule itself. The check page
-        (toysnsims/random-mountain-check.html) tests it in the browser.
+        (toysnsims/eden-mountain-check.html) tests it in the browser.
      1b. newGraphMountain(options): the same rule on any graph.
      2. mountainWorker(): runs a mountain in a second thread (a "Web
-        Worker") for the sim page, random-mountain.js, so the page never
+        Worker") for the sim page, eden-mountain.js, so the page never
         freezes. startWorker (js/sim-page.js) starts it, with
         newMountain, newGraphMountain, the hyperbolic tilings and trees
         and the run loop and trace (js/sim-worker.js) copied in.
