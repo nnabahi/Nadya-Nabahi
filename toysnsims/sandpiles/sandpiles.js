@@ -420,9 +420,9 @@ window.addEventListener("resize", function () {
    shared, in js/sim-3d.js; it loads the 3D library three.js from the
    internet the first time 3D is switched on.
 
-   Heights are rescaled to the tallest stack: it is always a quarter as
-   tall as the table is wide, so a pile of 3 grains and one of 3,000
-   both fill the picture.
+   Every block is a cube (a coin on a graph), however tall the stacks
+   get, and the picture fits the table only: a tall stack, like the
+   64 grains of the center pile, shoots straight up out of the picture.
    ===================================================================== */
 let sim3d = null;            // the 3D code, once loaded (js/sim-3d.js)
 let view3d = null;           // the 3D picture
@@ -451,7 +451,7 @@ function start3D() {
 function draw3D(valueOf, showTopples) {
   if (!view3d) return;
   const d = domain, x = [], y = [], height = [], width = [];
-  let floor, across;
+  let floor;
   if (domainKind === "graph") {
     // Each cell where the disk picture puts it, as wide as it looks
     // there (the start cell, in the middle, is 1 wide; on a tree a bit
@@ -466,7 +466,6 @@ function draw3D(valueOf, showTopples) {
       x.push(mx * unit); y.push(my * unit); height.push(valueOf(v)); width.push(thinner * w);
     }
     floor = { disk: unit };
-    across = 2 * unit;
   } else {
     for (let v = 0; v < d.n; v++) {
       if (sinks.includes(v)) continue;
@@ -474,15 +473,11 @@ function draw3D(valueOf, showTopples) {
     }
     // A box or torus stands on one flat box; a custom table on its own cells.
     floor = domainKind === "custom" ? { x: d.x, y: d.y } : { xmin: d.xmin, xmax: d.xmax, ymin: d.ymin, ymax: d.ymax };
-    across = Math.max(d.xmax - d.xmin + 1, d.ymax - d.ymin + 1);
   }
   const most = Math.max(1, ...height);
-  // drawStacks makes a block min(1, across / 2 / most) times "stretch"
-  // tall; this stretch makes the tallest stack across / 4 tall.
-  const stretch = (across / 4 / most) / Math.min(1, across / 2 / most);
   sim3d.drawStacks(view3d, {
     x: x, y: y, height: height, width: width, floor: floor,
-    shape: domainKind === "graph" ? "coins" : "cubes", stretch: stretch,
+    shape: domainKind === "graph" ? "coins" : "cubes", stretch: 1, fixedSize: true,
     color: function (k) { return showTopples ? colorOfTopples(k, most) : colorOfHeight(k); },
     empty: colorOfHeight(0), ground: hexToRGB(OUTSIDE),
   });
