@@ -53,6 +53,7 @@
      squareLeft, squareTop       where the sides of the squares are
      paintCells(...)             paint every square that shows, fast
      drawBorders(...)            the lines between squares of different colors
+     paintLattice(...)           the same two for triangles and hexagons
      zoomBy, resetView           zoom around a point; back to the start
      pressPointer, movePointer, releasePointer   dragging and pinching
      pointerSpot, cellUnder      the cell under the pointer
@@ -164,7 +165,8 @@ function showZoomButtons(view) {
 // picture in the middle of it.
 function fitPicture(view, d, maxHeight) {
   const canvas = view.canvas;
-  const across = d.xmax - d.xmin + 1, down = d.ymax - d.ymin + 1;
+  const box = pictureBox(d);                    // (js/sim-domains.js)
+  const across = box.right - box.left, down = box.top - box.bottom;
   const cssWidth = canvas.clientWidth;
   const popup = pictureHeight(0);               // 0 when the popup isn't open
   if (popup > 0) maxHeight = popup - 2 * view.margin;
@@ -288,6 +290,93 @@ function drawBorders(view, pen, shown, color) {
 }
 
 
+// Triangles and hexagons (js/sim-domains.js) can't be painted as squares,
+// so paintLattice draws each cell as its own shape, after fitPicture.
+// colorOf(v) is cell v's color (any CSS color, like "#ff0000"), and with
+// "groupOf" (as in paintCells) a line of color "lines" goes along every
+// side between two cells of different groups, and along the domain's
+// edge. Cells of one color are collected into one path and filled at
+// once, which is much faster than one at a time. On a torus the picture
+// repeats as far as it shows.
+function paintLattice(view, pen, d, colorOf, groupOf, lines) {
+  view.cell = cellSize(view);
+  const box = pictureBox(d), cell = view.cell;
+  const sides = latticeSides(d);
+  const shapes = new Map(), border = new Path2D();
+
+  // The copies that show: copy (a, b) is shifted a tori across and b up.
+  const across = box.right - box.left, up = box.top - box.bottom;
+  const showsAcross = view.width / cell, showsUp = view.height / cell;
+  let copiesX = [0], copiesY = [0];
+  if (d.wrap) {
+    copiesX = []; copiesY = [];
+    for (let a = Math.floor(-view.scroll.x / across) - 1; a <= Math.ceil((showsAcross - view.scroll.x) / across); a++) copiesX.push(a);
+    for (let b = Math.floor((view.scroll.y - showsUp) / up) - 1; b <= Math.ceil(view.scroll.y / up) + 1; b++) copiesY.push(b);
+  }
+
+  for (const a of copiesX) {
+    for (const b of copiesY) {
+      // Screen pixels of the point (u, w) of the picture, in this copy.
+      const sx = function (u) { return view.left + (u + a * across - box.left + view.scroll.x) * cell; };
+      const sy = function (w) { return (box.top - w - b * up + view.scroll.y) * cell; };
+      for (let v = 0; v < d.n; v++) {
+        const corners = cellCorners(d.lattice, d.x[v], d.y[v]);
+        const color = colorOf(v);
+        if (!shapes.has(color)) shapes.set(color, new Path2D());
+        const shape = shapes.get(color);
+        corners.forEach(function (c, k) {
+          if (k === 0) shape.moveTo(sx(c[0]), sy(c[1])); else shape.lineTo(sx(c[0]), sy(c[1]));
+        });
+        shape.closePath();
+        if (!groupOf) continue;
+        // The side from corner k to the next: drawn once, from the cell
+        // with the smaller number (or always, on the domain's edge).
+        corners.forEach(function (c, k) {
+          const other = sides[v][k];
+          if (other > v || (other >= 0 && groupOf(other) === groupOf(v))) return;
+          const next = corners[(k + 1) % corners.length];
+          border.moveTo(sx(c[0]), sy(c[1]));
+          border.lineTo(sx(next[0]), sy(next[1]));
+        });
+      }
+    }
+  }
+  for (const [color, shape] of shapes) {
+    pen.fillStyle = color;
+    pen.fill(shape);
+    pen.strokeStyle = color;   // a hairline in the same color hides thin gaps between cells
+    pen.lineWidth = 0.5;
+    pen.stroke(shape);
+  }
+  if (groupOf) {
+    pen.strokeStyle = lines;
+    pen.lineWidth = Math.max(1, Math.min(2.5, cell / 10));
+    pen.lineJoin = "round";
+    pen.stroke(border);
+  }
+}
+
+// For each cell v of a triangle or hexagon domain, the cell across each
+// of its sides (sides[v][k], for the side from corner k to the next), or
+// -1 where the domain ends. In these lattices the cell across a side is
+// v's mirror image in that side, so its middle is the side's middle
+// pushed on as far again. Worked out once per domain and kept.
+function latticeSides(d) {
+  if (d.sides) return d.sides;
+  d.sides = [];
+  for (let v = 0; v < d.n; v++) {
+    const corners = cellCorners(d.lattice, d.x[v], d.y[v]);
+    const middle = cellMiddle(d, v);
+    d.sides.push(corners.map(function (c, k) {
+      const next = corners[(k + 1) % corners.length];
+      const u = c[0] + next[0] - middle[0], w = c[1] + next[1] - middle[1];
+      return cellAtPoint(d, u, w);
+    }));
+  }
+  return d.sides;
+}
+
+
 /* ---------------------------------------------------------------------
    Moving and zooming
    --------------------------------------------------------------------- */
@@ -385,6 +474,11 @@ function pointerSpot(view, event) {
 // is none: off the picture, or outside a drawn domain.
 function cellUnder(view, d, spot) {
   if (spot.x < view.left || spot.x >= view.left + view.width || spot.y < 0 || spot.y >= view.height) return -1;
+  if (d.lattice) {   // triangles or hexagons: the point of the picture under the spot
+    const box = pictureBox(d);
+    return cellAtPoint(d, box.left + (spot.x - view.left) / view.cell - view.scroll.x,
+                       box.top - (spot.y / view.cell - view.scroll.y));
+  }
   const i = Math.floor((spot.x - view.left) / view.cell - view.scroll.x);   // its square (i, k)
   const k = Math.floor(spot.y / view.cell - view.scroll.y);
   return cellAt(d, d.xmin + i, d.ymax - k);

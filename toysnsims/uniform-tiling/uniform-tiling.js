@@ -3,7 +3,9 @@
    ---------------------------------------------------------------------
    What it does, in plain words:
      - Builds the domain: a box or torus of cells, an Aztec diamond, or
-       a custom one drawn in the graph tool (shown inside this page). The
+       a custom one drawn in the graph tool (shown inside this page).
+       The cells can also be triangles or hexagons (a box, a torus, or
+       for triangles a hexagon); then the tile is two neighboring cells. The
        domain code is shared with the other sims: the domains in
        js/sim-domains.js, and their options and the graph tool in
        js/sim-controls.js.
@@ -32,9 +34,9 @@
    1. SETTINGS YOU MIGHT WANT TO CHANGE
    ===================================================================== */
 
-// The default domain (a 24 x 24 box), Aztec diamond order, mean radius,
-// refill limit and seed.
-const DEFAULTS = { width: 24, height: 24, order: 20, radius: 1.5, limit: 10000, seed: "1" };
+// The default domain (a 24 x 24 box), Aztec diamond order, side of the
+// hexagon of triangles, mean radius, refill limit and seed.
+const DEFAULTS = { width: 24, height: 24, order: 20, side: 12, radius: 1.5, limit: 10000, seed: "1" };
 
 // The tile presets: lists of [width, height].
 const PRESETS = {
@@ -46,6 +48,7 @@ const DEFAULT_PRESET = "squares";
 
 const MAX_SIDE = 200;             // the biggest box or torus is 200 x 200
 const MAX_ORDER = 100;            // the biggest Aztec diamond (20,200 cells)
+const MAX_SIDE_HEXAGON = 60;      // the biggest hexagon of triangles (21,600 cells)
 const MAX_WEIGHT_SLIDER = 5;      // the weight sliders go from 0 to 5 (the boxes take any number >= 0)
 const MAX_TILE_SIDE = 20;         // tiles at most 20 x 20
 const WORK_LIMIT = 200000;        // search steps per move before it is skipped (see the chain)
@@ -67,7 +70,8 @@ const DEFAULT_SPEED = 5;
    2. WHAT THE PAGE REMEMBERS (the "state")
    ===================================================================== */
 
-let domainKind = "box";         // "box", "torus", "aztec" or "custom": the domain in use
+let lattice = "square";         // the cells: "square", "triangle" or "hexagon"
+let domainKind = "box";         // "box", "torus", "aztec", "hexagon" or "custom": the domain in use
 let domain = null;              // the domain (js/sim-domains.js)
 let customDomain = null;        // the last custom domain drawn, if any
 let tiles = [];                 // the tiles: [{ w, h, weight }, ...]
@@ -88,11 +92,11 @@ function showingAverage() { return checked("show") === "average"; }
    3. RUNNING THE CHAIN
    ---------------------------------------------------------------------
    The chain is the function tilePacking() in uniform-tiling-chain.js,
-   with the run loop (js/sim-worker.js) and cellAt and wrap
-   (js/sim-domains.js) copied in. startWorker (js/sim-page.js) runs it
+   with the run loop (js/sim-worker.js) and cellAt, wrap, cellCorners
+   and pointInCell (js/sim-domains.js) copied in. startWorker (js/sim-page.js) runs it
    in a second thread, a "Web Worker", so the page never freezes.
    ===================================================================== */
-const worker = startWorker(tilePacking, [makeRunLoop, wrap, cellAt]);
+const worker = startWorker(tilePacking, [makeRunLoop, wrap, cellAt, cellCorners, pointInCell]);
 
 worker.onmessage = function (event) {
   const message = event.data;
@@ -233,17 +237,30 @@ function drawPacking() {
   const pen = fitPicture(view, d, MAX_PICTURE_HEIGHT);
   const outside = hexToRGB(OUTSIDE);
 
-  if (average) {
+  // The mix of the class colors for "Average over time".
+  const averageRGB = function (v) {
+    const rgb = [0, 0, 0];
+    for (let c = 0; c < classes; c++) {
+      const share = latest.heat[v * classes + c];
+      for (let k = 0; k < 3; k++) rgb[k] += share * colors[c][k];
+    }
+    return rgb;
+  };
+
+  if (d.lattice) {
+    // 2-3. Triangles or hexagons: each cell drawn as its shape
+    //    (paintLattice, js/sim-view.js), with the lines around the tiles.
+    const css = function (rgb) { return "rgb(" + rgb.map(Math.round).join(",") + ")"; };
+    if (average) paintLattice(view, pen, d, function (v) { return css(averageRGB(v)); });
+    else {
+      paintLattice(view, pen, d, function (v) { return css(colors[classOf(owner[v], classes)]); },
+                   cellSize(view) >= SMALLEST_BORDERED_CELL ? function (v) { return owner[v]; } : null,
+                   BORDER);
+    }
+  } else if (average) {
     // 2. "Average over time": each cell is its own group (paintCells,
     //    js/sim-view.js), painted in the mix of the class colors.
-    paintCells(view, pen, d, function (v) { return v; }, function (v) {
-      const rgb = [0, 0, 0];
-      for (let c = 0; c < classes; c++) {
-        const share = latest.heat[v * classes + c];
-        for (let k = 0; k < 3; k++) rgb[k] += share * colors[c][k];
-      }
-      return rgb;
-    }, outside);
+    paintCells(view, pen, d, function (v) { return v; }, averageRGB, outside);
   } else {
     // 2. Each square's group is the tile on it (-1 for an empty cell),
     //    painted in the tile's class color. "tileOn" is the tile on each
@@ -257,18 +274,25 @@ function drawPacking() {
     if (view.cell >= SMALLEST_BORDERED_CELL) drawBorders(view, pen, tileOn, BORDER);
   }
 
-  // 4. The disk. Cell (x, y) has its middle (x - xmin + 1/2) cells from
-  //    the left of the domain's box and (ymax - y + 1/2) from its top. On
-  //    a torus it is drawn again one torus over, in every direction, as
-  //    far as the picture shows.
+  // 4. The disk. Its center is (i, k) from the top left of the picture's
+  //    box (pictureBox, js/sim-domains.js: for squares, cell (x, y) has
+  //    its middle (x - xmin + 1/2) from the left and (ymax - y + 1/2)
+  //    from the top). On a torus it is drawn again one torus over, in
+  //    every direction, as far as the picture shows.
   if (byId("show-disk").checked && !average && latest.stats.lastDisk) {
-    const disk = latest.stats.lastDisk;
-    const i = disk.x - d.xmin + 0.5, k = d.ymax - disk.y + 0.5;
-    const W = d.wrap ? d.wrap.xmax - d.wrap.xmin + 1 : 0, H = d.wrap ? d.wrap.ymax - d.wrap.ymin + 1 : 0;
+    const disk = latest.stats.lastDisk, box = pictureBox(d);
+    const i = disk.x - box.left, k = box.top - disk.y;
+    let W = 0, H = 0;
+    if (d.wrap) {
+      W = d.lattice ? box.right - box.left : d.wrap.xmax - d.wrap.xmin + 1;
+      H = d.lattice ? box.top - box.bottom : d.wrap.ymax - d.wrap.ymin + 1;
+    }
+    const firstI = -view.scroll.x - 1, lastI = view.width / view.cell - view.scroll.x + 1;
+    const firstK = -view.scroll.y - 1, lastK = view.height / view.cell - view.scroll.y + 1;
     const shiftsX = [0], shiftsY = [0];
     if (W) {
-      for (let a = Math.floor((view.firstI - i - disk.r) / W); a <= Math.ceil((view.lastI - i + disk.r) / W); a++) if (a !== 0) shiftsX.push(a * W);
-      for (let b = Math.floor((view.firstK - k - disk.r) / H); b <= Math.ceil((view.lastK - k + disk.r) / H); b++) if (b !== 0) shiftsY.push(b * H);
+      for (let a = Math.floor((firstI - i - disk.r) / W); a <= Math.ceil((lastI - i + disk.r) / W); a++) if (a !== 0) shiftsX.push(a * W);
+      for (let b = Math.floor((firstK - k - disk.r) / H); b <= Math.ceil((lastK - k + disk.r) / H); b++) if (b !== 0) shiftsY.push(b * H);
     }
     pen.strokeStyle = DISK;
     pen.lineWidth = 2;
@@ -302,7 +326,9 @@ window.addEventListener("resize", drawSoon);
 connectPicture(view, null, null, function (event) {
   if (!domain) return;
   const v = cellUnder(view, domain, pointerSpot(view, event));
-  if (v >= 0) worker.postMessage({ type: "click", x: domain.x[v], y: domain.y[v] });
+  if (v < 0) return;
+  const middle = cellMiddle(domain, v);   // (js/sim-domains.js)
+  worker.postMessage({ type: "click", x: middle[0], y: middle[1] });
 });
 
 
@@ -340,6 +366,14 @@ function addToTrace(stats) {
   }
 }
 
+// A tile's name in the table: "2 × 3", or on triangles and hexagons
+// the pair of cells.
+function tileName(t) {
+  if (lattice === "triangle") return "rhombus";
+  if (lattice === "hexagon") return "pair of hexagons";
+  return t.w + " &times; " + t.h;
+}
+
 function showStats() {
   if (!domain || !latest || !placements) return;
   const s = latest.stats;
@@ -355,7 +389,7 @@ function showStats() {
   let rows = "";
   tiles.forEach(function (t, k) {
     rows += '<tr><td><span class="swatch-small" style="background:' + defaultColor(k, tiles.length) + '"></span>' +
-      t.w + " &times; " + t.h + "</td><td>" + c.count[k].toLocaleString() + "</td><td>" +
+      tileName(t) + "</td><td>" + c.count[k].toLocaleString() + "</td><td>" +
       c.cells[k].toLocaleString() + " (" + (100 * c.cells[k] / domain.n).toFixed(1) + "%)</td></tr>";
   });
   rows += '<tr><td><span class="swatch-small" style="background:' + GAP + '"></span>gaps</td><td></td><td>' +
@@ -514,11 +548,48 @@ function useDomain(kind, d) {
 }
 
 // The box or torus from the boxes on the page. (Choosing one while the
-// graph tool is open closes it.)
+// graph tool is open closes it.) Triangles and hexagons use latticeBox
+// (js/sim-domains.js); a torus of them needs an even height, and of
+// triangles an even width too, so an odd one goes up by 1.
 function useBox() {
   if (tool.isOpen) tool.close();
-  const d = boxFromOptions(1, MAX_SIDE, DEFAULTS);   // (4 neighbors)
-  useDomain(d.wrap ? "torus" : "box", d);
+  if (lattice === "square") {
+    const d = boxFromOptions(1, MAX_SIDE, DEFAULTS);   // (4 neighbors)
+    useDomain(d.wrap ? "torus" : "box", d);
+    return;
+  }
+  const torus = checked("domain") === "torus";
+  let width = readWhole("set-width", 1, MAX_SIDE, DEFAULTS.width);
+  let height = readWhole("set-height", 1, MAX_SIDE, DEFAULTS.height);
+  if (torus && height % 2 === 1) byId("set-height").value = ++height;
+  if (torus && lattice === "triangle" && width % 2 === 1) byId("set-width").value = ++width;
+  useDomain(torus ? "torus" : "box", latticeBox(lattice, width, height, torus));
+}
+
+// The hexagon of triangles (triangleHexagon, js/sim-domains.js): the
+// lozenge tilings of the arctic circle pictures. Choosing it switches to
+// no gaps, colored by direction; both can be changed afterwards.
+function useHexagon(switchOptions) {
+  const side = readWhole("set-side", 1, MAX_SIDE_HEXAGON, DEFAULTS.side);
+  if (switchOptions) {
+    byId("gaps").checked = false;
+    showGapsInfo();
+    byId("color-by").value = "direction";
+  }
+  useDomain("hexagon", triangleHexagon(side));
+}
+
+// The Cells menu: squares, triangles or hexagons. Squares go back to the
+// tile preset and a box; triangles start on the hexagon; hexagons on a
+// box. On triangles and hexagons the only tile is a pair of cells.
+function useLattice() {
+  lattice = byId("set-lattice").value;
+  byId("square-tiles").hidden = lattice !== "square";
+  byId("pair-tiles").hidden = lattice === "square";
+  if (lattice === "square") { usePreset(DEFAULT_PRESET); useBox(); return; }
+  tiles = [{ w: 2, h: 1, weight: 1 }];
+  if (lattice === "triangle") useHexagon(true);
+  else { byId("color-by").value = "direction"; useBox(); }
 }
 
 // The Aztec diamond (aztecDiamond is in js/sim-domains.js). Choosing it
@@ -541,8 +612,11 @@ function useAztec(switchTiles) {
 function showDomainChoice() {
   document.querySelector('input[name="domain"][value="' + domainKind + '"]').checked = true;
   const custom = (domainKind === "custom");
-  byId("size-row").hidden = custom || domainKind === "aztec";
+  byId("aztec-choice").hidden = byId("custom-choice").hidden = lattice !== "square";
+  byId("hexagon-choice").hidden = lattice !== "triangle";
+  byId("size-row").hidden = custom || domainKind === "aztec" || domainKind === "hexagon";
   byId("order-row").hidden = domainKind !== "aztec";
+  byId("side-row").hidden = domainKind !== "hexagon";
   byId("custom-row").hidden = !custom;
   if (custom && customDomain) {
     byId("custom-info").textContent = "Your region: " + customDomain.n + " cells" +
@@ -559,8 +633,11 @@ function showGapsInfo() {
 
 // Domain: Box / Torus / Aztec diamond / Custom, and their options
 // (js/sim-controls.js).
-connectDomainChoice({ box: useBox, torus: useBox, aztec: function () { useAztec(true); }, custom: tool.open });
+connectDomainChoice({ box: useBox, torus: useBox, aztec: function () { useAztec(true); },
+                      hexagon: function () { useHexagon(true); }, custom: tool.open });
 byId("set-order").addEventListener("change", function () { useAztec(false); });
+byId("set-side").addEventListener("change", function () { useHexagon(false); });
+byId("set-lattice").addEventListener("change", useLattice);
 
 // Rotations and gaps: a new start.
 byId("rotations").addEventListener("change", restart);
@@ -598,6 +675,8 @@ connectSeed(restart);
 fillDomainOptions(DEFAULTS, MAX_SIDE);
 byId("set-order").value = DEFAULTS.order;
 byId("set-order").max = MAX_ORDER;
+byId("set-side").value = DEFAULTS.side;
+byId("set-side").max = MAX_SIDE_HEXAGON;
 byId("set-radius").value = byId("radius-slider").value = DEFAULTS.radius;
 byId("set-limit").value = DEFAULTS.limit;
 byId("seed").value = DEFAULTS.seed;

@@ -17,12 +17,35 @@
      xmin .. ymax, cellAt   the smallest box around the cells, and which
                 cell sits at each place in it (-1 = none), for drawing
      ids[v]     for a drawn domain, the graph tool's name "x,y" of cell v
+     lattice    "triangle" or "hexagon" for the domains of section 2
+                below; left out for squares
+
+   OTHER LATTICES (at the end of this file). Besides squares, a domain's cells can be
+   triangles or hexagons, all with sides of length 1. Their cells still
+   get whole numbers (x, y): y is the row, and x the place in the row.
+   Only the picture is different:
+     triangles   row y lies between heights y*h and (y+1)*h, with
+                 h = sqrt(3)/2 (the height of a triangle). Triangle
+                 (x, y) has its middle at x/2 across, and points up when
+                 x + y is odd, down when x + y is even. Its neighbors are
+                 the triangles left and right of it, and the one below
+                 it (pointing up) or above it (pointing down).
+     hexagons    hexagon (x, y) has its middle at (x + 1/2, y*h) in odd
+                 rows and (x, y*h) in even ones (each odd row is shifted
+                 half a hexagon to the right), with 6 neighbors.
+   cellCorners gives a cell's corners, and cellAtPoint the cell at a
+   point of the picture.
 
    Contents:
      wrap(v, lo, hi)          wrap a whole number around, for tori
      wrapNumber(v, size)      the same for any number
      boxDomain(...)           a box or torus of cells
      aztecDiamond(N)          the Aztec diamond of order N
+     latticeBox(...)          a box or torus of triangles or hexagons
+     triangleHexagon(N)       a hexagon of side N, cut into triangles
+     cellCorners(...)         the corners of a triangle or hexagon cell
+     pictureBox(d)            the box around the domain's picture
+     cellAtPoint(d, u, w)     which cell is at the point (u, w) of the picture
      drawnDomain(...)         a region drawn in the graph tool
      makeDomain(...)          a domain from its cells and edges (the
                               three above use it)
@@ -213,4 +236,169 @@ function findRegions(d, colors) {
     regionColor.push(colors[s]);
   }
   return { areas: areas, perimeters: perimeters, color: regionColor };
+}
+
+
+/* ---------------------------------------------------------------------
+   Other lattices: triangles and hexagons (see the top of the file)
+   --------------------------------------------------------------------- */
+
+const ROW_HEIGHT = Math.sqrt(3) / 2;   // h: the height of a row of triangles or hexagons
+
+// A width x height box of triangles or hexagons ("lattice" says which):
+// "height" rows of "width" cells. If "torus" is true, the right edge is
+// glued to the left and the top to the bottom; then the width of a
+// triangle box and the height of both must be even, so the pattern
+// (up, down, ... or the shifted rows) carries on across the seams.
+function latticeBox(lattice, width, height, torus) {
+  const xs = [], ys = [], edges = [];
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      xs.push(x);
+      ys.push(y);
+      for (const [dx, dy] of latticeSteps(lattice, x, y)) {
+        let nx = x + dx, ny = y + dy;
+        if (nx < 0 || nx >= width || ny < 0 || ny >= height) {
+          if (!torus) continue;
+          nx = wrap(nx, 0, width - 1);
+          ny = wrap(ny, 0, height - 1);
+        }
+        edges.push([y * width + x, ny * width + nx]);
+      }
+    }
+  }
+  const wrapRange = torus ? { xmin: 0, xmax: width - 1, ymin: 0, ymax: height - 1 } : null;
+  const d = makeDomain(xs, ys, edges, wrapRange, null);
+  d.lattice = lattice;
+  return d;
+}
+
+// The steps from cell (x, y) to its neighbors to the right and above
+// (the others find it with their own steps, as in boxDomain).
+function latticeSteps(lattice, x, y) {
+  if (lattice === "triangle") {
+    // Right always; up only for a triangle pointing down (x + y even).
+    return (x + y) % 2 === 0 ? [[1, 0], [0, 1]] : [[1, 0]];
+  }
+  // Hexagons: right, and the two above (up-left and up-right), which in
+  // an odd row (shifted right) are x and x + 1, in an even row x - 1 and x.
+  return y % 2 !== 0 ? [[1, 0], [0, 1], [1, 1]] : [[1, 0], [-1, 1], [0, 1]];
+}
+
+// The regular hexagon of side N, cut into 6 N^2 triangles: the triangles
+// whose middles are inside the hexagon with corners (N, 0), (N/2, N h),
+// (-N/2, N h), (-N, 0), (-N/2, -N h), (N/2, -N h), centered on a corner
+// of the triangles. Its sides run along the triangles' sides, so each
+// triangle is either all in or all out. Tilings of it by rhombi (two
+// triangles side by side) are the "lozenge tilings" of a hexagon.
+function triangleHexagon(N) {
+  const xs = [], ys = [], index = new Map();
+  for (let y = -N; y < N; y++) {
+    for (let x = -2 * N - 1; x <= 2 * N + 1; x++) {
+      const up = ((x + y) % 2 + 2) % 2 === 1;
+      const u = x / 2, w = (y + (up ? 1 : 2) / 3) * ROW_HEIGHT;   // its middle
+      if (Math.abs(w) < N * ROW_HEIGHT && Math.sqrt(3) * Math.abs(u) + Math.abs(w) < Math.sqrt(3) * N) {
+        index.set(x + "," + y, xs.length);
+        xs.push(x);
+        ys.push(y);
+      }
+    }
+  }
+  const edges = [];
+  for (let v = 0; v < xs.length; v++) {
+    for (const [dx, dy] of latticeSteps("triangle", xs[v], ys[v])) {
+      const w = index.get((xs[v] + dx) + "," + (ys[v] + dy));
+      if (w !== undefined) edges.push([v, w]);
+    }
+  }
+  const d = makeDomain(xs, ys, edges, null, null);
+  d.lattice = "triangle";
+  return d;
+}
+
+// The corners of cell (x, y) of a triangle or hexagon lattice, in the
+// picture, as [[u, w], ...] going around it. (The sims' second threads
+// get a copy of this function, so it uses nothing from outside it.)
+function cellCorners(lattice, x, y) {
+  const h = Math.sqrt(3) / 2;
+  if (lattice === "triangle") {
+    const left = (x - 1) / 2, right = (x + 1) / 2, bottom = y * h, top = (y + 1) * h;
+    return ((x + y) % 2 + 2) % 2 === 1
+      ? [[left, bottom], [right, bottom], [x / 2, top]]    // pointing up
+      : [[right, top], [left, top], [x / 2, bottom]];     // pointing down
+  }
+  const u = x + ((y % 2 + 2) % 2) / 2, w = y * h, r = 1 / Math.sqrt(3);   // r: middle to corner
+  const corners = [];
+  for (let k = 0; k < 6; k++) {
+    const angle = Math.PI / 6 + k * Math.PI / 3;
+    corners.push([u + r * Math.cos(angle), w + r * Math.sin(angle)]);
+  }
+  return corners;
+}
+
+// The middle of cell v of domain d, in the picture.
+function cellMiddle(d, v) {
+  if (!d.lattice) return [d.x[v], d.y[v]];
+  const corners = cellCorners(d.lattice, d.x[v], d.y[v]);
+  let u = 0, w = 0;
+  for (const c of corners) { u += c[0]; w += c[1]; }
+  return [u / corners.length, w / corners.length];
+}
+
+// The box around domain d's picture: { left, right, bottom, top }. On a
+// torus it is one copy of the torus, which repeats every (right - left)
+// across and (top - bottom) up. Square cells are the squares of side 1
+// around (x, y).
+function pictureBox(d) {
+  if (!d.lattice) return { left: d.xmin - 0.5, right: d.xmax + 0.5, bottom: d.ymin - 0.5, top: d.ymax + 0.5 };
+  if (d.pictureBox) return d.pictureBox;
+  let left = Infinity, right = -Infinity, bottom = Infinity, top = -Infinity;
+  for (let v = 0; v < d.n; v++) {
+    for (const [u, w] of cellCorners(d.lattice, d.x[v], d.y[v])) {
+      left = Math.min(left, u); right = Math.max(right, u);
+      bottom = Math.min(bottom, w); top = Math.max(top, w);
+    }
+  }
+  if (d.wrap) {
+    // One copy of the torus: a whole number of cells across (half a
+    // triangle per x for triangles, one hexagon per x for hexagons) and
+    // of rows up.
+    const across = (d.wrap.xmax - d.wrap.xmin + 1) * (d.lattice === "triangle" ? 0.5 : 1);
+    right = left + across;
+    top = bottom + (d.wrap.ymax - d.wrap.ymin + 1) * ROW_HEIGHT;
+  }
+  d.pictureBox = { left: left, right: right, bottom: bottom, top: top };
+  return d.pictureBox;
+}
+
+// Which cell of domain d has the point (u, w) of the picture in it, or
+// -1 if none. For squares, the nearest grid point. For the other
+// lattices, the cells around the point are tried, and the one whose
+// corners go around it wins.
+function cellAtPoint(d, u, w) {
+  if (!d.lattice) return cellAt(d, Math.round(u), Math.round(w));
+  const row = Math.floor(w / ROW_HEIGHT + (d.lattice === "hexagon" ? 0.5 : 0));
+  const across = d.lattice === "triangle" ? Math.round(2 * u) : Math.round(u);
+  for (let y = row - 1; y <= row + 1; y++) {
+    for (let x = across - 2; x <= across + 2; x++) {
+      if (pointInCell(cellCorners(d.lattice, x, y), u, w)) return cellAt(d, x, y);
+    }
+  }
+  return -1;
+}
+
+// Is the point (u, w) inside the cell with these corners (a shape with
+// no dents, like a triangle or hexagon)? It is when it is on the same
+// side of every side.
+function pointInCell(corners, u, w) {
+  let sign = 0;
+  for (let k = 0; k < corners.length; k++) {
+    const [u0, w0] = corners[k], [u1, w1] = corners[(k + 1) % corners.length];
+    const cross = (u1 - u0) * (w - w0) - (w1 - w0) * (u - u0);
+    if (cross !== 0) {
+      if (sign !== 0 && Math.sign(cross) !== sign) return false;
+      sign = Math.sign(cross);
+    }
+  }
+  return true;
 }

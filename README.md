@@ -51,7 +51,7 @@ a link back to the sim.
 | `toysnsims/ising-potts/` | Ising and Potts model (q colors; heat bath or Swendsen-Wang) | `-chain.js`: the two Markov chains, in a second thread | exact odds on tiny graphs, Yang, Onsager |
 | `toysnsims/voter-model/` | Generalized voter model (a typed rule g of the neighbors' shares, with noise) | `-chain.js`: the update rule, in a second thread | the update odds, who wins, noise |
 | `toysnsims/sandpiles/` | Sandpiles (the abelian sandpile, storms, avalanches, the identity) | `-pile.js`: the toppling rule, in a second thread | nadya's Python, the abelian property, the identity, no sink |
-| `toysnsims/uniform-tiling/` | Uniform Tiling (rectangles, with or without gaps; every packing equally likely) | `-chain.js`: the Markov chain, in a second thread | every packing equally likely, counting tilings, the arctic circle |
+| `toysnsims/uniform-tiling/` | Uniform Tiling (rectangles, with or without gaps, or rhombi and other pairs on triangles and hexagons; every packing equally likely) | `-chain.js`: the Markov chain, in a second thread | every packing equally likely, counting tilings, the arctic circle |
 | `toysnsims/sequential-tile-packing/` | Sequential Tile Packing (continuous space; any typed domain, tile and density) | `-growth.js`: growing each tile, in a second thread | nadya's gasket formula, known answers, invariants |
 | `toysnsims/sinusoid-ish/` | Sinusoid-ish (roots at random gaps from a typed set; f, its lobes and their histograms) | `-roots.js`: the roots, f, peaks and lobes, in the page | Euler's sine product, stationarity, a picture to compare with nadya's Python |
 | `toysnsims/path-counting/` | Lattice path counting (paths home through edges with typed weights X and Y; f along a line a x + b y = c and its bell curve; 3D surface) | `-math.js`: log f on the grid, the line, the scaled heights, u(...), in the page | binomial coefficients, every path listed, the periodic rule, u(...) and coupling, the line, normalizing, the bell curve |
@@ -65,8 +65,8 @@ a link back to the sim.
 | `js/sim-worker.js` | What the second threads share: Play, Pause and Speed (the run loop) and the run so far for the charts over time |
 | `js/sim-charts.js` | The small charts: lines over time, histograms, power-of-2 bars, perimeter against area, zooming a chart in time |
 | `js/sim-colors.js` | The old site's colors, color conversions, and the blue-to-red colors of heights |
-| `js/sim-domains.js` | Domains: box, torus, Aztec diamond, a region drawn in the graph tool, and counting connected pieces (with their areas and perimeters) |
-| `js/sim-view.js` | The picture of a domain of square cells: where it goes, painting the cells, moving and zooming it |
+| `js/sim-domains.js` | Domains: box, torus, Aztec diamond, a region drawn in the graph tool, boxes and tori of triangles or hexagons, a hexagon of triangles, and counting connected pieces (with their areas and perimeters) |
+| `js/sim-view.js` | The picture of a domain of square (or triangle or hexagon) cells: where it goes, painting the cells, moving and zooming it |
 | `js/sim-graphs.js` | Graphs beyond the square grid, built cell by cell as a sim asks: the line, the grid, hyperbolic tilings {p,q} and regular trees |
 | `js/sim-hyperbolic.js` | Pictures of a hyperbolic tiling or tree (the disk, the half-plane, a tree spread out), dragging across the plane, and the ball a sim runs on |
 | `js/sim-controls.js` | The controls the sims on cells repeat: the Domain options, the graph tool inside the page, dragging, zooming and clicking the picture, and the clickable grid of offsets (a tile or a neighborhood) |

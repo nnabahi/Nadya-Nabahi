@@ -87,6 +87,22 @@ const TESTS = [
     domain: function () { return boxDomain(4, 4, 4, false); },
     tiles: [{ w: 2, h: 1, weight: 0.5 }, { w: 1, h: 2, weight: 1 }], rotations: false, gaps: false,
     versions: ["rule", "bigDisk"] },
+  { name: "Triangles: a hexagon of side 2, rhombi, gaps off",
+    note: "20 tilings, as MacMahon's formula for the hexagon with sides 2, 2, 2 says " +
+          "(P. A. MacMahon, Combinatory Analysis, vol. 2, 1916).",
+    domain: function () { return triangleHexagon(2); },
+    tiles: [{ w: 2, h: 1 }], rotations: true, gaps: false,
+    versions: ["rule", "noChecks", "bigDisk"] },
+  { name: "Triangles: a 4 x 4 torus, rhombi, gaps off",
+    note: "Rhombi may wrap around the edges.",
+    domain: function () { return latticeBox("triangle", 4, 4, true); },
+    tiles: [{ w: 2, h: 1 }], rotations: true, gaps: false,
+    versions: ["rule", "bigDisk"] },
+  { name: "Hexagons: a 3 x 2 box, pairs of hexagons, gaps on",
+    note: "Maximal packings of pairs: gaps allowed, but no pair fits in them.",
+    domain: function () { return latticeBox("hexagon", 3, 2, false); },
+    tiles: [{ w: 2, h: 1 }], rotations: true, gaps: true,
+    versions: ["rule", "noChecks"] },
 ];
 
 // Build the list of tests, each with a Run button and a place for results.
