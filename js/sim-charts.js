@@ -159,7 +159,7 @@ function stackedSizeBars(canvas, sizes, colorOf, colors, word) {
   const pen = chartPen(canvas);
   if (sizes.length === 0) return;
   const w = canvas.clientWidth, h = canvas.clientHeight;
-  const top = 14, bottom = h - 14;
+  const left = 34, top = 18, bottom = h - 14;   // room for the axes' numbers
 
   // counts.get(s)[c] = the number of regions of size s and color c.
   const counts = new Map();
@@ -175,7 +175,7 @@ function stackedSizeBars(canvas, sizes, colorOf, colors, word) {
 
   // Where size s starts across (size biggest + 1 is the right edge),
   // and how tall a bar of "count" regions is.
-  function across(s) { return w * Math.log(s) / Math.log(biggest + 1); }
+  function across(s) { return left + (w - left) * Math.log(s) / Math.log(biggest + 1); }
   function tall(count) { return (bottom - top) * Math.log(count + 1) / Math.log(most + 1); }
 
   // The bars: each color's piece on top of the ones before it.
@@ -192,18 +192,43 @@ function stackedSizeBars(canvas, sizes, colorOf, colors, word) {
     });
   });
 
-  // The labels: the tallest count, and the sizes 1, 2, 5, 10, 20, 50,
-  // ... under their bars (skipping any that would crowd the one before).
+  // The axes: a line up the left side and one along the bottom.
+  pen.strokeStyle = CHART_TEXT;
+  pen.lineWidth = 1;
+  pen.beginPath();
+  pen.moveTo(left - 0.5, top);
+  pen.lineTo(left - 0.5, bottom + 0.5);
+  pen.lineTo(w, bottom + 0.5);
+  pen.stroke();
+
+  // The labels: what the chart counts, the counts 0, 1, 2, 5, 10, ...
+  // up the left side (each with a small tick, skipping any that would
+  // crowd the one below), and the sizes 1, 2, 5, 10, 20, 50, ... under
+  // their bars (skipping any that would crowd the one before).
   pen.fillStyle = CHART_TEXT;
   pen.textBaseline = "top";
-  pen.fillText("most: " + most.toLocaleString() + word + " (log-log)", 0, 0);
+  pen.fillText("number of" + word + " (log-log), most: " + most.toLocaleString(), left + 4, 0);
+  pen.textAlign = "right";
+  pen.textBaseline = "middle";
+  let lastY = Infinity;
+  for (let power = 1; power <= most; power *= 10) {
+    for (const count of power === 1 ? [0, 1, 2, 5] : [power, 2 * power, 5 * power]) {
+      if (count > most) break;
+      const y = bottom - tall(count);
+      if (lastY - y < 12) continue;
+      pen.fillText(count.toLocaleString(), left - 6, y);
+      pen.fillRect(left - 4, Math.round(y), 3, 1);
+      lastY = y;
+    }
+  }
   pen.textAlign = "center";
+  pen.textBaseline = "top";
   let lastRight = -Infinity;
   for (let power = 1; power <= biggest; power *= 10) {
     for (const size of [power, 2 * power, 5 * power]) {
       if (size > biggest) break;
       const text = size.toLocaleString(), half = pen.measureText(text).width / 2;
-      const x = Math.min(Math.max((across(size) + across(size + 1)) / 2, half), w - half);
+      const x = Math.min(Math.max((across(size) + across(size + 1)) / 2, left + half), w - half);
       if (x - half < lastRight + 6) continue;
       pen.fillText(text, x, bottom + 2);
       lastRight = x + half;
