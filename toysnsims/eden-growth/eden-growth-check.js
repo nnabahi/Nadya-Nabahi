@@ -45,9 +45,9 @@
             cells around it;
           - the same invariants as in 3.
 
-     5. The max height (checkMaxHeight, part 4b): no site goes above M,
+     5. The capacity (checkMaxHeight, part 4b): no site goes above M,
         the available sites are exactly those below M, M = 1 grows the
-        base by one site every step (Eden's model), and a bounded
+        base by one site every step (Eden model), and a bounded
         domain fills up to exactly M everywhere.
 
      6. The clocks (newClocks), which the sim page picks with: the same
@@ -544,13 +544,13 @@ function checkGraphInvariants(options, steps, name) {
 /* ===================================================================
    4b. THE MAX HEIGHT
    ---------------------------------------------------------------------
-   With a max height M (options.cap), after every step:
+   With a capacity M (options.cap), after every step:
      - the usual checks (stepProblem);
      - no site is higher than M;
      - the available sites are exactly the sites with fewer than M
        blocks (every site ever made was available once, and only
        getting full takes it off the list);
-     - with M = 1 (Eden's model), every block lands on a new site, so
+     - with M = 1 (Eden model), every block lands on a new site, so
        the base has steps + 1 sites.
    On a bounded domain the run goes until every site is full, and then
    every site must have exactly M blocks.
@@ -787,7 +787,7 @@ function allTests() {
     });
   }
 
-  // 4b. The max height.
+  // 4b. The capacity.
   const segment = { kind: "box", xmin: -20, xmax: 20, ymin: 0, ymax: 0, torus: false };
   const square = { kind: "box", xmin: -10, xmax: 10, ymin: -10, ymax: 10, torus: false };
   for (const [name, options] of [
@@ -800,11 +800,11 @@ function allTests() {
   ]) {
     tests.push(function () {
       const problem = checkMaxHeight(options, 2000, name);
-      addRow("Max height: " + name + ", up to 2000 steps", problem === "", problem || "all hold after every step");
+      addRow("Capacity: " + name + ", up to 2000 steps", problem === "", problem || "all hold after every step");
     });
     tests.push(function () {
       const problem = checkMaxHeight(Object.assign({ clocks: "max height " + name }, options), 2000, name);
-      addRow("Clocks, max height: " + name + ", up to 2000 steps", problem === "", problem || "all hold after every step");
+      addRow("Clocks, capacity: " + name + ", up to 2000 steps", problem === "", problem || "all hold after every step");
     });
   }
 

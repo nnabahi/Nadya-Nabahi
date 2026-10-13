@@ -318,9 +318,9 @@ worker.onmessage = function (event) {
     if (player.playing) player.setPlaying(false);
     showMessage("That's the most steps this page goes to.");
   }
-  if (message.allFull) {  // with a max height: every site is full, so the run is over
+  if (message.allFull) {  // with a capacity: every site is full, so the run is over
     if (player.playing) player.setPlaying(false);
-    showMessage("Every site is full (it has the max height), so no more blocks can land.");
+    showMessage("Every site is full (it holds M blocks), so no more blocks can land.");
   }
   byId("play").disabled = byId("step").disabled = Boolean(message.atMax || message.allFull);
   drawSoon();
@@ -593,7 +593,7 @@ function clickAt(event) {
   if (!haveMountain() || tool.isOpen) return;
   const site = siteUnder(event);
   if (site >= 0 && latest.height[site] >= maxHeight()) {
-    showMessage("That site is full: it already has the max height.");
+    showMessage("That site is full: it already holds M blocks.");
   } else if (site >= 0) {
     if (player.playing) player.setPlaying(false);
     worker.postMessage({ type: "click", site: site });
@@ -868,7 +868,7 @@ function showStats() {
   byId("stat-full").textContent = s.full.toLocaleString();
   byId("stat-growing").textContent = (s.baseSize - s.full).toLocaleString();
 
-  // With a max height, the full and growing sites take the place of the
+  // With a capacity, the full and growing sites take the place of the
   // heights, which stop at M.
   const capped = maxHeight() < Infinity;
   for (const e of document.querySelectorAll(".cap-only")) e.hidden = !capped;
@@ -1107,21 +1107,21 @@ for (const id of ["set-width", "set-height"]) {
   byId(id).addEventListener("change", function () { restart(true); });
 }
 
-// Max height: the checkbox shows the slider for M. Changing either
+// Capacity: the checkbox shows the slider for M. Changing either
 // keeps the seed and the step, like the tile and the domain.
 function maxHeight() {   // M, or Infinity with the box unchecked
   return byId("use-cap").checked ? Number(byId("cap").value) : Infinity;
 }
 function showMaxHeight() {
   byId("cap-row").hidden = !byId("use-cap").checked;
-  byId("cap-label").textContent = byId("cap").value === "1" ? "1 (Eden's model)" : byId("cap").value;
+  byId("cap-label").textContent = byId("cap").value === "1" ? "1 (Eden model)" : byId("cap").value;
 }
 for (const id of ["use-cap", "cap"]) {
   byId(id).addEventListener("input", function () { showMaxHeight(); restart(true); });
 }
 
 // The weight s: tall sites favored (s > 0) or avoided (s < 0). Moving
-// it keeps the seed and the step, like the max height.
+// it keeps the seed and the step, like the capacity.
 function showWeight() {
   const s = Number(byId("weight-s").value);
   byId("weight-label").textContent = s === 0 ? "0 (uniform)" : s.toFixed(1);
