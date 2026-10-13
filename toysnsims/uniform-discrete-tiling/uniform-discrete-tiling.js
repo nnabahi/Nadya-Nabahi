@@ -1,5 +1,5 @@
 /* =====================================================================
-   uniform-tiling.js  —  the page of the "Uniform Tiling" sim
+   uniform-discrete-tiling.js  —  the page of the "Uniform Discrete Tiling" sim
    ---------------------------------------------------------------------
    What it does, in plain words:
      - Builds the domain: a box or torus of cells, an Aztec diamond, or
@@ -10,7 +10,7 @@
        js/sim-domains.js, and their options and the graph tool in
        js/sim-controls.js.
      - Reads the tiles (rectangles, each with a weight) and the options.
-     - Hands everything to the chain (uniform-tiling-chain.js), which runs
+     - Hands everything to the chain (uniform-discrete-tiling-chain.js), which runs
        in a second thread (a "Web Worker"), and draws every packing it
        sends back, with the statistics.
    Small helpers used by every sim page (byId, readWhole, ...) are in
@@ -91,7 +91,7 @@ function showingAverage() { return checked("show") === "average"; }
 /* =====================================================================
    3. RUNNING THE CHAIN
    ---------------------------------------------------------------------
-   The chain is the function tilePacking() in uniform-tiling-chain.js,
+   The chain is the function tilePacking() in uniform-discrete-tiling-chain.js,
    with the run loop (js/sim-worker.js) and cellAt, wrap, cellCorners
    and pointInCell (js/sim-domains.js) copied in. startWorker (js/sim-page.js) runs it
    in a second thread, a "Web Worker", so the page never freezes.

@@ -1,6 +1,6 @@
 /* =====================================================================
-   sequential-tile-packing-growth.js  —  the math behind the "Random
-   sequential packing" sim (continuous space)
+   sequential-continuous-tiling-growth.js  —  the math behind the
+   "Sequential Continuous Tiling" sim
    ---------------------------------------------------------------------
    THE MODEL (nadya's, as on the old site)
      S is a domain and T a tile shape, both typed as conditions in x and
@@ -877,7 +877,7 @@ function packingCore() {
 /* =====================================================================
    8. THE WORKER: RUNNING THE PACKING IN A SECOND THREAD
    ---------------------------------------------------------------------
-   The sim page (sequential-tile-packing.js) turns this function into a "Web
+   The sim page (sequential-continuous-tiling.js) turns this function into a "Web
    Worker", together with packingCore() above, so the work never freezes
    the page. They talk by messages:
 
