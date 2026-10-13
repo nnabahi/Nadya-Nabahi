@@ -314,7 +314,6 @@ connectPicture(view, null, null, function (event) {
 let show3D = false;          // the View option
 let sim3d = null;            // the 3D code, once loaded (js/sim-3d.js)
 let view3d = null;           // the 3D picture
-let loading3D = false;       // start3D has begun (false again if loading fails)
 let stretch = 1;             // the Heights slider: 2 = twice as tall
 
 // Show the picture from above, or the 3D one, and their options.
@@ -329,26 +328,13 @@ function showPictureKind() {
 }
 
 // Load the 3D code (the first time only) and make the 3D picture.
-async function start3D() {
-  if (loading3D) return;
-  loading3D = true;
-  showMessage("Loading the 3D view...");
-  try {
-    // The path is counted from this .js file (toysnsims/path-counting/), not the page.
-    sim3d = await import("../../js/sim-3d.js");
-  } catch (error) {
-    loading3D = false;
-    show3D = false;
-    document.querySelector('input[name="view"][value="flat"]').checked = true;
-    showPictureKind();
-    showMessage("The 3D view couldn't load. It needs the library three.js from the " +
-                "internet, so check the connection and try again.");
-    return;
-  }
-  view3d = sim3d.make3DView(byId("sim-3d"), pictureHeight(PICTURE_HEIGHT));
-  lookAlongDirection();
-  showMessage("");
-  drawSoon();
+function start3D() {
+  load3D(byId("sim-3d"), pictureHeight(PICTURE_HEIGHT), function (code, picture) {
+    sim3d = code;
+    view3d = picture;
+    lookAlongDirection();
+    drawSoon();
+  }, function () { show3D = false; showPictureKind(); });
 }
 
 // Look from behind (0, 0) along the direction vector, as in your
@@ -487,15 +473,7 @@ for (const radio of document.querySelectorAll('input[name="view"]')) {
   radio.addEventListener("change", function () { show3D = (radio.value === "3d"); showPictureKind(); });
 }
 byId("show-edges").addEventListener("change", drawSoon);
-function showStretch() {
-  byId("stretch-label").textContent = stretch === 1 ? "normal"
-    : (stretch > 1 ? stretch.toFixed(1) + " times taller" : (1 / stretch).toFixed(1) + " times flatter");
-}
-byId("stretch").addEventListener("input", function () {
-  stretch = Math.pow(2, Number(this.value) / 2);
-  showStretch();
-  drawSoon();
-});
+connectStretch(function (value) { stretch = value; drawSoon(); });
 byId("view3d-reset").addEventListener("click", lookAlongDirection);
 
 // Start: your periodic rule on the 61 x 61 grid, at 45 degrees (the
@@ -503,6 +481,5 @@ byId("view3d-reset").addEventListener("click", lookAlongDirection);
 useSize();
 lineNumber = N;
 byId("line-c").value = lineNumber;
-showStretch();
 showPictureKind();
 usePreset("periodic");
