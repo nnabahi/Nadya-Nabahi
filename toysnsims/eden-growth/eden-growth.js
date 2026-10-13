@@ -317,7 +317,11 @@ worker.onmessage = function (event) {
     if (player.playing) player.setPlaying(false);
     showMessage("That's the most steps this page goes to.");
   }
-  byId("play").disabled = byId("step").disabled = Boolean(message.atMax);
+  if (message.allFull) {  // with a max height: every site is full, so the run is over
+    if (player.playing) player.setPlaying(false);
+    showMessage("Every site is full (it has the max height), so no more blocks can land.");
+  }
+  byId("play").disabled = byId("step").disabled = Boolean(message.atMax || message.allFull);
   drawSoon();
 };
 
@@ -336,7 +340,7 @@ function restart(keepStep, forget) {
   const where = domainSettings();
   run++;
   const message = {
-    type: "setup", run: run, dim: dim, domain: where.domain, seed: byId("seed").value,
+    type: "setup", run: run, dim: dim, domain: where.domain, cap: maxHeight(), seed: byId("seed").value,
     steps: (keepStep && latest && latest.steps) ? latest.steps : 0,
     forgetClicks: !keepStep || Boolean(forget),
   };
@@ -576,7 +580,9 @@ connectPicture(view, disk, function () { return dim === "graph"; }, clickAt);
 function clickAt(event) {
   if (!haveMountain() || tool.isOpen) return;
   const site = siteUnder(event);
-  if (site >= 0) {
+  if (site >= 0 && latest.height[site] >= maxHeight()) {
+    showMessage("That site is full: it already has the max height.");
+  } else if (site >= 0) {
     if (player.playing) player.setPlaying(false);
     worker.postMessage({ type: "click", site: site });
   } else {
@@ -948,6 +954,19 @@ for (const id of ["set-width", "set-height"]) {
   byId(id).addEventListener("change", function () { restart(true); });
 }
 
+// Max height: the checkbox shows the slider for M. Changing either
+// keeps the seed and the step, like the tile and the domain.
+function maxHeight() {   // M, or Infinity with the box unchecked
+  return byId("use-cap").checked ? Number(byId("cap").value) : Infinity;
+}
+function showMaxHeight() {
+  byId("cap-row").hidden = !byId("use-cap").checked;
+  byId("cap-label").textContent = byId("cap").value === "1" ? "1 (Eden's model)" : byId("cap").value;
+}
+for (const id of ["use-cap", "cap"]) {
+  byId(id).addEventListener("input", function () { showMaxHeight(); restart(true); });
+}
+
 // Go to step.
 byId("goto").addEventListener("click", function () {
   worker.postMessage({ type: "goto", steps: readWhole("goto-steps", 0, 10000000, 0) });
@@ -961,6 +980,7 @@ connectSeed(function () { restart(true, true); });
 byId("seed").value = DEFAULT_SEED;
 byId("goto-steps").value = 1000;
 showStretch();
+showMaxHeight();
 showGraphPresets(useGraph);
 setDimension(1);
 player.setPlaying(false);   // paused: press Play

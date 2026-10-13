@@ -179,6 +179,19 @@
           <p class="muted small" id="tile-info"></p>
         </div>
 
+        <!-- The max height: off by default. When checked, the slider
+             shows and sets M. -->
+        <h3 class="option-heading">Max height</h3>
+        <div class="option-row">
+          <label><input type="checkbox" id="use-cap"> Max height</label>
+          <span id="cap-row" hidden>
+            M <input type="range" id="cap" min="1" max="20" step="1" value="1">
+            <span class="muted" id="cap-label"></span>
+          </span>
+        </div>
+        <p class="muted small">A site with M blocks is full, and no more blocks land on it.
+          With M = 1 every block lands on a new site: that is Eden's growth model.</p>
+
         <h3 class="option-heading">Domain</h3>
         <div class="option-row" id="domain-choice"></div>
         <div class="option-row" id="size-row" hidden>
@@ -260,6 +273,13 @@
           taller much faster than it gets wider.
         </p>
         <p>
+          <strong>Max height.</strong> Check the box to give every site a max
+          height <span class="tex">M</span>: a site with
+          <span class="tex">M</span> blocks is full, and blocks stop landing on it.
+          With <span class="tex">M = 1</span> each block lands on a new site
+          next to the base, which is Eden's growth model.
+        </p>
+        <p>
           <strong>Things to try:</strong> click an available site to drop the
           next block there yourself; the one-sided tile {+1}; a tile with a
           gap, like {&minus;2, +1}; 2D with 4 or 8 neighbors; a tile of your own,
@@ -331,6 +351,17 @@
           the outer boundary of the base. So the base, watched only at the steps
           where it grows, is Eden's growth model [1] with the neighbors given by
           <span class="tex">T</span>; the mountain adds the heights on top.
+        </p>
+        <p>
+          <strong>Max height.</strong> With a max height
+          <span class="tex">M</span>, the available sites are
+          <span class="tex">S_n = \{x \in \{0\} \cup (D_n + T) : H(x, n) &lt; M\}</span>
+          (inside the domain), and the pick is uniform on
+          <span class="tex">S_n</span> as before. With
+          <span class="tex">M = 1</span> every block lands outside the base, so
+          <span class="tex">|D_n| = n + 1</span> and the base is exactly Eden's
+          growth model [1], step by step. On a bounded domain the run stops
+          once every site is full.
         </p>
         <p>
           <strong>Random numbers.</strong> Step <span class="tex">n</span> uses a

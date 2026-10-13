@@ -1,7 +1,7 @@
 /* =====================================================================
    eden-growth-check.js  —  the tests on eden-growth-check.html
    ---------------------------------------------------------------------
-   Four kinds of test of the growth rule in eden-growth-rule.js:
+   Five kinds of test of the growth rule in eden-growth-rule.js:
 
      1. Same mountain as nadya's Python. Her randmountain.py and
         randonesidedmountain.py turn a list of uniform numbers u into a
@@ -43,6 +43,11 @@
             the tiling's rules alone, every corner still has exactly q
             cells around it;
           - the same invariants as in 3.
+
+     5. The max height (checkMaxHeight, part 4b): no site goes above M,
+        the available sites are exactly those below M, M = 1 grows the
+        base by one site every step (Eden's model), and a bounded
+        domain fills up to exactly M everywhere.
 
    Random numbers come from the library seedrandom, each test with its
    own fixed seed, so the page gives the same results every time.
@@ -505,6 +510,42 @@ function checkGraphInvariants(options, steps, name) {
 
 
 /* ===================================================================
+   4b. THE MAX HEIGHT
+   ---------------------------------------------------------------------
+   With a max height M (options.cap), after every step:
+     - the usual checks (stepProblem);
+     - no site is higher than M;
+     - the available sites are exactly the sites with fewer than M
+       blocks (every site ever made was available once, and only
+       getting full takes it off the list);
+     - with M = 1 (Eden's model), every block lands on a new site, so
+       the base has steps + 1 sites.
+   On a bounded domain the run goes until every site is full, and then
+   every site must have exactly M blocks.
+   =================================================================== */
+function checkMaxHeight(options, steps, name) {
+  const random = new Math.seedrandom("max height " + name);
+  const m = options.graph ? newGraphMountain(options) : newMountain(options);
+  const M = options.cap;
+  for (let k = 1; k <= steps && m.available.length > 0; k++) {
+    m.step(random());
+    const problem = stepProblem(m, k);
+    if (problem) return problem;
+    if (m.maxHeight > M) return "step " + k + ": a site is higher than M";
+    const open = new Set(m.available);
+    for (let i = 0; i < m.height.length; i++) {
+      if (open.has(i) !== (m.height[i] < M)) return "step " + k + ": the available sites are wrong";
+    }
+    if (M === 1 && m.baseSize !== k + 1) return "step " + k + ": M = 1 but a block landed on the base";
+  }
+  if (m.available.length === 0 && !m.height.every(function (h) { return h === M; })) {
+    return "every site is full, but not every site has M blocks";
+  }
+  return "";
+}
+
+
+/* ===================================================================
    5. THE PAGE: run the tests and fill in the table
    (addRow, runChecksOnClick and readNumbers are in js/check-page.js)
    =================================================================== */
@@ -577,6 +618,23 @@ function allTests() {
     tests.push(function () {
       const problem = checkGraphInvariants(options, 3000, name);
       addRow("Invariants: " + name + ", 3000 steps", problem === "", problem || "all hold after every step");
+    });
+  }
+
+  // 4b. The max height.
+  const segment = { kind: "box", xmin: -20, xmax: 20, ymin: 0, ymax: 0, torus: false };
+  const square = { kind: "box", xmin: -10, xmax: 10, ymin: -10, ymax: 10, torus: false };
+  for (const [name, options] of [
+    ["1D, T = {-1, +1}, M = 1", { dim: 1, tile: [[-1], [1]], domain: whole, start: [0], cap: 1 }],
+    ["1D, T = {-1, +1}, M = 3, the segment -20..20 until full", { dim: 1, tile: [[-1], [1]], domain: segment, start: [0], cap: 3 }],
+    ["2D, 4 neighbors, M = 1", { dim: 2, tile: [[1, 0], [-1, 0], [0, 1], [0, -1]], domain: whole, start: [0, 0], cap: 1 }],
+    ["2D, 4 neighbors, M = 2, a 21 x 21 box until full", { dim: 2, tile: [[1, 0], [-1, 0], [0, 1], [0, -1]], domain: square, start: [0, 0], cap: 2 }],
+    ["{7,3}, cells within 1, M = 1", { graph: { kind: "tiling", p: 7, q: 3 }, radius: 1, domain: whole, cap: 1 }],
+    ["tree of degree 3, 5 layers, M = 2, until full", { graph: { kind: "tiling", p: 3, q: Infinity }, radius: 1, domain: { kind: "ball", layers: 5 }, cap: 2 }],
+  ]) {
+    tests.push(function () {
+      const problem = checkMaxHeight(options, 2000, name);
+      addRow("Max height: " + name + ", up to 2000 steps", problem === "", problem || "all hold after every step");
     });
   }
   return tests;

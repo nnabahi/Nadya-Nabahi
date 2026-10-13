@@ -20,6 +20,13 @@
 
      The uniform pick in step 1 is the only random thing.
 
+   The max height (optional). With a max height M, a site that reaches
+   M blocks is full: it stops being available, so no block lands on it
+   again. With M = 1 every block lands on a new site, so the base grows
+   by one site each step: that is Eden's growth model. With no max (the
+   default) nothing changes. On a bounded domain the run stops once
+   every site is full.
+
    nadya's models are this rule with a particular tile:
      T = {-1, +1}       the two-sided mountain (randmountain.py,
                         RandBlockStack.py): the block lands on the base
@@ -79,11 +86,14 @@
 //             { kind: "cells", cells: [[x, y], ...], wrap }    (wrap: the torus's
 //                 { xmin, xmax, ymin, ymax }, or null; a region drawn in the graph tool)
 //   start   the start site, [x] in 1D or [x, y] in 2D
+//   cap     M, the max height: the most blocks a site can hold
+//           (leave it out for no max)
 // It returns an object whose step(u) drops one block, and whose fields
 // say how the mountain looks (see the end of this function).
 function newMountain(options) {
   const dim = options.dim;
   const domain = options.domain;
+  const cap = options.cap || Infinity;     // the max height M (see the top of this file)
 
   // Every site gets a number, 0, 1, 2, ..., in the order it becomes
   // available. For site number i:
@@ -202,6 +212,7 @@ function newMountain(options) {
     height[i] += 1;
     m.blocks += 1;
     if (height[i] > m.maxHeight) m.maxHeight = height[i];
+    if (height[i] >= cap) available.splice(available.indexOf(i), 1);   // full: no longer available
     if (height[i] === 1) {
       m.baseSize += 1;
       for (const t of tile) makeAvailable(siteX[i] + t[0], siteY[i] + t[1]);
@@ -240,12 +251,15 @@ function newMountain(options) {
 //   domain   { kind: "whole" } (it can grow forever), or
 //            { kind: "ball", layers: R } (only the cells within
 //            distance R of the start)
+//   cap     M, the max height: the most blocks a site can hold
+//           (leave it out for no max)
 // The start is cell 0 of the graph. It returns the same kind of object
 // as newMountain, with siteNode[i] = the graph's cell for site i instead
 // of siteX, siteY.
 function newGraphMountain(options) {
   const graph = options.graph.neighbors ? options.graph : makeGraph(options.graph);
   const radius = options.radius;
+  const cap = options.cap || Infinity;     // the max height M (see the top of this file)
 
   // Every site gets a number, 0, 1, 2, ..., in the order it becomes
   // available. For site number i:
@@ -302,6 +316,7 @@ function newGraphMountain(options) {
     height[i] += 1;
     m.blocks += 1;
     if (height[i] > m.maxHeight) m.maxHeight = height[i];
+    if (height[i] >= cap) available.splice(available.indexOf(i), 1);   // full: no longer available
     if (height[i] === 1) {
       m.baseSize += 1;
       for (const w of ballAround(graph, siteNode[i], radius)) makeAvailable(w);
@@ -325,7 +340,7 @@ function newGraphMountain(options) {
    little as it can, like a Desmos slider.
 
    The page sends:
-     { type: "setup", run, dim, tile, domain, start, seed, steps, forgetClicks }
+     { type: "setup", run, dim, tile, domain, start, cap, seed, steps, forgetClicks }
          (on a graph: dim "graph", and graph and radius instead of tile and start)
          a new mountain, grown at once to "steps" steps with the same
          seed (so changing a setting keeps the step you were at)
@@ -381,11 +396,17 @@ function mountainWorker() {
     }
     trace = newTrace();
     takeSample();
-    while (mountain.steps < Math.min(steps, MAX_STEPS)) oneStep();
+    while (mountain.steps < steps && !isDone()) oneStep();
+  }
+
+  // The run can't go on: the step limit, or (with a max height) every
+  // site is full, so no block can land anywhere.
+  function isDone() {
+    return mountain !== null && (mountain.steps >= MAX_STEPS || mountain.available.length === 0);
   }
 
   function oneStep() {
-    if (!mountain || mountain.steps >= MAX_STEPS) return;
+    if (!mountain || isDone()) return;
     const u = random();                       // always used up, so step n keeps u_n
     const clicked = clicks.has(mountain.steps + 1) ? findSite(clicks.get(mountain.steps + 1)) : -1;
     if (clicked >= 0) mountain.dropOn(clicked);
@@ -401,7 +422,7 @@ function mountainWorker() {
   }
   // The site with that name, or -1 if it isn't available.
   function findSite(name) {
-    for (let i = 0; i < mountain.height.length; i++) if (siteName(i) === name) return i;
+    for (const i of mountain.available) if (siteName(i) === name) return i;
     return -1;
   }
 
@@ -411,8 +432,8 @@ function mountainWorker() {
   }
 
   // Play, Pause and Speed: the run loop (js/sim-worker.js), dropping the
-  // blocks that are due. At the step limit it pauses by itself.
-  const loop = makeRunLoop(oneStep, report, function () { return mountain !== null && mountain.steps >= MAX_STEPS; });
+  // blocks that are due. When the run can't go on it pauses by itself.
+  const loop = makeRunLoop(oneStep, report, isDone);
 
   self.onmessage = function (event) {
     const message = event.data;
@@ -430,14 +451,14 @@ function mountainWorker() {
       oneStep();
       report();
     } else if (message.type === "click") {
-      if (mountain && message.site >= 0 && message.site < mountain.height.length && mountain.steps < MAX_STEPS) {
+      if (mountain && mountain.available.includes(message.site) && !isDone()) {
         clicks.set(mountain.steps + 1, siteName(message.site));
         oneStep();
         report();
       }
     } else if (message.type === "goto") {
       if (mountain && message.steps < mountain.steps) setup(message.steps);
-      else while (mountain && mountain.steps < Math.min(message.steps, MAX_STEPS)) oneStep();
+      else while (mountain && mountain.steps < message.steps && !isDone()) oneStep();
       report();
     }
   };
@@ -459,6 +480,7 @@ function mountainWorker() {
       steps: m.steps, blocks: m.blocks, baseSize: m.baseSize,
       available: m.available.length, maxHeight: m.maxHeight,
       atMax: m.steps >= MAX_STEPS,
+      allFull: m.available.length === 0,   // with a max height: every site is full
       traceSteps: Float64Array.from(trace.times),
       traceBase: Float64Array.from(trace.lists.base),
       traceHighest: Float64Array.from(trace.lists.highest),
