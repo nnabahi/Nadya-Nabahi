@@ -14,7 +14,7 @@
      3. Top bar (the navigation)
      4. Ordinary page content (cards, headings, lists)
      5. Home page image area
-     6. Toys n' Sims: the four-quadrant layout
+     6. Toys n' Sims: the sim page layout
      7. Sim pages: options, statistics and charts
      8. Sim pages: the picture and its buttons
      9. Sim pages: the About box
@@ -399,7 +399,7 @@ a.card:hover {
 
 
 /* =====================================================================
-   6. Toys n' Sims: the four-quadrant layout
+   6. Toys n' Sims: the sim page layout
    ---------------------------------------------------------------------
    HTML shape (see toysnsims/random-walk-coloring.html):
      <div class="quadrants">
@@ -411,29 +411,39 @@ a.card:hover {
 
    Where each one sits on the screen is set by "grid-template-areas"
    below — it's literally a little picture of the layout:
-       "sim    controls"     <- top row
-       "stats  about"        <- bottom row
+       "sim    controls"     <- the picture, with the options beside it
+       "stats  controls"     <- the statistics under the picture
+       "about  about"        <- About the model, the full page width
    So the order of the <section>s in the HTML doesn't matter; to move
    a box, just change this picture.
+
+   The options box spans the first two rows, so the statistics sit right
+   under the picture however long the options are. The top row is only
+   as tall as the picture ("auto"); any extra height the options need
+   goes to the second row ("1fr"), below the statistics.
    ===================================================================== */
 .quadrants {
   display: grid;
   /* Two columns: left is 3 parts wide, right is 2 parts wide,
      so the simulation gets more room. Change to "1fr 1fr" for equal. */
   grid-template-columns: 3fr 2fr;
+  grid-template-rows: auto 1fr auto;
   grid-template-areas:
     "sim    controls"
-    "stats  about";
+    "stats  controls"
+    "about  about";
   gap: 20px;
 }
 
-/* Each quadrant is a card. */
+/* Each box is a card, only as tall as its own content
+   (not stretched to fill its row). */
 .quad {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--corner-radius);
   padding: 16px 20px;
   min-width: 0;   /* lets wide things (like a canvas) shrink instead of overflowing */
+  align-self: start;
 }
 
 .quad h2 {
@@ -447,29 +457,6 @@ a.card:hover {
 .quad-controls { grid-area: controls; }
 .quad-stats    { grid-area: stats; }
 .quad-about    { grid-area: about; }
-
-/* "Bricks": on a wide screen, js/sim-page.js adds the class "bricks"
-   to the quadrants. Then each box is only as tall as its own content,
-   and the box under it moves up to meet it, like bricks in a wall: the
-   left column is the simulation, then the statistics; the right column
-   the options, then the about box. The two columns don't line up, on
-   purpose. How: the grid is cut into thin rows 4px tall, each box spans
-   as many as it needs (sim-page.js works that out from its height), and
-   "dense" puts each box in the first free place in its column. */
-.quadrants.bricks {
-  grid-template-areas: none;
-  grid-auto-rows: 4px;
-  grid-auto-flow: row dense;
-  row-gap: 0;
-}
-.quadrants.bricks > .quad {
-  align-self: start;        /* as tall as its content, not stretched */
-  margin-bottom: 20px;      /* the gap to the box below */
-}
-.quadrants.bricks > .quad-sim,
-.quadrants.bricks > .quad-stats    { grid-area: auto / 1; }   /* left column */
-.quadrants.bricks > .quad-controls,
-.quadrants.bricks > .quad-about    { grid-area: auto / 2; }   /* right column */
 
 
 /* =====================================================================
@@ -1136,6 +1123,7 @@ body.embedded .quadrants {
   grid-template-areas:
     "sim"
     "controls";
+  grid-template-rows: none;
   gap: 12px;
 }
 
@@ -1248,7 +1236,7 @@ body.embedded .graph-wrap {
     overflow-x: auto;
   }
 
-  /* Stack the four quadrants in one column, in this order. */
+  /* Stack the four boxes in one column, in this order. */
   .quadrants {
     grid-template-columns: 1fr;
     grid-template-areas:
@@ -1256,6 +1244,7 @@ body.embedded .graph-wrap {
       "controls"
       "stats"
       "about";
+    grid-template-rows: none;
   }
 
   /* Resume skills: stack each label above its details. */
