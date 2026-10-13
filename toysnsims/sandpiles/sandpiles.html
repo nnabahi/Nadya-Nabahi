@@ -4,8 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Sandpiles — Toys n' Sims</title>
-  <link rel="stylesheet" href="../css/style.css">
-  <!-- KaTeX's styles, for the typeset formulas in the About quadrant. -->
+  <link rel="stylesheet" href="../../css/style.css">
+  <!-- KaTeX's styles, for the typeset formulas in About the model. -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/katex.min.css">
   <!-- Where the 3D library three.js lives on the internet, for the 3D
        view (js/sim-3d.js). It is only loaded when you switch to 3D. The
@@ -24,26 +24,26 @@
 
   <header class="topbar">
     <nav>
-      <a href="../about.html">About Me</a>
-      <a href="../resume.html">Resume</a>
-      <a href="../index.html">Home</a>
-      <a href="../publications.html">Publications</a>
-      <a href="../toysnsims.html" class="active">Toys n' Sims</a>
+      <a href="../../about.html">About Me</a>
+      <a href="../../resume.html">Resume</a>
+      <a href="../../index.html">Home</a>
+      <a href="../../publications.html">Publications</a>
+      <a href="../../toysnsims.html" class="active">Toys n' Sims</a>
     </nav>
   </header>
 
   <main class="page">
-    <p><a href="../toysnsims.html">&larr; All sims</a></p>
+    <p><a href="../../toysnsims.html">&larr; All sims</a></p>
     <h1>Sandpiles</h1>
 
-    <!-- The four quadrants, as on every sim page (their layout is in
+    <!-- The three layers, as on every sim page (their layout is in
          section 6 of css/style.css). All the behavior lives in
          sandpiles.js; the ids below (id="...") are how that script finds
          each button and box. -->
-    <div class="quadrants">
+    <div class="sim-layout">
 
-      <!-- UPPER LEFT: the pile. -->
-      <section class="quad quad-sim">
+      <!-- TOP LEFT: the pile. -->
+      <section class="panel panel-sim">
         <h2>Simulation</h2>
 
         <!-- The picture. Its height is set so the cells come out square
@@ -90,8 +90,8 @@
         <p class="muted" id="sim-message"></p>
       </section>
 
-      <!-- UPPER RIGHT: settings. -->
-      <section class="quad quad-controls">
+      <!-- TOP RIGHT: settings. -->
+      <section class="panel panel-controls">
         <!-- The heading, with a small "model check" button on the right
              that opens the page testing this sim's math. -->
         <h2 class="heading-with-button">Options
@@ -247,35 +247,44 @@
           and where the storm's grains land. The final pile never depends on the order.</p>
       </section>
 
-      <!-- LOWER LEFT: numbers about this pile. -->
-      <section class="quad quad-stats">
+      <!-- MIDDLE, the full width: numbers about this pile. -->
+      <section class="panel panel-stats">
         <h2>Statistics</h2>
-        <table class="stats-table">
-          <tr><td>Cells</td><td id="stat-cells"></td></tr>
-          <tr><td>Grains on the table</td><td id="stat-grains"></td></tr>
-          <tr><td>Grains at the start, and added since</td><td id="stat-added"></td></tr>
-          <tr><td>Grains lost to the sink</td><td id="stat-lost"></td></tr>
-          <tr><td>Topples</td><td id="stat-topples"></td></tr>
-          <tr><td>Unstable cells</td><td id="stat-unstable"></td></tr>
-          <tr><td>Stable?</td><td id="stat-stable"></td></tr>
-          <tr><td>Recurrent?</td><td id="stat-recurrent"></td></tr>
-        </table>
-
-        <h3 class="option-heading">Cells of each height</h3>
-        <canvas class="chart" id="heights-chart"></canvas>
-        <h3 class="option-heading">Avalanches over time (storm, waiting until stable)</h3>
-        <canvas class="chart" id="timeline-chart"></canvas>
-        <p class="muted small" id="timeline-info"></p>
-        <h3 class="option-heading">Avalanche sizes</h3>
-        <canvas class="chart" id="avalanche-chart"></canvas>
-        <p class="muted small" id="avalanche-info"></p>
+        <div class="stat-grid">
+          <div class="stat">
+            <table class="stats-table">
+              <tr><td>Cells</td><td id="stat-cells"></td></tr>
+              <tr><td>Grains on the table</td><td id="stat-grains"></td></tr>
+              <tr><td>Grains at the start, and added since</td><td id="stat-added"></td></tr>
+              <tr><td>Grains lost to the sink</td><td id="stat-lost"></td></tr>
+              <tr><td>Topples</td><td id="stat-topples"></td></tr>
+              <tr><td>Unstable cells</td><td id="stat-unstable"></td></tr>
+              <tr><td>Stable?</td><td id="stat-stable"></td></tr>
+              <tr><td>Recurrent?</td><td id="stat-recurrent"></td></tr>
+            </table>
+          </div>
+          <div class="stat">
+            <h3 class="option-heading">Cells of each height</h3>
+            <canvas class="chart" id="heights-chart"></canvas>
+          </div>
+          <div class="stat wide">
+            <h3 class="option-heading">Avalanches over time (storm, waiting until stable)</h3>
+            <canvas class="chart" id="timeline-chart"></canvas>
+            <p class="muted small" id="timeline-info"></p>
+          </div>
+          <div class="stat">
+            <h3 class="option-heading">Avalanche sizes</h3>
+            <canvas class="chart" id="avalanche-chart"></canvas>
+            <p class="muted small" id="avalanche-info"></p>
+          </div>
+        </div>
       </section>
 
-      <!-- LOWER RIGHT: about the model, in two tabs (js/sim-page.js
+      <!-- BOTTOM, the full width: about the model, in two tabs (js/sim-page.js
            switches them): a simple version, and all the details. Text in
            class="tex" is typeset by KaTeX (<div> on its own line, <span>
            inside a sentence). -->
-      <section class="quad quad-about">
+      <section class="panel panel-about">
         <h2>About the model</h2>
         <nav class="about-tabs">
           <button class="about-tab selected" data-tab="simple">Simple</button>
@@ -465,16 +474,16 @@
        it), the hyperbolic tilings and trees and their pictures, and the
        options and controls of the domain. Then the toppling rule (it
        runs in a second thread), then this page's code. -->
-  <script src="../js/sim-page.js"></script>
-  <script src="../js/sim-charts.js"></script>
-  <script src="../js/sim-colors.js"></script>
-  <script src="../js/sim-domains.js"></script>
-  <script src="../js/sim-view.js"></script>
-  <script src="../js/sim-graphs.js"></script>
-  <script src="../js/sim-hyperbolic.js"></script>
-  <script src="../js/sim-controls.js"></script>
-  <script src="sandpiles/sandpiles-pile.js"></script>
-  <script src="sandpiles/sandpiles.js"></script>
+  <script src="../../js/sim-page.js"></script>
+  <script src="../../js/sim-charts.js"></script>
+  <script src="../../js/sim-colors.js"></script>
+  <script src="../../js/sim-domains.js"></script>
+  <script src="../../js/sim-view.js"></script>
+  <script src="../../js/sim-graphs.js"></script>
+  <script src="../../js/sim-hyperbolic.js"></script>
+  <script src="../../js/sim-controls.js"></script>
+  <script src="sandpiles-pile.js"></script>
+  <script src="sandpiles.js"></script>
 
 </body>
 </html>

@@ -78,7 +78,7 @@ const MAX_SIZE = { 1: 2001, 2: 301, graph: 12 };
 const MAX_GRAPH_RADIUS = 4;
 
 const DEFAULT_SEED = "1";
-// The picture always has the same size (the quadrant's width, and this
+// The picture always has the same size (the box's width, and this
 // height in screen pixels), in 1D and 2D; the mountain shrinks to fit
 // inside it as it grows. In the full screen popup, it is the popup's
 // height instead (pictureHeight, in js/sim-page.js).
@@ -645,7 +645,6 @@ function siteUnder(event) {
    ===================================================================== */
 let sim3d = null;            // the 3D code, once loaded (js/sim-3d.js)
 let view3d = null;           // the 3D picture
-let loading3D = false;       // start3D has begun (false again if loading fails)
 
 // Which picture shows: the view from above, the 3D view (not in 1D),
 // or neither while the graph tool is open.
@@ -666,25 +665,12 @@ function showPictureKind() {
 }
 
 // Load the 3D code (the first time only) and make the 3D picture.
-async function start3D() {
-  if (loading3D) return;
-  loading3D = true;
-  showMessage("Loading the 3D view...");
-  try {
-    // The path is counted from this .js file (toysnsims/eden-growth/), not the page.
-    sim3d = await import("../../js/sim-3d.js");
-  } catch (error) {
-    loading3D = false;
-    show3D = false;
-    document.querySelector('input[name="view"][value="flat"]').checked = true;
-    showPictureKind();
-    showMessage("The 3D view couldn't load. It needs the library three.js from the " +
-                "internet, so check the connection and try again.");
-    return;
-  }
-  view3d = sim3d.make3DView(byId("sim-3d"), pictureHeight(PICTURE_HEIGHT));
-  showMessage("");
-  drawSoon();
+function start3D() {
+  load3D(byId("sim-3d"), pictureHeight(PICTURE_HEIGHT), function (code, picture) {
+    sim3d = code;
+    view3d = picture;
+    drawSoon();
+  }, function () { show3D = false; showPictureKind(); });
 }
 
 function draw3D() {
@@ -705,15 +691,7 @@ for (const radio of document.querySelectorAll('input[name="view"]')) {
 for (const radio of document.querySelectorAll('input[name="blocks"]')) {
   radio.addEventListener("change", function () { blockShape = radio.value; drawSoon(); });
 }
-function showStretch() {
-  byId("stretch-label").textContent = stretch === 1 ? "normal"
-    : (stretch > 1 ? stretch.toFixed(1) + " times taller" : (1 / stretch).toFixed(1) + " times flatter");
-}
-byId("stretch").addEventListener("input", function () {
-  stretch = Math.pow(2, Number(this.value) / 2);
-  showStretch();
-  drawSoon();
-});
+connectStretch(function (value) { stretch = value; drawSoon(); });
 byId("view3d-reset").addEventListener("click", function () { if (view3d) sim3d.resetCamera(view3d); });
 
 
@@ -979,7 +957,6 @@ connectSeed(function () { restart(true, true); });
 // --- Start ------------------------------------------------------------
 byId("seed").value = DEFAULT_SEED;
 byId("goto-steps").value = 1000;
-showStretch();
 showMaxHeight();
 showGraphPresets(useGraph);
 setDimension(1);

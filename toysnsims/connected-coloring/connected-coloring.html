@@ -4,34 +4,34 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Connected Coloring — Toys n' Sims</title>
-  <link rel="stylesheet" href="../css/style.css">
-  <!-- KaTeX's styles, for the typeset formulas in the About quadrant. -->
+  <link rel="stylesheet" href="../../css/style.css">
+  <!-- KaTeX's styles, for the typeset formulas in About the model. -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/katex.min.css">
 </head>
 <body>
 
   <header class="topbar">
     <nav>
-      <a href="../about.html">About Me</a>
-      <a href="../resume.html">Resume</a>
-      <a href="../index.html">Home</a>
-      <a href="../publications.html">Publications</a>
-      <a href="../toysnsims.html" class="active">Toys n' Sims</a>
+      <a href="../../about.html">About Me</a>
+      <a href="../../resume.html">Resume</a>
+      <a href="../../index.html">Home</a>
+      <a href="../../publications.html">Publications</a>
+      <a href="../../toysnsims.html" class="active">Toys n' Sims</a>
     </nav>
   </header>
 
   <main class="page">
-    <p><a href="../toysnsims.html">&larr; All sims</a></p>
+    <p><a href="../../toysnsims.html">&larr; All sims</a></p>
     <h1>Connected Coloring</h1>
 
-    <!-- The four quadrants, as on every sim page (their layout is in
+    <!-- The three layers, as on every sim page (their layout is in
          section 6 of css/style.css). All the behavior lives in
          connected-coloring.js; the ids below (id="...") are how that
          script finds each button and box. -->
-    <div class="quadrants">
+    <div class="sim-layout">
 
-      <!-- UPPER LEFT: the coloring. -->
-      <section class="quad quad-sim">
+      <!-- TOP LEFT: the coloring. -->
+      <section class="panel panel-sim">
         <h2>Simulation</h2>
 
         <!-- The picture. Its height is set so the cells come out square
@@ -77,8 +77,8 @@
         <p class="muted" id="sim-message"></p>
       </section>
 
-      <!-- UPPER RIGHT: settings. -->
-      <section class="quad quad-controls">
+      <!-- TOP RIGHT: settings. -->
+      <section class="panel panel-controls">
         <h2>Options</h2>
 
         <h3 class="option-heading">Domain</h3>
@@ -157,32 +157,42 @@
         <p class="muted small">The same seed always gives the same run.</p>
       </section>
 
-      <!-- LOWER LEFT: numbers about the chain. -->
-      <section class="quad quad-stats">
+      <!-- MIDDLE, the full width: numbers about the chain. -->
+      <section class="panel panel-stats">
         <h2>Statistics</h2>
-        <table class="stats-table">
-          <tr><td>Cells</td><td id="stat-cells"></td></tr>
-          <tr><td>Colors N</td><td id="stat-colors"></td></tr>
-          <tr><td>Moves tried</td><td id="stat-proposed"></td></tr>
-          <tr><td>Moves accepted</td><td id="stat-accepted"></td></tr>
-          <tr><td>Boundary edges (joining two colors)</td><td id="stat-boundary"></td></tr>
-          <tr><td>Touching pairs of colors, A(X)</td><td id="stat-pairs"></td></tr>
-        </table>
-        <h3 class="option-heading">Size of each color, largest first</h3>
-        <canvas class="chart clickable" id="sizes-chart"></canvas>
-        <h3 class="option-heading">Boundary edges over the whole run</h3>
-        <canvas class="chart" id="trace-chart"></canvas>
-        <h3 class="option-heading">Acceptance probability of each move</h3>
-        <canvas class="chart" id="alpha-chart"></canvas>
-        <p class="muted small">On both charts over time: zoom with the mouse wheel or a
-          pinch, drag to move along, and double-click to see the whole run again.</p>
+        <div class="stat-grid">
+          <div class="stat">
+            <table class="stats-table">
+              <tr><td>Cells</td><td id="stat-cells"></td></tr>
+              <tr><td>Colors N</td><td id="stat-colors"></td></tr>
+              <tr><td>Moves tried</td><td id="stat-proposed"></td></tr>
+              <tr><td>Moves accepted</td><td id="stat-accepted"></td></tr>
+              <tr><td>Boundary edges (joining two colors)</td><td id="stat-boundary"></td></tr>
+              <tr><td>Touching pairs of colors, A(X)</td><td id="stat-pairs"></td></tr>
+            </table>
+          </div>
+          <div class="stat">
+            <h3 class="option-heading">Size of each color, largest first</h3>
+            <canvas class="chart clickable" id="sizes-chart"></canvas>
+          </div>
+          <div class="stat">
+            <h3 class="option-heading">Boundary edges over the whole run</h3>
+            <canvas class="chart" id="trace-chart"></canvas>
+          </div>
+          <div class="stat">
+            <h3 class="option-heading">Acceptance probability of each move</h3>
+            <canvas class="chart" id="alpha-chart"></canvas>
+            <p class="muted small">On both charts over time: zoom with the mouse wheel or a
+              pinch, drag to move along, and double-click to see the whole run again.</p>
+          </div>
+        </div>
       </section>
 
-      <!-- LOWER RIGHT: about the model, in two tabs (js/sim-page.js
+      <!-- BOTTOM, the full width: about the model, in two tabs (js/sim-page.js
            switches them): a simple version, and all the details. Text in
            class="tex" is typeset by KaTeX (<div> on its own line, <span>
            inside a sentence). -->
-      <section class="quad quad-about">
+      <section class="panel panel-about">
         <h2>About the model</h2>
         <nav class="about-tabs">
           <button class="about-tab selected" data-tab="simple">Simple</button>
@@ -366,17 +376,17 @@
        view (moving and zooming it), the hyperbolic tilings and trees and
        their pictures, and the options and controls of the domain. Then
        the chain (it runs in a second thread), then this page's code. -->
-  <script src="../js/sim-page.js"></script>
-  <script src="../js/sim-worker.js"></script>
-  <script src="../js/sim-charts.js"></script>
-  <script src="../js/sim-colors.js"></script>
-  <script src="../js/sim-domains.js"></script>
-  <script src="../js/sim-view.js"></script>
-  <script src="../js/sim-graphs.js"></script>
-  <script src="../js/sim-hyperbolic.js"></script>
-  <script src="../js/sim-controls.js"></script>
-  <script src="connected-coloring/connected-coloring-chain.js"></script>
-  <script src="connected-coloring/connected-coloring.js"></script>
+  <script src="../../js/sim-page.js"></script>
+  <script src="../../js/sim-worker.js"></script>
+  <script src="../../js/sim-charts.js"></script>
+  <script src="../../js/sim-colors.js"></script>
+  <script src="../../js/sim-domains.js"></script>
+  <script src="../../js/sim-view.js"></script>
+  <script src="../../js/sim-graphs.js"></script>
+  <script src="../../js/sim-hyperbolic.js"></script>
+  <script src="../../js/sim-controls.js"></script>
+  <script src="connected-coloring-chain.js"></script>
+  <script src="connected-coloring.js"></script>
 
 </body>
 </html>

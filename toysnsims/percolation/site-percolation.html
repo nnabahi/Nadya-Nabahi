@@ -4,8 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Site Percolation — Toys n' Sims</title>
-  <link rel="stylesheet" href="../css/style.css">
-  <!-- KaTeX's styles, for the typeset formulas in the About quadrant. -->
+  <link rel="stylesheet" href="../../css/style.css">
+  <!-- KaTeX's styles, for the typeset formulas in About the model. -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/katex.min.css">
 </head>
 <!-- data-kind="site" tells percolation.js (shared with the bond
@@ -14,26 +14,26 @@
 
   <header class="topbar">
     <nav>
-      <a href="../about.html">About Me</a>
-      <a href="../resume.html">Resume</a>
-      <a href="../index.html">Home</a>
-      <a href="../publications.html">Publications</a>
-      <a href="../toysnsims.html" class="active">Toys n' Sims</a>
+      <a href="../../about.html">About Me</a>
+      <a href="../../resume.html">Resume</a>
+      <a href="../../index.html">Home</a>
+      <a href="../../publications.html">Publications</a>
+      <a href="../../toysnsims.html" class="active">Toys n' Sims</a>
     </nav>
   </header>
 
   <main class="page">
-    <p><a href="../toysnsims.html">&larr; All sims</a></p>
+    <p><a href="../../toysnsims.html">&larr; All sims</a></p>
     <h1>Bernoulli Site Percolation</h1>
 
-    <!-- The four quadrants, as on every sim page (their layout is in
+    <!-- The three layers, as on every sim page (their layout is in
          section 6 of css/style.css). All the behavior lives in
          percolation.js; the ids below (id="...") are how that script
          finds each button and box. -->
-    <div class="quadrants">
+    <div class="sim-layout">
 
-      <!-- UPPER LEFT: the clusters. -->
-      <section class="quad quad-sim">
+      <!-- TOP LEFT: the clusters. -->
+      <section class="panel panel-sim">
         <h2>Simulation</h2>
 
         <!-- The picture, with the zoom buttons in its top right corner
@@ -72,8 +72,8 @@
         <p class="muted" id="sim-message"></p>
       </section>
 
-      <!-- UPPER RIGHT: settings. -->
-      <section class="quad quad-controls">
+      <!-- TOP RIGHT: settings. -->
+      <section class="panel panel-controls">
         <!-- The heading, with a small "model check" button on the right
              that opens the page testing this sim's math. -->
         <h2 class="heading-with-button">Options
@@ -169,32 +169,41 @@
           moving p only opens or closes cells, and the picture morphs smoothly.</p>
       </section>
 
-      <!-- LOWER LEFT: numbers about this sample. -->
-      <section class="quad quad-stats">
+      <!-- MIDDLE, the full width: numbers about this sample. -->
+      <section class="panel panel-stats">
         <h2>Statistics</h2>
-        <table class="stats-table">
-          <tr><td>Cells</td><td id="stat-cells"></td></tr>
-          <tr><td>Neighbor pairs (edges)</td><td id="stat-edges"></td></tr>
-          <tr><td>p</td><td id="stat-p"></td></tr>
-          <tr><td>Open cells</td><td id="stat-open"></td></tr>
-          <tr><td>Clusters</td><td id="stat-clusters"></td></tr>
-          <tr><td>Largest cluster</td><td id="stat-largest"></td></tr>
-          <tr><td id="stat-cross-name"></td><td id="stat-cross"></td></tr>
-          <tr><td id="stat-cross-at-name"></td><td id="stat-cross-at"></td></tr>
-          <tr><td>Clicked cluster</td><td id="stat-selected"></td></tr>
-        </table>
-
-        <h3 class="option-heading">Largest cluster for every p (this sample)</h3>
-        <canvas class="chart tall" id="largest-chart"></canvas>
-        <h3 class="option-heading">Number of clusters for every p (this sample)</h3>
-        <canvas class="chart tall" id="clusters-chart"></canvas>
-        <h3 class="option-heading">Cluster sizes at this p (number of clusters of each size)</h3>
-        <canvas class="chart" id="sizes-chart"></canvas>
+        <div class="stat-grid">
+          <div class="stat">
+            <table class="stats-table">
+              <tr><td>Cells</td><td id="stat-cells"></td></tr>
+              <tr><td>Neighbor pairs (edges)</td><td id="stat-edges"></td></tr>
+              <tr><td>p</td><td id="stat-p"></td></tr>
+              <tr><td>Open cells</td><td id="stat-open"></td></tr>
+              <tr><td>Clusters</td><td id="stat-clusters"></td></tr>
+              <tr><td>Largest cluster</td><td id="stat-largest"></td></tr>
+              <tr><td id="stat-cross-name"></td><td id="stat-cross"></td></tr>
+              <tr><td id="stat-cross-at-name"></td><td id="stat-cross-at"></td></tr>
+              <tr><td>Clicked cluster</td><td id="stat-selected"></td></tr>
+            </table>
+          </div>
+          <div class="stat">
+            <h3 class="option-heading">Largest cluster for every p (this sample)</h3>
+            <canvas class="chart tall" id="largest-chart"></canvas>
+          </div>
+          <div class="stat">
+            <h3 class="option-heading">Number of clusters for every p (this sample)</h3>
+            <canvas class="chart tall" id="clusters-chart"></canvas>
+          </div>
+          <div class="stat">
+            <h3 class="option-heading">Cluster sizes at this p (number of clusters of each size)</h3>
+            <canvas class="chart" id="sizes-chart"></canvas>
+          </div>
+        </div>
       </section>
 
-      <!-- LOWER RIGHT: about the model, in two tabs (js/sim-page.js
+      <!-- BOTTOM, the full width: about the model, in two tabs (js/sim-page.js
            switches them). Text in class="tex" is typeset by KaTeX. -->
-      <section class="quad quad-about">
+      <section class="panel panel-about">
         <h2>About the model</h2>
         <nav class="about-tabs">
           <button class="about-tab selected" data-tab="simple">Simple</button>
@@ -400,16 +409,16 @@
        it), the hyperbolic tilings and trees and their pictures, and the
        options and controls of the domain. Then the clusters, then this
        page's code. -->
-  <script src="../js/sim-page.js"></script>
-  <script src="../js/sim-charts.js"></script>
-  <script src="../js/sim-colors.js"></script>
-  <script src="../js/sim-domains.js"></script>
-  <script src="../js/sim-view.js"></script>
-  <script src="../js/sim-graphs.js"></script>
-  <script src="../js/sim-hyperbolic.js"></script>
-  <script src="../js/sim-controls.js"></script>
-  <script src="percolation/percolation-clusters.js"></script>
-  <script src="percolation/percolation.js"></script>
+  <script src="../../js/sim-page.js"></script>
+  <script src="../../js/sim-charts.js"></script>
+  <script src="../../js/sim-colors.js"></script>
+  <script src="../../js/sim-domains.js"></script>
+  <script src="../../js/sim-view.js"></script>
+  <script src="../../js/sim-graphs.js"></script>
+  <script src="../../js/sim-hyperbolic.js"></script>
+  <script src="../../js/sim-controls.js"></script>
+  <script src="percolation-clusters.js"></script>
+  <script src="percolation.js"></script>
 
 </body>
 </html>

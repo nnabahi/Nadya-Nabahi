@@ -184,7 +184,7 @@ function voterStart(n, xs, q, kind, random) {
      { type: "pause" }
      { type: "step" }              one unit of time
    The worker answers with "state" messages: the opinions and the
-   numbers for the Statistics quadrant, each with its run number, so
+   numbers for the Statistics box, each with its run number, so
    the page can ignore leftovers from an older run. It stops by itself at consensus (one opinion everywhere) when that
    can never change: no noise, and g(0) = 0, so no cell ever takes an
    opinion none of its neighbors hold.

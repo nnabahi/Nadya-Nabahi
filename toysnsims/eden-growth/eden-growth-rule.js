@@ -62,7 +62,7 @@
 
    The file has these parts, with no drawing and no buttons:
      1. newMountain(options): the growth rule itself. The check page
-        (toysnsims/eden-growth-check.html) tests it in the browser.
+        (eden-growth-check.html) tests it in the browser.
      1b. newGraphMountain(options): the same rule on any graph.
      2. mountainWorker(): runs a mountain in a second thread (a "Web
         Worker") for the sim page, eden-growth.js, so the page never
@@ -361,7 +361,7 @@ function newGraphMountain(options) {
    changed), that step is random as usual.
 
    The worker answers with "state" messages: the available sites, their
-   heights, and the numbers for the Statistics quadrant. Each carries
+   heights, and the numbers for the Statistics box. Each carries
    its run number, so the page can ignore leftovers from an older run.
    ===================================================================== */
 function mountainWorker() {
@@ -464,7 +464,7 @@ function mountainWorker() {
   };
 
   // Send the page the heights of the available sites (in the order they
-  // became available), the numbers for the Statistics quadrant, and
+  // became available), the numbers for the Statistics box, and
   // where the sites are: in 1D and 2D, every site's coordinates; on a
   // graph, the places of the new sites (addPlaces).
   function report() {

@@ -239,7 +239,7 @@ function walkWorker() {
        { type: "pause" }
        { type: "step" }           one step
      The worker answers with "state" messages: the colors, where the
-     walkers are, and the numbers for the Statistics quadrant. Each one
+     walkers are, and the numbers for the Statistics box. Each one
      carries its run number, so the page can ignore leftovers from an
      older run. It stops by itself when every cell is colored. Play,
      Pause and Speed are the run loop makeRunLoop (js/sim-worker.js).

@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Sinusoid-ish — Toys n' Sims</title>
-  <link rel="stylesheet" href="../css/style.css">
+  <link rel="stylesheet" href="../../css/style.css">
   <!-- KaTeX's styles, for the typeset formulas. -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/katex.min.css">
 </head>
@@ -12,26 +12,26 @@
 
   <header class="topbar">
     <nav>
-      <a href="../about.html">About Me</a>
-      <a href="../resume.html">Resume</a>
-      <a href="../index.html">Home</a>
-      <a href="../publications.html">Publications</a>
-      <a href="../toysnsims.html" class="active">Toys n' Sims</a>
+      <a href="../../about.html">About Me</a>
+      <a href="../../resume.html">Resume</a>
+      <a href="../../index.html">Home</a>
+      <a href="../../publications.html">Publications</a>
+      <a href="../../toysnsims.html" class="active">Toys n' Sims</a>
     </nav>
   </header>
 
   <main class="page">
-    <p><a href="../toysnsims.html">&larr; All sims</a></p>
+    <p><a href="../../toysnsims.html">&larr; All sims</a></p>
     <h1>Sinusoid-ish</h1>
 
-    <!-- The four quadrants, as on every sim page (their layout is in
+    <!-- The three layers, as on every sim page (their layout is in
          section 6 of css/style.css). All the behavior lives in
          sinusoid-ish.js; the ids below (id="...") are how that script
          finds each button and box. -->
-    <div class="quadrants">
+    <div class="sim-layout">
 
-      <!-- UPPER LEFT: the graph of f. -->
-      <section class="quad quad-sim">
+      <!-- TOP LEFT: the graph of f. -->
+      <section class="panel panel-sim">
         <h2>Simulation</h2>
         <div class="sim-picture">
           <canvas id="sim-canvas" title="Drag to move; scroll or pinch to zoom; scroll over an axis to scale just that axis"></canvas>
@@ -45,8 +45,8 @@
         <p class="muted" id="sim-message"></p>
       </section>
 
-      <!-- UPPER RIGHT: settings. -->
-      <section class="quad quad-controls">
+      <!-- TOP RIGHT: settings. -->
+      <section class="panel panel-controls">
         <!-- The heading, with a small "model check" button on the right
              that opens the page testing this sim's math. -->
         <h2 class="heading-with-button">Options
@@ -132,42 +132,56 @@
           lobes to the histograms. Changing any setting starts them over.</p>
       </section>
 
-      <!-- LOWER LEFT: numbers about this sample, and histograms. -->
-      <section class="quad quad-stats">
+      <!-- MIDDLE, the full width: numbers about this sample, and histograms. -->
+      <section class="panel panel-stats">
         <h2>Statistics</h2>
-        <table class="stats-table">
-          <tr><td>Mean gap m</td><td id="stat-mean"></td></tr>
-          <tr><td>First root to the right of 0, R(0)</td><td id="stat-r0"></td></tr>
-          <tr><td>Gap covering 0</td><td id="stat-cover"></td></tr>
-          <tr><td>f&prime;(0) / f(0) = &minus;&sum; 1/R(n)</td><td id="stat-logder"></td></tr>
-          <tr><td>Lobes in [&minus;A, A]</td><td id="stat-lobes"></td></tr>
-        </table>
-
-        <h3 class="option-heading">The lobes of this sample</h3>
-        <div class="scroll-box">
-          <table class="stats-table">
-            <thead><tr><td>From</td><td>To</td><td>Area</td><td>Peak offset</td><td>Peak value</td></tr></thead>
-            <tbody id="lobe-rows"></tbody>
-          </table>
+        <div class="stat-grid">
+          <div class="stat">
+            <table class="stats-table">
+              <tr><td>Mean gap m</td><td id="stat-mean"></td></tr>
+              <tr><td>First root to the right of 0, R(0)</td><td id="stat-r0"></td></tr>
+              <tr><td>Gap covering 0</td><td id="stat-cover"></td></tr>
+              <tr><td>f&prime;(0) / f(0) = &minus;&sum; 1/R(n)</td><td id="stat-logder"></td></tr>
+              <tr><td>Lobes in [&minus;A, A]</td><td id="stat-lobes"></td></tr>
+            </table>
+          </div>
+          <div class="stat">
+            <h3 class="option-heading">The lobes of this sample</h3>
+            <div class="scroll-box">
+              <table class="stats-table">
+                <thead><tr><td>From</td><td>To</td><td>Area</td><td>Peak offset</td><td>Peak value</td></tr></thead>
+                <tbody id="lobe-rows"></tbody>
+              </table>
+            </div>
+          </div>
+          <div class="stat wide">
+            <h3 class="option-heading" id="samples-heading">Many samples</h3>
+          </div>
+          <div class="stat">
+            <h3 class="option-heading">Lobe areas I<sub>n</sub> (the integral of f over a lobe)</h3>
+            <canvas class="chart" id="areas-chart"></canvas>
+          </div>
+          <div class="stat">
+            <h3 class="option-heading">Peak offsets x<sub>n</sub> &minus; R(n) (from the lobe's left root)</h3>
+            <canvas class="chart" id="offsets-chart"></canvas>
+          </div>
+          <div class="stat">
+            <h3 class="option-heading">Peak values f(x<sub>n</sub>)</h3>
+            <canvas class="chart" id="peaks-chart"></canvas>
+          </div>
+          <div class="stat">
+            <h3 class="option-heading">f&prime;(0) / f(0)</h3>
+            <canvas class="chart" id="logder-chart"></canvas>
+            <p class="muted small">Signed areas, peaks and f&prime;(0)/f(0) can have huge outliers, so
+              those charts show the middle 90% of the values (the rest are counted in the end bars).</p>
+          </div>
         </div>
-
-        <h3 class="option-heading" id="samples-heading">Many samples</h3>
-        <h3 class="option-heading">Lobe areas I<sub>n</sub> (the integral of f over a lobe)</h3>
-        <canvas class="chart" id="areas-chart"></canvas>
-        <h3 class="option-heading">Peak offsets x<sub>n</sub> &minus; R(n) (from the lobe's left root)</h3>
-        <canvas class="chart" id="offsets-chart"></canvas>
-        <h3 class="option-heading">Peak values f(x<sub>n</sub>)</h3>
-        <canvas class="chart" id="peaks-chart"></canvas>
-        <h3 class="option-heading">f&prime;(0) / f(0)</h3>
-        <canvas class="chart" id="logder-chart"></canvas>
-        <p class="muted small">Signed areas, peaks and f&prime;(0)/f(0) can have huge outliers, so
-          those charts show the middle 90% of the values (the rest are counted in the end bars).</p>
       </section>
 
-      <!-- LOWER RIGHT: about the model, in two tabs (js/sim-page.js
+      <!-- BOTTOM, the full width: about the model, in two tabs (js/sim-page.js
            switches them). Text in class="tex" is typeset by KaTeX
            (<div> on its own line, <span> inside a sentence). -->
-      <section class="quad quad-about">
+      <section class="panel panel-about">
         <h2>About the model</h2>
         <nav class="about-tabs">
           <button class="about-tab selected" data-tab="simple">Simple</button>
@@ -306,11 +320,11 @@
        charts, and reading formulas with sliders. Then the math of this sim
        (sinusoid-ish-roots.js, the same file the check page tests), then
        this page. -->
-  <script src="../js/sim-page.js"></script>
-  <script src="../js/sim-charts.js"></script>
-  <script src="../js/formulas.js"></script>
-  <script src="sinusoid-ish/sinusoid-ish-roots.js"></script>
-  <script src="sinusoid-ish/sinusoid-ish.js"></script>
+  <script src="../../js/sim-page.js"></script>
+  <script src="../../js/sim-charts.js"></script>
+  <script src="../../js/formulas.js"></script>
+  <script src="sinusoid-ish-roots.js"></script>
+  <script src="sinusoid-ish.js"></script>
 
 </body>
 </html>

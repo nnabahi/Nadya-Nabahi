@@ -233,8 +233,8 @@ function stateHash(cells) {
      { type: "pause" }
      { type: "step" }          one step
    The worker answers with "state" messages: the cells, in 1D the
-   picture (the tape over time), and the numbers for the Statistics
-   quadrant, each with its run number, so the page can ignore leftovers
+   picture (the tape over time), and the numbers for the Statistics box,
+   each with its run number, so the page can ignore leftovers
    from an older run.
    ===================================================================== */
 function automatonWorker() {

@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Sequential Continuous Tiling — Toys n' Sims</title>
-  <link rel="stylesheet" href="../css/style.css">
+  <link rel="stylesheet" href="../../css/style.css">
   <!-- KaTeX's styles, for the typeset formulas. -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/katex.min.css">
 </head>
@@ -12,26 +12,26 @@
 
   <header class="topbar">
     <nav>
-      <a href="../about.html">About Me</a>
-      <a href="../resume.html">Resume</a>
-      <a href="../index.html">Home</a>
-      <a href="../publications.html">Publications</a>
-      <a href="../toysnsims.html" class="active">Toys n' Sims</a>
+      <a href="../../about.html">About Me</a>
+      <a href="../../resume.html">Resume</a>
+      <a href="../../index.html">Home</a>
+      <a href="../../publications.html">Publications</a>
+      <a href="../../toysnsims.html" class="active">Toys n' Sims</a>
     </nav>
   </header>
 
   <main class="page">
-    <p><a href="../toysnsims.html">&larr; All sims</a></p>
+    <p><a href="../../toysnsims.html">&larr; All sims</a></p>
     <h1>Sequential Continuous Tiling</h1>
 
-    <!-- The four quadrants, as on every sim page (their layout is in
+    <!-- The three layers, as on every sim page (their layout is in
          section 6 of css/style.css). All the behavior lives in
          sequential-continuous-tiling.js; the ids below (id="...") are how that
          script finds each button and box. -->
-    <div class="quadrants">
+    <div class="sim-layout">
 
-      <!-- UPPER LEFT: the packing. -->
-      <section class="quad quad-sim">
+      <!-- TOP LEFT: the packing. -->
+      <section class="panel panel-sim">
         <h2>Simulation</h2>
         <!-- The picture, with the zoom buttons in its top right corner
              (section 6b of sequential-continuous-tiling.js, which also sets its
@@ -49,8 +49,8 @@
         <p class="muted" id="sim-message"></p>
       </section>
 
-      <!-- UPPER RIGHT: settings. -->
-      <section class="quad quad-controls">
+      <!-- TOP RIGHT: settings. -->
+      <section class="panel panel-controls">
         <!-- The heading, with a small "model check" button on the right
              that opens the page testing this sim's math. -->
         <h2 class="heading-with-button">Options
@@ -132,31 +132,42 @@
         </div>
       </section>
 
-      <!-- LOWER LEFT: numbers about this packing. -->
-      <section class="quad quad-stats">
+      <!-- MIDDLE, the full width: numbers about this packing. -->
+      <section class="panel panel-stats">
         <h2>Statistics</h2>
-        <table class="stats-table">
-          <tr><td>Attempts n</td><td id="stat-attempts"></td></tr>
-          <tr><td>Tiles placed</td><td id="stat-tiles"></td></tr>
-          <tr><td>Area of S covered</td><td id="stat-covered"></td></tr>
-          <tr><td>Largest generation</td><td id="stat-generation"></td></tr>
-          <tr><td>Largest degree</td><td id="stat-degree"></td></tr>
-          <tr><td>Degree of the edge of S</td><td id="stat-edge"></td></tr>
-        </table>
-
-        <h3 class="option-heading">Tiles placed against attempts (log-log)</h3>
-        <canvas class="chart" id="placed-chart"></canvas>
-        <h3 class="option-heading">Largest generation (line) and largest degree (dots) against tiles placed (log-log)</h3>
-        <canvas class="chart" id="records-chart"></canvas>
-        <h3 class="option-heading">Size R<sub>k</sub> of tile k against k (log-log)</h3>
-        <canvas class="chart" id="radii-chart"></canvas>
-        <h3 class="option-heading">Number of tiles with each number of children</h3>
-        <canvas class="chart" id="children-chart"></canvas>
+        <div class="stat-grid">
+          <div class="stat">
+            <table class="stats-table">
+              <tr><td>Attempts n</td><td id="stat-attempts"></td></tr>
+              <tr><td>Tiles placed</td><td id="stat-tiles"></td></tr>
+              <tr><td>Area of S covered</td><td id="stat-covered"></td></tr>
+              <tr><td>Largest generation</td><td id="stat-generation"></td></tr>
+              <tr><td>Largest degree</td><td id="stat-degree"></td></tr>
+              <tr><td>Degree of the edge of S</td><td id="stat-edge"></td></tr>
+            </table>
+          </div>
+          <div class="stat">
+            <h3 class="option-heading">Tiles placed against attempts (log-log)</h3>
+            <canvas class="chart" id="placed-chart"></canvas>
+          </div>
+          <div class="stat">
+            <h3 class="option-heading">Largest generation (line) and largest degree (dots) against tiles placed (log-log)</h3>
+            <canvas class="chart" id="records-chart"></canvas>
+          </div>
+          <div class="stat">
+            <h3 class="option-heading">Size R<sub>k</sub> of tile k against k (log-log)</h3>
+            <canvas class="chart" id="radii-chart"></canvas>
+          </div>
+          <div class="stat">
+            <h3 class="option-heading">Number of tiles with each number of children</h3>
+            <canvas class="chart" id="children-chart"></canvas>
+          </div>
+        </div>
       </section>
 
-      <!-- LOWER RIGHT: about the model, in two tabs (js/sim-page.js
+      <!-- BOTTOM, the full width: about the model, in two tabs (js/sim-page.js
            switches them). Text in class="tex" is typeset by KaTeX. -->
-      <section class="quad quad-about">
+      <section class="panel panel-about">
         <h2>About the model</h2>
         <nav class="about-tabs">
           <button class="about-tab selected" data-tab="simple">Simple</button>
@@ -304,12 +315,12 @@
        (they also typeset the formulas, so they come after KaTeX),
        charts, the old site's colors, and reading formulas with sliders.
        Then the packing (it runs in a second thread), then this page. -->
-  <script src="../js/sim-page.js"></script>
-  <script src="../js/sim-charts.js"></script>
-  <script src="../js/sim-colors.js"></script>
-  <script src="../js/formulas.js"></script>
-  <script src="sequential-continuous-tiling/sequential-continuous-tiling-growth.js"></script>
-  <script src="sequential-continuous-tiling/sequential-continuous-tiling.js"></script>
+  <script src="../../js/sim-page.js"></script>
+  <script src="../../js/sim-charts.js"></script>
+  <script src="../../js/sim-colors.js"></script>
+  <script src="../../js/formulas.js"></script>
+  <script src="sequential-continuous-tiling-growth.js"></script>
+  <script src="sequential-continuous-tiling.js"></script>
 
 </body>
 </html>

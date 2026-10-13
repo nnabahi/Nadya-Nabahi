@@ -426,7 +426,6 @@ window.addEventListener("resize", function () {
    ===================================================================== */
 let sim3d = null;            // the 3D code, once loaded (js/sim-3d.js)
 let view3d = null;           // the 3D picture
-let loading3D = false;       // start3D has begun (false again if loading fails)
 
 // Which picture shows: the view from above, the 3D view, or neither
 // while the graph tool is open.
@@ -440,25 +439,12 @@ function showPictureKind() {
 }
 
 // Load the 3D code (the first time only) and make the 3D picture.
-async function start3D() {
-  if (loading3D) return;
-  loading3D = true;
-  showMessage("Loading the 3D view...");
-  try {
-    // The path is counted from this .js file (toysnsims/sandpiles/), not the page.
-    sim3d = await import("../../js/sim-3d.js");
-  } catch (error) {
-    loading3D = false;
-    show3D = false;
-    document.querySelector('input[name="view"][value="flat"]').checked = true;
-    showPictureKind();
-    showMessage("The 3D view couldn't load. It needs the library three.js from the " +
-                "internet, so check the connection and try again.");
-    return;
-  }
-  view3d = sim3d.make3DView(byId("sim-3d"), pictureHeight(BALL_HEIGHT));
-  showMessage("");
-  drawSoon();
+function start3D() {
+  load3D(byId("sim-3d"), pictureHeight(BALL_HEIGHT), function (code, picture) {
+    sim3d = code;
+    view3d = picture;
+    drawSoon();
+  }, function () { show3D = false; showPictureKind(); });
 }
 
 // The stacks: valueOf(v) blocks on cell v (sink cells left out).

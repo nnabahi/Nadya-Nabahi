@@ -21,8 +21,10 @@
      showToolStatus(problem, good, buttons)   and the line that checks its drawing
      pictureHeight(normal)            how tall to draw the picture (taller
                                         in the full screen popup)
+     load3D(box, height, ready, failed)   the 3D view (js/sim-3d.js), loaded once
+     connectStretch(onChange)         the 3D view's Heights slider
 
-   It also typesets the formulas in the About quadrant (so a page that
+   It also typesets the formulas in the About box (so a page that
    has formulas loads KaTeX before this file), makes the About tabs
    work, and puts the full screen button on the picture (all at the end
    of this file). The small charts are in js/sim-charts.js.
@@ -223,8 +225,8 @@ function connectSeed(onChange) {
    ---------------------------------------------------------------------
    Choosing "Custom" on a sim page swaps the picture for the drawing
    tool, loaded in an <iframe> (a page inside the page) as
-   graph-tool.html?embed. The sim checks the drawing live and says above
-   the tool what's wrong, if anything; Done uses it. makeCustomTool
+   ../graph-tool/graph-tool.html?embed. The sim checks the drawing live
+   and says above the tool what's wrong, if anything; Done uses it. makeCustomTool
    (js/sim-controls.js) does all of that with these two.
    --------------------------------------------------------------------- */
 
@@ -250,6 +252,54 @@ function showToolStatus(problem, good, buttons) {
   status.textContent = problem || "✓ " + good;   // ✓ is a tick mark
   status.className = "step-status " + (problem ? "problem" : "ok");
   for (const id of buttons || ["tool-done"]) byId(id).disabled = Boolean(problem);
+}
+
+
+/* ---------------------------------------------------------------------
+   The 3D view
+   ---------------------------------------------------------------------
+   The sims with a 3D view (Eden Growth, Sandpiles, Lattice Path
+   Counting) load js/sim-3d.js only when you first pick "3D", since it
+   needs the library three.js from the internet.
+   --------------------------------------------------------------------- */
+
+// Load the 3D code (the first time only) and make a 3D picture in "box",
+// "height" pixels tall; then ready(sim3d, view3d) gets the code and the
+// picture. If it can't load, the View goes back to "flat", failed()
+// runs, and the message under the picture says why.
+let loading3D = false;
+async function load3D(box, height, ready, failed) {
+  if (loading3D) return;
+  loading3D = true;
+  showMessage("Loading the 3D view...");
+  let sim3d;
+  try {
+    sim3d = await import("./sim-3d.js");   // counted from this file, in js/
+  } catch (error) {
+    loading3D = false;
+    document.querySelector('input[name="view"][value="flat"]').checked = true;
+    failed();
+    showMessage("The 3D view couldn't load. It needs the library three.js from the " +
+                "internet, so check the connection and try again.");
+    return;
+  }
+  showMessage("");
+  ready(sim3d, sim3d.make3DView(box, height));
+}
+
+// The Heights slider (id="stretch", from -4 to 4) of a 3D view: the
+// heights are drawn 2^(value / 2) times as tall, said in words next to
+// it (id="stretch-label"). onChange(stretch) runs when it moves.
+function connectStretch(onChange) {
+  const slider = byId("stretch");
+  function read() {
+    const stretch = Math.pow(2, Number(slider.value) / 2);
+    byId("stretch-label").textContent = stretch === 1 ? "normal"
+      : (stretch > 1 ? stretch.toFixed(1) + " times taller" : (1 / stretch).toFixed(1) + " times flatter");
+    return stretch;
+  }
+  slider.addEventListener("input", function () { onChange(read()); });
+  read();
 }
 
 

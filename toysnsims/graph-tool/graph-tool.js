@@ -99,7 +99,7 @@ const MAX_CELLS = 250000;    // biggest grid allowed (e.g. 100 x 100)
    2. WHAT THE TOOL REMEMBERS (the "state")
    ===================================================================== */
 
-// The grid settings. They match the boxes in the Options quadrant.
+// The grid settings. They match the boxes in the Options box.
 const grid = {
   xmin: -10, xmax: 10,
   ymin: -10, ymax: 10,
@@ -756,7 +756,7 @@ function getGraph() {
   return { vertices: vertices, edges: edges };
 }
 
-// Fill in the Statistics quadrant.
+// Fill in the Statistics box.
 function updateStats() {
   const painted = cy.nodes(".cell[color > 0]");
   const edges = cy.edges(".on");
