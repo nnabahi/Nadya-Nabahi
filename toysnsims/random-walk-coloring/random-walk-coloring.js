@@ -588,6 +588,9 @@ function showStats() {
   drawSizesChart();
   drawInterfaceChart();
   drawAreasChart(regions);
+  // Perimeter against area, only on the 2D page (on a line or ring
+  // every region's perimeter is 0, 1 or 2).
+  if (byId("perimeter-chart")) perimeterChart(byId("perimeter-chart"), regions, colorNames, BORDER);
 }
 
 // One row per color: cells, number of regions, largest region.
@@ -625,8 +628,8 @@ function drawInterfaceChart() {
 }
 
 // How many regions there are of each size, one bar per size, stacked by
-// color (stackedSizeBars, js/sim-charts.js). "Log sizes" under the chart
-// groups the sizes by powers of 2 instead: 1, 2-3, 4-7, 8-15, ...
+// color (stackedSizeBars, js/sim-charts.js). "Log scale" under the chart
+// puts the counts on a logarithmic scale; the bars stay the same.
 function drawAreasChart(regions) {
   stackedSizeBars(byId("areas-chart"), regions.areas, regions.color, colorNames,
     byId("log-areas").checked, " regions");
@@ -752,7 +755,7 @@ byId("show-walkers").addEventListener("change", function () {
   drawSoon();
 });
 
-// The region sizes chart: one bar per size, or powers of 2.
+// The region sizes chart: counts on a linear or logarithmic scale.
 byId("log-areas").addEventListener("change", drawSoon);
 
 
