@@ -284,8 +284,10 @@ async function load3D(box, height, ready, failed) {
     loading3D = false;
     document.querySelector('input[name="view"][value="flat"]').checked = true;
     failed();
+    // The browser's own words go at the end, to help find what went wrong.
     showMessage("The 3D view couldn't load. It needs the library three.js from the " +
-                "internet, so check the connection and try again.");
+                "internet, so check the connection and try again. (The browser said: " +
+                error.message + ")");
     return;
   }
   showMessage("");
