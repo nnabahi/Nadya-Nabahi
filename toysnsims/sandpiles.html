@@ -258,42 +258,24 @@
 
         <div data-panel="simple">
         <p>
-          Every cell holds some grains of sand. A cell with
-          <strong>4 or more grains</strong> (8 with 8 neighbors) is too tall:
-          it <strong>topples</strong>, giving one grain to each of its
-          neighbors. That can make the neighbors topple too, in an avalanche.
-          Grains that fall off the edge of the table are lost. When no cell
-          can topple, the pile is <strong>stable</strong>.
+          We imagine a table, divided into cells, each containing some number of grains of sand. A cell is called <strong>unstable</strong> if it contains at least as many grains of sand as it has neighbors. On a regular grid, this means 4 or more. An unstable cell then <strong>topples</strong>, giving 1 of its grains of sand to each of its neighbors. If a cell is on the edge, then some of its neighbors lie outside the table. These missing neighbors act as <strong>sinks</strong>: imagine the grains fall off the table, never to return. A cell is <strong>stable</strong> once it has fewer grains than it has neighbors.
         </p>
         <p>
-          The next cell to topple is picked at random, but the
-          <strong>final pile is always the same</strong>, whatever the order.
-          That is why "Jump to the end" can skip straight to it.
+          Toppling one cell can cause some of its neighbors to become unstable, which will also have to topple in turn. These toppling chains are called <strong>avalanches</strong>. They can be small, spreading to only a few cells, or they can span the entire table! If all cells eventually become stable, the model stops; the whole sandpile is then called stable. Remarkably, the order in which each cell topple does not matter: the exact same final stable sandpile is always reached. This is why clicking <strong>Jump to the end</strong> can safely skip straight to the final state.
         </p>
         <p>
-          On a torus there is no edge. With one <strong>sink cell</strong>,
-          that cell eats every grain it gets. With <strong>no sink</strong>,
-          grains can never leave: with too many grains the pile topples
-          forever, and the sim says so.
+          Notice that what happens on the boundaries matters! On the torus, where each side wraps around, there is no edge and therefore no sink for grains to escape through. Without a sink, the sand accumulates everywhere, and with enough grains on the table, you’ll develop a forever avalanche, endlessly passing grains of sand around, unable to relax. You can turn some cells into sinks, which allows the sandpile to stabilize.
         </p>
         <p>
-          The <strong>identity</strong> is a special stable pile: adding it
-          to any pile that a long storm can make, and toppling, gives that
-          pile back. Every table with a sink has one, often a beautiful
-          picture. "Show the identity" shows it, and the start "Identity
-          (watch it form)" lets you watch it topple into place.
+          Not every sandpile can be turned into another one simply by adding grains and toppling. However, there is a special family of sandpiles (called <em>recurrent configurations</em>, see <em>All the details</em>) where every member can reach any other in this way. Within this family is a special sandpile called the <strong>identity</strong>. Add it to any other sandpile in this family and let the result stabilize: you’ll get back the original sandpile! Any table which has at least 1 sink cell will have its own unique identity. Thankfully, there is a way to calculate it. Try starting with <strong>Identity</strong> to watch it topple into place!
         </p>
         <p>
-          <strong>Things to try:</strong> slide n for the center pile with
-          "Jump to the end whenever a setting changes" ticked; start a storm
-          and watch the avalanches; draw your own table and show its
-          identity. Zoom in on the fractal with the mouse wheel, a pinch, or the
-          + and &minus; buttons, and drag the picture to look around. Or pick
-          Hyperbolic plane or tree: the table is then a ball of a hyperbolic
-          tiling or a tree, a cell with <em>p</em> neighbors topples at
-          <em>p</em> grains, and grains fall off the ball's edge (drag to move
-          around the plane, or press Slide to slide the whole picture).
+          This model was first introduced and studied by Per Bak, Chao Tang, and Kurt Wiesenfeld in 1987. They were interested in a phenomenon called <strong>self-organized criticality</strong>: how can a system naturally reach a critical state? In the sandpile model, this means frequent avalanches which vary wildly in size. Also, when adding grains randomly, it’s almost impossible to predict when a single grain will cause an avalanche, let alone how large it will be. Related types of critical behavior have been seen in many real-world systems, including weather systems, earthquakes, forest fires, financial markets, electrical activity in the brain, and an argument can be made that even culture at large is a critical system!
         </p>
+        <p>
+          To watch the critical state form, start with an empty table. Then, turn the storm on by <strong>dropping grains on random cells</strong>, and make sure the simulation <strong>waits until the sandpile is stable</strong> before dropping more. Early on, sand slowly accumulates, and avalanches are small and infrequent, but as the critical state approaches, avalanches come faster and larger. Watch how the behavior changes!
+        </p>
+
         </div>
 
         <div data-panel="details" hidden>
