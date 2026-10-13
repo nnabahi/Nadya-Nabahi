@@ -43,7 +43,7 @@ const MAX_SIDE = 250;             // the biggest box or torus is 100 x 100
 const MAX_PICTURE_HEIGHT = 600;   // in screen pixels
 const BORDER = "#1e1e1e";         // the lines between colors
 const OUTSIDE = "#ecebe7";        // around a custom domain (cells not in it)
-const TRACE_POINTS = 4000;        // the most points the "boundary edges" chart keeps (section 6)
+const TRACE_POINTS = 4000;        // the most points each chart over time keeps (section 6)
 // With one color highlighted, every other color is mixed with this much
 // white (0 = unchanged, 1 = white), so the highlighted region stands out.
 const FADE = 0.8;
@@ -56,7 +56,7 @@ const BALL = { R: 5, most: 20, cells: 20000 };
 // The speeds on the Speed slider, in moves per second.
 // Infinity means "as fast as the computer can". The default is low, so
 // you can follow the moves; the Speed slider goes faster.
-const SPEEDS = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, Infinity];
+const SPEEDS = [1, 100, Infinity];   // the slider's starting min and max (boxes at its ends change them)
 const DEFAULT_SPEED = 10;
 
 
@@ -79,6 +79,9 @@ let colors = null;             // colors[v] = color of cell v
 let latest = null;             // { proposed, accepted, boundary, pairs }
 let trace = [];                // [moves accepted, boundary edges] pairs, for the chart
 let traceEvery = 1;            // the chart keeps one message in this many (section 6)
+let alphaTrace = [];           // [move, alpha] pairs, for the acceptance chart
+let alphaEvery = 1;            // that chart keeps one move in this many
+let alphaSum = 0, alphaCount = 0;   // for the average alpha over the whole run
 let messages = 0;              // messages from the chain in this run
 let highlighted = -1;          // the color shown highlighted, or -1 for none (section 5b)
 
@@ -203,7 +206,11 @@ function restart() {
   trace = [];
   traceEvery = 1;
   messages = 0;
-  traceZoom.from = traceZoom.to = null;   // the chart shows the whole new run
+  alphaTrace = [];
+  alphaEvery = 1;
+  alphaSum = alphaCount = 0;
+  traceZoom.from = traceZoom.to = null;   // the charts show the whole new run
+  alphaZoom.from = alphaZoom.to = null;
   latest = null;
   worker.postMessage({
     type: "setup", run: run,
@@ -337,7 +344,7 @@ connectPicture(view, disk, function () { return domainKind === "graph"; }, funct
 /* =====================================================================
    6. STATISTICS
    ---------------------------------------------------------------------
-   The table of numbers, and two small charts. The charts get their
+   The table of numbers, and three small charts. The charts get their
    canvas ready, and their colors, from js/sim-charts.js.
    ===================================================================== */
 function showStats() {
@@ -353,6 +360,7 @@ function showStats() {
   showHighlightInfo();
   drawSizes();
   drawTrace();
+  drawAlphas();
 }
 
 // The number of cells of each color.
@@ -412,6 +420,24 @@ function keepForChart(message) {
     trace = trace.filter(function (p, k) { return k % 2 === 0; });
     traceEvery *= 2;
   }
+  keepAlphas(message.alphas);
+}
+
+// The acceptance chart keeps its points the same way, but per move:
+// "alphas" is move, alpha, move, alpha, ... for every move since the
+// last message, and the chart keeps one move in alphaEvery.
+function keepAlphas(alphas) {
+  for (let k = 0; k < alphas.length; k += 2) {
+    const move = alphas[k], alpha = alphas[k + 1];
+    alphaSum += alpha;
+    alphaCount++;
+    if ((move - 1) % alphaEvery !== 0) continue;
+    alphaTrace.push([move, alpha]);
+    if (alphaTrace.length >= TRACE_POINTS) {
+      alphaTrace = alphaTrace.filter(function (p, j) { return j % 2 === 0; });
+      alphaEvery *= 2;
+    }
+  }
 }
 
 // The number of boundary edges against the number of moves accepted. It
@@ -463,6 +489,62 @@ function drawTrace() {
   pen.lineWidth = 1.5;
   pen.stroke();
   pen.restore();
+}
+
+
+// The acceptance probability alpha of each move (section 2 of
+// connected-coloring-chain.js) against the move number: one dot per
+// move, from 0 at the bottom to 1 at the top. The dashed line is the
+// average alpha over the whole run, which is what the share of moves
+// accepted (in the table) should be close to. Zoom and drag as on the
+// boundary edges chart.
+const alphaZoom = chartZoom(byId("alpha-chart"), drawAlphas);
+
+function drawAlphas() {
+  const canvas = byId("alpha-chart");
+  const pen = chartPen(canvas);
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  if (alphaTrace.length < 2) return;
+  const [from, to] = shownTimes(alphaZoom, alphaTrace[0][0], alphaTrace[alphaTrace.length - 1][0]);
+
+  const left = 40, top = 6, bottom = h - 16;
+  alphaZoom.left = left;
+  alphaZoom.right = w;
+  const yOf = function (alpha) { return bottom - (bottom - top) * alpha; };
+  pen.textAlign = "right";
+  pen.textBaseline = "middle";
+  pen.fillText("1", left - 6, top);
+  pen.fillText("0", left - 6, bottom);
+  pen.textBaseline = "bottom";
+  pen.fillText("moves " + Math.round(to).toLocaleString(), w, h);
+  pen.textAlign = "left";
+  pen.fillText(Math.round(from).toLocaleString(), left, h);
+
+  pen.save();
+  pen.beginPath();
+  pen.rect(left, 0, w - left, bottom + 1);
+  pen.clip();                                   // keep the dots off the numbers
+  pen.fillStyle = CHART_LINE;
+  pen.globalAlpha = 0.5;                        // see-through, so crowded dots show darker
+  for (const p of alphaTrace) {
+    if (p[0] < from || p[0] > to) continue;
+    const sx = left + (w - left) * (p[0] - from) / Math.max(1e-9, to - from);
+    pen.fillRect(sx - 1, yOf(p[1]) - 1, 2, 2);
+  }
+  pen.restore();
+
+  // The average alpha, dashed, with its value written above it.
+  const average = alphaSum / alphaCount;
+  pen.strokeStyle = CHART_TEXT;
+  pen.setLineDash([4, 3]);
+  pen.beginPath();
+  pen.moveTo(left, yOf(average));
+  pen.lineTo(w, yOf(average));
+  pen.stroke();
+  pen.setLineDash([]);
+  pen.textAlign = "right";
+  pen.textBaseline = "bottom";
+  pen.fillText("average " + average.toFixed(3), w, Math.max(top + 12, yOf(average) - 2));
 }
 
 

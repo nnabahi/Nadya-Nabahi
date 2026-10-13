@@ -63,7 +63,7 @@ function rgbToHex(rgb) {
 
 // A height t from 0 (low: dark blue) to 1 (high: red), as [red, green,
 // blue], each 0 .. 255. The colors run smoothly in between, the same way
-// as the random mountain's heights: the hue goes from 225 (blue) to 0
+// as Eden Growth's heights: the hue goes from 225 (blue) to 0
 // (red), and the color gets brighter on the way up.
 function heatColor(t) {
   const down = 1 - Math.min(Math.max(t, 0), 1);   // 1 at the bottom, 0 at the top

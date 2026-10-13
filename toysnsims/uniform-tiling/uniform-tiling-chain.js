@@ -1,6 +1,6 @@
 /* =====================================================================
-   uniform-tile-packing-chain.js  —  the Markov chain behind the
-   "Random tile packing" sim
+   uniform-tiling-chain.js  —  the Markov chain behind the
+   "Uniform Tiling" sim
    ---------------------------------------------------------------------
    What it does, in plain words:
      The domain is a set of grid cells (a box, a torus, or a region drawn
@@ -105,7 +105,7 @@
    it into a "Web Worker" (a second thread, see startWorker in
    js/sim-page.js), with makeRunLoop (js/sim-worker.js) and cellAt and
    wrap (js/sim-domains.js) copied in, where it answers messages from
-   the page (section 6). The check page (uniform-tile-packing-check.html) calls
+   the page (section 6). The check page (uniform-tiling-check.html) calls
    tilePacking() directly and uses the functions it hands back.
    The one library used is seedrandom
    (https://github.com/davidbau/seedrandom), for random numbers that
@@ -816,7 +816,7 @@ function tilePacking() {
 
   /* ===================================================================
      6. MESSAGES FROM THE PAGE, AND THE RUN LOOP
-     (only inside the Web Worker, which the sim page uniform-tile-packing.js starts)
+     (only inside the Web Worker, which the sim page uniform-tiling.js starts)
      =================================================================== */
   const api = {
     setup: setup, oneMove: oneMove, checkPacking: checkPacking, packingKey: packingKey,

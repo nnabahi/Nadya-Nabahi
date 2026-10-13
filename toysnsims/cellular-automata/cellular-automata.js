@@ -4,7 +4,7 @@
    What it does, in plain words:
      - Reads the settings: 1D or 2D, the number of states b, the
        neighborhood (from the clickable grid of cells, shared with the
-       random mountain: showOffsetGrid in js/sim-controls.js), the rule
+       Eden Growth: showOffsetGrid in js/sim-controls.js), the rule
        number n, the edges, the size and the start.
      - Turns n into the rule's table (ruleTable, in
        cellular-automata-rule.js) and hands everything to the rule,
@@ -77,7 +77,7 @@ const BORDER = "#1e1e1e";          // around the dots of the perimeter chart
 
 // The speeds on the Speed slider, in steps per second. Infinity means
 // "as fast as the computer can". The default is slow, so you can watch.
-const SPEEDS = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, Infinity];
+const SPEEDS = [1, 100, Infinity];   // the slider's starting min and max (boxes at its ends change them)
 const DEFAULT_SPEED = 10;
 
 
@@ -103,7 +103,7 @@ let look = null;             // 1D: the last step shown when scrolled back, or n
 /* =====================================================================
    3. THE NEIGHBORHOOD: THE CLICKABLE GRID AND PRESETS
    ---------------------------------------------------------------------
-   As on the random mountain: a grid of cells around the cell itself
+   As on Eden Growth: a grid of cells around the cell itself
    (outlined, in the middle; here it can be in the neighborhood too).
    Clicking a cell puts it in the neighborhood or takes it out. Every
    change makes the run again up to the same step.

@@ -27,7 +27,7 @@
    (js/sim-controls.js) does that, and a page that drags other things
    too, like the random walk sim's walkers, does it itself. It calls
    useTorus when the domain changes. (A picture that shouldn't move at
-   all, like the random mountain's 1D side view, passes movable = false
+   all, like Eden Growth's 1D side view, passes movable = false
    to useTorus.) pointerSpot and cellUnder say which cell is under the
    pointer (to click a cell, or drop a walker on it).
 
