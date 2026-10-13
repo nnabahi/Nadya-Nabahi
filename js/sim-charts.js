@@ -12,6 +12,7 @@
      histogram(...)                   a histogram of some numbers
      powerOfTwoBins(sizes)            sizes grouped by powers of 2 ...
      powerOfTwoBars(...)              ... drawn as bars
+     stackedSizeBars(...)             region sizes, one bar per size, stacked by color
      perimeterChart(...)              perimeter against area of each region
      chartZoom(canvas, redraw),       zoom a chart in time (wheel, pinch,
        shownTimes(zoom, first, last)    drag, double-click for all of it)
@@ -139,6 +140,69 @@ function powerOfTwoBars(canvas, bins, word, label, logScale) {
     pen.fillStyle = CHART_TEXT;
     pen.fillText(label(b), (b + 0.5) * barWidth, bottom + 2);
   });
+}
+
+// How many regions there are of each size, as bars stacked by color:
+// size across, count up. "sizes" are the regions' sizes (whole numbers,
+// at least 1), colorOf[r] is region r's color, and colors[c] is how
+// color c is drawn. In each bar, color 0 is at the bottom, then 1 on top
+// of it, and so on (so with red and green, green sits on red).
+// Each bar is one size (1, 2, 3, ...) when they fit at least 2 pixels
+// wide; otherwise each bar holds a few sizes in a row (2, 5, 10, ...).
+// With "logSizes", the bars are powers of 2 instead: 1, 2-3, 4-7, ...
+// (like powerOfTwoBins), for when sizes go from 1 to thousands.
+// The tallest bar's count is written at the top left, followed by
+// "word" (e.g. " regions").
+function stackedSizeBars(canvas, sizes, colorOf, colors, logSizes, word) {
+  const pen = chartPen(canvas);
+  if (sizes.length === 0) return;
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  const top = 14, bottom = h - 14;
+  let biggest = 1;
+  for (const size of sizes) biggest = Math.max(biggest, size);
+
+  // Which bar a size goes in, and how many bars there are.
+  const perBar = biggest <= w / 2 ? 1 : niceStep(biggest / (w / 2));   // sizes in one bar
+  function barOf(size) { return logSizes ? Math.floor(Math.log2(size)) : Math.floor((size - 1) / perBar); }
+  const bars = barOf(biggest) + 1;
+
+  // counts[b][c] = the number of regions of color c in bar b.
+  const counts = [];
+  for (let b = 0; b < bars; b++) counts.push(new Array(colors.length).fill(0));
+  sizes.forEach(function (size, r) { counts[barOf(size)][colorOf[r]]++; });
+  let most = 1;
+  for (const bar of counts) most = Math.max(most, bar.reduce(function (a, b) { return a + b; }, 0));
+
+  // The bars: each color's piece on top of the ones before it.
+  const barWidth = w / bars, gap = barWidth >= 4 ? 1 : 0;
+  counts.forEach(function (bar, b) {
+    let y = bottom;
+    bar.forEach(function (count, c) {
+      if (count === 0) return;
+      const piece = (bottom - top) * count / most;
+      pen.fillStyle = colors[c];
+      pen.fillRect(b * barWidth + gap, y - piece, Math.max(1, barWidth - 2 * gap), piece);
+      y -= piece;
+    });
+  });
+
+  // The labels: the tallest count, and the sizes under the bars.
+  pen.fillStyle = CHART_TEXT;
+  pen.textBaseline = "top";
+  pen.fillText("most: " + most.toLocaleString() + word +
+    (!logSizes && perBar > 1 ? " (each bar: " + perBar + " sizes)" : ""), 0, 0);
+  if (logSizes) {
+    pen.textAlign = "center";
+    for (let b = 0; b < bars; b++) pen.fillText(shortLabel(2 ** b), (b + 0.5) * barWidth, bottom + 2);
+  } else {
+    // Size 1, then about 6 round sizes (5, 10, 15, ... or 20, 40, ...),
+    // each under the bar it is in.
+    pen.textAlign = "center";
+    const every = niceStep(bars * perBar / 6);
+    function label(size) { pen.fillText(size.toLocaleString(), (barOf(size) + 0.5) * barWidth, bottom + 2); }
+    label(1);
+    for (let size = every; size <= bars * perBar; size += every) if (size > 1) label(size);
+  }
 }
 
 // Each region (from findRegions, js/sim-domains.js) as a dot: area

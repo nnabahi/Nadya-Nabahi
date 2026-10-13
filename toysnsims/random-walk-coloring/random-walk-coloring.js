@@ -588,7 +588,6 @@ function showStats() {
   drawSizesChart();
   drawInterfaceChart();
   drawAreasChart(regions);
-  perimeterChart(byId("perimeter-chart"), regions, colorNames, BORDER);
 }
 
 // One row per color: cells, number of regions, largest region.
@@ -625,12 +624,12 @@ function drawInterfaceChart() {
     [{ color: CHART_LINE, values: Array.from(latest.traceInterface) }], "time");
 }
 
-// How many regions there are of each size. Sizes go from 1 cell to
-// thousands, so they are grouped by powers of 2: 1, 2-3, 4-7, 8-15, ...
-// (each bar is labeled by the smallest size in it; powerOfTwoBars,
-// js/sim-charts.js).
+// How many regions there are of each size, one bar per size, stacked by
+// color (stackedSizeBars, js/sim-charts.js). "Log sizes" under the chart
+// groups the sizes by powers of 2 instead: 1, 2-3, 4-7, 8-15, ...
 function drawAreasChart(regions) {
-  powerOfTwoBars(byId("areas-chart"), powerOfTwoBins(regions.areas), " regions", function (b) { return String(2 ** b); });
+  stackedSizeBars(byId("areas-chart"), regions.areas, regions.color, colorNames,
+    byId("log-areas").checked, " regions");
 }
 
 /* =====================================================================
@@ -752,6 +751,9 @@ byId("show-walkers").addEventListener("change", function () {
   showWalkers = this.checked;
   drawSoon();
 });
+
+// The region sizes chart: one bar per size, or powers of 2.
+byId("log-areas").addEventListener("change", drawSoon);
 
 
 // Seed: the same seed gives the same run every time.
