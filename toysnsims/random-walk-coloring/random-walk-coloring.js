@@ -628,11 +628,9 @@ function drawInterfaceChart() {
 }
 
 // How many regions there are of each size, one bar per size, stacked by
-// color (stackedSizeBars, js/sim-charts.js). "Log scale" under the chart
-// puts the counts on a logarithmic scale; the bars stay the same.
+// color, on a log-log chart (stackedSizeBars, js/sim-charts.js).
 function drawAreasChart(regions) {
-  stackedSizeBars(byId("areas-chart"), regions.areas, regions.color, colorNames,
-    byId("log-areas").checked, " regions");
+  stackedSizeBars(byId("areas-chart"), regions.areas, regions.color, colorNames, " regions");
 }
 
 /* =====================================================================
@@ -754,9 +752,6 @@ byId("show-walkers").addEventListener("change", function () {
   showWalkers = this.checked;
   drawSoon();
 });
-
-// The region sizes chart: counts on a linear or logarithmic scale.
-byId("log-areas").addEventListener("change", drawSoon);
 
 
 // Seed: the same seed gives the same run every time.
