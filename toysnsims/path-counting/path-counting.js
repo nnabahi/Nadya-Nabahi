@@ -6,8 +6,8 @@
      or down at a time, through the open edges (more generally, it adds
      up the products of the weights along the paths). The picture colors
      every grid point by f, from above or in 3D, and the red balls show
-     f along one line a x + b y = c, whose shape the Statistics box
-     compares with a Gaussian bell curve. There is nothing to run: like
+     f along one line x cos t + y sin t = c, whose shape the Statistics
+     box compares with a Gaussian bell curve. There is nothing to run: like
      Desmos, everything is worked out again the moment you type or move
      a slider.
 
@@ -32,19 +32,24 @@
 const PICTURE_HEIGHT = 480;        // the picture's height on the page, in pixels
 
 const UNREACHED = [120, 120, 120]; // points no path reaches (f = 0): gray
+const PLAIN = [250, 250, 250];     // every point, with the heatmap off
 const OUTSIDE = [230, 230, 230];   // around the grid
 const EDGE_COLOR = "rgba(0, 0, 0, 0.55)";   // the open edges, from above
-const LINE_COLOR = "#c0392b";      // the line a x + b y = c and its balls: red
+const LINE_COLOR = "#c0392b";      // the line, its balls and the direction vector: red
 const GROUND = "#d8d8d8";          // the floor in 3D
 
-// The "Start from" choices. Each gives X and Y, and the sliders' settings.
+const START_ANGLE = Math.PI / 4;    // the direction (cos t, sin t) starts at 45 degrees
+const ANGLE_STEP = Math.PI / 360;   // the angle slider moves half a degree at a time
+
+// The "Start from" choices. Each gives X, Y, your own functions, and the
+// sliders' settings.
 const PRESETS = {
   // The old site's default: d(y) is 3 with chance p and 2 otherwise, one
   // per row, and the step down from (x, y) is open when d(y) divides x.
-  periodic: { X: "1", Y: "{mod(x, {u(y) < p: 3, 2}) = 0: 1, 0}",
+  periodic: { X: "1", Y: "{mod(x, d(y)) = 0: 1, 0}", definitions: "d(y) = {random() < p: 3, 2}",
               sliders: { p: { value: 0.5, min: 0, max: 1, step: 0.01 } } },
   open: { X: "1", Y: "1" },
-  bernoulli: { X: "{u(x, y) < p: 1, 0}", Y: "1",
+  bernoulli: { X: "{random() < p: 1, 0}", Y: "1",
                sliders: { p: { value: 0.5, min: 0, max: 1, step: 0.01 } } },
 };
 
@@ -57,35 +62,54 @@ for (let k = 0; k < 256; k++) PALETTE.push(heatColor(k / 255));
 /* =====================================================================
    2. READING THE FORMULAS, WITH SLIDERS
    ---------------------------------------------------------------------
-   X and Y are read by readTree (js/formulas.js): "=" means equals,
-   {condition: a, b} is a piecewise formula, and "xy" means x times y,
-   as in Desmos. Every letter other than x, y and N gets a slider (one
-   slider per letter, shared by both formulas).
+   X, Y and your own functions are read by readTree (js/formulas.js):
+   "=" means equals, {condition: a, b} is a piecewise formula, and "xy"
+   means x times y, as in Desmos. Every letter other than x, y, N and a
+   function's own inputs gets a slider (one slider per letter, shared by
+   all the formulas).
    ===================================================================== */
 let trees = null;          // the two formulas, read: { X, Y }
+let definitions = [];      // your own functions (readDefinition, path-counting-math.js)
 let sliders = {};          // letter -> { value, min, max, step }
 
 function readFormulas() {
-  const read = {};
-  for (const name of ["X", "Y"]) {
-    const text = byId("formula-" + name).value.trim();
-    try {
-      if (text === "") throw new Error("it is empty.");
-      read[name] = readTree(text);
-    } catch (problem) {
-      // Usually just a half-typed formula: keep the last good picture.
-      byId("formula-message").textContent = "Can't read " + name + " yet: " + problem.message;
-      return;
+  const read = {}, defs = [];
+  try {
+    for (const name of ["X", "Y"]) {
+      const text = byId("formula-" + name).value.trim();
+      if (text === "") throw new Error(name + " is empty.");
+      try { read[name] = readTree(text); }
+      catch (problem) { throw new Error(name + ": " + problem.message); }
     }
-    if (window.katex) katex.render(formulaTex(read[name]), byId("preview-" + name), { throwOnError: false });
+    for (const text of byId("definitions").value.split("\n")) {
+      if (text.trim() === "") continue;
+      try { defs.push(readDefinition(text)); }
+      catch (problem) { throw new Error(text.trim() + ": " + problem.message); }
+    }
+  } catch (problem) {
+    // Usually just a half-typed formula: keep the last good picture.
+    byId("formula-message").textContent = "Can't read it yet. " + problem.message;
+    return;
   }
   byId("formula-message").textContent = "";
   trees = read;
+  definitions = defs;
+  if (window.katex) {
+    for (const name of ["X", "Y"]) katex.render(formulaTex(trees[name]), byId("preview-" + name), { throwOnError: false });
+    const lines = definitions.map(function (def) {
+      return def.name + "(" + def.inputs.join(", ") + ") = " + formulaTex(def.tree);
+    });
+    katex.render(lines.join(" \\\\ "), byId("preview-definitions"), { throwOnError: false, displayMode: true });
+  }
 
   // One slider per letter, in the order the letters first appear (a Set
   // keeps that order, and each letter once).
   const letters = new Set(sliderLetters(trees.X).concat(sliderLetters(trees.Y)));
+  for (const def of definitions) {
+    for (const letter of sliderLetters(def.tree)) if (!def.inputs.includes(letter)) letters.add(letter);
+  }
   letters.delete("N");                     // N is the grid size, not a slider
+  for (const def of definitions) letters.delete(def.name);
   const holder = byId("sliders");
   holder.innerHTML = "";
   for (const letter of letters) {
@@ -100,6 +124,7 @@ function usePreset(key) {
   const p = PRESETS[key];
   byId("formula-X").value = p.X;
   byId("formula-Y").value = p.Y;
+  byId("definitions").value = p.definitions || "";
   for (const letter in p.sliders || {}) sliders[letter] = Object.assign({}, p.sliders[letter]);
   readFormulas();
 }
@@ -116,17 +141,18 @@ let N = 60;                // the grid is 0..N by 0..N
 let domain = null;         // the grid, as a domain for the picture (js/sim-domains.js)
 let paths = null;          // f on the grid (countPaths, path-counting-math.js)
 let heights = null;        // f scaled to 0..1, for colors and 3D heights
-let line = { a: 1, b: 1, c: 60, lo: 0, hi: 120 };   // the line a x + b y = c, and c's range
-let points = [];           // the grid points on the line
+let line = null;           // the lines at right angles to the direction (makeLine)
+let lineNumber = 60;       // which of them is shown: the one at distance c = lineNumber * line.step
+let points = [];           // the grid points on it
 let stats = null;          // f along the line (lineStats)
 
 function recount() {
   if (!trees) return;
   const values = {};
   for (const letter in sliders) values[letter] = sliders[letter].value;
-  const u = uniformFor(byId("seed").value);
   try {
-    paths = countPaths(N, weightFunction(trees.X, values, N, u), weightFunction(trees.Y, values, N, u));
+    const weights = makeWeights(trees, definitions, values, N, byId("seed").value);
+    paths = countPaths(N, weights.X, weights.Y);
   } catch (problem) {
     byId("formula-message").textContent = "Can't work it out: " + problem.message;
     return;
@@ -147,29 +173,30 @@ function showWeightsNote() {
   byId("weights-note").textContent = note;
 }
 
-// The c slider's range is every value of a x + b y on the grid. When
-// the grid or the direction changes, c keeps its place in the range,
-// so the line stays about where it was.
-function fitLineRange() {
-  const range = levelRange(N, line.a, line.b);
-  const share = line.hi > line.lo ? (line.c - line.lo) / (line.hi - line.lo) : 0.5;
-  line.lo = range.lo;
-  line.hi = range.hi;
-  line.c = Math.round(range.lo + share * (range.hi - range.lo));
+// The lines for the angle t on the slider. The distance slider counts
+// the lines, from 0 to the last one; when the grid or the angle changes,
+// it keeps its place along the slider, so the line stays about where
+// it was.
+function useAngle() {
+  const angle = Number(byId("angle").value) * ANGLE_STEP;
+  const share = line ? lineNumber / Math.max(line.most, 1) : null;
+  line = makeLine(N, angle);
+  if (share !== null) lineNumber = Math.round(share * line.most);
+  lineNumber = Math.min(Math.max(lineNumber, 0), line.most);
   const slider = byId("line-c");
-  slider.min = range.lo;
-  slider.max = range.hi;
-  slider.value = line.c;
+  slider.max = line.most;
+  slider.value = lineNumber;
+  byId("angle-label").textContent = "= " + angle.toFixed(3) + " (" + (angle * 180 / Math.PI).toFixed(1) +
+    "°): direction (" + line.cos.toFixed(2) + ", " + line.sin.toFixed(2) + ")";
 }
 
 function reshape() {
   if (!paths) return;
-  heights = scaledHeights(paths, line.a, line.b, checked("heights"));
-  points = linePoints(N, line.a, line.b, line.c);
-  stats = lineStats(points, paths.logF, N, line.b === 0);
-  const distance = Math.abs(line.c) / Math.hypot(line.a, line.b);
-  byId("line-label").textContent = "= " + line.c + ": " + points.length +
-    (points.length === 1 ? " point" : " points") + ", at distance " + distance.toFixed(2) + " from (0, 0)";
+  heights = scaledHeights(paths, line, checked("heights"));
+  points = linePoints(N, line, lineNumber);
+  stats = lineStats(points, paths.logF, N, line.alongX);
+  byId("line-label").textContent = "= " + (lineNumber * line.step).toFixed(2) + ": " + points.length +
+    (points.length === 1 ? " point" : " points");
   drawSoon();
 }
 
@@ -179,9 +206,10 @@ function reshape() {
    ---------------------------------------------------------------------
    One square per grid point, colored by its height (gray if no path
    reaches it), as in the other sims (paintCells, js/sim-view.js), so it
-   zooms and moves the same way. On top: the open edges as thin dark
-   lines (once the squares are big enough to see them), and the points
-   of the line as red dots.
+   zooms and moves the same way. On top, each one if switched on: the
+   open edges as thin dark lines (once the squares are big enough to see
+   them), the line and its points as red dots, and the direction vector
+   as a red arrow from (0, 0) to the line.
    ===================================================================== */
 const simCanvas = byId("sim-canvas");
 const drawSoon = oncePerFrame(function () { drawPicture(); showStats(); });
@@ -191,13 +219,15 @@ function drawPicture() {
   if (!heights) return;                    // nothing worked out yet
   if (show3D) { draw3D(); return; }
   const pen = fitPicture(view, domain, pictureHeight(PICTURE_HEIGHT));
+  const heatmap = byId("show-heatmap").checked;
   paintCells(view, pen, domain,
     function (v) { return isNaN(heights[v]) ? -1 : Math.round(255 * heights[v]); },
-    function (g) { return g < 0 ? UNREACHED : PALETTE[g]; }, OUTSIDE);
+    function (g) { return !heatmap ? PLAIN : g < 0 ? UNREACHED : PALETTE[g]; }, OUTSIDE);
   const cell = view.cell;
-  // The middle of point (x, y)'s square on the screen (row 0 is the top, y = N).
-  const across = function (x) { return squareLeft(view, x) + cell / 2; };
-  const down = function (y) { return squareTop(view, N - y) + cell / 2; };
+  // Where point (x, y) is on the screen: the middle of its square (row 0
+  // is the top, y = N). x and y can be in between grid points too.
+  const across = function (x) { return view.left + (x + view.scroll.x) * cell + cell / 2; };
+  const down = function (y) { return (N - y + view.scroll.y) * cell + cell / 2; };
 
   // The open edges: from (x - 1, y) to (x, y) where X > 0, and from
   // (x, y - 1) to (x, y) where Y > 0.
@@ -215,15 +245,50 @@ function drawPicture() {
     pen.stroke();
   }
 
-  // The points of the line.
-  pen.fillStyle = LINE_COLOR;
-  const radius = Math.max(2, 0.3 * cell);
-  for (const point of points) {
+  pen.strokeStyle = pen.fillStyle = LINE_COLOR;
+  pen.lineWidth = 2;
+  // The line, and its points.
+  if (byId("show-line").checked) {
+    const ends = lineEnds(N, line, lineNumber * line.step);
+    if (ends.length > 0) {
+      pen.beginPath();
+      pen.moveTo(across(ends[0]), down(ends[1]));
+      pen.lineTo(across(ends[2]), down(ends[3]));
+      pen.stroke();
+    }
+    const radius = Math.max(2, 0.3 * cell);
+    for (const point of points) {
+      pen.beginPath();
+      pen.arc(across(point.x), down(point.y), radius, 0, 2 * Math.PI);
+      pen.fill();
+    }
+  }
+  // The direction vector: an arrow from (0, 0) to the line, c long.
+  if (byId("show-vector").checked) {
+    const arrow = vectorLines();
     pen.beginPath();
-    pen.arc(across(point.x), down(point.y), radius, 0, 2 * Math.PI);
-    pen.fill();
+    for (let i = 0; i < arrow.length; i += 4) {
+      pen.moveTo(across(arrow[i]), down(arrow[i + 1]));
+      pen.lineTo(across(arrow[i + 2]), down(arrow[i + 3]));
+    }
+    pen.stroke();
   }
   pen.restore();
+}
+
+// The direction vector as three straight pieces [x1, y1, x2, y2, ...]
+// in grid units: the arrow's shaft from (0, 0) to c (cos t, sin t), and
+// its two barbs. Before the line has moved off (0, 0), it is drawn 1/8
+// of the grid long, just to show the direction.
+function vectorLines() {
+  const length = Math.max(lineNumber * line.step, N / 8);
+  const tipX = length * line.cos, tipY = length * line.sin, barb = Math.max(1, N / 40);
+  const lines = [0, 0, tipX, tipY];
+  for (const turn of [0.85 * Math.PI, -0.85 * Math.PI]) {   // the barbs point back, 27 degrees off the shaft
+    const a = line.angle + turn;
+    lines.push(tipX, tipY, tipX + barb * Math.cos(a), tipY + barb * Math.sin(a));
+  }
+  return lines;
 }
 
 // Click a point to move the line through it (the picture still drags
@@ -231,9 +296,8 @@ function drawPicture() {
 connectPicture(view, null, null, function (event) {
   const v = cellUnder(view, domain, pointerSpot(view, event));
   if (v < 0) return;
-  const x = v % (N + 1), y = Math.floor(v / (N + 1));
-  line.c = line.a * x + line.b * y;
-  byId("line-c").value = line.c;
+  lineNumber = line.number(v % (N + 1), Math.floor(v / (N + 1)));
+  byId("line-c").value = lineNumber;
   reshape();
 }, "pointer");
 
@@ -241,8 +305,9 @@ connectPicture(view, null, null, function (event) {
 /* =====================================================================
    5. THE 3D VIEW
    ---------------------------------------------------------------------
-   The heights as a colored surface over the grid, with the red balls
-   on it along the line (and the line itself on the floor). The 3D code
+   The heights as a colored surface over the grid (with the heatmap on),
+   with the red balls on it along the line and the line itself on the
+   floor (with the line on), and the direction vector on the floor. The 3D code
    is shared, in js/sim-3d.js; it loads the 3D library three.js from the
    internet the first time 3D is switched on.
    ===================================================================== */
@@ -286,30 +351,31 @@ async function start3D() {
   drawSoon();
 }
 
-// Look from behind (0, 0) in the direction (a, b), as in your Desmos
-// picture: each line a x + b y = k runs across the picture, so its bell
-// curve is seen from the side.
+// Look from behind (0, 0) along the direction vector, as in your
+// Desmos picture: each line at right angles to it runs across the
+// picture, so its bell curve is seen from the side.
 function lookAlongDirection() {
-  if (view3d) sim3d.resetCamera(view3d, [line.a, line.b]);
+  if (view3d) sim3d.resetCamera(view3d, [line.cos, line.sin]);
 }
 
 function draw3D() {
   if (!view3d) return;
+  const showLine = byId("show-line").checked;
   const balls = { x: [], y: [], height: [] };
-  for (const point of points) {
+  for (const point of showLine ? points : []) {
     const h = heights[point.x + (N + 1) * point.y];
     balls.x.push(point.x);
     balls.y.push(point.y);
     balls.height.push(isNaN(h) ? 0 : h);
   }
-  // The line on the floor, from its first point to its last.
-  const ends = points.length < 2 ? []
-    : [points[0].x, points[0].y, points[points.length - 1].x, points[points.length - 1].y];
+  // On the floor: the line, and the direction vector.
+  const floorLines = (showLine ? lineEnds(N, line, lineNumber * line.step) : [])
+    .concat(byId("show-vector").checked ? vectorLines() : []);
   const red = hexToRGB(LINE_COLOR);
   sim3d.drawSurface(view3d, {
-    size: N + 1, height: heights, show: byId("show-surface").checked, color: heatColor,
+    size: N + 1, height: heights, show: byId("show-heatmap").checked, color: heatColor,
     balls: balls, ballColor: red, ground: hexToRGB(GROUND),
-    lines: ends, lineColor: red, stretch: stretch,
+    lines: floorLines, lineColor: red, stretch: stretch,
   });
 }
 
@@ -335,7 +401,7 @@ function showStats() {
   byId("stat-reached").textContent = stats.reached.toLocaleString();
   byId("stat-most").textContent = bigNumberText(stats.logMost);
   byId("stat-sum").textContent = bigNumberText(stats.logSum);
-  byId("stat-axis").textContent = line.b === 0 ? "y" : "x";
+  byId("stat-axis").textContent = line.alongX ? "x" : "y";
   byId("stat-mean").textContent = reached ? stats.mean.toFixed(2) : "";
   byId("stat-sd").textContent = reached ? stats.sd.toFixed(2) : "";
   byId("stat-gap").textContent = reached ? stats.worstGap.toFixed(3) : "";
@@ -392,36 +458,35 @@ for (const name of ["X", "Y"]) {
   });
 }
 
+byId("definitions").addEventListener("input", function () {
+  byId("preset").value = "custom";
+  readFormulas();
+});
+
 // The grid size N: a new grid, and f again.
 function useSize() {
   N = Number(byId("size").value);
   byId("size-label").textContent = "N = " + N + " (" + (N + 1) + " × " + (N + 1) + " points)";
   domain = boxDomain(N + 1, N + 1, 4, false);
   useTorus(view, false);
-  fitLineRange();
+  useAngle();
 }
 byId("size").addEventListener("input", function () { useSize(); recount(); });
 connectSeed(recount);
 
-// The direction (a, b): whole numbers from -20 to 20, not both 0.
-function useDirection() {
-  line.a = readWhole("dir-a", -20, 20, 1);
-  line.b = readWhole("dir-b", -20, 20, 1);
-  if (line.a === 0 && line.b === 0) { line.b = 1; byId("dir-b").value = 1; }
-  fitLineRange();
-  lookAlongDirection();
-  reshape();
-}
-byId("dir-a").addEventListener("change", useDirection);
-byId("dir-b").addEventListener("change", useDirection);
-byId("line-c").addEventListener("input", function () { line.c = Number(this.value); reshape(); });
+// The angle slider goes from 0 to pi/2 in half degrees (it holds the
+// number of half degrees).
+byId("angle").max = Math.round((Math.PI / 2) / ANGLE_STEP);
+byId("angle").value = Math.round(START_ANGLE / ANGLE_STEP);
+byId("angle").addEventListener("input", function () { useAngle(); reshape(); });
+byId("line-c").addEventListener("input", function () { lineNumber = Number(this.value); reshape(); });
+for (const id of ["show-line", "show-vector", "show-heatmap"]) byId(id).addEventListener("change", drawSoon);
 
 for (const radio of document.querySelectorAll('input[name="heights"]')) radio.addEventListener("change", reshape);
 for (const radio of document.querySelectorAll('input[name="view"]')) {
   radio.addEventListener("change", function () { show3D = (radio.value === "3d"); showPictureKind(); });
 }
 byId("show-edges").addEventListener("change", drawSoon);
-byId("show-surface").addEventListener("change", drawSoon);
 function showStretch() {
   byId("stretch-label").textContent = stretch === 1 ? "normal"
     : (stretch > 1 ? stretch.toFixed(1) + " times taller" : (1 / stretch).toFixed(1) + " times flatter");
@@ -433,10 +498,11 @@ byId("stretch").addEventListener("input", function () {
 });
 byId("view3d-reset").addEventListener("click", lookAlongDirection);
 
-// Start: your periodic rule on the 61 x 61 grid, the line x + y = 60.
+// Start: your periodic rule on the 61 x 61 grid, at 45 degrees (the
+// line x + y = 60).
 useSize();
-line.c = N;
-byId("line-c").value = line.c;
+lineNumber = N;
+byId("line-c").value = lineNumber;
 showStretch();
 showPictureKind();
 usePreset("periodic");

@@ -22,11 +22,12 @@
    math.js and js/formulas.js before it, for reading the formulas.
 
    Contents:
-     uniformFor(seed)              u(...): a random number for each input
-     weightFunction(...)           a typed formula as a weight X(x, y)
+     readDefinition(text)          a line like  d(y) = {random() < p: 3, 2}
+     makeWeights(...)              the typed formulas as weights X(x, y), Y(x, y)
      countPaths(N, X, Y)           log f on the whole grid
-     levelRange(N, a, b)           the values of a x + b y on the grid
-     linePoints(N, a, b, c)        the grid points on a x + b y = c
+     makeLine(N, angle)            the lines at right angles to a direction
+     linePoints(N, line, k)        the grid points on line number k
+     lineEnds(N, line, c)          where a line crosses the edge of the grid
      scaledHeights(...)            f scaled to 0..1, three ways
      lineStats(points, logF, N)    mean, spread and Gaussian of f on the line
      bigNumberText(logValue)       f written out, from log f
@@ -34,25 +35,30 @@
 
 
 /* ---------------------------------------------------------------------
-   Random numbers: u(...)
+   The weights, and coupled random()
    ---------------------------------------------------------------------
-   u(...) is a random number from 0 to 1 that is FIXED for each input:
-   u(y) is one number per row, u(x, y) one per point, and asking again
-   gives the same number. So moving a slider never reshuffles the
-   randomness: in {u(x, y) < p: 1, 0}, edges only switch ON as p goes
-   up. The numbers come from the seed: a new seed gives new numbers.
+   X(x, y) and Y(x, y) are typed formulas (read by readTree,
+   js/formulas.js). You can also define your own functions, one per
+   line, like
+       d(y) = {random() < p: 3, 2}
+   and use them in X and Y: Y = {mod(x, d(y)) = 0: 1, 0}.
 
-   How: the seed and the inputs are written as text, like "5|3,7", and
-   mixed by the hash function cyrb53 (by bryc, public domain,
+   random() is COUPLED, as on the old site: each random() is a random
+   number from 0 to 1 that is drawn once and then kept. It is fixed for
+   its place in the formula and for where the formula is worked out:
+   random() in X at (3, 5) is one number, random() in Y at (3, 5)
+   another, and random() in d(y) is one number per row y (so d(4) is
+   the same wherever it is used). Moving a slider never redraws them,
+   so in {random() < p: 1, 0} edges only switch ON as p goes up. The
+   "New randomness" button (a new seed) redraws them all.
+
+   How: the seed, the formula's name and inputs, and which random() it
+   is (the first, second, ... in the formula) are written as text, like
+   "5|Y(3,5)|0", and mixed by the hash function cyrb53 (by bryc, public
+   domain,
    https://github.com/bryc/code/blob/master/jshash/experimental/cyrb53.js)
    into a whole number of 53 bits, which is divided by 2^53.
    --------------------------------------------------------------------- */
-function uniformFor(seed) {
-  return function u() {
-    return cyrb53(seed + "|" + Array.prototype.join.call(arguments, ",")) / 9007199254740992;   // 2^53
-  };
-}
-
 function cyrb53(text) {
   let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
   for (let i = 0; i < text.length; i++) {
@@ -67,24 +73,61 @@ function cyrb53(text) {
   return 4294967296 * (2097151 & h2) + (h1 >>> 0);
 }
 
-
-/* ---------------------------------------------------------------------
-   The weights
-   --------------------------------------------------------------------- */
-
-// A typed formula (a tree from readTree, js/formulas.js) as a function
-// weight(x, y). "values" holds the sliders' values by letter; N and u
-// can be used in the formula too. A true/false answer (like u(x, y) < p)
-// counts as 1/0.
-function weightFunction(tree, values, N, u) {
-  const code = tree.compile();
-  const scope = Object.assign({ N: N, u: u }, values);
-  return function (x, y) {
-    scope.x = x;
-    scope.y = y;
-    return Number(code.evaluate(scope));
-  };
+// A line like "d(y) = {random() < p: 3, 2}" read as { name: "d",
+// inputs: ["y"], tree }. Throws an error if it isn't of that form.
+function readDefinition(text) {
+  const parts = text.match(/^\s*([A-Za-z]\w*)\s*\(([^()]*)\)\s*=(.*)$/);
+  if (!parts) throw new Error("write it like d(y) = ...");
+  const inputs = parts[2].split(",").map(function (s) { return s.trim(); }).filter(Boolean);
+  return { name: parts[1], inputs: inputs, tree: readTree(parts[3]) };
 }
+
+// Number the random()s in a formula: the k-th one becomes rnd(k), which
+// knows where the formula is being worked out (see makeWeights).
+function numberRandoms(tree) {
+  let k = 0;
+  return tree.transform(function (node) {
+    if (node.isFunctionNode && node.fn.name === "random" && node.args.length === 0) {
+      return new math.FunctionNode(new math.SymbolNode("rnd"), [new math.ConstantNode(k++)]);
+    }
+    return node;
+  });
+}
+
+// The weights X(x, y) and Y(x, y) from the two formulas (trees.X and
+// trees.Y), the definitions (from readDefinition), the sliders' values
+// by letter, the grid size N (usable in the formulas) and the seed. A
+// true/false answer (like random() < p) counts as 1/0.
+function makeWeights(trees, definitions, values, N, seed) {
+  const scope = Object.assign({ N: N }, values);
+  let where = "";                          // e.g. "Y(3,5)": what is being worked out right now
+  scope.rnd = function (k) { return cyrb53(seed + "|" + where + "|" + k) / 9007199254740992; };   // 2^53
+
+  // Each definition becomes a function. While it runs, its inputs are
+  // set to the values it was given (and put back afterward).
+  for (const def of definitions) {
+    const code = numberRandoms(def.tree).compile();
+    scope[def.name] = function () {
+      const given = Array.from(arguments), outer = where;
+      const saved = def.inputs.map(function (v) { return scope[v]; });
+      def.inputs.forEach(function (v, i) { scope[v] = given[i]; });
+      where = def.name + "(" + given.join(",") + ")";
+      try { return code.evaluate(scope); }
+      finally { def.inputs.forEach(function (v, i) { scope[v] = saved[i]; }); where = outer; }
+    };
+  }
+  function weight(tree, name) {
+    const code = numberRandoms(tree).compile();
+    return function (x, y) {
+      scope.x = x;
+      scope.y = y;
+      where = name + "(" + x + "," + y + ")";
+      return Number(code.evaluate(scope));
+    };
+  }
+  return { X: weight(trees.X, "X"), Y: weight(trees.Y, "Y") };
+}
+
 
 // Where point (x, y) is kept in the grid's lists.
 function spot(N, x, y) { return x + (N + 1) * y; }
@@ -143,59 +186,87 @@ function countPaths(N, weightX, weightY) {
 
 
 /* ---------------------------------------------------------------------
-   The line a x + b y = c
+   The lines at right angles to a direction
    ---------------------------------------------------------------------
-   The direction (a, b) is a pair of whole numbers, not both 0, and c is
-   a whole number, so every point on the line with whole-number x and y
-   is a grid point. The line is at right angles to (a, b), at distance
-   |c| / sqrt(a^2 + b^2) from (0, 0).
+   The direction is the vector (cos t, sin t), for an angle t from 0 to
+   pi/2, and the line at distance c from (0, 0) at right angles to it is
+       x cos t + y sin t = c.
+   Grid points rarely lie exactly on it, so the page takes the nearest
+   ones: when the line is closer to flat (t >= pi/4), one point in each
+   column x, and otherwise one point in each row y. Every grid point
+   belongs to exactly one such line, line number
+       k = round((x cos t + y sin t) / w),   w = max(cos t, sin t),
+   and line k is the one at distance c = k w. (For t = pi/4 this is just
+   x + y = k, so the points are exactly on the line.)
    --------------------------------------------------------------------- */
 
-// The smallest and largest values of a x + b y on the grid (at its corners).
-function levelRange(N, a, b) {
-  return { lo: N * (Math.min(a, 0) + Math.min(b, 0)), hi: N * (Math.max(a, 0) + Math.max(b, 0)) };
+// The lines for angle t on the grid 0..N: { angle, cos, sin, step (w),
+// alongX (true when there is one point per column), number(x, y) (the
+// line a point is on), most (the last line number) }.
+function makeLine(N, angle) {
+  const cos = Math.cos(angle), sin = Math.sin(angle), step = Math.max(cos, sin);
+  // (alongX allows for rounding: at 45 degrees the computer's sin is a
+  // hair smaller than its cos.)
+  const line = { angle: angle, cos: cos, sin: sin, step: step, alongX: sin >= cos - 1e-12 };
+  line.number = function (x, y) { return Math.round((x * cos + y * sin) / step); };
+  line.most = line.number(N, N);
+  return line;
 }
 
-// The grid points on the line a x + b y = c, in order of x (of y, for
-// an up-and-down line, b = 0).
-function linePoints(N, a, b, c) {
+// The grid points on line number k, in order of x (of y, when there is
+// one point per row).
+function linePoints(N, line, k) {
   const points = [];
-  if (b === 0) {
-    if (c % a === 0 && c / a >= 0 && c / a <= N) {
-      for (let y = 0; y <= N; y++) points.push({ x: c / a, y: y });
+  for (let t = 0; t <= N; t++) {
+    // The other coordinate, from x cos + y sin = k w, rounded. (At a
+    // tie in the rounding, the point is the one next to it.)
+    const guess = line.alongX ? Math.round((k * line.step - t * line.cos) / line.sin)
+                              : Math.round((k * line.step - t * line.sin) / line.cos);
+    for (const other of [guess, guess - 1, guess + 1]) {
+      if (other < 0 || other > N) continue;
+      const point = line.alongX ? { x: t, y: other } : { x: other, y: t };
+      if (line.number(point.x, point.y) === k) { points.push(point); break; }
     }
-    return points;
-  }
-  for (let x = 0; x <= N; x++) {
-    const y = (c - a * x) / b;
-    if (Number.isInteger(y) && y >= 0 && y <= N) points.push({ x: x, y: y });
   }
   return points;
 }
 
+// Where the line x cos t + y sin t = c crosses the edge of the grid's
+// box [0, N] x [0, N]: [x1, y1, x2, y2], or [] if it misses the box.
+function lineEnds(N, line, c) {
+  const ends = [];
+  function add(x, y) {
+    if (x < -1e-9 || x > N + 1e-9 || y < -1e-9 || y > N + 1e-9) return;
+    if (ends.some(function (e) { return Math.hypot(e[0] - x, e[1] - y) < 1e-9; })) return;
+    ends.push([x, y]);
+  }
+  if (line.sin > 1e-12) { add(0, c / line.sin); add(N, (c - N * line.cos) / line.sin); }
+  if (line.cos > 1e-12) { add(c / line.cos, 0); add((c - N * line.sin) / line.cos, N); }
+  return ends.length < 2 ? [] : [ends[0][0], ends[0][1], ends[1][0], ends[1][1]];
+}
+
 // f scaled to heights from 0 to 1, one way of three ("how"):
-//   "line"  f divided by the largest f on its own line a x + b y = k
+//   "line"  f divided by the largest f on its own line (makeLine)
 //           (every line tops out at 1, so each one shows its own shape)
 //   "all"   f divided by the largest f on the whole grid
 //   "log"   log f, from 0 (or the smallest log f, if that is below 0)
 //           up to the largest log f
 // NaN where f = 0 (no path gets there).
-function scaledHeights(paths, a, b, how) {
+function scaledHeights(paths, line, how) {
   const N = paths.N, logF = paths.logF;
   const heights = new Float64Array(logF.length).fill(NaN);
   let most = -Infinity, least = Infinity;
   for (const L of logF) if (L > -Infinity) { most = Math.max(most, L); least = Math.min(least, L); }
   if (how === "line") {
-    // The largest log f on each line, by k (shifted so the smallest k is 0).
-    const range = levelRange(N, a, b);
-    const top = new Float64Array(range.hi - range.lo + 1).fill(-Infinity);
+    // The largest log f on each line, by its number k.
+    const top = new Float64Array(line.most + 1).fill(-Infinity);
     for (let y = 0; y <= N; y++) for (let x = 0; x <= N; x++) {
-      const k = a * x + b * y - range.lo;
+      const k = line.number(x, y);
       top[k] = Math.max(top[k], logF[spot(N, x, y)]);
     }
     for (let y = 0; y <= N; y++) for (let x = 0; x <= N; x++) {
       const p = spot(N, x, y);
-      if (logF[p] > -Infinity) heights[p] = Math.exp(logF[p] - top[a * x + b * y - range.lo]);
+      if (logF[p] > -Infinity) heights[p] = Math.exp(logF[p] - top[line.number(x, y)]);
     }
   } else {
     const bottom = Math.min(least, 0);
@@ -213,7 +284,8 @@ function scaledHeights(paths, a, b, how) {
    f along the line, and its bell curve
    ---------------------------------------------------------------------
    Along the line, f (divided by its sum) is a list of chances, one per
-   point. "position" is each point's x (its y on an up-and-down line).
+   point. "position" is each point's x (its y when the line has one
+   point per row).
    Their mean and standard deviation give the Gaussian bell curve that
    fits best in the sense of matching those two numbers. With every
    weight 1 and the line x + y = c, f is the binomial coefficient
@@ -222,14 +294,14 @@ function scaledHeights(paths, a, b, how) {
    Probability Theory and Its Applications", Vol. 1, 3rd ed., Wiley,
    1968, Chapter VII).
    --------------------------------------------------------------------- */
-function lineStats(points, logF, N, upright) {
+function lineStats(points, logF, N, alongX) {
   const stats = { count: points.length, reached: 0, position: [], scaled: [], logMost: -Infinity, logSum: -Infinity };
   for (const point of points) {
     const L = logF[spot(N, point.x, point.y)];
     if (L > -Infinity) stats.reached++;
     stats.logMost = Math.max(stats.logMost, L);
     stats.logSum = logAdd(stats.logSum, L);
-    stats.position.push(upright ? point.y : point.x);
+    stats.position.push(alongX ? point.x : point.y);
   }
   if (stats.reached === 0) return stats;
   // f divided by the largest f on the line (the bars, tallest = 1), and

@@ -98,14 +98,18 @@
         <p class="small"><span class="tex">Y(x, y)</span>, the weight of the step down from <span class="tex">(x, y)</span>:</p>
         <input type="text" class="formula-input" id="formula-Y" spellcheck="false">
         <div class="formula-preview" id="preview-Y"></div>
+        <!-- Your own functions, one per line, like d(y) = ... -->
+        <p class="small">Your own functions, one per line (optional):</p>
+        <textarea class="formula-input" id="definitions" rows="2" spellcheck="false"></textarea>
+        <div class="formula-preview" id="preview-definitions"></div>
         <div id="sliders"></div>
         <p class="muted small" id="formula-message"></p>
         <p class="muted small">Type them as in Desmos: <code>{x &gt; 2: 1, 0}</code> is 1 when
           x &gt; 2 and 0 otherwise, and <code>mod(x, 3)</code> is the remainder.
-          <code>u(&hellip;)</code> is a random number from 0 to 1, fixed for each input:
-          <code>u(y)</code> is one number per row, <code>u(x, y)</code> one per point
-          (write <code>u(x, y, 2)</code> for a second, separate one). Moving a slider
-          never reshuffles them. N is the size of the grid.</p>
+          <code>random()</code> is a random number from 0 to 1, drawn once and kept, as on
+          the old site: one for each random() in a formula and each place it is worked
+          out. So <code>d(y) = {random() &lt; p: 3, 2}</code> draws one number per row y, and
+          moving a slider never redraws them. N is the size of the grid.</p>
 
         <div class="option-row">
           Grid size N <input type="range" class="wide-range" id="size" min="10" max="250" step="1" value="60">
@@ -113,21 +117,29 @@
         </div>
         <div class="option-row">
           Seed <input type="text" id="seed" size="8" value="1">
-          <button class="tool-button" id="new-seed" title="New random numbers u(...)">New seed</button>
+          <button class="tool-button" id="new-seed" title="Draw every random() again">New randomness</button>
         </div>
 
-        <h3 class="option-heading">The line <span class="tex">a x + b y = c</span></h3>
+        <h3 class="option-heading">The line <span class="tex">x \cos t + y \sin t = c</span></h3>
         <div class="option-row">
-          Direction (a, b) = (<input type="number" id="dir-a" min="-20" max="20" step="1" value="1" style="width: 4em">,
-          <input type="number" id="dir-b" min="-20" max="20" step="1" value="1" style="width: 4em">)
+          <label><input type="checkbox" id="show-line"> Show the line and its points</label>
         </div>
         <div class="option-row">
-          c <input type="range" class="wide-range" id="line-c" step="1">
+          <label><input type="checkbox" id="show-vector" checked> Show the direction vector</label>
+        </div>
+        <div class="option-row">
+          Angle t <input type="range" class="wide-range" id="angle">
+          <span class="muted" id="angle-label"></span>
+        </div>
+        <div class="option-row">
+          Distance c <input type="range" class="wide-range" id="line-c" min="0" step="1">
           <span class="muted" id="line-label"></span>
         </div>
-        <p class="muted small">The red balls are the grid points on the line, which is at
-          right angles to (a, b). Click the picture (from above) to move the line through
-          that point.</p>
+        <p class="muted small">The direction vector <span class="tex">(\cos t, \sin t)</span>
+          goes from (0, 0) to the line, which is at right angles to it, c away. The red dots
+          (balls in 3D) are the grid points nearest the line, one per column (or per row,
+          for a steep line). The statistics are about them. Click the picture (from above)
+          to move the line through that point.</p>
 
         <h3 class="option-heading">View</h3>
         <div class="option-row">
@@ -137,7 +149,7 @@
         <div class="option-row">Heights and colors:</div>
         <div class="option-row">
           <label><input type="radio" name="heights" value="line" checked> normalized: f divided
-            by the largest f on its own line a x + b y = k</label>
+            by the largest f on its own line</label>
         </div>
         <div class="option-row">
           <label><input type="radio" name="heights" value="all"> f divided by the largest f on the grid</label>
@@ -145,13 +157,13 @@
         <div class="option-row">
           <label><input type="radio" name="heights" value="log"> log f, scaled to go up to 1</label>
         </div>
+        <div class="option-row">
+          <label><input type="checkbox" id="show-heatmap" checked> Show the heatmap</label>
+        </div>
         <div class="option-row" id="flat-options">
-          <label><input type="checkbox" id="show-edges" checked> Show the open edges</label>
+          <label><input type="checkbox" id="show-edges"> Show the open edges</label>
         </div>
         <div id="view3d-options" hidden>
-          <div class="option-row">
-            <label><input type="checkbox" id="show-surface" checked> Show the whole surface</label>
-          </div>
           <div class="option-row">
             Heights <input type="range" id="stretch" min="-4" max="4" step="1" value="0">
             <span class="muted" id="stretch-label"></span>
@@ -201,18 +213,17 @@
         <p>
           The numbers grow very fast: with every step open, there are already about
           <span class="tex">10^{35}</span> ways home from <span class="tex">(60, 60)</span>.
-          So the picture looks at one line at a time, the line
-          <span class="tex">a x + b y = c</span>, and divides by the largest number on
-          it. The red balls are its points, as high as their share of the largest. With
-          every step open and the line <span class="tex">x + y = c</span>, they make a bell
-          curve.
+          So the picture looks at one line at a time, at right angles to a direction you
+          pick with the angle t, and divides by the largest number on it. Turn on "Show the
+          line": the red dots (balls in 3D) are its points, as high as their share of the
+          largest. With every step open and the angle at 45&deg;, the line is
+          <span class="tex">x + y = k</span> and they make a bell curve.
         </p>
         <p>
-          <strong>Things to try:</strong> "All edges open" with direction (1, 1), then
-          slide c and watch the bell get wider. Your periodic rule, where the step down
-          from row y is open only above every second or third point; slide p and try other
-          directions, like (1, 2) or (2, 5), to find where its curve looks most like a
-          bell. Switch to 3D and turn the picture around: the whole surface shows every
+          <strong>Things to try:</strong> "All edges open" at 45&deg;, then slide c and
+          watch the bell get wider. Your periodic rule, where the step down from row y is
+          open only above every second or third point; slide p and turn the angle to find
+          where its curve looks most like a bell. Switch to 3D and turn the picture around: the whole surface shows every
           line's curve at once, a ridge running out from the corner.
         </p>
         <p>
@@ -253,8 +264,8 @@
         </p>
         <div class="tex">\binom{c}{x} \Big/ \binom{c}{\lfloor c/2 \rfloor} \approx \exp\!\Big(-\frac{(x - c/2)^2}{c/2}\Big).</div>
         <p>
-          On another line <span class="tex">a x + b y = c</span> with
-          <span class="tex">a, b &gt; 0</span>, Stirling's formula [3] gives
+          On another line <span class="tex">x \cos t + y \sin t = c</span> with
+          <span class="tex">0 &lt; t &lt; \pi/2</span>, Stirling's formula [3] gives
           <span class="tex">\log \binom{x+y}{x} \approx (x+y)\, H\!\big(\tfrac{x}{x+y}\big)</span>
           with <span class="tex">H(t) = -t \log t - (1-t)\log(1-t)</span>. Along the line
           this is <span class="tex">c</span> times a smooth function of
@@ -273,8 +284,9 @@
         <p>
           A heuristic, not a theorem: a path needs on average about
           <span class="tex">2 + p</span> horizontal steps per vertical one to line up with
-          the open columns, which suggests the most bell-like line moves from slope 1
-          toward <span class="tex">x + (2 + p) y = c</span> as <span class="tex">p</span>
+          the open columns, which suggests the most bell-like line moves from
+          <span class="tex">x + y = c</span> toward <span class="tex">x + (2 + p) y = c</span>
+          (the angle <span class="tex">t = \arctan(2 + p)</span>) as <span class="tex">p</span>
           goes from 0 to 1. Nothing here proves a Gaussian limit for this rule.
         </p>
         <p>
@@ -294,9 +306,22 @@
           <span class="tex">(\max, +)</span> in place of <span class="tex">(+, \times)</span>.
         </p>
         <p>
+          <strong>The lines.</strong> Grid points rarely lie exactly on
+          <span class="tex">x \cos t + y \sin t = c</span>, so the page takes the nearest
+          ones. With <span class="tex">w = \max(\cos t, \sin t)</span>, every grid point is on
+          exactly one line number
+        </p>
+        <div class="tex">k = \operatorname{round}\big((x \cos t + y \sin t)/w\big),</div>
+        <p>
+          which is one point per column when <span class="tex">t \ge \pi/4</span> (one per
+          row otherwise), and line <span class="tex">k</span> is the one at
+          <span class="tex">c = k w</span>. At <span class="tex">t = \pi/4</span> it is exactly
+          <span class="tex">x + y = k</span>.
+        </p>
+        <p>
           <strong>Normalizing.</strong> "Normalized" divides each
           <span class="tex">f(x, y)</span> by the largest <span class="tex">f</span> on its
-          own line <span class="tex">a x + b y = k</span>, so every line tops out at 1.
+          own line <span class="tex">k</span>, so every line tops out at 1.
           In 3D each square of the grid is cut into two triangles, each flat, with its
           color fading linearly between its corners.
         </p>
@@ -306,10 +331,10 @@
           worked out without forming <span class="tex">e^s</span>), so nothing overflows.
           The statistics treat <span class="tex">f</span> along the line, divided by its
           sum, as chances for the position <span class="tex">x</span> (or
-          <span class="tex">y</span> when <span class="tex">b = 0</span>); the Gaussian has
-          their mean and standard deviation. <code>u(&hellip;)</code> mixes the seed and its
-          inputs with the hash function cyrb53 [7], so the same seed and input always give
-          the same number.
+          <span class="tex">y</span> for a line with one point per row); the Gaussian has
+          their mean and standard deviation. Each <code>random()</code> mixes the seed, the
+          formula, where it is worked out and which random() it is with the hash function
+          cyrb53 [7], so it is the same number every time it is worked out again.
         </p>
         <p><strong>References</strong></p>
         <ol class="references">
