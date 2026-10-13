@@ -41,7 +41,7 @@
           <div class="zoom-buttons">
             <button class="tool-button" id="zoom-in" title="Zoom in">+</button>
             <button class="tool-button" id="zoom-out" title="Zoom out">&minus;</button>
-            <button class="tool-button" id="zoom-reset" title="Show the whole window once again">Reset</button>
+            <button class="tool-button" id="zoom-reset" title="Show all of S once again">Reset</button>
           </div>
         </div>
         <p class="muted small" id="hover-info">Point at a tile to see its numbers. Click an empty spot to add a tile there.</p>
@@ -74,13 +74,19 @@
              typeset preview), a small picture of S or T pops up above
              it: class="shape-popup" in section 7 of css/style.css, drawn
              by drawPreview in sequential-tile-packing.js. -->
-        <p class="small">Domain <span class="tex">S</span>: the points <span class="tex">(x, y)</span> with</p>
+        <!-- S and T can each be a condition (x^2 + y^2 <= 1), the curve
+             around the shape (x^2 + y^2 = 1), or a curve in t
+             ((cos(t), sin(t)), t from 0 to 2π): section 3 of
+             sequential-tile-packing.js. -->
+        <p class="small">Domain <span class="tex">S</span>: the points <span class="tex">(x, y)</span> with a
+          condition, inside a curve <span class="tex">F(x, y) = G(x, y)</span>, or inside a curve
+          <span class="tex">(x(t), y(t))</span>, <span class="tex">0 \le t \le 2\pi</span></p>
         <div class="formula-with-picture">
           <input type="text" class="formula-input" id="formula-S" spellcheck="false">
           <div class="formula-preview" id="preview-S"></div>
           <canvas class="shape-popup" id="picture-S"></canvas>
         </div>
-        <p class="small">Tile <span class="tex">T</span>, centered at <span class="tex">(0, 0)</span>: the points with</p>
+        <p class="small">Tile <span class="tex">T</span>, centered at <span class="tex">(0, 0)</span>: the same three ways</p>
         <div class="formula-with-picture">
           <input type="text" class="formula-input" id="formula-T" spellcheck="false">
           <div class="formula-preview" id="preview-T"></div>
@@ -91,17 +97,6 @@
         <div class="formula-preview" id="preview-f"></div>
         <div id="sliders"></div>
         <p class="muted small" id="formula-message"></p>
-
-        <div class="option-row">
-          Window: x from <input type="number" id="window-xmin" step="0.1">
-          to <input type="number" id="window-xmax" step="0.1">
-        </div>
-        <div class="option-row">
-          y from <input type="number" id="window-ymin" step="0.1">
-          to <input type="number" id="window-ymax" step="0.1">
-        </div>
-        <p class="muted small">S is looked for inside the window, and the window is what the
-          picture shows.</p>
 
         <h3 class="option-heading">Run</h3>
         <div class="option-row">
@@ -187,9 +182,9 @@
           attempts; pick another start from the list; type your own domain,
           tile or density (any extra letter, like <span class="tex">s</span>,
           gets a slider); click an empty spot to grow a tile there yourself;
-          or change the colors. Zoom in with the mouse wheel,
-          a pinch, or the + and &minus; buttons to see the tiny tiles, and drag to
-          look around.
+          or change the colors. The picture always starts out showing all of the
+          domain. Zoom in with the mouse wheel, a pinch, or the + and &minus;
+          buttons to see the tiny tiles, and drag to look around.
         </p>
         </div>
 

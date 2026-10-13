@@ -55,7 +55,7 @@
      2. pileWorker(): runs a pile in a second thread (a "Web Worker")
         for the sim page, sandpiles.js, so the page never freezes.
         startWorker (js/sim-page.js) starts it, with newPile,
-        startHeights and middleCell copied in.
+        startHeights, middleCell and centerCell copied in.
    ===================================================================== */
 
 
@@ -263,6 +263,12 @@ function newPile(options) {
     if (k < 0) restartNoSinkCheck();
   };
 
+  // Add the heights h (one number per cell) to the pile, as grains
+  // added. The "Add the identity" button uses this.
+  pile.addHeights = function (h) {
+    for (let v = 0; v < n; v++) if (h[v] !== 0) pile.addGrains(v, h[v]);
+  };
+
   // Drop one grain on a uniformly random cell (not a sink cell). u is a
   // uniform random number in [0, 1).
   const ordinaryCells = [];
@@ -303,6 +309,15 @@ function newPile(options) {
   pile.round = function () {
     if (redo.length > 0) replay();
     else toppleStep(Array.from(unstable.subarray(0, unstableCount)));
+  };
+
+  // Topple cell v once, if it can (a click on it). It counts as one step,
+  // so Undo can take it back. Returns false if v has too few grains.
+  pile.toppleCell = function (v) {
+    if (isSink[v] || height[v] < threshold[v]) return false;
+    redo = [];
+    toppleStep([v]);
+    return true;
   };
 
   // Take back the last step (one topple, or one whole round). Returns
@@ -424,17 +439,18 @@ function newPile(options) {
 //                             in a ball, outward from the start)
 //   "random"  s.most          each cell uniform in 0, 1, ..., s.most
 //   "full"    s.height        every cell s.height
-//   "center"  s.grains        s.grains on the middle cell
+//   "center"  s.grains        s.grains on the middle cell (see centerCell)
 // random() gives uniform numbers in [0, 1) (only the kind "random" uses
-// it). Heights below 0 become 0.
-function startHeights(d, kind, s, random) {
+// it). "sinks" (optional) is the list of sink cells. Heights below 0
+// become 0.
+function startHeights(d, kind, s, random, sinks) {
   const h = new Int32Array(d.n);
   for (let v = 0; v < d.n; v++) {
     if (kind === "linear") h[v] = Math.max(0, s.value + v * s.slope);
     else if (kind === "random") h[v] = Math.floor(random() * (s.most + 1));
     else if (kind === "full") h[v] = s.height;
   }
-  if (kind === "center") h[middleCell(d)] = s.grains;
+  if (kind === "center") h[centerCell(d, sinks || [])] = s.grains;
   return h;
 }
 
@@ -454,6 +470,22 @@ function middleCell(d) {
   return best;
 }
 
+// Where the center pile goes: the middle cell, unless it is a sink cell
+// (a sink there would eat the whole pile). Then the top left cell: the
+// leftmost cell of the top row (in a ball, the first cell that isn't a
+// sink).
+function centerCell(d, sinks) {
+  const middle = middleCell(d);
+  if (!sinks.includes(middle)) return middle;
+  let best = -1;
+  for (let v = 0; v < d.n; v++) {
+    if (sinks.includes(v)) continue;
+    if (best === -1) { best = v; if (!d.x) break; }
+    else if (d.y[v] > d.y[best] || (d.y[v] === d.y[best] && d.x[v] < d.x[best])) best = v;
+  }
+  return best === -1 ? middle : best;
+}
+
 
 /* =====================================================================
    2. THE PILE IN A SECOND THREAD (for the sim page)
@@ -462,10 +494,13 @@ function middleCell(d) {
    pile, topples it, drops the storm's grains, and sends the heights back
    to the page (sandpiles.js), which draws them. The page talks to it
    with messages:
-     setup   a new pile: the domain, the start and the seed
+     setup   a new pile: the domain, the sink cells, the start and the seed
      play / pause, step, undo, jump (to the end)
-     settings   one-at-a-time or rounds, the speed, the storm
+     settings   one-at-a-time or rounds, the speed, the storm, "stay on"
      add     add (or remove) grains on one cell, for clicks
+     topple  topple one cell once, for clicks
+     sinks   new sink cells (the pile keeps its grains)
+     identity   add the identity to the pile
    Several "setup" messages in a row (a slider being dragged) are
    squashed into the last one, so the picture keeps up with the slider.
    ===================================================================== */
@@ -489,6 +524,12 @@ function pileWorker() {
   let storm = false;         // drop grains on random cells?
   let stormRate = 2;         // grains per second
   let stormWait = true;      // wait until the pile is stable before the next grain
+  let stayOn = false;        // keep playing when the pile is stable (so clicks topple at once)
+
+  // Whether the pile was changed since the start by anything but
+  // toppling (clicks, the storm, the identity, sinks). While it wasn't,
+  // the start "Identity", once stable, is the identity.
+  let touched = false;
 
   // The run loop.
   let playing = false, timer = null, lastTick = 0;
@@ -503,10 +544,21 @@ function pileWorker() {
   let avalancheBins = [];
   let avalancheCount = 0;
 
+  // The avalanches over time, for the page's picture of the pile turning
+  // critical: timeline[c] counts, like avalancheBins, the avalanches
+  // number c * timelineWidth up to (c + 1) * timelineWidth - 1. When there
+  // are MOST_COLUMNS columns, neighboring columns are merged two by two
+  // and each column gets twice as wide, so the list stays short.
+  const MOST_COLUMNS = 120;
+  let timeline = [], timelineWidth = 1;
+
   // "Recurrent?" is worked out when the pile is stable (see report).
   let recurrent = null, recurrentChecked = -Infinity, recurrentStale = true;
 
+  let last = null;           // the last setup message (its domain, threshold and sinks)
+
   function setup(message) {
+    last = message;
     run = message.run;
     const seed = String(message.seed);
     pile = newPile({ domain: message.domain, threshold: message.threshold, sinks: message.sinks });
@@ -517,12 +569,14 @@ function pileWorker() {
     const start = message.start;
     pile.setHeights(start.kind === "identity"
       ? pile.identityBeforeToppling() || new Int32Array(message.domain.n)   // (null: no sink, so no identity)
-      : startHeights(message.domain, start.kind, start, startRandom));
-    if (message.jump) pile.stabilize();
+      : startHeights(message.domain, start.kind, start, startRandom, message.sinks));
+    touched = false;
 
     avalancheFrom = null;
     avalancheBins = [];
     avalancheCount = 0;
+    timeline = [];
+    timelineWidth = 1;
     owedMoves = 0;
     owedGrains = 0;
     recurrentStale = true;
@@ -537,6 +591,21 @@ function pileWorker() {
     const b = size === 0 ? 0 : Math.floor(Math.log2(size)) + 1;
     while (avalancheBins.length <= b) avalancheBins.push(0);
     avalancheBins[b]++;
+    // ... and in the timeline.
+    if (Math.floor(avalancheCount / timelineWidth) >= MOST_COLUMNS) {
+      const merged = [];
+      for (let c = 0; c < timeline.length; c += 2) {
+        const sum = timeline[c].slice();
+        (timeline[c + 1] || []).forEach(function (count, k) { sum[k] = (sum[k] || 0) + count; });
+        merged.push(sum);
+      }
+      timeline = merged;
+      timelineWidth *= 2;
+    }
+    const c = Math.floor(avalancheCount / timelineWidth);
+    while (timeline.length <= c) timeline.push([]);
+    while (timeline[c].length <= b) timeline[c].push(0);
+    timeline[c][b]++;
     avalancheCount++;
     avalancheFrom = null;
   }
@@ -555,7 +624,7 @@ function pileWorker() {
   function dropOnce() {
     if (stormWait && !pile.isStable()) return false;
     pile.dropGrain(stormRandom());
-    recurrentStale = true;
+    recurrentStale = touched = true;
     if (stormWait) {
       avalancheFrom = pile.topples;
       endAvalanche();   // a grain that makes nothing topple: an avalanche of size 0
@@ -573,6 +642,7 @@ function pileWorker() {
     if (speed !== Infinity) owedMoves = Math.min(owedMoves + speed * seconds, Math.max(speed, 1));
     if (storm && stormRate !== Infinity) owedGrains = Math.min(owedGrains + stormRate * seconds, Math.max(stormRate, 1));
 
+    let changed = false;       // (staying on, a stable pile has nothing new to send)
     while (performance.now() < until) {
       let did = false;
       if (storm && (stormRate === Infinity || owedGrains >= 1)) {
@@ -582,11 +652,12 @@ function pileWorker() {
         if (toppleOnce()) { owedMoves = Math.max(owedMoves - 1, 0); did = true; }
       }
       if (!did) break;
+      changed = true;
     }
 
-    // Nothing more can ever happen: stable, and no storm.
-    if (pile.isStable() && !storm) stop();
-    report(false);
+    // Nothing more can happen: stable, no storm, and not told to stay on.
+    if (pile.isStable() && !storm && !stayOn) stop();
+    if (changed || !playing) report(false);
     if (playing) timer = setTimeout(tick, 10);
   }
 
@@ -624,7 +695,27 @@ function pileWorker() {
       canUndo: pile.canUndo(),
       avalancheBins: avalancheBins.slice(),
       avalancheCount: avalancheCount,
+      timeline: timeline,
+      timelineWidth: timelineWidth,
+      touched: touched,
     }, [heightCopy.buffer, odometerCopy.buffer]);   // hand the copies over instead of copying again
+  }
+
+  // New sink cells: a new pile on the same table, with the same grains
+  // (a cell that becomes a sink loses its grains to it) and the same
+  // counts. Undo starts over.
+  function changeSinks(sinks) {
+    const old = pile;
+    last.sinks = sinks;
+    pile = newPile({ domain: last.domain, threshold: last.threshold, sinks: sinks });
+    pile.setHeights(old.height);
+    pile.odometer.set(old.odometer);
+    pile.topples = old.topples;
+    pile.startGrains = old.startGrains;
+    pile.added = old.added;
+    pile.lost = old.lost + old.grains() - pile.grains();
+    avalancheFrom = null;
+    recurrentStale = touched = true;
   }
 
   self.onmessage = function (event) {
@@ -647,6 +738,7 @@ function pileWorker() {
       storm = message.storm;
       stormRate = message.stormRate;
       stormWait = message.stormWait;
+      stayOn = message.stayOn;
       if (!storm) avalancheFrom = null;
       return;
     }
@@ -677,10 +769,15 @@ function pileWorker() {
       endAvalanche();
       recurrentStale = true;
       report(true);
-    } else if (message.type === "add") {
-      pile.addGrains(message.cell, message.grains);
+    } else if (message.type === "add" || message.type === "topple" || message.type === "identity") {
+      if (message.type === "add") pile.addGrains(message.cell, message.grains);
+      else if (message.type === "topple") pile.toppleCell(message.cell);
+      else if (pile.hasSink) pile.addHeights(pile.identity());
       avalancheFrom = null;
-      recurrentStale = true;
+      recurrentStale = touched = true;
+      report(true);
+    } else if (message.type === "sinks") {
+      changeSinks(message.sinks);
       report(true);
     }
   };

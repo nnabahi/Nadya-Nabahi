@@ -4,7 +4,9 @@
    ---------------------------------------------------------------------
    THE MODEL (nadya's, as on the old site)
      S is a domain and T a tile shape, both typed as conditions in x and
-     y, e.g.  S: x^2 + y^2 <= 1,  T: max(|x|, |y|) <= 1. T is centered at
+     y, e.g.  S: x^2 + y^2 <= 1,  T: max(|x|, |y|) <= 1, or as an edge
+     curve (an equation like x^2 + y^2 = 1, or a curve (cos(t), sin(t));
+     the worker, section 8, turns those into conditions). T is centered at
      the origin. rT + C means "T scaled by r, then moved so its center
      is at C". For n = 1, 2, 3, ...
        - C_n is drawn from the density f on S (f = 1 means uniform),
@@ -788,7 +790,8 @@ function packingCore() {
      options:
        inS(x, y), inT(x, y)   true/false: the conditions for S and T
        density(x, y)          f (a number >= 0); leave out for uniform
-       window                 { xmin, xmax, ymin, ymax }: where S is looked for
+       window                 { xmin, xmax, ymin, ymax }: where S is looked for;
+                              leave out to use the box around S (findWindow)
        seed                   any text or number
        makeRandom(text)       returns a random-number function for that text
                               (seedrandom's alea)
@@ -798,7 +801,7 @@ function packingCore() {
      Returns facts about the shapes, for the page to show.
      =================================================================== */
   function setup(options) {
-    const win = options.window;
+    const win = options.window || findWindow(options.inS);
     inSW = function (x, y) {
       return x >= win.xmin && x <= win.xmax && y >= win.ymin && y <= win.ymax && Boolean(options.inS(x, y));
     };
@@ -816,7 +819,48 @@ function packingCore() {
       const s = segments[k];
       addObstacle(0, k, Math.min(s[0], s[2]), Math.max(s[0], s[2]), Math.min(s[1], s[3]), Math.max(s[1], s[3]));
     }
-    return { exactTiles, areaS, areaT, negativeF };
+    return { exactTiles, areaS, areaT, negativeF, window: win };
+  }
+
+  // The window when none is given: the smallest box around S, plus a
+  // margin of 2.5% of its longer side all around. S is first looked
+  // for on a grid over -1000 <= x, y <= 1000, then (if no grid point
+  // hit it) over ever smaller squares around (0, 0). Then each next
+  // look is a grid over the box around what was found, one grid step
+  // bigger on every side, so the box closes in on S's true edges.
+  const LOOK = 200;                 // grid squares across, per look
+  function findWindow(inS) {
+    let box = null;
+    for (const B of [1000, 10, 0.1]) {
+      box = lookFor(inS, -B, B, -B, B);
+      if (box) break;
+    }
+    if (!box) throw new Error("S is empty: no point of it was found.");
+    if (box.touches) throw new Error("S has to be bounded, and fit inside -1000 < x, y < 1000.");
+    for (let pass = 0; pass < 3; pass++) {
+      box = lookFor(inS, box.xmin - box.step, box.xmax + box.step, box.ymin - box.step, box.ymax + box.step) || box;
+    }
+    const margin = 0.025 * Math.max(box.xmax - box.xmin, box.ymax - box.ymin);
+    return { xmin: box.xmin - margin, xmax: box.xmax + margin, ymin: box.ymin - margin, ymax: box.ymax + margin };
+  }
+
+  // The smallest box around the grid points in S, on a LOOK x LOOK grid
+  // over [xa, xb] x [ya, yb] (null if none), its grid step, and whether
+  // S touches the grid's outer ring.
+  function lookFor(inS, xa, xb, ya, yb) {
+    const dx = (xb - xa) / LOOK, dy = (yb - ya) / LOOK;
+    let box = null;
+    for (let j = 0; j <= LOOK; j++) {
+      for (let i = 0; i <= LOOK; i++) {
+        const x = xa + i * dx, y = ya + j * dy;
+        if (!inS(x, y)) continue;
+        if (!box) box = { xmin: x, xmax: x, ymin: y, ymax: y, step: Math.max(dx, dy), touches: false };
+        box.xmin = Math.min(box.xmin, x); box.xmax = Math.max(box.xmax, x);
+        box.ymin = Math.min(box.ymin, y); box.ymax = Math.max(box.ymax, y);
+        if (i === 0 || j === 0 || i === LOOK || j === LOOK) box.touches = true;
+      }
+    }
+    return box;
   }
 
   return {
@@ -838,9 +882,10 @@ function packingCore() {
    the page. They talk by messages:
 
    page -> worker
-     { type: "setup", run, S, T, f, values, window, seed, clicks, target }
+     { type: "setup", run, S, T, f, values, seed, clicks, target }
          S, T, f: the typed formulas, already tidied by readTree (in
-         js/formulas.js) and written out with every "*" shown; values:
+         js/formulas.js) and written out with every "*" shown (S or T
+         can also be a curve { x, y }, both formulas in t); values:
          the sliders, e.g. { s: 0.5 }; clicks: the centers you clicked
          ({ n: [x, y] }). Starts again from no tiles, and works until
          "target" attempts are done.
@@ -849,7 +894,8 @@ function packingCore() {
                                       (only if exactly "at" are done)
    worker -> page
      { type: "ready", run, info, segments, shapeX, shapeY }
-         after a setup: facts about S and T, the edge of S (4 numbers
+         after a setup: facts about S and T (info.window is the box
+         around S, which the picture shows), the edge of S (4 numbers
          per segment) and T's polygon (128 corners), for drawing.
      { type: "clicked", run, placed, ready, x, y, at }   did the clicked tile fit?
      { type: "tiles", run, attempts, ceilingMisses, cx, cy, r, parent, generation, attempt }
@@ -869,12 +915,34 @@ function packingWorker() {
 
   let core = null, run = 0, target = 0, sent = 0, working = false;
 
-  // A typed condition (S or T) as a function of (x, y) that gives
-  // true or false. A point where the formula can't be worked out (say
-  // sqrt of a negative number) counts as outside.
-  function condition(text, values, name) {
-    const formula = math.compile(text);
+  // A typed shape (S or T) as a function of (x, y) that gives true or
+  // false. It comes in three kinds:
+  //   a condition, like x^2 + y^2 <= 1: the points where it holds;
+  //   an equation, like x^2 + y^2 = 1: the region its curve closes
+  //     off. "F = G" becomes F - G <= 0 or F - G >= 0, whichever side
+  //     far-off points (the corners of the square -2000 <= x, y <= 2000)
+  //     are NOT on;
+  //   a curve { x, y } in t, like (cos(t), sin(t)): the points inside it
+  //     (insideCurve).
+  // A point where the formula can't be worked out (say sqrt of a
+  // negative number) counts as outside.
+  function readShape(text, values, name) {
+    if (typeof text === "object") return insideCurve(text, values, name);
+    let node = math.parse(text);
+    while (node.isParenthesisNode) node = node.content;
     const scope = Object.assign({}, values);
+    if (node.isOperatorNode && node.fn === "equal") {
+      const gap = new math.OperatorNode("-", "subtract", node.args).compile();
+      const gapAt = function (x, y) {
+        scope.x = x; scope.y = y;
+        try { const v = gap.evaluate(scope); return typeof v === "number" ? v : NaN; } catch (error) { return NaN; }
+      };
+      let farSign = 0;
+      for (const [x, y] of [[2000, 2000], [-2000, 2000], [-2000, -2000], [2000, -2000]]) farSign += Math.sign(gapAt(x, y)) || 0;
+      if (farSign === 0) throw new Error(name + "'s curve doesn't close off a region (its inside and outside can't be told apart).");
+      return function (x, y) { return gapAt(x, y) * farSign <= 0; };
+    }
+    const formula = node.compile();
     function test(x, y) {
       scope.x = x; scope.y = y;
       try { return formula.evaluate(scope) === true; } catch (error) { return false; }
@@ -882,9 +950,54 @@ function packingWorker() {
     scope.x = 0; scope.y = 0;
     const sample = formula.evaluate(scope);
     if (sample !== true && sample !== false) {
-      throw new Error(name + " should be a condition (true or false), like x^2 + y^2 <= 1.");
+      throw new Error(name + " should be a condition like x^2 + y^2 <= 1, an equation like x^2 + y^2 = 1, " +
+                      "or a curve like (cos(t), sin(t)).");
     }
     return test;
+  }
+
+  // The inside of a curve (x(t), y(t)), t from 0 to 2π. The curve
+  // becomes a polygon with 4096 corners, and a point is inside when a
+  // ray from it to the right crosses the polygon an odd number of times.
+  // To keep that quick, the polygon's edges are sorted into 256
+  // horizontal strips, and a point only looks at the edges of its strip.
+  function insideCurve(curve, values, name) {
+    const fx = math.compile(curve.x), fy = math.compile(curve.y);
+    const scope = Object.assign({}, values), CORNERS = 4096, STRIPS = 256, cx = [], cy = [];
+    for (let k = 0; k < CORNERS; k++) {
+      scope.t = 2 * Math.PI * k / CORNERS;
+      let x = NaN, y = NaN;
+      try { x = fx.evaluate(scope); y = fy.evaluate(scope); } catch (error) { /* skip this t */ }
+      if (Number.isFinite(x) && Number.isFinite(y)) { cx.push(x); cy.push(y); }
+    }
+    if (cx.length < 3) throw new Error(name + "'s curve should give two numbers for each t, like (cos(t), sin(t)).");
+    const low = Math.min(...cy), high = Math.max(...cy), height = (high - low) / STRIPS || 1;
+    const stripOf = function (y) { return Math.min(STRIPS - 1, Math.floor((y - low) / height)); };
+    const strips = Array.from({ length: STRIPS }, function () { return []; });
+    for (let i = 0, j = cx.length - 1; i < cx.length; j = i++) {
+      for (let s = stripOf(Math.min(cy[i], cy[j])); s <= stripOf(Math.max(cy[i], cy[j])); s++) strips[s].push(i, j);
+    }
+    return function (x, y) {
+      if (!(y >= low && y <= high)) return false;
+      const edges = strips[stripOf(y)];
+      let inside = false;
+      for (let e = 0; e < edges.length; e += 2) {
+        const i = edges[e], j = edges[e + 1];
+        if ((cy[i] > y) !== (cy[j] > y) && x < (cx[j] - cx[i]) * (y - cy[i]) / (cy[j] - cy[i]) + cx[i]) inside = !inside;
+      }
+      return inside;
+    };
+  }
+
+  // The window depends only on S and its own sliders, so it is kept
+  // between setups: dragging a slider of T or f doesn't look for S again.
+  let lastWindow = { key: "", window: null };
+  function windowKey(S, values) {
+    const texts = typeof S === "object" ? [S.x, S.y] : [S];
+    const letters = new Set(texts.flatMap(function (text) {
+      return math.parse(text).filter(function (n) { return n.isSymbolNode; }).map(function (n) { return n.name; });
+    }));
+    return JSON.stringify([S, [...letters].sort().map(function (letter) { return values[letter]; })]);
   }
 
   // The density f as a function of (x, y) that gives a number (NaN where
@@ -933,16 +1046,18 @@ function packingWorker() {
       core = null;
       try {
         const packing = packingCore();
+        const key = windowKey(m.S, m.values);
         const info = packing.setup({
-          inS: condition(m.S, m.values, "S"),
-          inT: condition(m.T, m.values, "T"),
+          inS: readShape(m.S, m.values, "S"),
+          inT: readShape(m.T, m.values, "T"),
           density: number(m.f, m.values),
-          window: m.window,
+          window: key === lastWindow.key ? lastWindow.window : undefined,
           seed: m.seed,
           makeRandom: alea,
           clicks: m.clicks,
         });
         core = packing;
+        lastWindow = { key: key, window: info.window };
         // T's polygon, 128 of its corners, for drawing.
         const shape = packing.shape, shapeX = [], shapeY = [];
         for (let k = 0; k < shape.px.length; k += shape.px.length / 128) { shapeX.push(shape.px[k]); shapeY.push(shape.py[k]); }

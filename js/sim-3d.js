@@ -77,7 +77,7 @@ const CAMERA_ANGLE = 35;
 
 // Make a 3D picture filling the element "box" (a <div> on the page),
 // "height" screen pixels tall and as wide as the box. Returns the
-// "view3d", which drawStacks draws into.
+// "view3d", which drawStacks and drawSurface draw into.
 export function make3DView(box, height) {
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
   renderer.setPixelRatio(window.devicePixelRatio || 1);   // sharp on sharp screens
@@ -95,7 +95,7 @@ export function make3DView(box, height) {
   scene.add(sun);
 
   // Everything that gets drawn goes in "world", which is shrunk to fit
-  // the picture (see drawStacks).
+  // the picture (see fitWorld).
   const world = new THREE.Group();
   scene.add(world);
 
@@ -433,11 +433,11 @@ export function drawSurface(view3d, surface) {
   // their middles on the surface.
   const balls = surface.balls, count = balls.x.length;
   const ballMesh = useMesh(view3d, "balls", "balls", count);
-  const ballColor = toThree(surface.ballColor), across = Math.max(0.6, n / 60);
+  const ballColor = toThree(surface.ballColor), diameter = Math.max(0.6, n / 60);
   const path = new Float32Array(3 * count);
   for (let i = 0; i < count; i++) {
     const h = balls.height[i] * top;
-    placeCopy(ballMesh, i, balls.x[i], h - across / 2, -balls.y[i], across, across, ballColor);
+    placeCopy(ballMesh, i, balls.x[i], h - diameter / 2, -balls.y[i], diameter, diameter, ballColor);
     path.set([balls.x[i], h, -balls.y[i]], 3 * i);
   }
   ballMesh.instanceMatrix.needsUpdate = ballMesh.instanceColor.needsUpdate = true;
@@ -449,7 +449,7 @@ export function drawSurface(view3d, surface) {
   view3d.ballLine.geometry.dispose();
   view3d.ballLine.geometry = new THREE.BufferGeometry();
   view3d.ballLine.geometry.setAttribute("position", new THREE.BufferAttribute(path, 3));
-  view3d.ballLine.material.color.setRGB(ballColor[0], ballColor[1], ballColor[2]);   // already linear
+  view3d.ballLine.material.color.setRGB(...ballColor);   // already linear
 
   // The floor: one flat box under the grid, with the lines on it.
   const floor = { xmin: 0, xmax: n - 1, ymin: 0, ymax: n - 1 };

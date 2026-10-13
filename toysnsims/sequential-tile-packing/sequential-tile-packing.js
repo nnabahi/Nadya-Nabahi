@@ -25,20 +25,23 @@
 /* =====================================================================
    1. THE STARTING SHAPES (PRESETS)
    ---------------------------------------------------------------------
-   Each preset fills in the three formulas, the window and (if it has
-   any) sliders. Formulas are written the way you'd type them.
+   Each preset fills in the three formulas and (if it has any) sliders.
+   Formulas are written the way you'd type them. The picture always
+   starts out showing all of S (the worker finds the box around it).
    ===================================================================== */
 const UNIT_SQUARE = "max(abs(x), abs(y)) <= 1";
 const UNIT_DISK = "x^2 + y^2 <= 1";
-const UNIT_WINDOW = [-1.05, 1.05, -1.05, 1.05];   // xmin, xmax, ymin, ymax
 const PRESETS = {
-  "gasket":          { S: UNIT_DISK, T: UNIT_DISK, f: "1", window: UNIT_WINDOW },
-  "s-model":         { S: UNIT_DISK, T: UNIT_DISK, f: "(x^2 + y^2)^((1/s - 2)/2)", window: UNIT_WINDOW,
+  "gasket":          { S: UNIT_DISK, T: UNIT_DISK, f: "1" },
+  "s-model":         { S: UNIT_DISK, T: UNIT_DISK, f: "(x^2 + y^2)^((1/s - 2)/2)",
                        sliders: { s: { value: 0.5, min: 0.05, max: 3, step: 0.05 } } },
-  "squares":         { S: UNIT_SQUARE, T: UNIT_SQUARE, f: "1", window: UNIT_WINDOW },
-  "disks-in-square": { S: UNIT_SQUARE, T: UNIT_DISK, f: "1", window: UNIT_WINDOW },
-  "stars":           { S: "(x^2 + y^2 - 0.8)^3 - x^2 y^3 <= 0", T: "sqrt(x^2 + y^2) <= 0.6 + 0.3 cos(5 atan2(y, x))",
-                       f: "1", window: [-1.3, 1.3, -1.3, 1.3] },
+  "squares":         { S: UNIT_SQUARE, T: UNIT_SQUARE, f: "1" },
+  "disks-in-square": { S: UNIT_SQUARE, T: UNIT_DISK, f: "1" },
+  // The star: s is how deep its arms are cut (above 1 they come apart),
+  // h how many arms it has.
+  "stars":           { S: "(x^2 + y^2 - 0.8)^3 - x^2 y^3 <= 0", T: "sqrt(x^2 + y^2) <= 1 + s cos(h atan2(y, x))",
+                       f: "1", sliders: { s: { value: 0.5, min: 0, max: 2, step: 0.01 },
+                                          h: { value: 5, min: 0, max: 12, step: 1 } } },
 };
 
 // Play speeds, in attempts per second. The sim starts paused, at 10.
@@ -62,7 +65,7 @@ let clicks = {};              // attempt n -> [x, y]: centers you clicked (secti
 
 let sliders = {};             // letter -> { value, min, max, step }
 let formulas = null;          // the three formulas, ready for the worker: { S, T, f }
-let windowBox = { xmin: -1.05, xmax: 1.05, ymin: -1.05, ymax: 1.05 };
+let windowBox = { xmin: -1.05, xmax: 1.05, ymin: -1.05, ymax: 1.05 };   // the box around S, from the worker
 
 // What the worker sent back.
 let info = null;              // facts about S and T (area, convex and symmetric, ...)
@@ -89,34 +92,51 @@ let speed = START_SPEED;
    3. READING THE FORMULAS, WITH SLIDERS
    ---------------------------------------------------------------------
    Each formula is read by readTree (js/formulas.js): "=" means equals
-   and "xy" means x times y, as in Desmos. Every letter other than x
-   and y gets a slider (shared by all three formulas). The typeset
+   and "xy" means x times y, as in Desmos. S and T can each be
+     a condition    x^2 + y^2 <= 1     the points where it holds,
+     an equation    x^2 + y^2 = 1      the region its curve closes off,
+     a curve        (cos(t), sin(t))   the inside of the curve traced as
+                                       t runs from 0 to 2π.
+   (The worker, sequential-tile-packing-growth.js section 8, turns each
+   into a test of points.) Every letter other than x and y (and t in a
+   curve) gets a slider, shared by all three formulas. The typeset
    preview comes from KaTeX.
    ===================================================================== */
 const FORMULA_NAMES = ["S", "T", "f"];
 
+// If S or T is typed as a curve "(x(t), y(t))", its two halves; else null.
+function curveHalves(name, text) {
+  if (name === "f" || !/^\(.*\)$/s.test(text)) return null;
+  const halves = splitOutside(text.slice(1, -1), ",");   // js/formulas.js
+  return halves.length === 2 ? halves : null;
+}
+
 function readFormulas() {
-  const trees = {};
+  const trees = {};      // name -> [tree], or [x tree, y tree] for a curve
   for (const name of FORMULA_NAMES) {
     const text = byId("formula-" + name).value.trim();
     try {
       if (text === "") throw new Error("it is empty.");
-      trees[name] = readTree(text);
+      trees[name] = (curveHalves(name, text) || [text]).map(readTree);
     } catch (problem) {
       // Usually just a half-typed formula: keep the last good packing.
       byId("formula-message").textContent = "Can't read " + name + " yet: " + problem.message;
       return;
     }
     if (window.katex) {
-      katex.render(trees[name].toTex({ parenthesis: "keep", implicit: "hide" }), byId("preview-" + name),
+      const tex = trees[name].map(formulaTex);
+      katex.render(tex.length === 2 ? "\\left(" + tex.join(",\\ ") + "\\right)" : tex[0], byId("preview-" + name),
                    { throwOnError: false });
     }
   }
   byId("formula-message").textContent = "";
 
   // One slider per letter, in the order the letters first appear (a Set
-  // keeps that order, and each letter once).
-  const letters = new Set(FORMULA_NAMES.flatMap(function (name) { return sliderLetters(trees[name]); }));
+  // keeps that order, and each letter once). A curve's t gets none.
+  const letters = new Set(FORMULA_NAMES.flatMap(function (name) {
+    const curve = trees[name].length === 2;
+    return trees[name].flatMap(sliderLetters).filter(function (letter) { return !(curve && letter === "t"); });
+  }));
   const holder = byId("sliders");
   holder.innerHTML = "";
   for (const letter of letters) {
@@ -125,22 +145,23 @@ function readFormulas() {
   }
 
   // The worker gets each formula written out with every "*" shown, so it
-  // reads exactly what the preview shows.
+  // reads exactly what the preview shows (a curve as { x, y }).
   formulas = {};
-  for (const name of FORMULA_NAMES) formulas[name] = trees[name].toString({ implicit: "show" });
+  for (const name of FORMULA_NAMES) {
+    const written = trees[name].map(function (tree) { return tree.toString({ implicit: "show" }); });
+    formulas[name] = written.length === 2 ? { x: written[0], y: written[1] } : written[0];
+  }
   sendSetup();
 }
 
-// Fill in a preset's formulas, window and sliders.
+// Fill in a preset's formulas and sliders.
 function usePreset(key) {
   const p = PRESETS[key];
   clicks = {};
   byId("formula-S").value = p.S;
   byId("formula-T").value = p.T;
   byId("formula-f").value = p.f;
-  [windowBox.xmin, windowBox.xmax, windowBox.ymin, windowBox.ymax] = p.window;
   resetZoom();
-  showWindow();
   for (const letter in p.sliders || {}) sliders[letter] = Object.assign({}, p.sliders[letter]);
   readFormulas();
 }
@@ -172,24 +193,6 @@ function drawPreview() {
       p.setTransform(k, 0, 0, -k, size / 2, size / 2);
       p.fill(tileShape);
     }
-  }
-}
-
-function showWindow() {
-  byId("window-xmin").value = windowBox.xmin; byId("window-xmax").value = windowBox.xmax;
-  byId("window-ymin").value = windowBox.ymin; byId("window-ymax").value = windowBox.ymax;
-}
-
-// Read the window boxes; keep the old window if they don't make sense.
-function readWindow() {
-  const box = {};
-  for (const side of ["xmin", "xmax", "ymin", "ymax"]) box[side] = Number(byId("window-" + side).value);
-  if (Object.values(box).every(isFinite) && box.xmin < box.xmax && box.ymin < box.ymax) {
-    windowBox = box;
-    resetZoom();
-    sendSetup();
-  } else {
-    byId("formula-message").textContent = "The window needs x from < x to, and y from < y to.";
   }
 }
 
@@ -234,7 +237,7 @@ function sendSetup() {
   for (const letter in sliders) values[letter] = sliders[letter].value;
   worker.postMessage({
     type: "setup", run: run, S: formulas.S, T: formulas.T, f: formulas.f, values: values,
-    window: windowBox, seed: byId("seed").value, clicks: clicks, target: wanted,
+    seed: byId("seed").value, clicks: clicks, target: wanted,
   });
 }
 
@@ -247,6 +250,8 @@ function fromWorker(event) {
     setupDone();
   } else if (m.type === "ready") {
     info = m.info;
+    // A new S: show all of it again (a new T or f keeps your view).
+    if (JSON.stringify(info.window) !== JSON.stringify(windowBox)) { windowBox = info.window; resetZoom(); }
     segments = m.segments;
     shapeX = m.shapeX; shapeY = m.shapeY;
     shapeReach = Math.max(...shapeX.map(function (x, k) { return Math.hypot(x, shapeY[k]); }));
@@ -342,9 +347,11 @@ function setPlaying(on) {
    6b), or the page is resized. Each tile is T's polygon, scaled by R
    and moved to C.
 
-   Zoomed in, the picture shows a smaller part of the window, around the
-   point "look" (in x and y), "zoom" times bigger. Zoom 1 with "look" at
-   the middle of the window shows the whole window, as at the start.
+   The window is the box around S, found by the worker. Zoomed in, the
+   picture shows a smaller part of it, around the point "look" (in x
+   and y), "zoom" times bigger; zoomed out (zoom below 1), more. Zoom 1
+   with "look" at the middle of the window shows all of S, as at the
+   start.
    Tiles smaller than a pixel are skipped, so zooming in shows tiles
    that were too small to see before.
    ===================================================================== */
@@ -447,7 +454,7 @@ window.addEventListener("resize", drawAll);
    As in the other sims (and like a graph in Desmos):
      drag                         move it
      mouse wheel, or pinch        zoom in or out, around the pointer
-     the + / − / Reset buttons    zoom in, zoom out, show the whole window
+     the + / − / Reset buttons    zoom in, zoom out, show all of S again
      click (without dragging)     add a tile there (section 8b)
    The cell sims share this in js/sim-view.js; this sim draws shapes
    instead of cells, so it has its own short version. Each move or zoom
@@ -455,26 +462,26 @@ window.addEventListener("resize", drawAll);
    ("Pointer" events cover the mouse, a pen and fingers alike.)
    ===================================================================== */
 const MAX_ZOOM = 1e6;          // a million times closer: deep into the small tiles
+const MIN_ZOOM = 0.1;          // ten times farther out
 const ZOOM_STEP = 1.5;         // one click on + or −
 const pointers = new Map();    // the pointers pressed on the picture: id -> {x, y}
 const redrawSoon = oncePerFrame(drawAll);
 
-// Back to the whole window (also when the window changes).
+// Back to all of S (also when S changes).
 function resetZoom() {
   zoom = 1;
   look = { x: (windowBox.xmin + windowBox.xmax) / 2, y: (windowBox.ymin + windowBox.ymax) / 2 };
 }
 
 // Zoom by "factor" around the canvas pixel (px, py): the point under it
-// stays under it. Zoom stays between 1 (the whole window) and MAX_ZOOM.
+// stays under it. Zoom stays between MIN_ZOOM and MAX_ZOOM.
 function zoomAround(factor, px, py) {
   const x = pointX(px), y = pointY(py);
-  const newZoom = Math.min(Math.max(zoom * factor, 1), MAX_ZOOM);
+  const newZoom = Math.min(Math.max(zoom * factor, MIN_ZOOM), MAX_ZOOM);
   scale *= newZoom / zoom;
   zoom = newZoom;
   look.x = x - (px - simCanvas.width / 2) / scale;
   look.y = y + (py - simCanvas.height / 2) / scale;
-  if (zoom === 1) resetZoom();
   redrawSoon();
 }
 
@@ -511,12 +518,10 @@ simCanvas.addEventListener("pointermove", function (event) {
   const before = middleOfPointers();
   pointers.set(event.pointerId, canvasSpot(event));
   const after = middleOfPointers();
-  if (zoom > 1) {
-    look.x -= (after.x - before.x) / scale;
-    look.y += (after.y - before.y) / scale;
-  }
+  look.x -= (after.x - before.x) / scale;
+  look.y += (after.y - before.y) / scale;
   if (pointers.size >= 2 && before.apart > 0) zoomAround(after.apart / before.apart, after.x, after.y);
-  else if (zoom > 1) redrawSoon();          // at zoom 1 the whole window shows: nothing to move
+  else redrawSoon();
 });
 function releasePointer(event) {
   // A click: one pointer that went up close to where it went down.
@@ -760,7 +765,6 @@ for (const name of FORMULA_NAMES) {
     readFormulas();
   });
 }
-for (const side of ["xmin", "xmax", "ymin", "ymax"]) byId("window-" + side).addEventListener("change", readWindow);
 
 byId("set-attempts").addEventListener("change", function () { setWanted(Number(byId("set-attempts").value) || 0); });
 byId("attempts-slider").addEventListener("input", function () {

@@ -13,7 +13,9 @@
        (pileWorker in sandpiles-pile.js), which runs in a second thread
        (a "Web Worker"), and draws every pile it sends back, with the
        statistics.
-     - Clicking a cell adds a grain, removes one, or shows its numbers.
+     - Clicking a cell adds a grain, removes one, topples it, makes it a
+       sink cell (or a normal cell again), or shows its numbers.
+     - Shows the pile from above, or in 3D (js/sim-3d.js).
    Small helpers used by every sim page (byId, showMessage, ...) are in
    js/sim-page.js, the charts in js/sim-charts.js, and moving and
    zooming the picture in js/sim-view.js.
@@ -24,6 +26,7 @@
      3. Colors
      4. Running the pile
      5. Drawing the pile
+     5b. The 3D view
      6. Clicking, dragging and zooming
      7. Statistics
      8. Custom domains: the graph tool inside this page
@@ -38,7 +41,7 @@
 // The default: nadya's Python, a center pile of 64 grains on a 25 x 25 box.
 const DEFAULTS = {
   width: 25, height: 25, neighbors: 4, seed: "1",
-  start: "center", grains: 64, most: 3, full: 3, value: 0, slope: 1,
+  start: "center", grains: 64, most: 3, full: 4, value: 0, slope: 1,
 };
 
 const MAX_SIDE = 300;             // the biggest box or torus is 300 x 300
@@ -51,6 +54,7 @@ const OUTSIDE = "#ecebe7";        // around a custom domain (cells not on the ta
 const SINK = "#555555";           // the sink cell
 const NUMBER_MIN_CELL = 16;       // cells at least this big (in pixels) show their number
 const PAD = 2;                    // room above and below the picture
+const HEIGHT_BARS = 8;            // "Cells of each height": bars 0 to 7, then "8+"
 
 // Hyperbolic plane or tree: the ball's default radius R, its largest
 // R, and the most cells it may have (a ball of a hyperbolic tiling grows
@@ -75,7 +79,7 @@ const DEFAULT_STORM_RATE = 2;
 let domainKind = "box";         // "box", "torus", "custom" or "graph": the table in use
 let domain = null;              // the table's graph (js/sim-domains.js), or a ball (makeBall, js/sim-hyperbolic.js)
 let neighbors = 4;              // 4 or 8 (p on a tiling {p,q} or a tree): also the number of grains that makes a cell topple
-let sinks = [];                 // the sink cell, if any (a list of 0 or 1 cells)
+let sinks = [];                 // the sink cells, made by clicking (none at the start)
 let customDomain = null;        // the last custom domain drawn, if any
 let customNeighbors = 4;        // the graph tool's neighbors for it
 
@@ -89,6 +93,7 @@ let speed = DEFAULT_SPEED;
 let stormRate = DEFAULT_STORM_RATE;
 let run = 0;                    // counts restarts, so leftovers from an older run are ignored
 let playId = 0;                 // counts presses of Play and Pause (see section 4)
+let show3D = false;             // the 3D view instead of the view from above (section 5b)
 
 // The latest message from the pile: the heights, the topples at every
 // cell, and the numbers (see report() in sandpiles-pile.js).
@@ -195,7 +200,7 @@ function textColorOn(rgb) {
    startWorker (js/sim-page.js) runs it in a second thread, a "Web
    Worker", so the page never freezes, with the toppling rule copied in.
    ===================================================================== */
-const worker = startWorker(pileWorker, [newPile, startHeights, middleCell]);
+const worker = startWorker(pileWorker, [newPile, startHeights, middleCell, centerCell]);
 
 worker.onmessage = function (event) {
   const message = event.data;
@@ -224,20 +229,18 @@ function startSettings() {
   };
 }
 
-// Start again from the start, with the current table, settings and seed.
-// "jump": topple to the end at once (otherwise only if the box
-// "Jump to the end whenever a setting changes" is ticked). (So buttons
-// and boxes call restart() inside a function of their own: given
-// straight to them, it would get their event as "jump".)
-function restart(jump) {
+// Start again from the start, with the current table, sink cells,
+// settings and seed. It pauses: press Play to watch it topple.
+function restart() {
   run++;
   latest = null;
+  if (playing) setPlaying(false);
   showMessage("");
+  lastNote = "";
   worker.postMessage({
     type: "setup", run: run,
     domain: domain, threshold: neighbors, sinks: sinks,
     start: startSettings(), seed: byId("seed").value,
-    jump: Boolean(jump) || byId("auto-jump").checked,
   });
 }
 
@@ -250,6 +253,7 @@ function sendSettings() {
     storm: byId("storm").checked,
     stormRate: stormRate,
     stormWait: byId("storm-wait").checked,
+    stayOn: byId("stay-on").checked,
   });
 }
 
@@ -302,7 +306,7 @@ const view = makeView(simCanvas, drawSoon, PAD, 4);
 const disk = makeDiskView(simCanvas, view, showDomainChoice);
 
 function drawPile() {
-  if (!domain || !latest || simCanvas.hidden) return;
+  if (!domain || !latest || tool.isOpen) return;
   const d = domain, heights = latest.heights, odometer = latest.odometer;
   const showTopples = checked("show") === "topples";
   let mostTopples = 0;
@@ -313,6 +317,7 @@ function drawPile() {
   // color, as [r, g, b].
   const valueOf = function (v) { return showTopples ? odometer[v] : heights[v]; };
   const rgbOf = function (v) { return showTopples ? colorOfTopples(odometer[v], mostTopples) : colorOfHeight(heights[v]); };
+  if (show3D) { draw3D(valueOf, showTopples); return; }
   if (domainKind === "graph") { drawOnGraph(valueOf, rgbOf); return; }
 
   // The picture's box: as big as fits the width (and at most
@@ -374,7 +379,7 @@ function drawPile() {
 // big enough. (drawBall, js/sim-hyperbolic.js, draws the ball; the tree
 // spread out is drawn here, so that white cells stay white, not gray.)
 function drawOnGraph(valueOf, rgbOf) {
-  const colorOf = function (v) { return rgbToHex(rgbOf(v)); };
+  const colorOf = function (v) { return sinks.includes(v) ? SINK : rgbToHex(rgbOf(v)); };
   const pen = disk.picture === "spread"
     ? drawSpreadTree(disk, pictureHeight(BALL_HEIGHT), domain.n,
         function (v) { return domain.depth[v]; }, function (v) { return domain.angle[v]; }, colorOf)
@@ -388,21 +393,129 @@ function drawOnGraph(valueOf, rgbOf) {
     const spot = ballSpot(disk, domain, v);    // where cell v is on the screen, and about how big
     if (spot === null) continue;
     const x = spot.x, y = spot.y, size = 2 * spot.size;
-    if (size < NUMBER_MIN_CELL || x < 0 || y < 0 || x > disk.box.width || y > disk.box.height) continue;
+    if (size < NUMBER_MIN_CELL || x < 0 || y < 0 || x > disk.box.width || y > disk.box.height || sinks.includes(v)) continue;
     pen.font = Math.round(Math.min(size * 0.45, 28)) + "px sans-serif";
     pen.fillStyle = textColorOn(rgbOf(v));
     pen.fillText(String(valueOf(v)), x, y + 1);
   }
 }
 
-window.addEventListener("resize", drawSoon);
+// After the window changes size, or the picture opens or closes as a
+// full screen popup (js/sim-page.js): draw again at the new size, in 3D too.
+window.addEventListener("resize", function () {
+  if (view3d) sim3d.setHeight(view3d, pictureHeight(BALL_HEIGHT));
+  drawSoon();
+});
+
+
+/* =====================================================================
+   5b. THE 3D VIEW
+   ---------------------------------------------------------------------
+   The View option "3D" stands a stack of blocks on each cell, one block
+   per grain (or per topple, with "Topples so far"), colored from the
+   bottom up with the same colors as the view from above. Sink cells
+   are left out, so they show as holes in the floor. On a hyperbolic
+   tiling or a tree, the disk is the floor, and each stack is a pile of
+   coins as wide as its cell, as in the Eden Mountain. The 3D code is
+   shared, in js/sim-3d.js; it loads the 3D library three.js from the
+   internet the first time 3D is switched on.
+
+   Heights are rescaled to the tallest stack: it is always a quarter as
+   tall as the table is wide, so a pile of 3 grains and one of 3,000
+   both fill the picture.
+   ===================================================================== */
+let sim3d = null;            // the 3D code, once loaded (js/sim-3d.js)
+let view3d = null;           // the 3D picture
+let loading3D = false;       // start3D has begun (false again if loading fails)
+
+// Which picture shows: the view from above, the 3D view, or neither
+// while the graph tool is open.
+function showPictureKind() {
+  simCanvas.hidden = tool.isOpen || show3D;
+  byId("sim-3d").hidden = byId("view3d-buttons").hidden = tool.isOpen || !show3D;
+  byId("view3d-help").hidden = !show3D;
+  showZoomButtons(view);
+  if (show3D && !view3d) start3D();
+  drawSoon();
+}
+
+// Load the 3D code (the first time only) and make the 3D picture.
+async function start3D() {
+  if (loading3D) return;
+  loading3D = true;
+  showMessage("Loading the 3D view...");
+  try {
+    // The path is counted from this .js file (toysnsims/sandpiles/), not the page.
+    sim3d = await import("../../js/sim-3d.js");
+  } catch (error) {
+    loading3D = false;
+    show3D = false;
+    document.querySelector('input[name="view"][value="flat"]').checked = true;
+    showPictureKind();
+    showMessage("The 3D view couldn't load. It needs the library three.js from the " +
+                "internet, so check the connection and try again.");
+    return;
+  }
+  view3d = sim3d.make3DView(byId("sim-3d"), pictureHeight(BALL_HEIGHT));
+  showMessage("");
+  drawSoon();
+}
+
+// The stacks: valueOf(v) blocks on cell v (sink cells left out).
+function draw3D(valueOf, showTopples) {
+  if (!view3d) return;
+  const d = domain, x = [], y = [], height = [], width = [];
+  let floor, across;
+  if (domainKind === "graph") {
+    // Each cell where the disk picture puts it, as wide as it looks
+    // there (the start cell, in the middle, is 1 wide; on a tree a bit
+    // over half as wide, so the stacks don't touch).
+    const unit = 1 / (2 * diskShape(disk).middle);
+    const thinner = isTree(disk.spec) ? 0.6 : 1;
+    for (let v = 0; v < d.n; v++) {
+      if (sinks.includes(v)) continue;
+      const [mx, my] = motionApply(seenFrom(disk, ballPlace(d, v)), 0, 0);
+      const w = 1 - mx * mx - my * my;         // how much smaller than the start cell it looks
+      if (w < 0.004) continue;                 // too small to see
+      x.push(mx * unit); y.push(my * unit); height.push(valueOf(v)); width.push(thinner * w);
+    }
+    floor = { disk: unit };
+    across = 2 * unit;
+  } else {
+    for (let v = 0; v < d.n; v++) {
+      if (sinks.includes(v)) continue;
+      x.push(d.x[v]); y.push(d.y[v]); height.push(valueOf(v)); width.push(1);
+    }
+    // A box or torus stands on one flat box; a custom table on its own cells.
+    floor = domainKind === "custom" ? { x: d.x, y: d.y } : { xmin: d.xmin, xmax: d.xmax, ymin: d.ymin, ymax: d.ymax };
+    across = Math.max(d.xmax - d.xmin + 1, d.ymax - d.ymin + 1);
+  }
+  const most = Math.max(1, ...height);
+  // drawStacks makes a block min(1, across / 2 / most) times "stretch"
+  // tall; this stretch makes the tallest stack across / 4 tall.
+  const stretch = (across / 4 / most) / Math.min(1, across / 2 / most);
+  sim3d.drawStacks(view3d, {
+    x: x, y: y, height: height, width: width, floor: floor,
+    shape: domainKind === "graph" ? "coins" : "cubes", stretch: stretch,
+    color: function (k) { return showTopples ? colorOfTopples(k, most) : colorOfHeight(k); },
+    empty: colorOfHeight(0), ground: hexToRGB(OUTSIDE),
+  });
+}
+
+// The View option, and the button to look from the start again.
+for (const radio of document.querySelectorAll('input[name="view"]')) {
+  radio.addEventListener("change", function () { show3D = (radio.value === "3d"); showPictureKind(); });
+}
+byId("view3d-reset").addEventListener("click", function () { if (view3d) sim3d.resetCamera(view3d); });
 
 
 /* =====================================================================
    6. CLICKING, DRAGGING AND ZOOMING
    ---------------------------------------------------------------------
    A click on a cell adds a grain, removes one, or shows the cell's
-   numbers (the "Clicking a cell" options, as in nadya's Sandpiles.js).
+   numbers (the "Clicking a cell" options, as in nadya's Sandpiles.js);
+   it can also topple the cell once (if it has enough grains), or make
+   it a sink cell, or a normal cell again.
    The picture can also be moved and zoomed, as in the coloring sims
    (and like a graph in Desmos): drag to move, mouse wheel or pinch to
    zoom, and the + / − / Reset buttons. A press that hardly moves counts
@@ -415,8 +528,19 @@ window.addEventListener("resize", drawSoon);
 function clickCell(v) {
   if (v === -1 || !latest) return;
   const mode = checked("click");
-  if (sinks.includes(v)) {
-    showMessage("This is the sink cell: it eats every grain it gets.");
+  if (mode === "sink") {
+    // Make it a sink cell, or a normal cell again. The pile keeps its
+    // grains (the worker's changeSinks, sandpiles-pile.js).
+    sinks = sinks.includes(v) ? sinks.filter(function (s) { return s !== v; }) : sinks.concat([v]);
+    worker.postMessage({ type: "sinks", sinks: sinks });
+  } else if (sinks.includes(v)) {
+    showMessage("This is a sink cell: it eats every grain it gets.");
+  } else if (mode === "topple") {
+    if (latest.heights[v] < neighbors) {
+      showMessage("This cell has " + latest.heights[v] + " grains; it needs " + neighbors + " to topple.");
+    } else {
+      worker.postMessage({ type: "topple", cell: v });
+    }
   } else if (mode === "info") {
     const name = domainKind === "graph"
       ? "This cell, " + ballSteps[v] + (ballSteps[v] === 1 ? " step" : " steps") + " from the start"
@@ -442,6 +566,8 @@ connectPicture(view, disk, function () { return domainKind === "graph"; }, funct
    counted by the pile while the storm waits until stable: the topples
    caused by each grain, grouped by powers of 2 (0, 1, 2-3, 4-7, ...).
    ===================================================================== */
+let lastNote = "";   // the last note showStats put under the picture
+
 function showStats() {
   if (!domain || !latest) return;
   const s = latest;
@@ -458,37 +584,43 @@ function showStats() {
     : s.recurrent === null ? (s.stable ? "checking..." : "only for stable piles")
     : s.recurrent ? "yes" : "no";
 
-  // The message under the picture.
-  if (s.neverStabilizes) {
-    showMessage("This pile will never stabilize: every cell has toppled, and with no sink no grain " +
-                "can ever leave (Björner, Lovász and Shor 1991). Remove some grains, or add a sink cell.");
-  } else if (byId("start-kind").value === "identity" && s.stable && s.added === 0) {
-    showMessage(s.hasSink ? "This is the identity of this table."
-      : "A table with no sink has no identity. Pick \"One sink cell in the middle\".");
-  } else if (s.stable && byId("sim-message").textContent.startsWith("This pile will never")) {
-    showMessage("");
-  }
+  // The note under the picture. It goes away once it no longer holds
+  // (e.g. "This is the identity" once anything but toppling changes the
+  // pile), unless another message has replaced it.
+  const note = s.neverStabilizes
+    ? "This pile will never stabilize: every cell has toppled, and with no sink no grain " +
+      "can ever leave (Björner, Lovász and Shor 1991). Remove some grains, or add a sink cell."
+    : byId("start-kind").value === "identity" && s.stable && !s.touched
+    ? (s.hasSink ? "This is the identity of this table."
+       : "A table with no sink has no identity. Click a cell with \"Adds or removes a sink\" to make one.")
+    : "";
+  if (note !== lastNote && (note !== "" || byId("sim-message").textContent === lastNote)) showMessage(note);
+  lastNote = note;
 
-  byId("play").disabled = byId("step").disabled = s.stable && !byId("storm").checked;   // nothing can happen
+  const stayOn = byId("stay-on").checked;
+  byId("play").disabled = s.stable && !byId("storm").checked && !stayOn && !playing;   // nothing can happen
+  byId("step").disabled = s.stable && !byId("storm").checked;
   byId("jump").disabled = s.stable;
   byId("undo").disabled = !s.canUndo;
-  byId("show-identity").disabled = !s.hasSink;
+  byId("add-identity").disabled = !s.hasSink;
 
   drawHeightsChart();
+  drawTimelineChart();
   drawAvalancheChart();
 }
 
-// One bar per height, in that height's color, with its count above it.
-// Heights at or above the threshold (unstable cells) share the last bar.
+// One bar per height, in that height's color, with its count above it:
+// 0, 1, ..., 7 and "8+" (or up to the threshold, if it is more than 8).
 function drawHeightsChart() {
   const canvas = byId("heights-chart");
   const pen = chartPen(canvas);
   const w = canvas.clientWidth, h = canvas.clientHeight;
-  const bars = neighbors + 1;                        // 0, 1, ..., threshold - 1, and "threshold or more"
+  const lastBar = Math.max(HEIGHT_BARS, neighbors);  // the "8+" bar
+  const bars = lastBar + 1;
   const counts = new Array(bars).fill(0);
   for (let v = 0; v < domain.n; v++) {
     if (sinks.includes(v)) continue;
-    counts[Math.min(latest.heights[v], neighbors)]++;
+    counts[Math.min(latest.heights[v], lastBar)]++;
   }
   const most = Math.max(1, ...counts);
   const top = 14, bottom = h - 14, barWidth = w / bars;
@@ -505,21 +637,104 @@ function drawHeightsChart() {
     pen.textBaseline = "bottom";
     pen.fillText(count.toLocaleString(), (b + 0.5) * barWidth, bottom - barHeight - 1);
     pen.textBaseline = "top";
-    pen.fillText(b < neighbors ? String(b) : neighbors + "+", (b + 0.5) * barWidth, bottom + 2);
+    pen.fillText(b < lastBar ? String(b) : lastBar + "+", (b + 0.5) * barWidth, bottom + 2);
   });
 }
 
 // The avalanche sizes, grouped by powers of 2 (the pile counts them:
-// bar 0 is no topples, bar b > 0 from 2^(b-1) to 2^b - 1); the bars'
-// heights are on a logarithmic scale, so a power law shows as bars
-// falling evenly (powerOfTwoBars, js/sim-charts.js).
+// group 0 is no topples, group b > 0 from 2^(b-1) to 2^b - 1).
+
+// The label of group b: its smallest size.
+function groupLabel(b) { return b === 0 ? "0" : (2 ** (b - 1)).toLocaleString(); }
+
+// Avalanches over time: column c is the avalanches number c * width to
+// (c + 1) * width - 1 (the pile's timeline), row b (from the bottom) is
+// group b, and the color is how many of the column's avalanches are in
+// that group, from white (none) to dark blue (as many as its most
+// common group).
+function drawTimelineChart() {
+  const canvas = byId("timeline-chart");
+  const pen = chartPen(canvas);
+  const columns = latest.timeline, width = latest.timelineWidth;
+  byId("timeline-info").textContent = latest.avalancheCount === 0
+    ? "Start from an empty table, tick the storm (with \"Wait until stable\") and press Play " +
+      "to watch the pile turn critical."
+    : "Across: storm grains, " + width.toLocaleString() + (width === 1 ? " grain" : " grains") +
+      " per column. Up: avalanche sizes. Darkest: the most common size in that column.";
+  if (columns.length === 0) return;
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  const left = 40, up = 4, bottom = h - 16;
+  const rows = latest.avalancheBins.length;
+  const colWidth = (w - left) / Math.max(columns.length, 20), rowHeight = (bottom - up) / rows;
+  columns.forEach(function (column, c) {
+    const most = Math.max(...column);
+    column.forEach(function (count, b) {
+      if (count === 0) return;
+      pen.fillStyle = rgbToHex(colorOfTopples(Math.log1p(count), Math.log1p(most)));   // log: rare sizes still show
+      pen.fillRect(left + c * colWidth, bottom - (b + 1) * rowHeight, Math.ceil(colWidth), Math.ceil(rowHeight));
+    });
+  });
+  // Labels: some of the sizes on the left, the grains along the bottom.
+  pen.fillStyle = CHART_TEXT;
+  pen.textAlign = "right";
+  pen.textBaseline = "middle";
+  const every = Math.ceil(rows / Math.max(1, Math.floor((bottom - up) / 14)));
+  for (let b = 0; b < rows; b += every) pen.fillText(groupLabel(b), left - 4, bottom - (b + 0.5) * rowHeight);
+  pen.textBaseline = "bottom";
+  pen.textAlign = "left";
+  pen.fillText("0", left, h);
+  pen.textAlign = "right";
+  pen.fillText("grain " + latest.avalancheCount.toLocaleString(), left + columns.length * colWidth, h);
+}
+
+// Avalanche sizes on logarithmic scales: for each group b >= 1, a dot at
+// its smallest size 2^(b-1) across and, up, the fraction of avalanches
+// in it divided by its width (2^(b-1) sizes), the fraction of avalanches
+// of each size in the group, on average. A power law is a straight line.
 function drawAvalancheChart() {
-  byId("avalanche-info").textContent = latest.avalancheCount === 0
-    ? "Tick the storm (with \"Wait until stable\") and press Play to collect avalanches."
-    : latest.avalancheCount.toLocaleString() + " avalanches so far. Each bar counts the avalanches of " +
-      "that many topples (the label is the smallest size in the bar); the heights are on a log scale.";
-  powerOfTwoBars(byId("avalanche-chart"), latest.avalancheBins, "",
-    function (b) { return b === 0 ? "0" : String(2 ** (b - 1)); }, true);
+  const canvas = byId("avalanche-chart");
+  const pen = chartPen(canvas);
+  const bins = latest.avalancheBins, total = latest.avalancheCount;
+  const sized = total - (bins[0] || 0);       // avalanches with at least one topple
+  byId("avalanche-info").textContent = total === 0 ? ""
+    : total.toLocaleString() + " avalanches so far, " + sized.toLocaleString() + " with at least one topple. " +
+      "Both scales are logarithmic, so a power law shows as a straight line.";
+  const dots = [];                            // [log10 size, log10 fraction]
+  for (let b = 1; b < bins.length; b++) {
+    if (bins[b] > 0) dots.push([(b - 1) * Math.log10(2), Math.log10(bins[b] / 2 ** (b - 1) / total)]);
+  }
+  if (dots.length < 2) return;
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  const left = 44, up = 6, bottom = h - 16;
+  const xTop = Math.max(1, Math.ceil(dots[dots.length - 1][0]));
+  let yLow = 0;
+  for (const dot of dots) yLow = Math.min(yLow, Math.floor(dot[1]));
+  const sx = function (lx) { return left + (w - left - 8) * lx / xTop; };
+  const sy = function (ly) { return up + (bottom - up) * ly / yLow; };   // 0 (a fraction of 1) at the top
+  // The powers of 10 on both axes.
+  pen.textBaseline = "middle";
+  pen.textAlign = "right";
+  const yEvery = Math.ceil(-yLow / 5);
+  for (let k = 0; k >= yLow; k -= yEvery) pen.fillText(k === 0 ? "1" : "1e" + k, left - 4, sy(k));
+  pen.textBaseline = "bottom";
+  pen.textAlign = "center";
+  for (let k = 0; k <= xTop; k++) {
+    pen.textAlign = k === xTop ? "right" : "center";   // the last one stays inside the chart
+    pen.fillText(Math.pow(10, k).toLocaleString(), k === xTop ? w : sx(k), h);
+  }
+  pen.beginPath();
+  dots.forEach(function (dot, k) {
+    if (k === 0) pen.moveTo(sx(dot[0]), sy(dot[1])); else pen.lineTo(sx(dot[0]), sy(dot[1]));
+  });
+  pen.strokeStyle = CHART_LINE;
+  pen.lineWidth = 1.5;
+  pen.stroke();
+  pen.fillStyle = CHART_LINE;
+  for (const dot of dots) {
+    pen.beginPath();
+    pen.arc(sx(dot[0]), sy(dot[1]), 3, 0, 2 * Math.PI);
+    pen.fill();
+  }
 }
 
 
@@ -547,6 +762,7 @@ const tool = makeCustomTool({
     useDomain("custom", customDomain, customNeighbors);
   },
   cancel: function () { showDomainChoice(); drawSoon(); },
+  showPicture: showPictureKind,     // the picture from above or in 3D hides while the tool is open
 });
 
 
@@ -560,16 +776,11 @@ function useDomain(kind, d, n) {
   domain = d;
   neighbors = n;
   useTorus(view, Boolean(d.wrap));   // moving and zooming; zooming out past the whole picture only on a torus (js/sim-view.js)
+  sinks = [];                         // no sink cells on a new table (click to make some)
   makeHeightColors();
   showDomainChoice();
   showStartChoice();
-  chooseSink();
-}
-
-// The sink cell: on a table that wraps around, if "One sink cell" is
-// ticked, the middle cell. (On a box, the edge is the sink.)
-function chooseSink() {
-  sinks = (domain.wrap && checked("sink") === "cell") ? [middleCell(domain)] : [];
+  showPictureKind();
   restart();
 }
 
@@ -595,11 +806,9 @@ function useGraph() {
 }
 
 // Show the options that fit the table in use, and tick its radio button
-// (js/sim-controls.js), with the sink's row and this page's words for a
-// custom table.
+// (js/sim-controls.js), with this page's words for a custom table.
 function showDomainChoice() {
   showDomainOptions(domainKind, customDomain, disk);
-  byId("sink-row").hidden = !(domain && domain.wrap);
   if (domainKind === "custom" && customDomain) {
     byId("custom-info").textContent = "Your table: " + customDomain.n + " cells, " + customNeighbors +
       " neighbors" + (customDomain.wrap ? ", on a torus." : ".");
@@ -608,12 +817,12 @@ function showDomainChoice() {
 
 // Show only the number boxes of the chosen start.
 const START_HELP = {
-  center: "n grains on the middle cell, as in your Python (64 on 25 x 25).",
+  center: "n grains on the middle cell, as in your Python (64 on 25 x 25); on the top left cell if the middle is a sink.",
   random: "Each cell gets 0, 1, ..., up to that many grains, all equally likely.",
   full: "Every cell gets the same number of grains.",
   linear: "Cells numbered row by row from the bottom left, cell k gets value + k × slope grains (0 if that is negative).",
   empty: "No sand: click to add grains, or start the storm.",
-  identity: "The pile 2M − (2M)° (see All the details), which topples into the identity. Press Play or Jump to the end.",
+  identity: "The pile 2M − (2M)° (see All the details), which topples into the identity. Press Play or Jump to the end. A table needs a sink for this: a box has its edge; on a torus, click to make sink cells.",
 };
 // On a ball of a hyperbolic tiling or a tree, which has no rows:
 const START_HELP_BALL = {
@@ -632,14 +841,10 @@ function showStartChoice() {
 // Table: Box / Torus / Custom / Hyperbolic plane or tree, and their
 // options (js/sim-controls.js), and the sink.
 connectDomainChoice({ box: useBox, torus: useBox, custom: tool.open, graph: useGraph });
-for (const radio of document.querySelectorAll('input[name="sink"]')) {
-  radio.addEventListener("change", chooseSink);
-}
 
 // Start: the kind, and its numbers. A slider and its number box move
-// together, and the pile restarts live while you drag, like a Desmos
-// slider (tick "Jump to the end whenever a setting changes" to see the
-// final pile live).
+// together, and the pile restarts (paused) live while you drag, like a
+// Desmos slider.
 byId("start-kind").addEventListener("change", function () { showStartChoice(); restart(); });
 function pairSliderAndBox(sliderId, boxId) {
   byId(sliderId).addEventListener("input", function () { byId(boxId).value = this.value; restart(); });
@@ -650,15 +855,9 @@ pairSliderAndBox("most-slider", "set-most");
 pairSliderAndBox("full-slider", "set-full");
 byId("set-value").addEventListener("change", function () { restart(); });
 byId("set-slope").addEventListener("change", function () { restart(); });
-byId("auto-jump").addEventListener("change", function () { if (this.checked) restart(); });
 
-// The identity at once: the start "Identity", toppled to the end.
-byId("show-identity").addEventListener("click", function () {
-  if (playing) setPlaying(false);
-  byId("start-kind").value = "identity";
-  showStartChoice();
-  restart(true);
-});
+// Add the identity of this table to the pile (then it topples as usual).
+byId("add-identity").addEventListener("click", function () { worker.postMessage({ type: "identity" }); });
 
 // Play / Pause, Step, Undo, Jump, Restart.
 byId("play").addEventListener("click", function () { setPlaying(!playing); });
@@ -693,8 +892,9 @@ connectSpeedSlider("storm-rate", STORM_RATES, DEFAULT_STORM_RATE, function (newR
 });
 byId("storm").addEventListener("change", function () { sendSettings(); drawSoon(); });
 byId("storm-wait").addEventListener("change", sendSettings);
+byId("stay-on").addEventListener("change", function () { sendSettings(); drawSoon(); });
 
-// The picture: heights or topples, colors, numbers.
+// The picture: heights or topples, colors, numbers. (From above or 3D: section 5b.)
 for (const radio of document.querySelectorAll('input[name="show"]')) {
   radio.addEventListener("change", drawSoon);
 }

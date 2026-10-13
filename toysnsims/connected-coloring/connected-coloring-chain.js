@@ -120,6 +120,7 @@ function chainWorker() {
   let random = Math.random;
   let proposed = 0;        // moves tried
   let accepted = 0;        // moves accepted
+  let alphas = [];         // move, alpha, move, alpha, ... since the last report (for the chart)
   let run = 0;             // which run this is (the page numbers them)
 
   // Scratch space, one number per cell, reused by every move.
@@ -140,6 +141,7 @@ function chainWorker() {
     run = message.run;
     proposed = 0;
     accepted = 0;
+    alphas = [];
 
     inM = new Int32Array(n); inTree = new Int32Array(n);
     member = new Int32Array(n); seen = new Int32Array(n);
@@ -220,7 +222,11 @@ function chainWorker() {
       newColor[v] = (side[v] === 1) ? colorP : colorQ;
       if (newColor[v] !== color[v]) changed++;
     }
-    if (changed === 0) { accepted++; return; }   // Y = X: alpha = 1 and nothing moves
+    if (changed === 0) {                       // Y = X: alpha = 1 and nothing moves
+      accepted++;
+      alphas.push(proposed, 1);
+      return;
+    }
 
     // Step 6: recolor for real, measure Y, then keep it or put X back.
     recolor(M, newColor);
@@ -234,6 +240,7 @@ function chainWorker() {
     const logAlpha = Math.log(pairsBefore) - Math.log(pairsAfter)
                    + (logTau[i] + logTau[j]) - (logTauI + logTauJ)
                    + Math.log(kBefore) - Math.log(kAfter);
+    alphas.push(proposed, Math.min(1, Math.exp(logAlpha)));   // for the acceptance chart
 
     if (logAlpha >= 0 || Math.log(random()) < logAlpha) {
       logTau[i] = logTauI;
@@ -528,7 +535,8 @@ function chainWorker() {
        { type: "pause" }
        { type: "step" }           one move
      The worker answers with "state" messages: the colors, and the
-     numbers for the Statistics quadrant. Each one carries its run
+     numbers for the Statistics quadrant, including the acceptance
+     probability alpha of every move since the last message. Each one carries its run
      number, so the page can ignore leftovers from an older run.
      Play, Pause and Speed are the run loop makeRunLoop
      (js/sim-worker.js).
@@ -566,6 +574,8 @@ function chainWorker() {
       accepted: accepted,
       boundary: boundary,
       pairs: pairs,
-    }, [copy.buffer]);   // hand the copy over instead of copying it again
+      alphas: alphas,
+    }, [copy.buffer]);
+    alphas = [];   // hand the copy over instead of copying it again
   }
 }
