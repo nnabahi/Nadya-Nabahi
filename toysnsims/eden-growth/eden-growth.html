@@ -255,6 +255,7 @@
               <tr class="cap-only"><td>Growing sites (1 to M &minus; 1 blocks)</td><td id="stat-growing"></td></tr>
               <tr class="holes-only"><td>Holes now (&beta;<sub>1</sub>)</td><td id="stat-holes"></td></tr>
               <tr class="holes-only"><td>Holes closed so far</td><td id="stat-closed"></td></tr>
+              <tr class="shape-only"><td>Convexity (area / hull area)</td><td id="stat-convexity"></td></tr>
               <tr id="ends-row"><td>Base from &hellip; to &hellip;</td><td id="stat-ends"></td></tr>
             </table>
           </div>
@@ -292,6 +293,23 @@
             <h3 class="option-heading">Holes over time (&beta;<sub>1</sub>)</h3>
             <canvas class="chart" id="holes-chart"></canvas>
             <label class="muted small"><input type="checkbox" id="show-holes"> Shade the holes in the picture</label>
+          </div>
+          <!-- 2D, not on a torus: the base's shape. -->
+          <div class="stat shape-only">
+            <h3 class="option-heading">Convexity over time</h3>
+            <canvas class="chart" id="convexity-chart"></canvas>
+          </div>
+          <div class="stat shape-only">
+            <h3 class="option-heading">Radius by direction, over the average</h3>
+            <canvas class="chart taller" id="radius-chart"></canvas>
+          </div>
+          <div class="stat shape-only">
+            <h3 class="option-heading">Radius by direction over time</h3>
+            <canvas class="chart taller" id="radius-heat-chart"></canvas>
+            <p class="muted small">Up: the direction from the start, from &minus;180&deg;
+              (left) through &minus;90&deg; (down), 0&deg; (right) and 90&deg; (up). Color: the
+              farthest base site that way over the average, from blue (25% or more
+              shorter) through white to red (25% or more longer). Gray: no site that way yet.</p>
           </div>
           <div class="stat holes-only">
             <h3 class="option-heading">How long each closed hole lived</h3>
@@ -349,6 +367,12 @@
           in two) and dies when its last square fills. The charts count the holes
           over time and how long each one lived; tick "Shade the
           holes" to see them in the picture.
+        </p>
+        <p>
+          <strong>Shape.</strong> In 2D the base grows into a roundish blob.
+          Convexity says how close it is to having no bays or holes (1 = none),
+          and the radius charts show how far it reaches in each direction,
+          compared with its average, now and over time.
         </p>
         <p>
           <strong>Things to try:</strong> click an available site to drop the
@@ -495,6 +519,21 @@
           change the step a hole appears at, not which holes appear.
         </p>
         <p>
+          <strong>Shape.</strong> For Eden's model (and Richardson's), the base
+          at time <span class="tex">t</span>, scaled by <span class="tex">1/t</span>,
+          tends to a fixed convex set, the limit shape [2, 10], which is not
+          known exactly. The page measures the base's shape directly. The
+          <em>convexity</em> is <span class="tex">\mathrm{area}(K_n)/\mathrm{area}(\mathrm{hull}(K_n))</span>,
+          with the convex hull found from the lowest and highest square of each
+          column [11]. The <em>radius in direction</em> <span class="tex">\theta</span>
+          is the largest straight-line distance from the start to a base site
+          (middle to middle) whose direction from the start lies in the
+          <span class="tex">2^\circ</span> slice around <span class="tex">\theta</span>;
+          the charts divide it by its average over all directions, so they show
+          the shape and not the size. Off the disk, a direction that stays above
+          1 over time is a bulge of the shape, and the rest is fluctuation.
+        </p>
+        <p>
           <strong>On a graph.</strong> With "Hyperbolic plane or tree", the sites
           are the cells of a graph <span class="tex">G</span>: the tiling
           <span class="tex">\{p, q\}</span> of the hyperbolic plane by regular
@@ -583,6 +622,12 @@
             and local geometry of the Eden model&rdquo;, <em>Discrete &amp;
             Computational Geometry</em> (2023),
             <a href="https://arxiv.org/abs/2005.12349">arXiv:2005.12349</a>.</li>
+          <li>J. T. Cox and R. Durrett, &ldquo;Some limit theorems for percolation
+            processes with necessary and sufficient conditions&rdquo;, <em>Annals of
+            Probability</em> 9 (1981), 583&ndash;603.</li>
+          <li>A. M. Andrew, &ldquo;Another efficient algorithm for convex hulls in two
+            dimensions&rdquo;, <em>Information Processing Letters</em> 9 (1979),
+            216&ndash;219.</li>
         </ol>
         </div>
       </section>

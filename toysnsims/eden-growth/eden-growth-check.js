@@ -1,7 +1,7 @@
 /* =====================================================================
    eden-growth-check.js  —  the tests on eden-growth-check.html
    ---------------------------------------------------------------------
-   Seven kinds of test of the growth rule in eden-growth-rule.js:
+   Eight kinds of test of the growth rule in eden-growth-rule.js:
 
      1. Same mountain as nadya's Python. Her randmountain.py and
         randonesidedmountain.py turn a list of uniform numbers u into a
@@ -62,6 +62,11 @@
         beta_1 at every step, from the births and deaths, must equal a
         plain count of the bounded empty pieces at that step (a flood
         fill, written here without the sim's code).
+
+     8. The shape: the convexity of shapes worked out by hand (a filled
+        box is 1, an L of 5 squares is 5/7), and after a long run the
+        radius in each direction, kept up to date block by block, must
+        equal the radius found again from scratch.
 
    Random numbers come from the library seedrandom, each test with its
    own fixed seed, so the page gives the same results every time.
@@ -675,6 +680,38 @@ function checkHoles(options, steps) {
 
 
 /* ===================================================================
+   4e. THE SHAPE
+   =================================================================== */
+
+// Grow until every site of the domain is full, then the convexity.
+function convexityOfDomain(domain, start) {
+  const m = newMountain({ dim: 2, tile: [[1, 0], [-1, 0], [0, 1], [0, -1]], domain: domain, start: start,
+                          cap: 1, clocks: "shape", shapeBins: 8 });
+  while (m.available.length > 0) m.step();
+  return convexity(m);
+}
+
+// After "steps" steps, compare m.radii with the radii found again from
+// every base site.
+function checkRadii(options, steps) {
+  const m = newMountain(options);
+  for (let k = 0; k < steps && m.available.length > 0; k++) m.step();
+  const bins = options.shapeBins, again = new Float64Array(bins);
+  const x0 = m.siteX[m.start], y0 = m.siteY[m.start];
+  for (let i = 0; i < m.height.length; i++) {
+    if (m.height[i] === 0 || (m.siteX[i] === x0 && m.siteY[i] === y0)) continue;
+    const dx = m.siteX[i] - x0, dy = m.siteY[i] - y0;
+    const k = Math.min(bins - 1, Math.floor((Math.atan2(dy, dx) + Math.PI) / (2 * Math.PI) * bins));
+    again[k] = Math.max(again[k], Math.hypot(dx, dy));
+  }
+  for (let k = 0; k < bins; k++) {
+    if (Math.abs(again[k] - m.radii[k]) > 1e-9) return "direction " + k + ": kept " + m.radii[k] + ", found again " + again[k];
+  }
+  return "";
+}
+
+
+/* ===================================================================
    5. THE PAGE: run the tests and fill in the table
    (addRow, runChecksOnClick and readNumbers are in js/check-page.js)
    =================================================================== */
@@ -816,6 +853,25 @@ function allTests() {
     tests.push(function () {
       const problem = checkHoles(options, 1500);
       addRow("Holes: " + name + ", up to 1500 steps", problem === "", problem || "beta_1 matches a plain count at every step");
+    });
+  }
+
+  // 8. The shape.
+  tests.push(function () {
+    const box = convexityOfDomain({ kind: "box", xmin: 0, xmax: 4, ymin: 0, ymax: 4, torus: false }, [2, 2]);
+    const L = convexityOfDomain({ kind: "cells", wrap: null, cells: [[0, 0], [1, 0], [2, 0], [0, 1], [0, 2]] }, [0, 0]);
+    const pass = Math.abs(box - 1) < 1e-12 && Math.abs(L - 5 / 7) < 1e-12;
+    addRow("Shape: convexity of a filled 5 x 5 box and of an L of 5 squares", pass,
+           "box " + box.toFixed(4) + " (should be 1), L " + L.toFixed(4) + " (should be 5/7 = " + (5 / 7).toFixed(4) + ")");
+  });
+  for (const [name, options] of [
+    ["2D, 4 neighbors, M = 1", { dim: 2, tile: [[1, 0], [-1, 0], [0, 1], [0, -1]], domain: whole, start: [0, 0], cap: 1 }],
+    ["2D, ring tile r = 2 to 3, M = 2, s = -1", { dim: 2, tile: ringTile(2, 3), domain: whole, start: [0, 0], cap: 2, s: -1 }],
+  ]) {
+    tests.push(function () {
+      const problem = checkRadii(Object.assign({ clocks: "radii " + name, shapeBins: 180 }, options), 20000);
+      addRow("Shape: radius in each of 180 directions, " + name + ", 20,000 steps", problem === "",
+             problem || "kept block by block = found again from scratch");
     });
   }
   return tests;

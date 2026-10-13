@@ -94,6 +94,7 @@
      1b. newGraphMountain(options): the same rule on any graph.
      1c. holeHistory(...): the holes of a 2D mountain's base, with the
         step each one was born and the step it died.
+     1d. convexity(m): the base's area over the area of its convex hull.
      2. mountainWorker(): runs a mountain in a second thread (a "Web
         Worker") for the sim page, eden-growth.js, so the page never
         freezes. startWorker (js/sim-page.js) starts it, with
@@ -121,6 +122,13 @@
 //   s       the weight s (leave it out for 0: uniform)
 //   clocks  a seed: pick with clocks (see the top of this file). Leave
 //           it out to pick with the u's handed to step(u).
+//   shapeBins  (2D, not on a torus) keep track of the base's shape, for
+//           part 1d: m.radii[k] is the farthest distance from the start
+//           (straight-line, middle to middle) of a base site whose
+//           direction from the start is in slice k of shapeBins equal
+//           slices of the circle (slice 0 starts at angle -180 degrees,
+//           to the left), 0 if none yet; m.columns has, for each x,
+//           the lowest and highest y of the base there.
 // It returns an object whose step(u) drops one block, and whose fields
 // say how the mountain looks (see the end of this function).
 function newMountain(options) {
@@ -129,6 +137,7 @@ function newMountain(options) {
   const cap = options.cap || Infinity;     // the max height M (see the top of this file)
   const power = options.s || 0;             // the weight s (see the top of this file)
   const clocks = options.clocks === undefined ? null : newClocks(options.clocks, power);
+  const bins = options.shapeBins || 0;
 
   // Every site gets a number, 0, 1, 2, ..., in the order it becomes
   // available. For site number i:
@@ -220,6 +229,7 @@ function newMountain(options) {
   const m = {
     dim: dim,
     siteX: siteX, siteY: siteY, height: height, available: available, bornAt: bornAt,
+    radii: bins ? new Float64Array(bins) : null, columns: bins ? new Map() : null,
     steps: 0,          // n, the number of steps so far
     time: 0,           // with clocks: when the last block landed
     blocks: 0,         // blocks dropped, including the first one (= n + 1)
@@ -259,8 +269,21 @@ function newMountain(options) {
     if (height[i] === 1) {
       bornAt[i] = m.blocks - 1;   // the start's block is block 1, step n's is block n + 1
       m.baseSize += 1;
+      if (bins) addToShape(siteX[i], siteY[i]);
       for (const t of tile) makeAvailable(siteX[i] + t[0], siteY[i] + t[1]);
     }
+  }
+
+  // A new base site (x, y): its slice's radius and its column (see shapeBins).
+  function addToShape(x, y) {
+    const dx = x - siteX[m.start], dy = y - siteY[m.start];
+    if (dx !== 0 || dy !== 0) {
+      const k = Math.min(bins - 1, Math.floor((Math.atan2(dy, dx) + Math.PI) / (2 * Math.PI) * bins));
+      m.radii[k] = Math.max(m.radii[k], Math.sqrt(dx * dx + dy * dy));
+    }
+    const column = m.columns.get(x);
+    if (!column) m.columns.set(x, [y, y]);
+    else { column[0] = Math.min(column[0], y); column[1] = Math.max(column[1], y); }
   }
 
   // The height at (x, y) (in 1D, y = 0), or 0 if there is no site there.
@@ -644,6 +667,57 @@ function holeHistory(siteX, siteY, bornAt, height, now) {
 
 
 /* =====================================================================
+   1d. HOW CONVEX THE BASE IS
+   ---------------------------------------------------------------------
+   The base as the union of its unit squares, K. Its convexity is
+   area(K) / area(hull of K), where the hull is the smallest convex set
+   holding K: 1 when K is convex, smaller the more K has bays and holes.
+   The hull of K is the hull of its squares' corners, and only the
+   lowest and highest square of each column can have a corner on the
+   hull, so the hull is found from the lowest and highest corner on each
+   vertical grid line, already in order left to right (by Andrew's
+   "monotone chain": A. M. Andrew, "Another efficient algorithm for
+   convex hulls in two dimensions", Inform. Process. Lett. 9 (1979)
+   216-219).
+   ===================================================================== */
+function convexity(m) {
+  // Left to right along the vertical grid lines X = x - 1/2: the lowest
+  // and highest corner on each, from the columns on either side of it.
+  let xmin = Infinity, xmax = -Infinity;
+  for (const x of m.columns.keys()) { xmin = Math.min(xmin, x); xmax = Math.max(xmax, x); }
+  const points = [];
+  for (let x = xmin; x <= xmax + 1; x++) {
+    let low = Infinity, high = -Infinity;
+    for (const column of [m.columns.get(x - 1), m.columns.get(x)]) {
+      if (column) { low = Math.min(low, column[0] - 0.5); high = Math.max(high, column[1] + 0.5); }
+    }
+    if (low === Infinity) continue;   // a gap between columns (a drawn domain)
+    points.push([x - 0.5, low]);
+    if (high > low) points.push([x - 0.5, high]);
+  }
+  // Turning left (> 0), right (< 0) or straight (0) going o -> a -> b.
+  function turn(o, a, b) { return (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]); }
+  // The lower edge of the hull left to right, then the upper edge right to left.
+  const hull = [];
+  for (const pass of [points, points.slice().reverse()]) {
+    const start = hull.length;
+    for (const p of pass) {
+      while (hull.length >= start + 2 && turn(hull[hull.length - 2], hull[hull.length - 1], p) <= 0) hull.pop();
+      hull.push(p);
+    }
+    hull.pop();   // its last point starts the other edge
+  }
+  // The hull's area (the shoelace formula).
+  let twice = 0;
+  for (let k = 0; k < hull.length; k++) {
+    const p = hull[k], q = hull[(k + 1) % hull.length];
+    twice += p[0] * q[1] - q[0] * p[1];
+  }
+  return m.baseSize / (Math.abs(twice) / 2);
+}
+
+
+/* =====================================================================
    2. THE MOUNTAIN IN A SECOND THREAD
    ---------------------------------------------------------------------
    Random numbers. The page picks with clocks (see the top of this
@@ -681,6 +755,7 @@ function holeHistory(siteX, siteY, bornAt, height, now) {
    ===================================================================== */
 function mountainWorker() {
   const MAX_STEPS = 10000000;   // ten million blocks at most
+  const SHAPE_BINS = 180;       // directions for the radius charts (2 degrees each)
   let options = null;           // the latest setup message
   let mountain = null;          // from newMountain() or newGraphMountain() (part 1)
   let run = 0;
@@ -702,7 +777,7 @@ function mountainWorker() {
     problem = "";
     placesSent = 0;
     try {
-      const withClocks = Object.assign({}, options, { clocks: String(options.seed) });
+      const withClocks = Object.assign({}, options, { clocks: String(options.seed), shapeBins: holesWanted() ? SHAPE_BINS : 0 });
       mountain = options.dim === "graph" ? newGraphMountain(withClocks) : newMountain(withClocks);
     } catch (error) {
       mountain = null;
@@ -742,8 +817,14 @@ function mountainWorker() {
 
   function takeSample() {
     const m = mountain;
-    keepSample(trace, m.steps, { base: m.baseSize, highest: m.maxHeight, start: m.height[m.start],
-                                 full: m.full, growing: m.baseSize - m.full });
+    const values = { base: m.baseSize, highest: m.maxHeight, start: m.height[m.start],
+                     full: m.full, growing: m.baseSize - m.full };
+    // The shape (2D off a torus), worked out only when a sample is due.
+    if (m.radii && m.steps >= trace.next) {
+      values.convexity = convexity(m);
+      values.radii = m.radii;
+    }
+    keepSample(trace, m.steps, values);
   }
 
   // Play, Pause and Speed: the run loop (js/sim-worker.js), dropping the
@@ -805,6 +886,12 @@ function mountainWorker() {
       traceGrowing: Float64Array.from(trace.lists.growing),
     };
     if (holesWanted()) addHoles(message);
+    if (m.radii) {
+      message.convexity = convexity(m);
+      message.radii = Float64Array.from(m.radii);
+      message.traceConvexity = Float64Array.from(trace.lists.convexity);
+      message.traceRadii = Float64Array.from(trace.lists.radii);   // SHAPE_BINS numbers per sample
+    }
     if (m.dim === "graph") {
       addPlaces(message);
     } else {
@@ -816,7 +903,8 @@ function mountainWorker() {
     self.postMessage(message, lists.map(function (list) { return list.buffer; }));
   }
 
-  // Holes only make sense in 2D, off a torus (where "bounded" means nothing).
+  // Holes (and the shape charts) only make sense in 2D, off a torus
+  // (where "bounded" means nothing).
   function holesWanted() {
     const d = options.domain;
     return options.dim === 2 && !(d.kind === "box" && d.torus) && !(d.kind === "cells" && d.wrap);
