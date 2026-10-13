@@ -671,6 +671,7 @@ function showPictureKind() {
   // Cubes or coins: on a graph only coins (cells there aren't squares,
   // and cubes on cells of different sizes bump into each other).
   byId("blocks-row").hidden = !in3D || dim === "graph";
+  showHolesRow();
   showZoomButtons(view);
   if (in3D && !view3d) start3D();
   drawSoon();
@@ -882,6 +883,7 @@ function showStats() {
   }
   // The holes: in 2D, not on a torus (the worker sends them then).
   for (const e of document.querySelectorAll(".holes-only")) e.hidden = !s.holes;
+  showHolesRow();
   if (s.holes) {
     byId("stat-holes").textContent = s.holes.now.toLocaleString();
     byId("stat-closed").textContent = s.holes.closed.toLocaleString();
@@ -1126,6 +1128,10 @@ function showWeight() {
 }
 byId("weight-s").addEventListener("input", function () { showWeight(); restart(true); });
 
+// "Shade the holes" shows with the holes (2D, not on a torus), from above.
+function showHolesRow() {
+  byId("holes-row").hidden = !(haveMountain() && latest.holes) || show3D || tool.isOpen;
+}
 // Shade the holes: only changes the picture.
 byId("show-holes").addEventListener("change", drawSoon);
 for (const radio of document.querySelectorAll("input[name=against]")) radio.addEventListener("change", drawSoon);

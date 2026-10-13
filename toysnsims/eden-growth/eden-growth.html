@@ -129,6 +129,10 @@
             <label><input type="radio" name="view" value="flat" checked> From above</label>
             <label><input type="radio" name="view" value="3d"> 3D</label>
           </div>
+          <!-- 2D from above, not on a torus: color the holes (the holes charts). -->
+          <div class="option-row" id="holes-row" hidden>
+            <label><input type="checkbox" id="show-holes"> Shade the holes (light blue)</label>
+          </div>
           <!-- Hyperbolic plane or tree, from above: which picture. -->
           <div class="option-row" id="picture-row" hidden>
             Drawn in
@@ -292,7 +296,6 @@
           <div class="stat holes-only">
             <h3 class="option-heading">Holes over time (&beta;<sub>1</sub>)</h3>
             <canvas class="chart" id="holes-chart"></canvas>
-            <label class="muted small"><input type="checkbox" id="show-holes"> Shade the holes in the picture</label>
           </div>
           <!-- 2D, not on a torus: the base's shape. -->
           <div class="stat shape-only">
@@ -366,7 +369,7 @@
           holes. A hole is born when a block closes it off (or cuts an older one
           in two) and dies when its last square fills. The charts count the holes
           over time and how long each one lived; tick "Shade the
-          holes" to see them in the picture.
+          holes" in the options to see them in the picture.
         </p>
         <p>
           <strong>Shape.</strong> In 2D the base grows into a roundish blob.
