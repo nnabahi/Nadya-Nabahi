@@ -268,13 +268,18 @@ function showToolStatus(problem, good, buttons) {
 // picture. If it can't load, the View goes back to "flat", failed()
 // runs, and the message under the picture says why.
 let loading3D = false;
+// Where js/sim-3d.js is, as a full web address worked out now, while
+// this file loads: it sits next to this file (js/sim-page.js). Browsers
+// don't agree on what a plain "./sim-3d.js" inside import() is counted
+// from (this file, or the page), so the full address avoids guessing.
+const SIM_3D_URL = new URL("sim-3d.js", document.currentScript.src).href;
 async function load3D(box, height, ready, failed) {
   if (loading3D) return;
   loading3D = true;
   showMessage("Loading the 3D view...");
   let sim3d;
   try {
-    sim3d = await import("./sim-3d.js");   // counted from this file, in js/
+    sim3d = await import(SIM_3D_URL);
   } catch (error) {
     loading3D = false;
     document.querySelector('input[name="view"][value="flat"]').checked = true;
