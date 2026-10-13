@@ -279,7 +279,7 @@ function connectPicture(view, disk, onGraph, onClick, cursor) {
    As on the old site: a grid of small cells around a cell in the middle.
    An "offset" says where a cell is from the middle one: [x] in 1D, or
    [x, y] in 2D (x to the right, y up). Clicking a cell puts its offset
-   in the set, or takes it out. The random mountain picks its tile T
+   in the set, or takes it out. Eden Growth picks its tile T
    this way, and the cellular automata their neighborhood.
    ===================================================================== */
 

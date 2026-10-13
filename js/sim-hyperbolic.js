@@ -492,7 +492,7 @@ function drawBallBonds(dv, pen, ball, isOpen, colorOf, loose) {
 // middle of the screen, going out until cells are too small to see, or
 // off the screen. (Where cells are big enough to see, and the screen,
 // are both in one piece, so every cell big enough that shows is
-// reached.) For the random mountain's 3D floor, "place" and "pixels"
+// reached.) For Eden Growth's 3D floor, "place" and "pixels"
 // (diskToScreen and cellPixels if left out) say where a point of the
 // disk goes and how big a cell there looks; there, the search starts
 // from the middle of the disk, and goes out until cells are too small.
