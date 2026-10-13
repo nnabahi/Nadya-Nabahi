@@ -251,6 +251,8 @@
               <tr><td>Available sites</td><td id="stat-available"></td></tr>
               <tr><td>Largest height</td><td id="stat-highest"></td></tr>
               <tr><td>Height at the start site</td><td id="stat-start"></td></tr>
+              <tr class="cap-only"><td>Full sites (M blocks)</td><td id="stat-full"></td></tr>
+              <tr class="cap-only"><td>Growing sites (1 to M &minus; 1 blocks)</td><td id="stat-growing"></td></tr>
               <tr id="ends-row"><td>Base from &hellip; to &hellip;</td><td id="stat-ends"></td></tr>
             </table>
           </div>
@@ -265,13 +267,23 @@
             <h3 class="option-heading">Base size over time</h3>
             <canvas class="chart" id="base-chart"></canvas>
           </div>
-          <div class="stat">
+          <!-- With no max height: the heights. With a max height they
+               stop at M, so the full and growing sites show instead. -->
+          <div class="stat no-cap-only">
             <h3 class="option-heading">Largest height over time</h3>
             <canvas class="chart" id="highest-chart"></canvas>
           </div>
-          <div class="stat">
+          <div class="stat no-cap-only">
             <h3 class="option-heading">Height at the start site over time</h3>
             <canvas class="chart" id="start-chart"></canvas>
+          </div>
+          <div class="stat cap-only">
+            <h3 class="option-heading">Full sites over time</h3>
+            <canvas class="chart" id="full-chart"></canvas>
+          </div>
+          <div class="stat cap-only">
+            <h3 class="option-heading">Growing sites over time</h3>
+            <canvas class="chart" id="growing-chart"></canvas>
           </div>
         </div>
       </section>

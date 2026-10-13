@@ -221,6 +221,7 @@ function newMountain(options) {
     time: 0,           // with clocks: when the last block landed
     blocks: 0,         // blocks dropped, including the first one (= n + 1)
     baseSize: 0,       // |D|, the number of sites with a block
+    full: 0,           // sites with M blocks (with a max height)
     maxHeight: 0,
     start: -1,         // the start site's number
     step: step,
@@ -247,7 +248,10 @@ function newMountain(options) {
     height[i] += 1;
     m.blocks += 1;
     if (height[i] > m.maxHeight) m.maxHeight = height[i];
-    if (height[i] >= cap) available.splice(available.indexOf(i), 1);   // full: no longer available
+    if (height[i] >= cap) {   // full: no longer available
+      available.splice(available.indexOf(i), 1);
+      m.full += 1;
+    }
     if (clocks) clocks.set(i, siteX[i], siteY[i], height[i] < cap ? height[i] : -1, m.time);
     if (height[i] === 1) {
       m.baseSize += 1;
@@ -461,7 +465,7 @@ function newGraphMountain(options) {
   const m = {
     dim: "graph", graph: graph,
     siteNode: siteNode, height: height, available: available,
-    steps: 0, time: 0, blocks: 0, baseSize: 0, maxHeight: 0, start: -1,
+    steps: 0, time: 0, blocks: 0, baseSize: 0, full: 0, maxHeight: 0, start: -1,
     step: step, dropOn: dropOn,
   };
 
@@ -483,7 +487,10 @@ function newGraphMountain(options) {
     height[i] += 1;
     m.blocks += 1;
     if (height[i] > m.maxHeight) m.maxHeight = height[i];
-    if (height[i] >= cap) available.splice(available.indexOf(i), 1);   // full: no longer available
+    if (height[i] >= cap) {   // full: no longer available
+      available.splice(available.indexOf(i), 1);
+      m.full += 1;
+    }
     if (clocks) clocks.set(i, placeA[i], placeB[i], height[i] < cap ? height[i] : -1, m.time);
     if (height[i] === 1) {
       m.baseSize += 1;
@@ -591,7 +598,8 @@ function mountainWorker() {
 
   function takeSample() {
     const m = mountain;
-    keepSample(trace, m.steps, { base: m.baseSize, highest: m.maxHeight, start: m.height[m.start] });
+    keepSample(trace, m.steps, { base: m.baseSize, highest: m.maxHeight, start: m.height[m.start],
+                                 full: m.full, growing: m.baseSize - m.full });
   }
 
   // Play, Pause and Speed: the run loop (js/sim-worker.js), dropping the
@@ -641,13 +649,15 @@ function mountainWorker() {
       height: Int32Array.from(m.height),
       start: m.start,
       steps: m.steps, blocks: m.blocks, baseSize: m.baseSize,
-      available: m.available.length, maxHeight: m.maxHeight,
+      available: m.available.length, maxHeight: m.maxHeight, full: m.full,
       atMax: m.steps >= MAX_STEPS,
       allFull: m.available.length === 0,   // with a max height: every site is full
       traceSteps: Float64Array.from(trace.times),
       traceBase: Float64Array.from(trace.lists.base),
       traceHighest: Float64Array.from(trace.lists.highest),
       traceStart: Float64Array.from(trace.lists.start),
+      traceFull: Float64Array.from(trace.lists.full),
+      traceGrowing: Float64Array.from(trace.lists.growing),
     };
     if (m.dim === "graph") {
       addPlaces(message);
