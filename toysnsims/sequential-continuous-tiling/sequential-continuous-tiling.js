@@ -1,7 +1,7 @@
 /* =====================================================================
-   sequential-tile-packing.js  —  the "Random sequential packing" sim page
+   sequential-continuous-tiling.js  —  the "Sequential Continuous Tiling" sim page
    ---------------------------------------------------------------------
-   The math lives in sequential-tile-packing-growth.js and runs in a second
+   The math lives in sequential-continuous-tiling-growth.js and runs in a second
    thread (a Web Worker), so the page never freezes. This file does
    everything else:
      1. The starting shapes (presets)
@@ -97,7 +97,7 @@ let speed = START_SPEED;
      an equation    x^2 + y^2 = 1      the region its curve closes off,
      a curve        (cos(t), sin(t))   the inside of the curve traced as
                                        t runs from 0 to 2π.
-   (The worker, sequential-tile-packing-growth.js section 8, turns each
+   (The worker, sequential-continuous-tiling-growth.js section 8, turns each
    into a test of points.) Every letter other than x and y (and t in a
    curve) gets a slider, shared by all three formulas. The typeset
    preview comes from KaTeX.
@@ -201,7 +201,7 @@ function drawPreview() {
    4. TALKING TO THE WORKER
    ---------------------------------------------------------------------
    The worker is made from packingWorker() and packingCore() (both in
-   sequential-tile-packing-growth.js). A setup takes the worker a moment
+   sequential-continuous-tiling-growth.js). A setup takes the worker a moment
    (it traces the edge of S), so while one is being worked on, newer
    changes wait, and only the latest is sent after it.
 

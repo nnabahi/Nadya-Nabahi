@@ -33,6 +33,8 @@ Claude wrote from the formulas, so rename them freely.
 | Abelian sandpile | | `js/sims/sandpiles.js` | idea | |
 | Random walk coloring | `RandomColoredWalk*.py`, `RandomColoredWalkOnLTaurus*.py` | `js/sims/walkcoloring.js` | live | Random walk coloring |
 | Random sequential tile packing | `circlepacking.py`, `circlingpackingdegrees.py`, `growing_circles_*` | `js/sims/tilepacking.js` | idea | |
+| Uniform continuous tiling | | | idea | |
+| Sequential discrete tiling | | | idea | |
 | Gradient percolation | (from `gradient-percolation.html`) | `js/sims/gradientpercolation.js` | idea | |
 | Random block growth | `RandBlockStack.py` | `js/sims/blockgrowth.js` | idea | |
 | Lattice path counting | | `js/sims/pathcount.js` | idea | |
