@@ -841,8 +841,16 @@ a.card:hover {
   position: absolute;
   right: 0;
   width: 15px;
+  overflow-x: hidden;
   overflow-y: scroll;
-  scrollbar-color: #c9c6bf #f2f1ed;   /* light gray thumb on a lighter track */
+  scrollbar-color: #a3a09a #ecebe7;   /* gray handle on a light gray track */
+}
+
+/* The tall empty box inside the bar that gives it something to scroll.
+   It needs some width: browsers ignore a zero-width box, and then the
+   bar has no handle. */
+.history-bar > div {
+  width: 1px;
 }
 
 .sim-picture.with-history > canvas {
