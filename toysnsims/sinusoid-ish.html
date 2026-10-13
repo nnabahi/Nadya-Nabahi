@@ -34,11 +34,11 @@
       <section class="quad quad-sim">
         <h2>Simulation</h2>
         <div class="sim-picture">
-          <canvas id="sim-canvas" title="Drag to move along the x axis; scroll or pinch to zoom"></canvas>
+          <canvas id="sim-canvas" title="Drag to move; scroll or pinch to zoom; scroll over an axis to scale just that axis"></canvas>
           <div class="zoom-buttons">
             <button class="tool-button" id="zoom-in" title="Zoom in">+</button>
             <button class="tool-button" id="zoom-out" title="Zoom out">&minus;</button>
-            <button class="tool-button" id="zoom-reset" title="Back to x from -10 to 10">Reset</button>
+            <button class="tool-button" id="zoom-reset" title="Back to x from -10 to 10, same unit in both directions">Reset</button>
           </div>
         </div>
         <p class="muted small" id="legend"></p>
@@ -95,12 +95,8 @@
           to <input type="number" id="view-xmax" step="1">
         </div>
         <div class="option-row">
-          Height
-          <select id="y-scale">
-            <option value="fit">fit to f</option>
-            <option value="fixed">fixed</option>
-          </select>
-          <input type="number" id="set-height" min="0" step="0.5">
+          y from <input type="number" id="view-ymin" step="1">
+          to <input type="number" id="view-ymax" step="1">
           <label><input type="checkbox" id="log-scale"> log scale</label>
         </div>
         <div class="option-row">
