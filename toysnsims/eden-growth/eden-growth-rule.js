@@ -27,6 +27,14 @@
    default) nothing changes. On a bounded domain the run stops once
    every site is full.
 
+   The weight s (optional). Step 1 can favor tall or short sites: an
+   available site with h blocks is picked with weight (h + 1)^s, the
+   number of blocks it will have once this one lands, raised to the
+   power s. With s = 0 (the default) every weight is 1, so the pick is
+   uniform, as above. With s > 0 tall sites are picked more often, with
+   s < 0 less often. An empty site always has weight 1, so with max
+   height M = 1 (every available site empty) s changes nothing.
+
    nadya's models are this rule with a particular tile:
      T = {-1, +1}       the two-sided mountain (randmountain.py,
                         RandBlockStack.py): the block lands on the base
@@ -88,12 +96,14 @@
 //   start   the start site, [x] in 1D or [x, y] in 2D
 //   cap     M, the max height: the most blocks a site can hold
 //           (leave it out for no max)
+//   s       the weight s (leave it out for 0: uniform)
 // It returns an object whose step(u) drops one block, and whose fields
 // say how the mountain looks (see the end of this function).
 function newMountain(options) {
   const dim = options.dim;
   const domain = options.domain;
   const cap = options.cap || Infinity;     // the max height M (see the top of this file)
+  const power = options.s || 0;             // the weight s (see the top of this file)
 
   // Every site gets a number, 0, 1, 2, ..., in the order it becomes
   // available. For site number i:
@@ -196,7 +206,7 @@ function newMountain(options) {
   // One step: drop a block on a random available site. "u" is a uniform
   // random number in [0, 1).
   function step(u) {
-    dropOn(available[Math.floor(u * available.length)]);
+    dropOn(pickSite(available, height, power, u));
   }
 
   // One step with the site chosen, not random (a click on the page):
@@ -235,6 +245,24 @@ function newMountain(options) {
 }
 
 
+// Step 1: turn a uniform number u in [0, 1) into one of the available
+// sites (a list of site numbers; height[i] = site i's blocks). With
+// s = 0 it is site number floor(u * |S|), exactly as randmountain.py
+// does. Otherwise site i has weight (height[i] + 1)^s: lay the weights
+// end to end, and take the site whose stretch u * (their total) lands in.
+function pickSite(available, height, s, u) {
+  if (s === 0) return available[Math.floor(u * available.length)];
+  let total = 0;
+  for (const i of available) total += Math.pow(height[i] + 1, s);
+  let left = u * total;
+  for (const i of available) {
+    left -= Math.pow(height[i] + 1, s);
+    if (left < 0) return i;
+  }
+  return available[available.length - 1];   // only if rounding left a tiny bit over
+}
+
+
 /* =====================================================================
    1b. THE GROWTH RULE ON ANY GRAPH
    ---------------------------------------------------------------------
@@ -253,6 +281,7 @@ function newMountain(options) {
 //            distance R of the start)
 //   cap     M, the max height: the most blocks a site can hold
 //           (leave it out for no max)
+//   s       the weight s (leave it out for 0: uniform)
 // The start is cell 0 of the graph. It returns the same kind of object
 // as newMountain, with siteNode[i] = the graph's cell for site i instead
 // of siteX, siteY.
@@ -260,6 +289,7 @@ function newGraphMountain(options) {
   const graph = options.graph.neighbors ? options.graph : makeGraph(options.graph);
   const radius = options.radius;
   const cap = options.cap || Infinity;     // the max height M (see the top of this file)
+  const power = options.s || 0;             // the weight s (see the top of this file)
 
   // Every site gets a number, 0, 1, 2, ..., in the order it becomes
   // available. For site number i:
@@ -306,7 +336,7 @@ function newGraphMountain(options) {
 
   // One step, random or on a chosen site, exactly as in part 1.
   function step(u) {
-    dropOn(available[Math.floor(u * available.length)]);
+    dropOn(pickSite(available, height, power, u));
   }
   function dropOn(i) {
     drop(i);
@@ -340,7 +370,7 @@ function newGraphMountain(options) {
    little as it can, like a Desmos slider.
 
    The page sends:
-     { type: "setup", run, dim, tile, domain, start, cap, seed, steps, forgetClicks }
+     { type: "setup", run, dim, tile, domain, start, cap, s, seed, steps, forgetClicks }
          (on a graph: dim "graph", and graph and radius instead of tile and start)
          a new mountain, grown at once to "steps" steps with the same
          seed (so changing a setting keeps the step you were at)
