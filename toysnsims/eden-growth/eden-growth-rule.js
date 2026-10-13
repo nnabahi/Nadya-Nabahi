@@ -48,12 +48,32 @@
    drawn in the graph tool. Sites outside the domain never become
    available; on a torus, offsets wrap around.
 
-   The order of the available sites. Step 1 turns a uniform number u in
-   [0, 1) into the site number floor(u * |S|), where |S| is the number
-   of available sites, exactly as randmountain.py does. In 1D the sites
-   are counted from left to right, as in nadya's Python, so the same
-   list of u's gives exactly her mountain. In 2D they are counted in the
-   order they became available. Either way every site is equally likely.
+   Two ways to make the random picks, with exactly the same odds:
+
+   With clocks (the sim page). Every site has an alarm clock for each
+   height h: a random time E(x, h) with the exponential distribution of
+   mean 1, made from the seed, the site's place and h only (newClocks
+   below). When site x becomes available, or gets its h-th block, its
+   next block is set to land E(x, h) / (h + 1)^s later; the alarm that
+   rings first gets the next block. Exponential alarms racing each other
+   ring first with chance (their rate) / (all the rates together), and
+   they forget how long they have waited, so the next site is picked
+   with weight (h + 1)^s, as in step 1 (the jump chain of a
+   continuous-time Markov chain: J. R. Norris, Markov Chains, Cambridge
+   1997, Theorem 2.3.3 and section 2.6). The point: E(x, h) doesn't
+   depend on s, the max height or the tile, so moving them with the
+   same seed changes the mountain smoothly, the way the p slider moves
+   Bernoulli percolation. With M = 1 this is Richardson's model, first
+   passage percolation (D. Richardson, Proc. Cambridge Philos. Soc. 74
+   (1973) 515-528).
+
+   With a list of uniform numbers (the check page, to match nadya's
+   Python). Step 1 turns a uniform number u in [0, 1) into the site
+   number floor(u * |S|), where |S| is the number of available sites,
+   exactly as randmountain.py does. In 1D the sites are counted from
+   left to right, as in nadya's Python, so the same list of u's gives
+   exactly her mountain. In 2D they are counted in the order they
+   became available. Either way every site is equally likely.
 
    ON ANY GRAPH ("Graph" on the page). The same rule on a graph whose
    cells are made as they are needed (js/sim-graphs.js): a hyperbolic
@@ -97,6 +117,8 @@
 //   cap     M, the max height: the most blocks a site can hold
 //           (leave it out for no max)
 //   s       the weight s (leave it out for 0: uniform)
+//   clocks  a seed: pick with clocks (see the top of this file). Leave
+//           it out to pick with the u's handed to step(u).
 // It returns an object whose step(u) drops one block, and whose fields
 // say how the mountain looks (see the end of this function).
 function newMountain(options) {
@@ -104,6 +126,7 @@ function newMountain(options) {
   const domain = options.domain;
   const cap = options.cap || Infinity;     // the max height M (see the top of this file)
   const power = options.s || 0;             // the weight s (see the top of this file)
+  const clocks = options.clocks === undefined ? null : newClocks(options.clocks, power);
 
   // Every site gets a number, 0, 1, 2, ..., in the order it becomes
   // available. For site number i:
@@ -173,6 +196,7 @@ function newMountain(options) {
     siteY.push(y);
     height.push(0);
     numberOf.set(key, i);
+    if (clocks) clocks.set(i, x, y, 0, m.time);
 
     if (dim === 2) {
       available.push(i);
@@ -194,8 +218,10 @@ function newMountain(options) {
     dim: dim,
     siteX: siteX, siteY: siteY, height: height, available: available,
     steps: 0,          // n, the number of steps so far
+    time: 0,           // with clocks: when the last block landed
     blocks: 0,         // blocks dropped, including the first one (= n + 1)
     baseSize: 0,       // |D|, the number of sites with a block
+    full: 0,           // sites with M blocks (with a max height)
     maxHeight: 0,
     start: -1,         // the start site's number
     step: step,
@@ -204,9 +230,9 @@ function newMountain(options) {
   };
 
   // One step: drop a block on a random available site. "u" is a uniform
-  // random number in [0, 1).
+  // random number in [0, 1) (not used with clocks).
   function step(u) {
-    dropOn(pickSite(available, height, power, u));
+    dropOn(clocks ? clocks.next(m) : pickSite(available, height, power, u));
   }
 
   // One step with the site chosen, not random (a click on the page):
@@ -222,7 +248,11 @@ function newMountain(options) {
     height[i] += 1;
     m.blocks += 1;
     if (height[i] > m.maxHeight) m.maxHeight = height[i];
-    if (height[i] >= cap) available.splice(available.indexOf(i), 1);   // full: no longer available
+    if (height[i] >= cap) {   // full: no longer available
+      available.splice(available.indexOf(i), 1);
+      m.full += 1;
+    }
+    if (clocks) clocks.set(i, siteX[i], siteY[i], height[i] < cap ? height[i] : -1, m.time);
     if (height[i] === 1) {
       m.baseSize += 1;
       for (const t of tile) makeAvailable(siteX[i] + t[0], siteY[i] + t[1]);
@@ -263,6 +293,103 @@ function pickSite(available, height, s, u) {
 }
 
 
+// The clocks (see the top of this file), for a seed and the weight s.
+//   set(i, a, b, h, now)  site i (whose place is the two whole numbers
+//                         a, b, the same from run to run) has h blocks at
+//                         time "now": its next block lands at
+//                         now + E(a, b, h) / (h + 1)^s.
+//                         h = -1: site i is full, no next block.
+//   next(m)               the site whose block lands next; sets m.time
+//                         to when.
+//   textToNumbers(text)   two whole numbers for a place given as text
+//                         (for the cells of a graph)
+// The times wait in a "heap", lists kept so the soonest is always
+// first. A site set again (a click put a block on it early) leaves its
+// old time in the heap; next() skips times that are out of date.
+function newClocks(seed, s) {
+  const due = [];      // due[i] = when site i's next block lands
+  const times = [], sites = [];   // the heap: times[k] is never later than times[2k+1], times[2k+2]
+
+  // Scramble a whole number (32 bits) so that every bit of the answer
+  // depends on every bit of h: the last step of the hash MurmurHash3,
+  // by Austin Appleby, public domain (github.com/aappleby/smhasher).
+  function scramble(h) {
+    h = Math.imul(h ^ (h >>> 16), 0x85ebca6b);
+    h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35);
+    return h ^ (h >>> 16);
+  }
+  // Fold whole number w into the running hash h.
+  function fold(h, w) {
+    return scramble(h ^ scramble(w + 0x9e3779b9));
+  }
+  // A uniform number in (0, 1) from two running hashes (53 bits).
+  function toUniform(h1, h2) {
+    return ((h1 >>> 11) * 4294967296 + (h2 >>> 0) + 0.5) / 9007199254740992;
+  }
+
+  // Two whole numbers for a piece of text (the seed, or a graph cell's place).
+  function textToNumbers(text) {
+    let h1 = 1, h2 = 2;
+    for (let k = 0; k < text.length; k++) {
+      h1 = fold(h1, text.charCodeAt(k));
+      h2 = fold(h2, text.charCodeAt(k));
+    }
+    return [h1, h2];
+  }
+  const [seedA, seedB] = textToNumbers(String(seed));
+
+  // E(a, b, h): exponential with mean 1, -log(U) for U uniform in (0, 1),
+  // always the same for the same seed, place and height.
+  function exponential(a, b, h) {
+    const h1 = fold(fold(fold(seedA, a), b), h);
+    const h2 = fold(fold(fold(seedB, a), b), h);
+    return -Math.log(toUniform(h1, h2));
+  }
+
+  function set(i, a, b, h, now) {
+    if (h < 0) { due[i] = Infinity; return; }
+    const time = now + exponential(a, b, h) / Math.pow(h + 1, s);
+    due[i] = time;
+    // Add it at the end, and move it up while it is sooner than its parent.
+    let k = times.length;
+    while (k > 0) {
+      const up = (k - 1) >> 1;
+      if (times[up] <= time) break;
+      times[k] = times[up]; sites[k] = sites[up]; k = up;
+    }
+    times[k] = time; sites[k] = i;
+  }
+
+  function next(m) {
+    for (;;) {
+      const time = times[0], i = sites[0];
+      // Take the first out: put the last one in front, then move it
+      // down while a child is sooner.
+      const lastTime = times.pop(), lastSite = sites.pop();
+      const n = times.length;
+      if (n > 0) {
+        let k = 0;
+        for (;;) {
+          const a = 2 * k + 1, b = a + 1;
+          let soonest = -1, soonestTime = lastTime;
+          if (a < n && times[a] < soonestTime) { soonest = a; soonestTime = times[a]; }
+          if (b < n && times[b] < soonestTime) { soonest = b; soonestTime = times[b]; }
+          if (soonest < 0) break;
+          times[k] = times[soonest]; sites[k] = sites[soonest]; k = soonest;
+        }
+        times[k] = lastTime; sites[k] = lastSite;
+      }
+      if (due[i] === time) {   // not out of date
+        m.time = time;
+        return i;
+      }
+    }
+  }
+
+  return { set: set, next: next, textToNumbers: textToNumbers };
+}
+
+
 /* =====================================================================
    1b. THE GROWTH RULE ON ANY GRAPH
    ---------------------------------------------------------------------
@@ -282,6 +409,7 @@ function pickSite(available, height, s, u) {
 //   cap     M, the max height: the most blocks a site can hold
 //           (leave it out for no max)
 //   s       the weight s (leave it out for 0: uniform)
+//   clocks  a seed: pick with clocks, as in newMountain
 // The start is cell 0 of the graph. It returns the same kind of object
 // as newMountain, with siteNode[i] = the graph's cell for site i instead
 // of siteX, siteY.
@@ -290,6 +418,7 @@ function newGraphMountain(options) {
   const radius = options.radius;
   const cap = options.cap || Infinity;     // the max height M (see the top of this file)
   const power = options.s || 0;             // the weight s (see the top of this file)
+  const clocks = options.clocks === undefined ? null : newClocks(options.clocks, power);
 
   // Every site gets a number, 0, 1, 2, ..., in the order it becomes
   // available. For site number i:
@@ -297,6 +426,7 @@ function newGraphMountain(options) {
   const height = [];           // how many blocks are on it
   const siteOf = new Map();    // a cell -> its site number
   const available = [];        // the available sites (on the line: left to right)
+  const placeA = [], placeB = [];   // with clocks: the site's place as two numbers (nameOf, below)
 
   // For a ball: the cells allowed (the start and everything within R).
   const inside = options.domain.kind === "ball"
@@ -311,6 +441,11 @@ function newGraphMountain(options) {
     siteNode.push(node);
     height.push(0);
     siteOf.set(node, i);
+    if (clocks) {
+      const [a, b] = clocks.textToNumbers(nameOf(node));
+      placeA.push(a); placeB.push(b);
+      clocks.set(i, a, b, 0, m.time);
+    }
     if (!graph.order) {
       available.push(i);
     } else {
@@ -330,13 +465,19 @@ function newGraphMountain(options) {
   const m = {
     dim: "graph", graph: graph,
     siteNode: siteNode, height: height, available: available,
-    steps: 0, blocks: 0, baseSize: 0, maxHeight: 0, start: -1,
+    steps: 0, time: 0, blocks: 0, baseSize: 0, full: 0, maxHeight: 0, start: -1,
     step: step, dropOn: dropOn,
   };
 
+  // A name for a cell that doesn't depend on the order the cells were
+  // made in (which changes with the run): where it is, to 9 digits.
+  function nameOf(node) {
+    return graph.place(node).map(function (v) { return v.toPrecision(9); }).join(",");
+  }
+
   // One step, random or on a chosen site, exactly as in part 1.
   function step(u) {
-    dropOn(pickSite(available, height, power, u));
+    dropOn(clocks ? clocks.next(m) : pickSite(available, height, power, u));
   }
   function dropOn(i) {
     drop(i);
@@ -346,7 +487,11 @@ function newGraphMountain(options) {
     height[i] += 1;
     m.blocks += 1;
     if (height[i] > m.maxHeight) m.maxHeight = height[i];
-    if (height[i] >= cap) available.splice(available.indexOf(i), 1);   // full: no longer available
+    if (height[i] >= cap) {   // full: no longer available
+      available.splice(available.indexOf(i), 1);
+      m.full += 1;
+    }
+    if (clocks) clocks.set(i, placeA[i], placeB[i], height[i] < cap ? height[i] : -1, m.time);
     if (height[i] === 1) {
       m.baseSize += 1;
       for (const w of ballAround(graph, siteNode[i], radius)) makeAvailable(w);
@@ -362,12 +507,12 @@ function newGraphMountain(options) {
 /* =====================================================================
    2. THE MOUNTAIN IN A SECOND THREAD
    ---------------------------------------------------------------------
-   Random numbers. The library seedrandom
-   (https://github.com/davidbau/seedrandom) gives random numbers that
-   repeat exactly for the same seed. Step n always uses the n-th number
-   u_n, whatever the tile or domain. So changing the tile or the domain
-   with the same seed reuses the same u's, and the picture changes as
-   little as it can, like a Desmos slider.
+   Random numbers. The page picks with clocks (see the top of this
+   file), made from the seed. Each site's alarms depend only on the
+   seed, where the site is and its height, whatever the tile, domain,
+   max height or weight. So changing any of them with the same seed
+   keeps the same alarms, and the picture changes as little as it can,
+   like a Desmos slider.
 
    The page sends:
      { type: "setup", run, dim, tile, domain, start, cap, s, seed, steps, forgetClicks }
@@ -385,24 +530,20 @@ function newGraphMountain(options) {
    Clicks. A clicked block is kept as "step n landed on this site", so
    it stays when the run is grown again (going back with "goto", or a
    change to the tile or the domain); a setup with forgetClicks (the
-   Restart button, a new seed) forgets them. Step n still uses up its
-   number u_n, so every other step keeps its own random number. If the
-   clicked site isn't available at that step any more (say the domain
-   changed), that step is random as usual.
+   Restart button, a new seed) forgets them. A clicked block lands at
+   the time of the block before it, and that site's next alarm starts
+   then; every other site keeps its alarms. If the clicked site isn't
+   available at that step any more (say the domain changed), that step
+   is random as usual.
 
    The worker answers with "state" messages: the available sites, their
    heights, and the numbers for the Statistics box. Each carries
    its run number, so the page can ignore leftovers from an older run.
    ===================================================================== */
 function mountainWorker() {
-  // seedrandom adds Math.seedrandom(seed). The version number is fixed
-  // so an update can never change the sim by surprise.
-  importScripts("https://cdn.jsdelivr.net/npm/seedrandom@3.0.5/seedrandom.min.js");
-
   const MAX_STEPS = 10000000;   // ten million blocks at most
   let options = null;           // the latest setup message
   let mountain = null;          // from newMountain() or newGraphMountain() (part 1)
-  let random = null;            // the seeded random numbers
   let run = 0;
   let problem = "";             // e.g. "The start site is outside the domain."
   let clicks = new Map();       // step n -> the site clicked for it (see siteName)
@@ -414,11 +555,11 @@ function mountainWorker() {
 
   // Start again from one block, and grow to "steps" steps.
   function setup(steps) {
-    random = new Math.seedrandom(String(options.seed));
     problem = "";
     placesSent = 0;
     try {
-      mountain = options.dim === "graph" ? newGraphMountain(options) : newMountain(options);
+      const withClocks = Object.assign({}, options, { clocks: String(options.seed) });
+      mountain = options.dim === "graph" ? newGraphMountain(withClocks) : newMountain(withClocks);
     } catch (error) {
       mountain = null;
       problem = error.message;
@@ -437,10 +578,9 @@ function mountainWorker() {
 
   function oneStep() {
     if (!mountain || isDone()) return;
-    const u = random();                       // always used up, so step n keeps u_n
     const clicked = clicks.has(mountain.steps + 1) ? findSite(clicks.get(mountain.steps + 1)) : -1;
     if (clicked >= 0) mountain.dropOn(clicked);
-    else mountain.step(u);
+    else mountain.step();
     takeSample();
   }
 
@@ -458,7 +598,8 @@ function mountainWorker() {
 
   function takeSample() {
     const m = mountain;
-    keepSample(trace, m.steps, { base: m.baseSize, highest: m.maxHeight, start: m.height[m.start] });
+    keepSample(trace, m.steps, { base: m.baseSize, highest: m.maxHeight, start: m.height[m.start],
+                                 full: m.full, growing: m.baseSize - m.full });
   }
 
   // Play, Pause and Speed: the run loop (js/sim-worker.js), dropping the
@@ -508,13 +649,15 @@ function mountainWorker() {
       height: Int32Array.from(m.height),
       start: m.start,
       steps: m.steps, blocks: m.blocks, baseSize: m.baseSize,
-      available: m.available.length, maxHeight: m.maxHeight,
+      available: m.available.length, maxHeight: m.maxHeight, full: m.full,
       atMax: m.steps >= MAX_STEPS,
       allFull: m.available.length === 0,   // with a max height: every site is full
       traceSteps: Float64Array.from(trace.times),
       traceBase: Float64Array.from(trace.lists.base),
       traceHighest: Float64Array.from(trace.lists.highest),
       traceStart: Float64Array.from(trace.lists.start),
+      traceFull: Float64Array.from(trace.lists.full),
+      traceGrowing: Float64Array.from(trace.lists.growing),
     };
     if (m.dim === "graph") {
       addPlaces(message);

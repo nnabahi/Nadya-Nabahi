@@ -1,7 +1,7 @@
 /* =====================================================================
    eden-growth-check.js  —  the tests on eden-growth-check.html
    ---------------------------------------------------------------------
-   Five kinds of test of the growth rule in eden-growth-rule.js:
+   Six kinds of test of the growth rule in eden-growth-rule.js:
 
      1. Same mountain as nadya's Python. Her randmountain.py and
         randonesidedmountain.py turn a list of uniform numbers u into a
@@ -49,6 +49,12 @@
         the available sites are exactly those below M, M = 1 grows the
         base by one site every step (Eden's model), and a bounded
         domain fills up to exactly M everywhere.
+
+     6. The clocks (newClocks), which the sim page picks with: the same
+        exact odds as in 2 (on regular trees too), the invariants of 3
+        and 5, and the coupling: with M = 1 every site is empty when it
+        is picked, so the weight s changes nothing, and the same seed
+        must give the same mountain, block for block, for every s.
 
    Random numbers come from the library seedrandom, each test with its
    own fixed seed, so the page gives the same results every time.
@@ -195,12 +201,13 @@ function exactOdds(c) {
 }
 
 // Run the sim "runs" times and compare with the exact odds.
-function chiSquareTest(c, runs) {
+// With "clocks" true, the sim picks with clocks, a new seed each run.
+function chiSquareTest(c, runs, clocks) {
   const random = new Math.seedrandom("odds " + c.name);
   const odds = exactOdds(c);
   const counts = new Map();
   for (let r = 0; r < runs; r++) {
-    const m = newMountain(c);
+    const m = newMountain(clocks ? Object.assign({}, c, { clocks: "odds " + c.name + " " + r }) : c);
     for (let k = 0; k < c.steps; k++) m.step(random());
     const heights = new Map();
     for (let i = 0; i < m.height.length; i++) {
@@ -370,7 +377,7 @@ function exactTreeOdds(d, r, steps) {
   grow(new Map([[0, 1]]), steps, 1);
   return odds;
 }
-function treeChiSquare(d, r, steps, runs) {
+function treeChiSquare(d, r, steps, runs, clocks) {
   const random = new Math.seedrandom("tree odds " + d + " " + r + " " + steps);
   const odds = exactTreeOdds(d, r, steps);
   const counts = new Map();
@@ -379,7 +386,9 @@ function treeChiSquare(d, r, steps, runs) {
   const tree = makeGraph({ kind: "tiling", p: d, q: Infinity });
   const depths = graphDepths(tree, 0, steps * r + 1);
   for (let run = 0; run < runs; run++) {
-    const m = newGraphMountain({ graph: tree, radius: r, domain: { kind: "whole" } });
+    const options = { graph: tree, radius: r, domain: { kind: "whole" } };
+    if (clocks) options.clocks = "tree odds " + run;
+    const m = newGraphMountain(options);
     for (let k = 0; k < steps; k++) m.step(random());
     const pairs = [];
     for (let i = 0; i < m.height.length; i++) if (m.height[i] > 0) pairs.push([depths.get(m.siteNode[i]), m.height[i]]);
@@ -557,6 +566,30 @@ function checkMaxHeight(options, steps, name) {
 
 
 /* ===================================================================
+   4c. THE CLOCKS: THE SAME MOUNTAIN FOR EVERY s WHEN M = 1
+   -------------------------------------------------------------------
+   With M = 1 every available site is empty, so its alarm runs at rate
+   (0 + 1)^s = 1 for every s: the same seed must give the same
+   mountain, block for block. Returns "" if it does, else what differs.
+   =================================================================== */
+function sameForEveryS(options, steps, name) {
+  const runs = [-2, 0, 1.5].map(function (s) {
+    const m = options.graph ? newGraphMountain(Object.assign({}, options, { s: s }))
+                            : newMountain(Object.assign({}, options, { s: s }));
+    // After each step, every site's height (sites are numbered in the
+    // order they became available, so equal lists mean equal mountains).
+    const after = [];
+    for (let k = 0; k < steps; k++) { m.step(); after.push(m.height.join(",")); }
+    return after;
+  });
+  for (let k = 0; k < steps; k++) {
+    if (runs[1][k] !== runs[0][k] || runs[2][k] !== runs[0][k]) return name + ": block " + (k + 1) + " landed somewhere else";
+  }
+  return "";
+}
+
+
+/* ===================================================================
    5. THE PAGE: run the tests and fill in the table
    (addRow, runChecksOnClick and readNumbers are in js/check-page.js)
    =================================================================== */
@@ -646,6 +679,40 @@ function allTests() {
     tests.push(function () {
       const problem = checkMaxHeight(options, 2000, name);
       addRow("Max height: " + name + ", up to 2000 steps", problem === "", problem || "all hold after every step");
+    });
+    tests.push(function () {
+      const problem = checkMaxHeight(Object.assign({ clocks: "max height " + name }, options), 2000, name);
+      addRow("Clocks, max height: " + name + ", up to 2000 steps", problem === "", problem || "all hold after every step");
+    });
+  }
+
+  // 6. The clocks.
+  for (const c of smallCases) {
+    tests.push(function () {
+      const result = chiSquareTest(c, 100000, true);
+      addRow("Clocks, exact odds: " + c.name + ", " + c.steps + " steps", result.pass, result.text);
+    });
+  }
+  for (const [d, r, steps] of [[3, 1, 5], [3, 2, 3]]) {
+    tests.push(function () {
+      const result = treeChiSquare(d, r, steps, 100000, true);
+      addRow("Clocks, exact odds: tree of degree " + d + ", tile = cells within " + r + ", " + steps + " steps", result.pass, result.text);
+    });
+  }
+  for (const c of smallCases) {
+    tests.push(function () {
+      const problem = checkInvariants(Object.assign({ clocks: "invariants " + c.name }, c), 5000);
+      addRow("Clocks, invariants: " + c.name + ", 5000 steps", problem === "", problem || "all hold after every step");
+    });
+  }
+  for (const [name, options] of [
+    ["2D, 4 neighbors", { dim: 2, tile: [[1, 0], [-1, 0], [0, 1], [0, -1]], domain: whole, start: [0, 0], cap: 1, clocks: "coupling" }],
+    ["{7,3}, cells within 1", { graph: { kind: "tiling", p: 7, q: 3 }, radius: 1, domain: whole, cap: 1, clocks: "coupling" }],
+  ]) {
+    tests.push(function () {
+      const problem = sameForEveryS(options, 1000, name);
+      addRow("Clocks, M = 1: " + name + ", s = -2, 0 and 1.5, 1000 steps", problem === "",
+             problem || "the same mountain, block for block");
     });
   }
   return tests;

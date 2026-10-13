@@ -300,7 +300,7 @@ function customStart(d) {
 const worker = startWorker(mountainWorker,
   [newMountain, newGraphMountain, makeGraph, tilingShape, motionTimes, motionApply, halfTurn, coshFromStart,
    learnedRules, tilingByGeometry, tilingByRules, tilingRules, testRules, hashTable, ballAround, spreadPlace,
-   makeRunLoop, newTrace, keepSample, pickSite]);
+   makeRunLoop, newTrace, keepSample, pickSite, newClocks]);
 
 worker.onmessage = function (event) {
   const message = event.data;
@@ -326,8 +326,7 @@ worker.onmessage = function (event) {
 };
 
 worker.onerror = function () {
-  showMessage("The sim couldn't start. It loads one small library (seedrandom) from the " +
-              "internet, so check the connection and reload the page.");
+  showMessage("The sim couldn't start. Try reloading the page.");
 };
 
 // A new mountain with the current tile, domain and seed. With
@@ -852,6 +851,14 @@ function showStats() {
   byId("stat-available").textContent = s.available.toLocaleString();
   byId("stat-highest").textContent = s.maxHeight.toLocaleString();
   byId("stat-start").textContent = s.height[s.start].toLocaleString();
+  byId("stat-full").textContent = s.full.toLocaleString();
+  byId("stat-growing").textContent = (s.baseSize - s.full).toLocaleString();
+
+  // With a max height, the full and growing sites take the place of the
+  // heights, which stop at M.
+  const capped = maxHeight() < Infinity;
+  for (const e of document.querySelectorAll(".cap-only")) e.hidden = !capped;
+  for (const e of document.querySelectorAll(".no-cap-only")) e.hidden = capped;
 
   // 1D: the leftmost and rightmost sites of the base.
   byId("ends-row").hidden = (dim !== 1);
@@ -864,8 +871,13 @@ function showStats() {
   }
 
   plotOverTime(byId("base-chart"), s.traceSteps, [{ values: s.traceBase, color: CHART_LINE }], "step");
-  plotOverTime(byId("highest-chart"), s.traceSteps, [{ values: s.traceHighest, color: CHART_LINE }], "step");
-  plotOverTime(byId("start-chart"), s.traceSteps, [{ values: s.traceStart, color: CHART_LINE }], "step");
+  if (capped) {
+    plotOverTime(byId("full-chart"), s.traceSteps, [{ values: s.traceFull, color: CHART_LINE }], "step");
+    plotOverTime(byId("growing-chart"), s.traceSteps, [{ values: s.traceGrowing, color: CHART_LINE }], "step");
+  } else {
+    plotOverTime(byId("highest-chart"), s.traceSteps, [{ values: s.traceHighest, color: CHART_LINE }], "step");
+    plotOverTime(byId("start-chart"), s.traceSteps, [{ values: s.traceStart, color: CHART_LINE }], "step");
+  }
 }
 
 

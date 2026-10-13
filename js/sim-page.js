@@ -401,13 +401,14 @@ if (statsGrid && chartsPanel) {
     if (!phone.matches) {
       const bottom = controls.getBoundingClientRect().bottom;        // where the options end
       // From the last one up: move each that reaches below the options
-      // to the start of the full row (always keep the first one).
+      // to the start of the full row (always keep the first one). A
+      // hidden one has no place, so it just goes along.
       for (let i = allStats.length - 1; i > 0; i--) {
-        if (allStats[i].getBoundingClientRect().bottom <= bottom) break;
+        if (!allStats[i].hidden && allStats[i].getBoundingClientRect().bottom <= bottom) break;
         chartsGrid.prepend(allStats[i]);
       }
     }
-    chartsPanel.hidden = chartsGrid.children.length === 0;
+    chartsPanel.hidden = !Array.from(chartsGrid.children).some(function (stat) { return !stat.hidden; });
   });
   const watch = new ResizeObserver(fitStats);
   for (const box of [document.querySelector(".panel-sim"), controls, statsGrid]) watch.observe(box);

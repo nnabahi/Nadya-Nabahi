@@ -235,7 +235,7 @@
           <button class="tool-button" id="new-seed" title="A random new seed">New seed</button>
         </div>
         <p class="muted small">The same seed always gives the same mountain. Changing the
-          tile or the domain keeps the seed and the step you are at, so the mountain
+          tile, the domain, the max height or the weight keeps the seed and the step you are at, so the mountain
           changes as little as it can.</p>
       </section>
 
@@ -251,6 +251,8 @@
               <tr><td>Available sites</td><td id="stat-available"></td></tr>
               <tr><td>Largest height</td><td id="stat-highest"></td></tr>
               <tr><td>Height at the start site</td><td id="stat-start"></td></tr>
+              <tr class="cap-only"><td>Full sites (M blocks)</td><td id="stat-full"></td></tr>
+              <tr class="cap-only"><td>Growing sites (1 to M &minus; 1 blocks)</td><td id="stat-growing"></td></tr>
               <tr id="ends-row"><td>Base from &hellip; to &hellip;</td><td id="stat-ends"></td></tr>
             </table>
           </div>
@@ -265,13 +267,23 @@
             <h3 class="option-heading">Base size over time</h3>
             <canvas class="chart" id="base-chart"></canvas>
           </div>
-          <div class="stat">
+          <!-- With no max height: the heights. With a max height they
+               stop at M, so the full and growing sites show instead. -->
+          <div class="stat no-cap-only">
             <h3 class="option-heading">Largest height over time</h3>
             <canvas class="chart" id="highest-chart"></canvas>
           </div>
-          <div class="stat">
+          <div class="stat no-cap-only">
             <h3 class="option-heading">Height at the start site over time</h3>
             <canvas class="chart" id="start-chart"></canvas>
+          </div>
+          <div class="stat cap-only">
+            <h3 class="option-heading">Full sites over time</h3>
+            <canvas class="chart" id="full-chart"></canvas>
+          </div>
+          <div class="stat cap-only">
+            <h3 class="option-heading">Growing sites over time</h3>
+            <canvas class="chart" id="growing-chart"></canvas>
           </div>
         </div>
       </section>
@@ -409,20 +421,32 @@
           power <span class="tex">s</span>. At <span class="tex">s = 0</span> this
           is the uniform rule above. An empty site has weight 1 for every
           <span class="tex">s</span>, so with <span class="tex">M = 1</span> the
-          weight changes nothing. To pick the site, the weights are laid end to
-          end in the same order as the sites, and the site whose stretch
-          contains <span class="tex">u_n</span> times their total is taken.
+          weight changes nothing.
         </p>
         <p>
-          <strong>Random numbers.</strong> Step <span class="tex">n</span> uses a
-          uniform number <span class="tex">u_n \in [0, 1)</span> and picks site
-          number <span class="tex">\lfloor u_n |S_{n-1}| \rfloor</span>, as in
-          <code>randmountain.py</code>. In 1D the sites are counted from left to
-          right, as in the Python, so the same <span class="tex">u</span>'s give
-          exactly the same mountain; in 2D they are counted in the order they
-          became available. The <span class="tex">u_n</span> come from the
-          seeded generator seedrandom [2], and the same seed gives the same
-          <span class="tex">u_n</span> whatever the tile and domain.
+          <strong>Random numbers: clocks.</strong> Every site
+          <span class="tex">x</span> has, for each height <span class="tex">h</span>,
+          its own exponential time <span class="tex">E(x, h)</span> of mean 1, all
+          independent, made from the seed, <span class="tex">x</span> and
+          <span class="tex">h</span> only. If <span class="tex">x</span> became
+          available, or got its <span class="tex">h</span>-th block, at time
+          <span class="tex">t</span>, its next block lands at
+          <span class="tex">t + E(x, h)/(h+1)^s</span>, and the first block to land
+          comes next. Exponential clocks racing each other ring first with chance
+          proportional to their rates, and forget how long they have waited, so
+          the sites picked have exactly the law of <span class="tex">X_n</span>
+          above: it is the jump chain of a continuous-time Markov chain [7]. With
+          <span class="tex">M = 1</span> the landing times are Richardson's model
+          [2], first passage percolation with exponential passage times. The
+          <span class="tex">E(x, h)</span> don't depend on the tile, the domain,
+          <span class="tex">M</span> or <span class="tex">s</span>, so with the
+          same seed, moving any of them changes the mountain little by little,
+          the way the <span class="tex">p</span> slider moves Bernoulli
+          percolation. (The check page also runs the rule from a list of uniform
+          numbers <span class="tex">u_n \in [0, 1)</span>, picking site number
+          <span class="tex">\lfloor u_n |S_{n-1}| \rfloor</span> as
+          <code>randmountain.py</code> does, to compare with the Python block for
+          block.)
         </p>
         <p>
           <strong>On a graph.</strong> With "Hyperbolic plane or tree", the sites
@@ -493,8 +517,9 @@
             <em>Proceedings of the Fourth Berkeley Symposium on Mathematical
             Statistics and Probability</em>, Vol. 4, University of California
             Press, 1961, 223&ndash;239.</li>
-          <li>D. Bau, seedrandom.js,
-            <a href="https://github.com/davidbau/seedrandom">github.com/davidbau/seedrandom</a>.</li>
+          <li>D. Richardson, &ldquo;Random growth in a tessellation&rdquo;,
+            <em>Proceedings of the Cambridge Philosophical Society</em> 74 (1973),
+            515&ndash;528.</li>
           <li>H. S. M. Coxeter, <em>Regular Polytopes</em>, 3rd ed., Dover, 1973.</li>
           <li>R. Lyons and Y. Peres, <em>Probability on Trees and Networks</em>,
             Cambridge University Press, 2016, Chapter 6.</li>
@@ -503,6 +528,8 @@
             123&ndash;148.</li>
           <li>A. F. Beardon, <em>The Geometry of Discrete Groups</em>, Springer,
             1983, Chapter 7.</li>
+          <li>J. R. Norris, <em>Markov Chains</em>, Cambridge University Press,
+            1997, Theorem 2.3.3 and Section 2.6.</li>
         </ol>
         </div>
       </section>
