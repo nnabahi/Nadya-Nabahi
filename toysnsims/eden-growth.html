@@ -179,11 +179,12 @@
           <p class="muted small" id="tile-info"></p>
         </div>
 
-        <!-- The max height: off by default. When checked, the slider
-             shows and sets M. -->
+        <!-- The max height: on by default with M = 1 (Eden's model).
+             When checked, the slider shows and sets M; unchecked, there
+             is no max. -->
         <h3 class="option-heading">Max height</h3>
         <div class="option-row">
-          <label><input type="checkbox" id="use-cap"> Max height</label>
+          <label><input type="checkbox" id="use-cap" checked> Max height</label>
           <span id="cap-row" hidden>
             M <input type="range" id="cap" min="1" max="20" step="1" value="1">
             <span class="muted" id="cap-label"></span>
@@ -273,11 +274,13 @@
           taller much faster than it gets wider.
         </p>
         <p>
-          <strong>Max height.</strong> Check the box to give every site a max
-          height <span class="tex">M</span>: a site with
-          <span class="tex">M</span> blocks is full, and blocks stop landing on it.
-          With <span class="tex">M = 1</span> each block lands on a new site
-          next to the base, which is Eden's growth model.
+          <strong>Max height.</strong> Every site has a max height
+          <span class="tex">M</span>: a site with <span class="tex">M</span>
+          blocks is full, and blocks stop landing on it. It starts at
+          <span class="tex">M = 1</span>, where each block lands on a new site
+          next to the base: Eden's growth model. Raise
+          <span class="tex">M</span> with the slider, or uncheck the box for no
+          max, and the blocks pile up into a mountain.
         </p>
         <p>
           <strong>Things to try:</strong> click an available site to drop the
