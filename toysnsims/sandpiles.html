@@ -7,6 +7,18 @@
   <link rel="stylesheet" href="../css/style.css">
   <!-- KaTeX's styles, for the typeset formulas in the About quadrant. -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/katex.min.css">
+  <!-- Where the 3D library three.js lives on the internet, for the 3D
+       view (js/sim-3d.js). It is only loaded when you switch to 3D. The
+       version number is fixed so an update can never change the site by
+       surprise. -->
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.186.1/examples/jsm/"
+      }
+    }
+  </script>
 </head>
 <body>
 
@@ -47,6 +59,12 @@
             <!-- ... and "Slide": dragging there slides the whole picture instead (js/sim-hyperbolic.js).
                  It shows and hides with "Back to the start" (section 8 of css/style.css). -->
             <button class="tool-button" id="disk-slide" title="Drag to slide the whole picture, instead of moving around the plane">Slide</button>
+          </div>
+          <!-- The 3D view: js/sim-3d.js puts its picture in here, with a
+               button to look from the start again. -->
+          <div class="sim-3d" id="sim-3d" hidden></div>
+          <div class="zoom-buttons" id="view3d-buttons" hidden>
+            <button class="tool-button" id="view3d-reset" title="Look from the starting angle again">Reset view</button>
           </div>
         </div>
 
@@ -130,10 +148,6 @@
             <label id="spread-choice"><input type="radio" name="picture" value="spread"> spread out</label>
           </div>
         </div>
-        <div class="option-row" id="sink-row" hidden>
-          <label><input type="radio" name="sink" value="cell" checked> One sink cell in the middle</label>
-          <label><input type="radio" name="sink" value="none"> No sink</label>
-        </div>
 
         <h3 class="option-heading">Start</h3>
         <div class="option-row">
@@ -143,9 +157,8 @@
             <option value="full">Full</option>
             <option value="linear">Linear</option>
             <option value="empty">Empty</option>
-            <option value="identity">Identity (watch it form)</option>
+            <option value="identity">Identity</option>
           </select>
-          <button class="tool-button" id="show-identity" title="The identity of this table, at once">Show the identity</button>
         </div>
         <div class="option-row" id="grains-row">
           n = <input type="number" id="set-grains" min="0" step="1">
@@ -164,9 +177,6 @@
           Slope <input type="number" id="set-slope" step="1">
         </div>
         <p class="muted small" id="start-help"></p>
-        <div class="option-row">
-          <label><input type="checkbox" id="auto-jump"> Jump to the end whenever a setting changes</label>
-        </div>
 
         <h3 class="option-heading">Run</h3>
         <div class="option-row">
@@ -175,6 +185,7 @@
           <button class="tool-button" id="undo" title="Take back the last topple (or round)">Undo</button>
           <button class="tool-button" id="jump" title="Topple until stable, at once">Jump to the end</button>
           <button class="tool-button" id="restart" title="Back to the start, same seed">Restart</button>
+          <button class="tool-button" id="add-identity" title="Add the identity of this table to the pile (then it topples)">Add the identity</button>
         </div>
         <div class="option-row">
           <label><input type="radio" name="order" value="one" checked> One random topple at a time</label>
@@ -199,10 +210,22 @@
         <div class="option-row">
           <label><input type="radio" name="click" value="add" checked> Adds a grain</label>
           <label><input type="radio" name="click" value="remove"> Removes a grain</label>
+          <label><input type="radio" name="click" value="topple"> Topples it</label>
+          <label><input type="radio" name="click" value="sink"> Adds or removes a sink</label>
           <label><input type="radio" name="click" value="info"> Shows its numbers</label>
+        </div>
+        <div class="option-row">
+          <label><input type="checkbox" id="stay-on"> Stay on: Play keeps going when the pile is stable, so a click topples at once</label>
         </div>
 
         <h3 class="option-heading">Picture</h3>
+        <div class="option-row">
+          <label><input type="radio" name="view" value="flat" checked> From above</label>
+          <label><input type="radio" name="view" value="3d"> 3D</label>
+        </div>
+        <p class="muted small" id="view3d-help" hidden>Each grain is a block, and the tallest
+          stack is always a quarter as tall as the table is wide. Drag to turn it around, use the
+          mouse wheel or a pinch to zoom, and right-drag (or two fingers) to slide it.</p>
         <div class="option-row">
           <label><input type="radio" name="show" value="heights" checked> Heights</label>
           <label><input type="radio" name="show" value="topples"> Topples so far</label>
@@ -214,7 +237,7 @@
             <option value="list">One color per height</option>
             <option value="gradient">Orange to red</option>
           </select>
-          <label><input type="checkbox" id="show-numbers" checked> Numbers on big cells</label>
+          <label><input type="checkbox" id="show-numbers" checked> Show grain count on cell</label>
         </div>
         <div class="option-row">
           Seed <input type="text" id="seed" size="8">
@@ -240,7 +263,10 @@
 
         <h3 class="option-heading">Cells of each height</h3>
         <canvas class="chart" id="heights-chart"></canvas>
-        <h3 class="option-heading">Avalanche sizes (storm, waiting until stable)</h3>
+        <h3 class="option-heading">Avalanches over time (storm, waiting until stable)</h3>
+        <canvas class="chart" id="timeline-chart"></canvas>
+        <p class="muted small" id="timeline-info"></p>
+        <h3 class="option-heading">Avalanche sizes</h3>
         <canvas class="chart" id="avalanche-chart"></canvas>
         <p class="muted small" id="avalanche-info"></p>
       </section>
@@ -283,7 +309,7 @@
           <strong>The rule.</strong> The table is a graph: the cells
           <span class="tex">V</span>, joined to their 4 or 8 neighbors, plus a
           sink <span class="tex">s</span>. Each lattice neighbor of
-          <span class="tex">v</span> that is not on the table (or is the sink
+          <span class="tex">v</span> that is not on the table (or is a sink
           cell) is an edge from <span class="tex">v</span> to
           <span class="tex">s</span>, so every cell has degree
           <span class="tex">d(v) = 4</span> (or 8). A pile is
@@ -307,8 +333,12 @@
           <span class="tex">\lfloor \eta(v)/d(v) \rfloor</span> times at once.
         </p>
         <p>
-          <strong>No sink.</strong> On the torus without a sink, grains are
-          conserved. Björner, Lovász and Shor [3] showed that if every cell
+          <strong>Sink cells.</strong> Clicking with "Adds or removes a sink"
+          makes a cell a sink cell (its grains are lost to the sink) or a
+          normal cell again, on any table. If the middle cell is a sink, the
+          center pile starts on the top left cell instead.
+          <strong>No sink.</strong> On the torus with no sink cell (the
+          default), grains are conserved. Björner, Lovász and Shor [3] showed that if every cell
           topples at least once the toppling never ends, so the sim stops there
           and says so. With <span class="tex">N</span> grains, it always ends if
           <span class="tex">N &lt; |E|</span> and never ends if
@@ -335,14 +365,28 @@
           from the empty pile only by topples and is at least
           <span class="tex">M</span> everywhere, so its stable version is
           recurrent and equivalent to the empty pile, and that is the identity.
-          "Identity (watch it form)" starts from
+          The start "Identity" is
           <span class="tex">2M - (2M)^\circ</span>. The identity pictures on
           squares were made famous by Creutz [7].
         </p>
         <p>
           <strong>Statistics.</strong> An avalanche is the number of topples
           caused by one grain of the storm. They follow a rough power law, the
-          "self-organized criticality" of [1]. For recurrent piles on large
+          "self-organized criticality" of [1]. "Avalanches over time" shows
+          the pile becoming critical: across is the number of storm grains so
+          far, in columns of equally many grains, and up are the avalanche
+          sizes, grouped by powers of 2 (0, 1, 2&ndash;3, 4&ndash;7, ...). Each
+          square's color is how many of that column's avalanches have that
+          size, from white (none) to dark blue (the most common size in the
+          column). Starting from an
+          empty table, the first avalanches are all of size 0; once the
+          pile is recurrent the columns stop changing. "Avalanche sizes"
+          plots, on logarithmic scales, the fraction of all avalanches of
+          each size <span class="tex">s \ge 1</span> (the count in each
+          group, divided by its width and by the number of avalanches). A
+          power law <span class="tex">P(s) \propto s^{-\tau}</span> is a
+          straight line of slope <span class="tex">-\tau</span>, bending
+          down at sizes the table is too small for. For recurrent piles on large
           squares, the fraction of cells with no grains tends to
           <span class="tex">\tfrac{2}{\pi^2} - \tfrac{4}{\pi^3} \approx 0.074</span>
           [8]. The center pile of <span class="tex">n</span> grains, scaled
