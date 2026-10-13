@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Eden Mountain — Toys n' Sims</title>
+  <title>Eden Growth — Toys n' Sims</title>
   <link rel="stylesheet" href="../css/style.css">
   <!-- KaTeX's styles, for the typeset formulas. -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/katex.min.css">
@@ -34,11 +34,11 @@
 
   <main class="page">
     <p><a href="../toysnsims.html">&larr; All sims</a></p>
-    <h1>Eden Mountain</h1>
+    <h1>Eden Growth</h1>
 
     <!-- The four quadrants, as on every sim page (their layout is in
          section 6 of css/style.css). All the behavior lives in
-         eden-mountain.js; the ids below (id="...") are how that script
+         eden-growth.js; the ids below (id="...") are how that script
          finds each button and box. -->
     <div class="quadrants">
 
@@ -46,7 +46,7 @@
       <section class="quad quad-sim">
         <h2>Simulation</h2>
 
-        <!-- The picture. eden-mountain.js sets its height. In 2D and on
+        <!-- The picture. eden-growth.js sets its height. In 2D and on
              a graph, the zoom buttons sit in its top right corner; the full
              screen button (added by js/sim-page.js) in its top left corner. -->
         <div class="sim-picture">
@@ -96,7 +96,7 @@
         <!-- The heading, with a small "model check" button on the right
              that opens the page testing this sim's math. -->
         <h2 class="heading-with-button">Options
-          <a class="tool-button model-check" href="eden-mountain-check.html">model check</a></h2>
+          <a class="tool-button model-check" href="eden-growth-check.html">model check</a></h2>
 
         <h3 class="option-heading">Dimension</h3>
         <div class="option-row">
@@ -165,7 +165,7 @@
           <div class="option-row" id="tile-presets"></div>
           <p class="muted small">Click cells to add them to the tile or take them out.
             The dark cell in the middle is the site itself.</p>
-          <!-- The clickable cells; eden-mountain.js fills this in. -->
+          <!-- The clickable cells; eden-growth.js fills this in. -->
           <div class="tile-grid" id="tile-grid"></div>
           <div class="option-row">
             <span id="disk-label"></span> r <input type="number" id="disk-radius" min="1" max="30" step="1" value="2">
@@ -178,6 +178,19 @@
           </div>
           <p class="muted small" id="tile-info"></p>
         </div>
+
+        <!-- The max height: off by default. When checked, the slider
+             shows and sets M. -->
+        <h3 class="option-heading">Max height</h3>
+        <div class="option-row">
+          <label><input type="checkbox" id="use-cap"> Max height</label>
+          <span id="cap-row" hidden>
+            M <input type="range" id="cap" min="1" max="20" step="1" value="1">
+            <span class="muted" id="cap-label"></span>
+          </span>
+        </div>
+        <p class="muted small">A site with M blocks is full, and no more blocks land on it.
+          With M = 1 every block lands on a new site: that is Eden's growth model.</p>
 
         <h3 class="option-heading">Domain</h3>
         <div class="option-row" id="domain-choice"></div>
@@ -260,6 +273,13 @@
           taller much faster than it gets wider.
         </p>
         <p>
+          <strong>Max height.</strong> Check the box to give every site a max
+          height <span class="tex">M</span>: a site with
+          <span class="tex">M</span> blocks is full, and blocks stop landing on it.
+          With <span class="tex">M = 1</span> each block lands on a new site
+          next to the base, which is Eden's growth model.
+        </p>
+        <p>
           <strong>Things to try:</strong> click an available site to drop the
           next block there yourself; the one-sided tile {+1}; a tile with a
           gap, like {&minus;2, +1}; 2D with 4 or 8 neighbors; a tile of your own,
@@ -331,6 +351,17 @@
           the outer boundary of the base. So the base, watched only at the steps
           where it grows, is Eden's growth model [1] with the neighbors given by
           <span class="tex">T</span>; the mountain adds the heights on top.
+        </p>
+        <p>
+          <strong>Max height.</strong> With a max height
+          <span class="tex">M</span>, the available sites are
+          <span class="tex">S_n = \{x \in \{0\} \cup (D_n + T) : H(x, n) &lt; M\}</span>
+          (inside the domain), and the pick is uniform on
+          <span class="tex">S_n</span> as before. With
+          <span class="tex">M = 1</span> every block lands outside the base, so
+          <span class="tex">|D_n| = n + 1</span> and the base is exactly Eden's
+          growth model [1], step by step. On a bounded domain the run stops
+          once every site is full.
         </p>
         <p>
           <strong>Random numbers.</strong> Step <span class="tex">n</span> uses a
@@ -449,8 +480,8 @@
   <script src="../js/sim-graphs.js"></script>
   <script src="../js/sim-hyperbolic.js"></script>
   <script src="../js/sim-controls.js"></script>
-  <script src="eden-mountain/eden-mountain-growth.js"></script>
-  <script src="eden-mountain/eden-mountain.js"></script>
+  <script src="eden-growth/eden-growth-rule.js"></script>
+  <script src="eden-growth/eden-growth.js"></script>
 
 </body>
 </html>

@@ -22,9 +22,8 @@
 
    It also typesets the formulas in the About quadrant (so a page that
    has formulas loads KaTeX before this file), makes the About tabs
-   work, lays the four boxes out like bricks, and puts the full screen
-   button on the picture (all at the end of this file). The small charts
-   are in js/sim-charts.js.
+   work, and puts the full screen button on the picture (all at the end
+   of this file). The small charts are in js/sim-charts.js.
    ===================================================================== */
 
 
@@ -158,11 +157,10 @@ function connectSeed(onChange) {
    The drawing tool inside a sim page
    ---------------------------------------------------------------------
    Choosing "Custom" on a sim page swaps the picture for the drawing
-   tool (graph-tool.html), loaded in an <iframe> (a page inside the
-   page) as graph-tool.html?embed. The sim checks the
-   drawing live and says above the tool what's wrong, if anything; Done
-   uses it. makeCustomTool (js/sim-controls.js) does all of that with
-   these two.
+   tool, loaded in an <iframe> (a page inside the page) as
+   graph-tool.html?embed. The sim checks the drawing live and says above
+   the tool what's wrong, if anything; Done uses it. makeCustomTool
+   (js/sim-controls.js) does all of that with these two.
    --------------------------------------------------------------------- */
 
 // Listen to the tool in the iframe "frame". It says how tall it is (so
@@ -296,33 +294,6 @@ for (const bar of document.querySelectorAll(".about-tabs")) {
     });
   }
 }
-
-
-// The four boxes laid out like bricks (section 6 of css/style.css): on
-// a wide screen, each box is as tall as its own content and the box
-// under it moves up to meet it. The page is cut into rows ROW pixels
-// tall, and each box spans as many as its height (plus the 20 pixel gap
-// under it) needs. This is worked out again whenever a box changes size
-// (a "ResizeObserver" says when), so the wall rearranges itself as the
-// boxes grow and shrink. On a narrow screen the boxes are simply stacked.
-(function () {
-  const quadrants = document.querySelector(".quadrants");
-  if (!quadrants || !window.ResizeObserver) return;   // no boxes, or an old browser: the plain layout
-  const ROW = 4, GAP = 20;
-  const wide = window.matchMedia("(min-width: 761px)");   // as in the last section of css/style.css
-  const boxes = Array.from(quadrants.querySelectorAll(":scope > .quad"));
-  function layBricks() {
-    quadrants.classList.toggle("bricks", wide.matches);
-    for (const box of boxes) {
-      box.style.gridRowEnd = wide.matches
-        ? "span " + Math.ceil((box.getBoundingClientRect().height + GAP) / ROW) : "";
-    }
-  }
-  const watcher = new ResizeObserver(layBricks);
-  for (const box of boxes) watcher.observe(box);
-  wide.addEventListener("change", layBricks);
-  layBricks();
-})();
 
 
 // The full screen button on every picture (see "Full screen" above).
