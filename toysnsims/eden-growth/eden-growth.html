@@ -193,6 +193,17 @@
         <p class="muted small">A site with M blocks is full, and no more blocks land on it.
           With M = 1 every block lands on a new site: that is Eden's growth model.</p>
 
+        <!-- The weight s: an available site with h blocks is picked with
+             weight (h + 1)^s. 0 is uniform. -->
+        <h3 class="option-heading">Weight</h3>
+        <div class="option-row">
+          s <input type="range" id="weight-s" min="-3" max="3" step="0.1" value="0">
+          <span class="muted" id="weight-label"></span>
+        </div>
+        <p class="muted small">A site with h blocks is picked with weight (h + 1)<sup>s</sup>:
+          s &gt; 0 favors tall sites, s &lt; 0 short ones, and s = 0 picks every site
+          equally. Empty sites always have weight 1, so with M = 1 the weight changes nothing.</p>
+
         <h3 class="option-heading">Domain</h3>
         <div class="option-row" id="domain-choice"></div>
         <div class="option-row" id="size-row" hidden>
@@ -299,6 +310,13 @@
           max, and the blocks pile up into a mountain.
         </p>
         <p>
+          <strong>Weight.</strong> Like bacteria, where more bacteria in a cell
+          means more new ones born there, the slider s makes tall sites more
+          likely (s &gt; 0) or less likely (s &lt; 0) to get the next block. At
+          s = 0 every available site is equally likely. Empty sites always count
+          the same, so s only matters once a site can hold 2 or more blocks.
+        </p>
+        <p>
           <strong>Things to try:</strong> click an available site to drop the
           next block there yourself; the one-sided tile {+1}; a tile with a
           gap, like {&minus;2, +1}; 2D with 4 or 8 neighbors; a tile of your own,
@@ -381,6 +399,19 @@
           <span class="tex">|D_n| = n + 1</span> and the base is exactly Eden's
           growth model [1], step by step. On a bounded domain the run stops
           once every site is full.
+        </p>
+        <p>
+          <strong>Weight.</strong> With the weight <span class="tex">s</span>,
+          the next site is no longer uniform on <span class="tex">S_{n-1}</span>:</p>
+        <div class="tex">\mathbb{P}(X_n = x) = \frac{(H(x, n-1) + 1)^s}{\sum_{y \in S_{n-1}} (H(y, n-1) + 1)^s}, \qquad x \in S_{n-1},</div>
+        <p>
+          the number of blocks <span class="tex">x</span> will have, to the
+          power <span class="tex">s</span>. At <span class="tex">s = 0</span> this
+          is the uniform rule above. An empty site has weight 1 for every
+          <span class="tex">s</span>, so with <span class="tex">M = 1</span> the
+          weight changes nothing. To pick the site, the weights are laid end to
+          end in the same order as the sites, and the site whose stretch
+          contains <span class="tex">u_n</span> times their total is taken.
         </p>
         <p>
           <strong>Random numbers.</strong> Step <span class="tex">n</span> uses a

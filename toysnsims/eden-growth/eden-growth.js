@@ -300,7 +300,7 @@ function customStart(d) {
 const worker = startWorker(mountainWorker,
   [newMountain, newGraphMountain, makeGraph, tilingShape, motionTimes, motionApply, halfTurn, coshFromStart,
    learnedRules, tilingByGeometry, tilingByRules, tilingRules, testRules, hashTable, ballAround, spreadPlace,
-   makeRunLoop, newTrace, keepSample]);
+   makeRunLoop, newTrace, keepSample, pickSite]);
 
 worker.onmessage = function (event) {
   const message = event.data;
@@ -340,7 +340,7 @@ function restart(keepStep, forget) {
   const where = domainSettings();
   run++;
   const message = {
-    type: "setup", run: run, dim: dim, domain: where.domain, cap: maxHeight(), seed: byId("seed").value,
+    type: "setup", run: run, dim: dim, domain: where.domain, cap: maxHeight(), s: Number(byId("weight-s").value), seed: byId("seed").value,
     steps: (keepStep && latest && latest.steps) ? latest.steps : 0,
     forgetClicks: !keepStep || Boolean(forget),
   };
@@ -945,6 +945,14 @@ for (const id of ["use-cap", "cap"]) {
   byId(id).addEventListener("input", function () { showMaxHeight(); restart(true); });
 }
 
+// The weight s: tall sites favored (s > 0) or avoided (s < 0). Moving
+// it keeps the seed and the step, like the max height.
+function showWeight() {
+  const s = Number(byId("weight-s").value);
+  byId("weight-label").textContent = s === 0 ? "0 (uniform)" : s.toFixed(1);
+}
+byId("weight-s").addEventListener("input", function () { showWeight(); restart(true); });
+
 // Go to step.
 byId("goto").addEventListener("click", function () {
   worker.postMessage({ type: "goto", steps: readWhole("goto-steps", 0, 10000000, 0) });
@@ -958,6 +966,7 @@ connectSeed(function () { restart(true, true); });
 byId("seed").value = DEFAULT_SEED;
 byId("goto-steps").value = 1000;
 showMaxHeight();
+showWeight();
 showGraphPresets(useGraph);
 setDimension(2);   // 2D by default: with M = 1 it is the Eden model
 player.setPlaying(false);   // paused: press Play

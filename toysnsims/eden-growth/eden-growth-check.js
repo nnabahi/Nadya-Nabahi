@@ -12,7 +12,8 @@
 
      2. Exact odds on small cases. For a few steps, every possible run
         can be listed, with its probability (each step picks one of |S|
-        sites, so a run has probability 1/|S_0| * 1/|S_1| * ...). This
+        sites, so a run has probability 1/|S_0| * 1/|S_1| * ...; with the
+        weight s, each pick has chance (h + 1)^s over the total). This
         listing is written separately, straight from the definition, so
         it does not share code with the sim. Then the sim is run many
         times, and Pearson's chi-square test (K. Pearson, Philosophical
@@ -124,6 +125,11 @@ const smallCases = [
     domain: { kind: "box", xmin: 0, xmax: 2, ymin: 0, ymax: 2, torus: true }, start: [0, 0] },
   { name: "2D, 4 neighbors, drawn L-shaped region", steps: 4, dim: 2, tile: [[1, 0], [-1, 0], [0, 1], [0, -1]],
     domain: { kind: "cells", wrap: null, cells: [[0, 0], [1, 0], [2, 0], [0, 1], [0, 2]] }, start: [0, 0] },
+  // The weight s: a site with h blocks is picked with weight (h + 1)^s.
+  { name: "Two-sided, weight s = 1",            steps: 5, dim: 1, tile: [[-1], [1]],  domain: { kind: "whole" }, start: [0], s: 1 },
+  { name: "One-sided, weight s = -1.5",         steps: 6, dim: 1, tile: [[1]],        domain: { kind: "whole" }, start: [0], s: -1.5 },
+  { name: "2D, 4 neighbors, weight s = 2",      steps: 3, dim: 2, tile: [[1, 0], [-1, 0], [0, 1], [0, -1]],
+    domain: { kind: "whole" }, start: [0, 0], s: 2 },
 ];
 
 // The final mountain as text, e.g. "-1,0:2 0,0:3 1,0:1", so equal
@@ -172,11 +178,16 @@ function exactOdds(c) {
       odds.set(key, (odds.get(key) || 0) + probability);
       return;
     }
+    // Each site's chance: (its height + 1)^s over the total (uniform
+    // when s = 0 or left out).
     const sites = availableSites(heights);
+    const weight = function (s) { return Math.pow((heights.get(s) || 0) + 1, c.s || 0); };
+    let total = 0;
+    for (const s of sites) total += weight(s);
     for (const s of sites) {
       const next = new Map(heights);
       next.set(s, (next.get(s) || 0) + 1);
-      grow(next, stepsLeft - 1, probability / sites.length);
+      grow(next, stepsLeft - 1, probability * weight(s) / total);
     }
   }
   grow(new Map([[site(c.start[0], c.start[1] || 0), 1]]), c.steps, 1);
