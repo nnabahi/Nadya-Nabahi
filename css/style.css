@@ -37,7 +37,7 @@
    ===================================================================== */
 :root {
   --color-background:   #f6f5f2;  /* the page behind everything        */
-  --color-surface:      #ffffff;  /* cards and quadrant panels         */
+  --color-surface:      #ffffff;  /* cards and sim page panels        */
   --color-text:         #22252b;  /* normal writing                    */
   --color-text-muted:   #6b6f78;  /* captions, dates, small notes      */
   --color-border:       #dedbd4;  /* thin lines around cards           */
@@ -402,42 +402,41 @@ a.card:hover {
    6. Toys n' Sims: the sim page layout
    ---------------------------------------------------------------------
    HTML shape (see toysnsims/random-walk-coloring/random-walk-coloring.html):
-     <div class="quadrants">
-       <section class="quad quad-sim">      main simulation     </section>
-       <section class="quad quad-controls"> options / controls  </section>
-       <section class="quad quad-stats">    statistics          </section>
-       <section class="quad quad-about">    about the model     </section>
+     <div class="sim-layout">
+       <section class="panel panel-sim">      main simulation     </section>
+       <section class="panel panel-controls"> options / controls  </section>
+       <section class="panel panel-stats">    statistics          </section>
+       <section class="panel panel-about">    about the model     </section>
      </div>
 
    Where each one sits on the screen is set by "grid-template-areas"
-   below — it's literally a little picture of the layout:
+   below — it's literally a little picture of the layout, in three layers:
        "sim    controls"     <- the picture, with the options beside it
-       "stats  controls"     <- the statistics under the picture
+       "stats  stats"        <- the statistics, the full page width
        "about  about"        <- About the model, the full page width
    So the order of the <section>s in the HTML doesn't matter; to move
    a box, just change this picture.
 
-   The options box spans the first two rows, so the statistics sit right
-   under the picture however long the options are. The top row is only
-   as tall as the picture ("auto"); any extra height the options need
-   goes to the second row ("1fr"), below the statistics.
+   Inside the statistics, each table or chart (with its heading) is a
+   <div class="stat">, laid out by .stat-grid: side by side when there
+   is room, one per row on a phone. Add "wide" (class="stat wide") to
+   make one take the whole row.
    ===================================================================== */
-.quadrants {
+.sim-layout {
   display: grid;
   /* Two columns: left is 3 parts wide, right is 2 parts wide,
      so the simulation gets more room. Change to "1fr 1fr" for equal. */
   grid-template-columns: 3fr 2fr;
-  grid-template-rows: auto 1fr auto;
   grid-template-areas:
     "sim    controls"
-    "stats  controls"
+    "stats  stats"
     "about  about";
   gap: 20px;
 }
 
 /* Each box is a card, only as tall as its own content
    (not stretched to fill its row). */
-.quad {
+.panel {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--corner-radius);
@@ -446,17 +445,34 @@ a.card:hover {
   align-self: start;
 }
 
-.quad h2 {
+.panel h2 {
   font-size: 1.1em;
   margin: 0 0 12px;
   color: var(--color-text-muted);
 }
 
 /* Tell each section which named area of the picture it belongs in. */
-.quad-sim      { grid-area: sim; }
-.quad-controls { grid-area: controls; }
-.quad-stats    { grid-area: stats; }
-.quad-about    { grid-area: about; }
+.panel-sim      { grid-area: sim; }
+.panel-controls { grid-area: controls; }
+.panel-stats    { grid-area: stats; }
+.panel-about    { grid-area: about; }
+
+/* The tables and charts in the statistics: as many columns as fit,
+   each at least 400px wide (or the whole width, on a phone). */
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(400px, 100%), 1fr));
+  gap: 16px 32px;
+  align-items: start;
+}
+
+.stat {
+  min-width: 0;
+}
+
+.stat.wide {
+  grid-column: 1 / -1;
+}
 
 
 /* =====================================================================
@@ -468,7 +484,7 @@ a.card:hover {
    and sliders.
    ===================================================================== */
 
-/* Settings in the Options quadrant. */
+/* Settings in the Options box. */
 .option-heading {
   font-size: 0.95em;
   margin: 16px 0 6px;
@@ -707,7 +723,7 @@ a.card:hover {
   gap: 2px;
 }
 
-/* The numbers in the Statistics quadrant. */
+/* The numbers in the Statistics box. */
 .stats-table td {
   padding: 2px 16px 2px 0;
 }
@@ -729,7 +745,7 @@ a.card:hover {
   vertical-align: middle;
 }
 
-/* The small plots in the Statistics quadrant. */
+/* The small plots in the Statistics box. */
 .chart {
   display: block;
   width: 100%;
@@ -941,7 +957,7 @@ body.popup-open {
   border-bottom-color: var(--color-accent);
 }
 
-/* The numbered steps and the references in the About quadrant. */
+/* The numbered steps and the references in the About box. */
 .about-steps,
 .references {
   padding-left: 1.4em;
@@ -1124,9 +1140,9 @@ body.embedded {
 body.embedded .topbar,
 body.embedded .page > p:first-child,
 body.embedded h1,
-body.embedded .quad h2,
-body.embedded .quad-stats,
-body.embedded .quad-about {
+body.embedded .panel h2,
+body.embedded .panel-stats,
+body.embedded .panel-about {
   display: none;
 }
 
@@ -1135,16 +1151,15 @@ body.embedded .page {
   padding: 0 0 8px;
 }
 
-body.embedded .quadrants {
+body.embedded .sim-layout {
   grid-template-columns: 1fr;
   grid-template-areas:
     "sim"
     "controls";
-  grid-template-rows: none;
   gap: 12px;
 }
 
-body.embedded .quad {
+body.embedded .panel {
   border: 0;
   padding: 0;
 }
@@ -1254,14 +1269,13 @@ body.embedded .graph-wrap {
   }
 
   /* Stack the four boxes in one column, in this order. */
-  .quadrants {
+  .sim-layout {
     grid-template-columns: 1fr;
     grid-template-areas:
       "sim"
       "controls"
       "stats"
       "about";
-    grid-template-rows: none;
   }
 
   /* Resume skills: stack each label above its details. */

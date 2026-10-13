@@ -22,7 +22,7 @@
      pictureHeight(normal)            how tall to draw the picture (taller
                                         in the full screen popup)
 
-   It also typesets the formulas in the About quadrant (so a page that
+   It also typesets the formulas in the About box (so a page that
    has formulas loads KaTeX before this file), makes the About tabs
    work, and puts the full screen button on the picture (all at the end
    of this file). The small charts are in js/sim-charts.js.

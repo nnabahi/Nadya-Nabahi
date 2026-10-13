@@ -203,7 +203,7 @@ function pottsStart(n, q, kind, random) {
      { type: "pause" }
      { type: "step" }                  one sweep
    The worker answers with "state" messages: the colors and the
-   numbers for the Statistics quadrant, each with its run number, so
+   numbers for the Statistics box, each with its run number, so
    the page can ignore leftovers from an older run.
    ===================================================================== */
 function pottsWorker() {

@@ -24,14 +24,14 @@
     <p><a href="../../toysnsims.html">&larr; All sims</a></p>
     <h1>Matrix Products</h1>
 
-    <!-- The four quadrants, as on every sim page (their layout is in
+    <!-- The three layers, as on every sim page (their layout is in
          section 6 of css/style.css). All the behavior lives in
          matrix-products.js; the ids below (id="...") are how
          that script finds each button and box. -->
-    <div class="quadrants">
+    <div class="sim-layout">
 
-      <!-- UPPER LEFT: the cloud, the histogram or one trajectory. -->
-      <section class="quad quad-sim">
+      <!-- TOP LEFT: the cloud, the histogram or one trajectory. -->
+      <section class="panel panel-sim">
         <h2>Simulation</h2>
         <div class="option-row">
           <label><input type="radio" name="view" value="cloud" checked> Cloud</label>
@@ -50,8 +50,8 @@
         <p class="muted" id="sim-message"></p>
       </section>
 
-      <!-- UPPER RIGHT: settings. -->
-      <section class="quad quad-controls">
+      <!-- TOP RIGHT: settings. -->
+      <section class="panel panel-controls">
         <!-- The heading, with a small "model check" button on the right
              that opens the page testing this sim's math. -->
         <h2 class="heading-with-button">Options
@@ -132,33 +132,42 @@
         </div>
       </section>
 
-      <!-- LOWER LEFT: numbers about the runs, and two histograms. -->
-      <section class="quad quad-stats">
+      <!-- MIDDLE, the full width: numbers about the runs, and two histograms. -->
+      <section class="panel panel-stats">
         <h2>Statistics</h2>
-        <table class="stats-table">
-          <tr><td>Steps t, runs N</td><td id="stat-t"></td></tr>
-          <tr><td>Average matrix E[X]</td><td id="stat-mean"></td></tr>
-          <tr><td>&rho;(E[X]), its largest eigenvalue in size</td><td id="stat-rho"></td></tr>
-          <tr><td>log &rho;(E[X])</td><td id="stat-logrho"></td></tr>
-          <tr><td>Growth rate (1/t) log |P<sub>t</sub>|, average over runs</td><td id="stat-growth"></td></tr>
-          <tr><td>Red dots: average position</td><td id="stat-red-mean"></td></tr>
-          <tr><td>Red dots: spread (standard deviation of x, y)</td><td id="stat-red-spread"></td></tr>
-        </table>
-
-        <h3 class="option-heading">Growth rate of each run, (1/t) log |P<sub>t</sub>|</h3>
-        <canvas class="chart" id="growth-chart"></canvas>
-        <h3 class="option-heading">Largest eigenvalue of P<sub>t</sub> (real part), scaled like the picture</h3>
-        <canvas class="chart" id="eigen-chart"></canvas>
-        <h3 class="option-heading">Largest eigenvalue of P<sub>t</sub> (imaginary part)</h3>
-        <canvas class="chart" id="eigen-im-chart"></canvas>
-        <p class="muted small">P<sub>t</sub> is the product of the first t matrices of a run.
-          The eigenvalue charts show the middle 90% of the values (the rest are counted in the end bars).</p>
+        <div class="stat-grid">
+          <div class="stat">
+            <table class="stats-table">
+              <tr><td>Steps t, runs N</td><td id="stat-t"></td></tr>
+              <tr><td>Average matrix E[X]</td><td id="stat-mean"></td></tr>
+              <tr><td>&rho;(E[X]), its largest eigenvalue in size</td><td id="stat-rho"></td></tr>
+              <tr><td>log &rho;(E[X])</td><td id="stat-logrho"></td></tr>
+              <tr><td>Growth rate (1/t) log |P<sub>t</sub>|, average over runs</td><td id="stat-growth"></td></tr>
+              <tr><td>Red dots: average position</td><td id="stat-red-mean"></td></tr>
+              <tr><td>Red dots: spread (standard deviation of x, y)</td><td id="stat-red-spread"></td></tr>
+            </table>
+          </div>
+          <div class="stat">
+            <h3 class="option-heading">Growth rate of each run, (1/t) log |P<sub>t</sub>|</h3>
+            <canvas class="chart" id="growth-chart"></canvas>
+          </div>
+          <div class="stat">
+            <h3 class="option-heading">Largest eigenvalue of P<sub>t</sub> (real part), scaled like the picture</h3>
+            <canvas class="chart" id="eigen-chart"></canvas>
+          </div>
+          <div class="stat">
+            <h3 class="option-heading">Largest eigenvalue of P<sub>t</sub> (imaginary part)</h3>
+            <canvas class="chart" id="eigen-im-chart"></canvas>
+            <p class="muted small">P<sub>t</sub> is the product of the first t matrices of a run.
+              The eigenvalue charts show the middle 90% of the values (the rest are counted in the end bars).</p>
+          </div>
+        </div>
       </section>
 
-      <!-- LOWER RIGHT: about the model, in two tabs (js/sim-page.js
+      <!-- BOTTOM, the full width: about the model, in two tabs (js/sim-page.js
            switches them). Text in class="tex" is typeset by KaTeX
            (<div> on its own line, <span> inside a sentence). -->
-      <section class="quad quad-about">
+      <section class="panel panel-about">
         <h2>About the model</h2>
         <nav class="about-tabs">
           <button class="about-tab selected" data-tab="simple">Simple</button>

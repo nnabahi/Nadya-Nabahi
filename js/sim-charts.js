@@ -20,7 +20,7 @@
    ===================================================================== */
 
 
-// The charts in the Statistics quadrant use the site's own colors from
+// The charts in the Statistics box use the site's own colors from
 // section 1 of css/style.css, so restyling the site restyles them too.
 const siteColors = getComputedStyle(document.documentElement);
 const CHART_TEXT = siteColors.getPropertyValue("--color-text-muted").trim();   // numbers and labels

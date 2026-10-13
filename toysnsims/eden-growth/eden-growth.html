@@ -36,14 +36,14 @@
     <p><a href="../../toysnsims.html">&larr; All sims</a></p>
     <h1>Eden Growth</h1>
 
-    <!-- The four quadrants, as on every sim page (their layout is in
+    <!-- The three layers, as on every sim page (their layout is in
          section 6 of css/style.css). All the behavior lives in
          eden-growth.js; the ids below (id="...") are how that script
          finds each button and box. -->
-    <div class="quadrants">
+    <div class="sim-layout">
 
-      <!-- UPPER LEFT: the mountain. -->
-      <section class="quad quad-sim">
+      <!-- TOP LEFT: the mountain. -->
+      <section class="panel panel-sim">
         <h2>Simulation</h2>
 
         <!-- The picture. eden-growth.js sets its height. In 2D and on
@@ -91,8 +91,8 @@
         <p class="muted" id="sim-message"></p>
       </section>
 
-      <!-- UPPER RIGHT: settings. -->
-      <section class="quad quad-controls">
+      <!-- TOP RIGHT: settings. -->
+      <section class="panel panel-controls">
         <!-- The heading, with a small "model check" button on the right
              that opens the page testing this sim's math. -->
         <h2 class="heading-with-button">Options
@@ -228,30 +228,39 @@
           changes as little as it can.</p>
       </section>
 
-      <!-- LOWER LEFT: numbers about this run. -->
-      <section class="quad quad-stats">
+      <!-- MIDDLE, the full width: numbers about this run. -->
+      <section class="panel panel-stats">
         <h2>Statistics</h2>
-        <table class="stats-table">
-          <tr><td>Steps n</td><td id="stat-steps"></td></tr>
-          <tr><td>Blocks (n + 1)</td><td id="stat-blocks"></td></tr>
-          <tr><td>Base: sites with a block</td><td id="stat-base"></td></tr>
-          <tr><td>Available sites</td><td id="stat-available"></td></tr>
-          <tr><td>Largest height</td><td id="stat-highest"></td></tr>
-          <tr><td>Height at the start site</td><td id="stat-start"></td></tr>
-          <tr id="ends-row"><td>Base from &hellip; to &hellip;</td><td id="stat-ends"></td></tr>
-        </table>
-
-        <h3 class="option-heading">Base size over time</h3>
-        <canvas class="chart" id="base-chart"></canvas>
-        <h3 class="option-heading">Largest height over time</h3>
-        <canvas class="chart" id="highest-chart"></canvas>
-        <h3 class="option-heading">Height at the start site over time</h3>
-        <canvas class="chart" id="start-chart"></canvas>
+        <div class="stat-grid">
+          <div class="stat">
+            <table class="stats-table">
+              <tr><td>Steps n</td><td id="stat-steps"></td></tr>
+              <tr><td>Blocks (n + 1)</td><td id="stat-blocks"></td></tr>
+              <tr><td>Base: sites with a block</td><td id="stat-base"></td></tr>
+              <tr><td>Available sites</td><td id="stat-available"></td></tr>
+              <tr><td>Largest height</td><td id="stat-highest"></td></tr>
+              <tr><td>Height at the start site</td><td id="stat-start"></td></tr>
+              <tr id="ends-row"><td>Base from &hellip; to &hellip;</td><td id="stat-ends"></td></tr>
+            </table>
+          </div>
+          <div class="stat">
+            <h3 class="option-heading">Base size over time</h3>
+            <canvas class="chart" id="base-chart"></canvas>
+          </div>
+          <div class="stat">
+            <h3 class="option-heading">Largest height over time</h3>
+            <canvas class="chart" id="highest-chart"></canvas>
+          </div>
+          <div class="stat">
+            <h3 class="option-heading">Height at the start site over time</h3>
+            <canvas class="chart" id="start-chart"></canvas>
+          </div>
+        </div>
       </section>
 
-      <!-- LOWER RIGHT: about the model, in two tabs (js/sim-page.js
+      <!-- BOTTOM, the full width: about the model, in two tabs (js/sim-page.js
            switches them). Text in class="tex" is typeset by KaTeX. -->
-      <section class="quad quad-about">
+      <section class="panel panel-about">
         <h2>About the model</h2>
         <nav class="about-tabs">
           <button class="about-tab selected" data-tab="simple">Simple</button>

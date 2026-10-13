@@ -60,7 +60,7 @@ a link back to the sim.
 
 | File | What it holds |
 | --- | --- |
-| `js/sim-page.js` | Small helpers every sim page uses: the second thread, Play and the Speed and Seed boxes, the drawing tool's messages, the full screen button, the About tabs, typesetting the formulas, laying the four boxes out like bricks |
+| `js/sim-page.js` | Small helpers every sim page uses: the second thread, Play and the Speed and Seed boxes, the drawing tool's messages, the full screen button, the About tabs, typesetting the formulas |
 | `js/sim-worker.js` | What the second threads share: Play, Pause and Speed (the run loop) and the run so far for the charts over time |
 | `js/sim-charts.js` | The small charts: lines over time, histograms, power-of-2 bars, perimeter against area, zooming a chart in time |
 | `js/sim-colors.js` | The old site's colors, color conversions, and the blue-to-red colors of heights |
@@ -91,7 +91,7 @@ a link back to the sim.
      New genres get a filter button automatically.
   4. Optionally a check page, `<name>-check.html` with `<name>-check.js`,
      linked from the sim's "model check" button.
-- **Move the sim quadrants around:** edit `grid-template-areas` in section 6
+- **Move the sim page boxes around:** edit `grid-template-areas` in section 6
   of `css/style.css`.
 
 The earlier version of the site (with the old simulations) is saved in git

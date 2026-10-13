@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Random Walk Coloring in 1D — Toys n' Sims</title>
   <link rel="stylesheet" href="../../css/style.css">
-  <!-- KaTeX's styles, for the typeset formulas in the About quadrant. -->
+  <!-- KaTeX's styles, for the typeset formulas in About the model. -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/katex.min.css">
 </head>
 <body>
@@ -30,14 +30,14 @@
          text differ. The script sees that "1D ring" is ticked and makes
          a ring (or a line, if "1D line" is picked).
 
-         The four quadrants, as on every sim page (their layout is in
+         The three layers, as on every sim page (their layout is in
          section 6 of css/style.css). All the behavior lives in
          random-walk-coloring.js; the ids below (id="...") are how that
          script finds each button and box. -->
-    <div class="quadrants">
+    <div class="sim-layout">
 
-      <!-- UPPER LEFT: the coloring and the walkers. -->
-      <section class="quad quad-sim">
+      <!-- TOP LEFT: the coloring and the walkers. -->
+      <section class="panel panel-sim">
         <h2>Simulation</h2>
 
         <!-- The picture. Its height is set so the cells come out square
@@ -78,8 +78,8 @@
         <p class="muted" id="sim-message"></p>
       </section>
 
-      <!-- UPPER RIGHT: settings. -->
-      <section class="quad quad-controls">
+      <!-- TOP RIGHT: settings. -->
+      <section class="panel panel-controls">
         <h2>Options</h2>
 
         <h3 class="option-heading">Model</h3>
@@ -174,39 +174,49 @@
           the walkers take the same paths in both models; only the timing differs.</p>
       </section>
 
-      <!-- LOWER LEFT: numbers about this run. -->
-      <section class="quad quad-stats">
+      <!-- MIDDLE, the full width: numbers about this run. -->
+      <section class="panel panel-stats">
         <h2>Statistics</h2>
-        <table class="stats-table">
-          <tr><td>Cells</td><td id="stat-cells"></td></tr>
-          <tr><td id="stat-time-name">Time</td><td id="stat-time"></td></tr>
-          <tr><td>Walker steps</td><td id="stat-moves"></td></tr>
-          <tr><td>Colored cells</td><td id="stat-colored"></td></tr>
-          <tr><td>Interface (edges joining two colors)</td><td id="stat-interface"></td></tr>
-          <tr><td>Regions (connected pieces of one color)</td><td id="stat-regions"></td></tr>
-          <tr><td>Cover time (every cell colored)</td><td id="stat-cover"></td></tr>
-        </table>
-
-        <h3 class="option-heading">Each color</h3>
-        <table class="stats-table">
-          <thead><tr><td></td><td>Cells</td><td>Regions</td><td>Largest region</td></tr></thead>
-          <tbody id="color-rows"></tbody>
-        </table>
-
-        <h3 class="option-heading">Cells of each color over time</h3>
-        <canvas class="chart" id="sizes-chart"></canvas>
-        <h3 class="option-heading">Interface over time</h3>
-        <canvas class="chart" id="interface-chart"></canvas>
-        <h3 class="option-heading">Region sizes (number of regions of each size, by color)</h3>
-        <canvas class="chart" id="areas-chart"></canvas>
-        <label class="small"><input type="checkbox" id="log-areas"> Log scale (counts)</label>
+        <div class="stat-grid">
+          <div class="stat">
+            <table class="stats-table">
+              <tr><td>Cells</td><td id="stat-cells"></td></tr>
+              <tr><td id="stat-time-name">Time</td><td id="stat-time"></td></tr>
+              <tr><td>Walker steps</td><td id="stat-moves"></td></tr>
+              <tr><td>Colored cells</td><td id="stat-colored"></td></tr>
+              <tr><td>Interface (edges joining two colors)</td><td id="stat-interface"></td></tr>
+              <tr><td>Regions (connected pieces of one color)</td><td id="stat-regions"></td></tr>
+              <tr><td>Cover time (every cell colored)</td><td id="stat-cover"></td></tr>
+            </table>
+          </div>
+          <div class="stat">
+            <h3 class="option-heading">Each color</h3>
+            <table class="stats-table">
+              <thead><tr><td></td><td>Cells</td><td>Regions</td><td>Largest region</td></tr></thead>
+              <tbody id="color-rows"></tbody>
+            </table>
+          </div>
+          <div class="stat">
+            <h3 class="option-heading">Cells of each color over time</h3>
+            <canvas class="chart" id="sizes-chart"></canvas>
+          </div>
+          <div class="stat">
+            <h3 class="option-heading">Interface over time</h3>
+            <canvas class="chart" id="interface-chart"></canvas>
+          </div>
+          <div class="stat">
+            <h3 class="option-heading">Region sizes (number of regions of each size, by color)</h3>
+            <canvas class="chart" id="areas-chart"></canvas>
+            <label class="small"><input type="checkbox" id="log-areas"> Log scale (counts)</label>
+          </div>
+        </div>
       </section>
 
-      <!-- LOWER RIGHT: about the model, in two tabs (js/sim-page.js
+      <!-- BOTTOM, the full width: about the model, in two tabs (js/sim-page.js
            switches them): a simple version, and all the details. Text in
            class="tex" is typeset by KaTeX (<div> on its own line, <span>
            inside a sentence). -->
-      <section class="quad quad-about">
+      <section class="panel panel-about">
         <h2>About the model</h2>
         <nav class="about-tabs">
           <button class="about-tab selected" data-tab="simple">Simple</button>

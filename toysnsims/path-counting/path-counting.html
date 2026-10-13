@@ -36,14 +36,14 @@
     <p><a href="../../toysnsims.html">&larr; All sims</a></p>
     <h1>Lattice Path Counting</h1>
 
-    <!-- The four quadrants, as on every sim page (their layout is in
+    <!-- The three layers, as on every sim page (their layout is in
          section 6 of css/style.css). All the behavior lives in
          path-counting/path-counting.js; the ids below (id="...") are how
          that script finds each button and box. -->
-    <div class="quadrants">
+    <div class="sim-layout">
 
-      <!-- UPPER LEFT: the picture. -->
-      <section class="quad quad-sim">
+      <!-- TOP LEFT: the picture. -->
+      <section class="panel panel-sim">
         <h2>Simulation</h2>
 
         <!-- The picture. From above, the zoom buttons sit in its top right
@@ -71,8 +71,8 @@
         <p class="muted" id="sim-message"></p>
       </section>
 
-      <!-- UPPER RIGHT: settings. -->
-      <section class="quad quad-controls">
+      <!-- TOP RIGHT: settings. -->
+      <section class="panel panel-controls">
         <!-- The heading, with a small "model check" button on the right
              that opens the page testing this sim's math. -->
         <h2 class="heading-with-button">Options
@@ -173,26 +173,31 @@
         </div>
       </section>
 
-      <!-- LOWER LEFT: numbers about the line. -->
-      <section class="quad quad-stats">
+      <!-- MIDDLE, the full width: numbers about the line. -->
+      <section class="panel panel-stats">
         <h2>Statistics</h2>
-        <table class="stats-table">
-          <tr><td>Grid points on the line</td><td id="stat-points"></td></tr>
-          <tr><td>... that a path reaches (f &gt; 0)</td><td id="stat-reached"></td></tr>
-          <tr><td>Largest f on the line</td><td id="stat-most"></td></tr>
-          <tr><td>Sum of f on the line</td><td id="stat-sum"></td></tr>
-          <tr><td>Mean position <span id="stat-axis">x</span></td><td id="stat-mean"></td></tr>
-          <tr><td>Standard deviation</td><td id="stat-sd"></td></tr>
-          <tr><td>Largest gap to the Gaussian</td><td id="stat-gap"></td></tr>
-        </table>
-
-        <h3 class="option-heading">f along the line (largest = 1), with the Gaussian of the same mean and standard deviation</h3>
-        <canvas class="chart taller" id="line-chart"></canvas>
+        <div class="stat-grid">
+          <div class="stat">
+            <table class="stats-table">
+              <tr><td>Grid points on the line</td><td id="stat-points"></td></tr>
+              <tr><td>... that a path reaches (f &gt; 0)</td><td id="stat-reached"></td></tr>
+              <tr><td>Largest f on the line</td><td id="stat-most"></td></tr>
+              <tr><td>Sum of f on the line</td><td id="stat-sum"></td></tr>
+              <tr><td>Mean position <span id="stat-axis">x</span></td><td id="stat-mean"></td></tr>
+              <tr><td>Standard deviation</td><td id="stat-sd"></td></tr>
+              <tr><td>Largest gap to the Gaussian</td><td id="stat-gap"></td></tr>
+            </table>
+          </div>
+          <div class="stat wide">
+            <h3 class="option-heading">f along the line (largest = 1), with the Gaussian of the same mean and standard deviation</h3>
+            <canvas class="chart taller" id="line-chart"></canvas>
+          </div>
+        </div>
       </section>
 
-      <!-- LOWER RIGHT: about the model, in two tabs (js/sim-page.js
+      <!-- BOTTOM, the full width: about the model, in two tabs (js/sim-page.js
            switches them). Text in class="tex" is typeset by KaTeX. -->
-      <section class="quad quad-about">
+      <section class="panel panel-about">
         <h2>About the model</h2>
         <nav class="about-tabs">
           <button class="about-tab selected" data-tab="simple">Simple</button>

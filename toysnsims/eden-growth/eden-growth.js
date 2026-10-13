@@ -78,7 +78,7 @@ const MAX_SIZE = { 1: 2001, 2: 301, graph: 12 };
 const MAX_GRAPH_RADIUS = 4;
 
 const DEFAULT_SEED = "1";
-// The picture always has the same size (the quadrant's width, and this
+// The picture always has the same size (the box's width, and this
 // height in screen pixels), in 1D and 2D; the mountain shrinks to fit
 // inside it as it grows. In the full screen popup, it is the popup's
 // height instead (pictureHeight, in js/sim-page.js).

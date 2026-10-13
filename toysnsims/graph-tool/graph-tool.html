@@ -24,14 +24,14 @@
     <p><a href="../../toysnsims.html">&larr; All sims</a></p>
     <h1>Graph &amp; Domain Tool</h1>
 
-    <!-- The four quadrants, as on every sim page (their layout is in
+    <!-- The three layers, as on every sim page (their layout is in
          section 6 of css/style.css). All the behavior lives in
          graph-tool.js; the ids below (id="...") are how that script finds
          each button and box. -->
-    <div class="quadrants">
+    <div class="sim-layout">
 
-      <!-- UPPER LEFT: the drawing. -->
-      <section class="quad quad-sim">
+      <!-- TOP LEFT: the drawing. -->
+      <section class="panel panel-sim">
         <h2>Drawing</h2>
 
         <!-- Tools you use all the time sit right above the drawing. -->
@@ -77,8 +77,8 @@
         <p class="muted" id="tool-message"></p>
       </section>
 
-      <!-- UPPER RIGHT: settings. -->
-      <section class="quad quad-controls">
+      <!-- TOP RIGHT: settings. -->
+      <section class="panel panel-controls">
         <h2>Options</h2>
 
         <h3 class="option-heading">Grid</h3>
@@ -150,19 +150,23 @@
         </div>
       </section>
 
-      <!-- LOWER LEFT: numbers about the painted domain. -->
-      <section class="quad quad-stats">
+      <!-- MIDDLE, the full width: numbers about the painted domain. -->
+      <section class="panel panel-stats">
         <h2>Statistics</h2>
-        <table class="stats-table">
-          <tr><td>Vertices (painted cells)</td><td id="stat-vertices">0</td></tr>
-          <tr><td>Edges</td><td id="stat-edges">0</td></tr>
-          <tr><td>Connected pieces</td><td id="stat-pieces">0</td></tr>
-        </table>
-        <ul class="color-counts" id="stat-colors"></ul>
+        <div class="stat-grid">
+          <div class="stat">
+            <table class="stats-table">
+              <tr><td>Vertices (painted cells)</td><td id="stat-vertices">0</td></tr>
+              <tr><td>Edges</td><td id="stat-edges">0</td></tr>
+              <tr><td>Connected pieces</td><td id="stat-pieces">0</td></tr>
+            </table>
+            <ul class="color-counts" id="stat-colors"></ul>
+          </div>
+        </div>
       </section>
 
-      <!-- LOWER RIGHT: how to use it, and what the grid means. -->
-      <section class="quad quad-about">
+      <!-- BOTTOM, the full width: how to use it, and what the grid means. -->
+      <section class="panel panel-about">
         <h2>About the tool</h2>
         <p>
           Paint a domain on the grid. The painted cells, joined to their painted

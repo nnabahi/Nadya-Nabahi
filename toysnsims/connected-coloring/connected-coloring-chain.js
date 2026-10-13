@@ -535,7 +535,7 @@ function chainWorker() {
        { type: "pause" }
        { type: "step" }           one move
      The worker answers with "state" messages: the colors, and the
-     numbers for the Statistics quadrant, including the acceptance
+     numbers for the Statistics box, including the acceptance
      probability alpha of every move since the last message. Each one carries its run
      number, so the page can ignore leftovers from an older run.
      Play, Pause and Speed are the run loop makeRunLoop
