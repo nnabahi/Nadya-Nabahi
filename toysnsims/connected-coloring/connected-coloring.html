@@ -24,7 +24,7 @@
     <p><a href="../../toysnsims.html">&larr; All sims</a></p>
     <h1>Connected Coloring</h1>
 
-    <!-- The three layers, as on every sim page (their layout is in
+    <!-- The boxes, as on every sim page (their layout is in
          section 6 of css/style.css). All the behavior lives in
          connected-coloring.js; the ids below (id="...") are how that
          script finds each button and box. -->
@@ -157,7 +157,7 @@
         <p class="muted small">The same seed always gives the same run.</p>
       </section>
 
-      <!-- MIDDLE, the full width: numbers about the chain. -->
+      <!-- UNDER THE PICTURE: numbers about this run, and the small charts. -->
       <section class="panel panel-stats">
         <h2>Statistics</h2>
         <div class="stat-grid">
@@ -175,6 +175,13 @@
             <h3 class="option-heading">Size of each color, largest first</h3>
             <canvas class="chart clickable" id="sizes-chart"></canvas>
           </div>
+        </div>
+      </section>
+
+      <!-- THE FULL WIDTH: the big charts, two to a row, and whatever else
+           does not fit under the picture (js/sim-page.js). -->
+      <section class="panel panel-charts">
+        <div class="stat-grid">
           <div class="stat">
             <h3 class="option-heading">Boundary edges over the whole run</h3>
             <canvas class="chart" id="trace-chart"></canvas>

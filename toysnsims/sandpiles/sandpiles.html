@@ -36,7 +36,7 @@
     <p><a href="../../toysnsims.html">&larr; All sims</a></p>
     <h1>Sandpiles</h1>
 
-    <!-- The three layers, as on every sim page (their layout is in
+    <!-- The boxes, as on every sim page (their layout is in
          section 6 of css/style.css). All the behavior lives in
          sandpiles.js; the ids below (id="...") are how that script finds
          each button and box. -->
@@ -247,7 +247,7 @@
           and where the storm's grains land. The final pile never depends on the order.</p>
       </section>
 
-      <!-- MIDDLE, the full width: numbers about this pile. -->
+      <!-- UNDER THE PICTURE: numbers about this run, and the small charts. -->
       <section class="panel panel-stats">
         <h2>Statistics</h2>
         <div class="stat-grid">
@@ -267,15 +267,22 @@
             <h3 class="option-heading">Cells of each height</h3>
             <canvas class="chart" id="heights-chart"></canvas>
           </div>
-          <div class="stat wide">
-            <h3 class="option-heading">Avalanches over time (storm, waiting until stable)</h3>
-            <canvas class="chart" id="timeline-chart"></canvas>
-            <p class="muted small" id="timeline-info"></p>
-          </div>
           <div class="stat">
             <h3 class="option-heading">Avalanche sizes</h3>
             <canvas class="chart" id="avalanche-chart"></canvas>
             <p class="muted small" id="avalanche-info"></p>
+          </div>
+        </div>
+      </section>
+
+      <!-- THE FULL WIDTH: the big charts, two to a row, and whatever else
+           does not fit under the picture (js/sim-page.js). -->
+      <section class="panel panel-charts">
+        <div class="stat-grid">
+          <div class="stat">
+            <h3 class="option-heading">Avalanches over time (storm, waiting until stable)</h3>
+            <canvas class="chart" id="timeline-chart"></canvas>
+            <p class="muted small" id="timeline-info"></p>
           </div>
         </div>
       </section>

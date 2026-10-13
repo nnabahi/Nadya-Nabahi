@@ -24,7 +24,7 @@
     <p><a href="../../toysnsims.html">&larr; All sims</a></p>
     <h1>Matrix Products</h1>
 
-    <!-- The three layers, as on every sim page (their layout is in
+    <!-- The boxes, as on every sim page (their layout is in
          section 6 of css/style.css). All the behavior lives in
          matrix-products.js; the ids below (id="...") are how
          that script finds each button and box. -->
@@ -132,7 +132,7 @@
         </div>
       </section>
 
-      <!-- MIDDLE, the full width: numbers about the runs, and two histograms. -->
+      <!-- UNDER THE PICTURE: numbers about this run, and the small charts. -->
       <section class="panel panel-stats">
         <h2>Statistics</h2>
         <div class="stat-grid">
@@ -162,6 +162,11 @@
               The eigenvalue charts show the middle 90% of the values (the rest are counted in the end bars).</p>
           </div>
         </div>
+      </section>
+
+      <!-- THE FULL WIDTH: whatever doesn't fit under the picture (js/sim-page.js). -->
+      <section class="panel panel-charts" hidden>
+        <div class="stat-grid"></div>
       </section>
 
       <!-- BOTTOM, the full width: about the model, in two tabs (js/sim-page.js

@@ -24,10 +24,10 @@
      load3D(box, height, ready, failed)   the 3D view (js/sim-3d.js), loaded once
      connectStretch(onChange)         the 3D view's Heights slider
 
-   It also typesets the formulas in the About box (so a page that
-   has formulas loads KaTeX before this file), makes the About tabs
-   work, and puts the full screen button on the picture (all at the end
-   of this file). The small charts are in js/sim-charts.js.
+   It also fits the statistics into their L-shaped box, typesets the
+   formulas in the About box (so a page that has formulas loads KaTeX
+   before this file), makes the About tabs work, and puts the full
+   screen button on the picture (all at the end of this file). The small charts are in js/sim-charts.js.
    ===================================================================== */
 
 
@@ -372,6 +372,39 @@ function addFullScreenButton(box) {
   showIcon(false);
   box.appendChild(button);
   document.body.appendChild(backdrop);
+}
+
+
+// The L-shaped statistics box (section 6 of css/style.css): the
+// tables and charts fill the space under the picture, next to the
+// options, and the ones that don't fit there go in the full-width row
+// below, in the same order as in the HTML. On a phone (one column)
+// they all stay in the statistics box. It is redone whenever the
+// picture, the options or the statistics change size.
+const statsGrid = document.querySelector(".panel-stats .stat-grid");
+const chartsPanel = document.querySelector(".panel-charts");
+if (statsGrid && chartsPanel) {
+  const chartsGrid = chartsPanel.querySelector(".stat-grid");
+  const allStats = Array.from(document.querySelectorAll(".stat"));   // in page order
+  const controls = document.querySelector(".panel-controls");
+  const phone = window.matchMedia("(max-width: 760px)");
+
+  const fitStats = oncePerFrame(function () {
+    for (const stat of allStats) statsGrid.appendChild(stat);       // all back under the picture
+    if (!phone.matches) {
+      const bottom = controls.getBoundingClientRect().bottom;        // where the options end
+      // From the last one up: move each that reaches below the options
+      // to the start of the full row (always keep the first one).
+      for (let i = allStats.length - 1; i > 0; i--) {
+        if (allStats[i].getBoundingClientRect().bottom <= bottom) break;
+        chartsGrid.prepend(allStats[i]);
+      }
+    }
+    chartsPanel.hidden = chartsGrid.children.length === 0;
+  });
+  const watch = new ResizeObserver(fitStats);
+  for (const box of [document.querySelector(".panel-sim"), controls, statsGrid]) watch.observe(box);
+  phone.addEventListener("change", fitStats);
 }
 
 

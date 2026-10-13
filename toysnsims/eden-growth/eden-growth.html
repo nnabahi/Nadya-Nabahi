@@ -36,7 +36,7 @@
     <p><a href="../../toysnsims.html">&larr; All sims</a></p>
     <h1>Eden Growth</h1>
 
-    <!-- The three layers, as on every sim page (their layout is in
+    <!-- The boxes, as on every sim page (their layout is in
          section 6 of css/style.css). All the behavior lives in
          eden-growth.js; the ids below (id="...") are how that script
          finds each button and box. -->
@@ -228,7 +228,7 @@
           changes as little as it can.</p>
       </section>
 
-      <!-- MIDDLE, the full width: numbers about this run. -->
+      <!-- UNDER THE PICTURE: numbers about this run, and the small charts. -->
       <section class="panel panel-stats">
         <h2>Statistics</h2>
         <div class="stat-grid">
@@ -243,6 +243,13 @@
               <tr id="ends-row"><td>Base from &hellip; to &hellip;</td><td id="stat-ends"></td></tr>
             </table>
           </div>
+        </div>
+      </section>
+
+      <!-- THE FULL WIDTH: the big charts, two to a row, and whatever else
+           does not fit under the picture (js/sim-page.js). -->
+      <section class="panel panel-charts">
+        <div class="stat-grid">
           <div class="stat">
             <h3 class="option-heading">Base size over time</h3>
             <canvas class="chart" id="base-chart"></canvas>
