@@ -167,26 +167,13 @@ function stepsFrom(d, starts) {
 }
 
 // How many connected pieces each color has: pieces[c] for the colors
-// c = 0 .. count-1, where colorOf[v] is cell v's color. A piece is found
-// by a search from one of its cells through the neighbors of the same
-// color. (Their sum is the number of pieces of one color in all; with
-// every cell color 0, pieces[0] is the number of pieces of the domain.)
+// c = 0 .. count-1, where colorOf[v] is cell v's color (the regions of
+// findRegions, below, counted by color). Their sum is the number of
+// pieces of one color in all; with every cell color 0, pieces[0] is the
+// number of pieces of the domain.
 function countPieces(d, colorOf, count) {
   const pieces = new Array(count).fill(0);
-  const seen = new Uint8Array(d.n);
-  for (let s = 0; s < d.n; s++) {
-    if (seen[s]) continue;
-    pieces[colorOf[s]]++;
-    seen[s] = 1;
-    const stack = [s];                    // explore everything joined to s in its color
-    while (stack.length > 0) {
-      const v = stack.pop();
-      for (let e = d.first[v]; e < d.first[v + 1]; e++) {
-        const w = d.nbr[e];
-        if (!seen[w] && colorOf[w] === colorOf[v]) { seen[w] = 1; stack.push(w); }
-      }
-    }
-  }
+  for (const c of findRegions(d, colorOf).color) pieces[c]++;
   return pieces;
 }
 
@@ -201,14 +188,13 @@ function countPieces(d, colorOf, count) {
 //                  interface (the edges between two colors)
 //   color[r]       its color
 function findRegions(d, colors) {
-  const region = new Int32Array(d.n).fill(-1);   // region[v] = which region cell v is in
+  const seen = new Uint8Array(d.n);    // 1 once a cell's region is found
   const areas = [], perimeters = [], regionColor = [];
   const stack = [];
   for (let s = 0; s < d.n; s++) {
-    if (colors[s] === -1 || region[s] !== -1) continue;
-    const r = areas.length;
+    if (colors[s] === -1 || seen[s]) continue;
     let area = 0, perimeter = 0;
-    region[s] = r;
+    seen[s] = 1;
     stack.push(s);
     while (stack.length > 0) {
       const v = stack.pop();
@@ -216,7 +202,7 @@ function findRegions(d, colors) {
       for (let e = d.first[v]; e < d.first[v + 1]; e++) {
         const w = d.nbr[e];
         if (colors[w] === colors[v]) {
-          if (region[w] === -1) { region[w] = r; stack.push(w); }
+          if (!seen[w]) { seen[w] = 1; stack.push(w); }
         } else if (colors[w] !== -1) {
           perimeter++;
         }
