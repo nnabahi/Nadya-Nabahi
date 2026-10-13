@@ -3,8 +3,8 @@
    ---------------------------------------------------------------------
    Most sims do their work in a second thread (a Web Worker, started
    by startWorker in js/sim-page.js), so the page stays smooth while
-   the model runs. Six of those workers share these helpers, written
-   once, here:
+   the model runs. These helpers, which most of those workers share,
+   are written once, here:
 
      makeRunLoop(oneStep, report, isDone)   Play, Pause and Speed
      newTrace(), keepSample(...)            the run so far, for the

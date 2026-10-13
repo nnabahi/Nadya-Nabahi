@@ -29,7 +29,7 @@
           connectPicture(view, disk, onGraph, onClick, cursor)
      4. The clickable grid of offsets
           offsetKey(t), offsetText(t)       an offset's name, and as shown
-          showOffsetGrid(grid, reach, offsets, setOffsets, center)
+          showOffsetGrid(grid, dim, reach, offsets, setOffsets, center)
    ===================================================================== */
 
 
@@ -112,12 +112,12 @@ function boxFromOptions(least, most, defaults) {
    ---------------------------------------------------------------------
    Choosing "Custom" swaps the picture for the graph tool, loaded in an
    <iframe> (a page inside this page) from the same folder, as
-   graph-tool.html?embed. The tool sends its drawing
-   every time it changes (listenToTool, js/sim-page.js), and the line
-   above it says, live, what is wrong with the drawing, if anything
-   (showToolStatus). Done uses the drawing; Cancel goes back to the
-   domain in use. The sim pauses while the tool is open, and after
-   Cancel it carries on if it was playing.
+   graph-tool.html?embed. The tool sends its drawing every time it
+   changes (listenToTool, js/sim-page.js), and the line above it says,
+   live, what is wrong with the drawing, if anything (showToolStatus).
+   Done uses the drawing; Cancel goes back to the domain in use. The
+   sim pauses while the tool is open, and after Cancel it carries on if
+   it was playing.
 
    The page's HTML has the tool's box, id="custom-area" (hidden), with
    the line id="step-status", the buttons id="tool-done" and
@@ -302,9 +302,8 @@ function showOffsetGrid(grid, dim, reach, offsets, setOffsets, center) {
   grid.innerHTML = "";
   grid.style.gridTemplateColumns = "repeat(" + (2 * reach + 1) + ", 1fr)";
   grid.classList.toggle("one-row", dim === 1);
-  const rowsY = dim === 1 ? [0] : [];
-  if (dim === 2) for (let y = reach; y >= -reach; y--) rowsY.push(y);
-  for (const y of rowsY) {
+  const top = dim === 1 ? 0 : reach;      // 1D: the one row y = 0
+  for (let y = top; y >= -top; y--) {
     for (let x = -reach; x <= reach; x++) {
       const t = dim === 1 ? [x] : [x, y], key = offsetKey(t);
       const cell = document.createElement("button");
