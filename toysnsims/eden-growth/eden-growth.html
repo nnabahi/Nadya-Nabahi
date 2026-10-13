@@ -129,6 +129,10 @@
             <label><input type="radio" name="view" value="flat" checked> From above</label>
             <label><input type="radio" name="view" value="3d"> 3D</label>
           </div>
+          <!-- 2D from above, not on a torus: color the holes (the holes charts). -->
+          <div class="option-row" id="holes-row" hidden>
+            <label><input type="checkbox" id="show-holes"> Shade the holes (light blue)</label>
+          </div>
           <!-- Hyperbolic plane or tree, from above: which picture. -->
           <div class="option-row" id="picture-row" hidden>
             Drawn in
@@ -179,12 +183,12 @@
           <p class="muted small" id="tile-info"></p>
         </div>
 
-        <!-- The max height: on by default with M = 1 (Eden's model).
+        <!-- The capacity: on by default with M = 1 (Eden model).
              When checked, the slider shows and sets M; unchecked, there
-             is no max. -->
-        <h3 class="option-heading">Max height</h3>
+             is no capacity (unlimited). -->
+        <h3 class="option-heading">Capacity</h3>
         <div class="option-row">
-          <label><input type="checkbox" id="use-cap" checked> Max height</label>
+          <label><input type="checkbox" id="use-cap" checked> Capacity</label>
           <span id="cap-row" hidden>
             M <input type="range" id="cap" min="1" max="20" step="1" value="1">
             <span class="muted" id="cap-label"></span>
@@ -235,7 +239,7 @@
           <button class="tool-button" id="new-seed" title="A random new seed">New seed</button>
         </div>
         <p class="muted small">The same seed always gives the same mountain. Changing the
-          tile, the domain, the max height or the weight keeps the seed and the step you are at, so the mountain
+          tile, the domain, the capacity or the weight keeps the seed and the step you are at, so the mountain
           changes as little as it can.</p>
       </section>
 
@@ -270,7 +274,7 @@
             <h3 class="option-heading">Base size over time</h3>
             <canvas class="chart" id="base-chart"></canvas>
           </div>
-          <!-- With no max height: the heights. With a max height they
+          <!-- With no capacity: the heights. With a capacity they
                stop at M, so the full and growing sites show instead. -->
           <div class="stat no-cap-only">
             <h3 class="option-heading">Largest height over time</h3>
@@ -292,7 +296,6 @@
           <div class="stat holes-only">
             <h3 class="option-heading">Holes over time (&beta;<sub>1</sub>)</h3>
             <canvas class="chart" id="holes-chart"></canvas>
-            <label class="muted small"><input type="checkbox" id="show-holes"> Shade the holes in the picture</label>
           </div>
           <!-- 2D, not on a torus: the base's shape. -->
           <div class="stat shape-only">
@@ -346,13 +349,13 @@
           taller much faster than it gets wider.
         </p>
         <p>
-          <strong>Max height.</strong> Every site has a max height
+          <strong>Capacity.</strong> Every site has a capacity
           <span class="tex">M</span>: a site with <span class="tex">M</span>
           blocks is full, and blocks stop landing on it. It starts at
           <span class="tex">M = 1</span>, where each block lands on a new site
           next to the base: Eden's growth model. Raise
-          <span class="tex">M</span> with the slider, or uncheck the box for no
-          max, and the blocks pile up into a mountain.
+          <span class="tex">M</span> with the slider, or uncheck the box for
+          unlimited capacity, and the blocks pile up into a mountain.
         </p>
         <p>
           <strong>Weight.</strong> Like bacteria, where more bacteria in a cell
@@ -366,7 +369,7 @@
           holes. A hole is born when a block closes it off (or cuts an older one
           in two) and dies when its last square fills. The charts count the holes
           over time and how long each one lived; tick "Shade the
-          holes" to see them in the picture.
+          holes" in the options to see them in the picture.
         </p>
         <p>
           <strong>Shape.</strong> In 2D the base grows into a roundish blob.
@@ -448,7 +451,7 @@
           <span class="tex">T</span>; the mountain adds the heights on top.
         </p>
         <p>
-          <strong>Max height.</strong> With a max height
+          <strong>Capacity.</strong> With a capacity
           <span class="tex">M</span>, the available sites are
           <span class="tex">S_n = \{x \in \{0\} \cup (D_n + T) : H(x, n) &lt; M\}</span>
           (inside the domain), and the pick is uniform on

@@ -20,7 +20,7 @@
 
      The uniform pick in step 1 is the only random thing.
 
-   The max height (optional). With a max height M, a site that reaches
+   The capacity (optional). With a capacity M, a site that reaches
    M blocks is full: it stops being available, so no block lands on it
    again. With M = 1 every block lands on a new site, so the base grows
    by one site each step: that is Eden's growth model. With no max (the
@@ -61,7 +61,7 @@
    with weight (h + 1)^s, as in step 1 (the jump chain of a
    continuous-time Markov chain: J. R. Norris, Markov Chains, Cambridge
    1997, Theorem 2.3.3 and section 2.6). The point: E(x, h) doesn't
-   depend on s, the max height or the tile, so moving them with the
+   depend on s, the capacity or the tile, so moving them with the
    same seed changes the mountain smoothly, the way the p slider moves
    Bernoulli percolation. With M = 1 this is Richardson's model, first
    passage percolation (D. Richardson, Proc. Cambridge Philos. Soc. 74
@@ -117,7 +117,7 @@
 //             { kind: "cells", cells: [[x, y], ...], wrap }    (wrap: the torus's
 //                 { xmin, xmax, ymin, ymax }, or null; a region drawn in the graph tool)
 //   start   the start site, [x] in 1D or [x, y] in 2D
-//   cap     M, the max height: the most blocks a site can hold
+//   cap     M, the capacity: the most blocks a site can hold
 //           (leave it out for no max)
 //   s       the weight s (leave it out for 0: uniform)
 //   clocks  a seed: pick with clocks (see the top of this file). Leave
@@ -134,7 +134,7 @@
 function newMountain(options) {
   const dim = options.dim;
   const domain = options.domain;
-  const cap = options.cap || Infinity;     // the max height M (see the top of this file)
+  const cap = options.cap || Infinity;     // the capacity M (see the top of this file)
   const power = options.s || 0;             // the weight s (see the top of this file)
   const clocks = options.clocks === undefined ? null : newClocks(options.clocks, power);
   const bins = options.shapeBins || 0;
@@ -234,7 +234,7 @@ function newMountain(options) {
     time: 0,           // with clocks: when the last block landed
     blocks: 0,         // blocks dropped, including the first one (= n + 1)
     baseSize: 0,       // |D|, the number of sites with a block
-    full: 0,           // sites with M blocks (with a max height)
+    full: 0,           // sites with M blocks (with a capacity)
     maxHeight: 0,
     start: -1,         // the start site's number
     step: step,
@@ -433,7 +433,7 @@ function newClocks(seed, s) {
 //   domain   { kind: "whole" } (it can grow forever), or
 //            { kind: "ball", layers: R } (only the cells within
 //            distance R of the start)
-//   cap     M, the max height: the most blocks a site can hold
+//   cap     M, the capacity: the most blocks a site can hold
 //           (leave it out for no max)
 //   s       the weight s (leave it out for 0: uniform)
 //   clocks  a seed: pick with clocks, as in newMountain
@@ -443,7 +443,7 @@ function newClocks(seed, s) {
 function newGraphMountain(options) {
   const graph = options.graph.neighbors ? options.graph : makeGraph(options.graph);
   const radius = options.radius;
-  const cap = options.cap || Infinity;     // the max height M (see the top of this file)
+  const cap = options.cap || Infinity;     // the capacity M (see the top of this file)
   const power = options.s || 0;             // the weight s (see the top of this file)
   const clocks = options.clocks === undefined ? null : newClocks(options.clocks, power);
 
@@ -723,7 +723,7 @@ function convexity(m) {
    Random numbers. The page picks with clocks (see the top of this
    file), made from the seed. Each site's alarms depend only on the
    seed, where the site is and its height, whatever the tile, domain,
-   max height or weight. So changing any of them with the same seed
+   capacity or weight. So changing any of them with the same seed
    keeps the same alarms, and the picture changes as little as it can,
    like a Desmos slider.
 
@@ -789,7 +789,7 @@ function mountainWorker() {
     while (mountain.steps < steps && !isDone()) oneStep();
   }
 
-  // The run can't go on: the step limit, or (with a max height) every
+  // The run can't go on: the step limit, or (with a capacity) every
   // site is full, so no block can land anywhere.
   function isDone() {
     return mountain !== null && (mountain.steps >= MAX_STEPS || mountain.available.length === 0);
@@ -877,7 +877,7 @@ function mountainWorker() {
       steps: m.steps, blocks: m.blocks, baseSize: m.baseSize,
       available: m.available.length, maxHeight: m.maxHeight, full: m.full,
       atMax: m.steps >= MAX_STEPS,
-      allFull: m.available.length === 0,   // with a max height: every site is full
+      allFull: m.available.length === 0,   // with a capacity: every site is full
       traceSteps: Float64Array.from(trace.times),
       traceBase: Float64Array.from(trace.lists.base),
       traceHighest: Float64Array.from(trace.lists.highest),
