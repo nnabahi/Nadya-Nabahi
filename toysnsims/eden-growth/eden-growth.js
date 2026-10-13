@@ -85,6 +85,7 @@ const DEFAULT_SEED = "1";
 const PICTURE_HEIGHT = 480;
 const EMPTY = "#c9c6bf";          // available sites with no block yet
 const OUTSIDE = "#ffffff";        // everything else
+const HOLE = "#a9cbe8";           // the holes, with "Shade the holes" on
 // (How far the 2D picture zooms in and out is set in js/sim-view.js.)
 // The 3D view's floor is OUTSIDE too; its other settings (how many
 // blocks are drawn one by one, the camera) are in js/sim-3d.js. On a
@@ -300,7 +301,7 @@ function customStart(d) {
 const worker = startWorker(mountainWorker,
   [newMountain, newGraphMountain, makeGraph, tilingShape, motionTimes, motionApply, halfTurn, coshFromStart,
    learnedRules, tilingByGeometry, tilingByRules, tilingRules, testRules, hashTable, ballAround, spreadPlace,
-   makeRunLoop, newTrace, keepSample, pickSite, newClocks]);
+   makeRunLoop, newTrace, keepSample, pickSite, newClocks, holeHistory]);
 
 worker.onmessage = function (event) {
   const message = event.data;
@@ -542,9 +543,21 @@ function drawGrid() {
   pen.clip();
   paintCells(view, pen, gridSites, function (i) { return s.height[i]; },
              function (h) { return h === 0 ? empty : heightColor(h, highest); }, hexToRGB(OUTSIDE));
+  if (byId("show-holes").checked && s.holes) shadeHoles(pen, s.holes.cells);
   pen.restore();
   pen.strokeStyle = EMPTY;
   pen.strokeRect(view.left + 0.5, 0.5, view.width - 1, view.height - 1);
+}
+
+// Paint the squares of the holes (cells = x0, y0, x1, y1, ...) on top,
+// in the places paintCells used.
+function shadeHoles(pen, cells) {
+  pen.fillStyle = HOLE;
+  for (let k = 0; k < cells.length; k += 2) {
+    const i = cells[k] - gridSites.xmin, row = gridSites.ymax - cells[k + 1];
+    const left = squareLeft(view, i), top = squareTop(view, row);
+    pen.fillRect(left, top, squareLeft(view, i + 1) - left, squareTop(view, row + 1) - top);
+  }
 }
 
 
@@ -859,6 +872,15 @@ function showStats() {
   const capped = maxHeight() < Infinity;
   for (const e of document.querySelectorAll(".cap-only")) e.hidden = !capped;
   for (const e of document.querySelectorAll(".no-cap-only")) e.hidden = capped;
+  // The holes: in 2D, not on a torus (the worker sends them then).
+  for (const e of document.querySelectorAll(".holes-only")) e.hidden = !s.holes;
+  if (s.holes) {
+    byId("stat-holes").textContent = s.holes.now.toLocaleString();
+    byId("stat-closed").textContent = s.holes.closed.toLocaleString();
+    plotOverTime(byId("holes-chart"), s.holes.times, [{ values: s.holes.beta, color: CHART_LINE }], "step");
+    persistenceChart(byId("persistence-chart"), s.holes.births, s.holes.deaths,
+                     document.querySelector("input[name=against]:checked").value, s.steps);
+  }
 
   // 1D: the leftmost and rightmost sites of the base.
   byId("ends-row").hidden = (dim !== 1);
@@ -878,6 +900,46 @@ function showStats() {
     plotOverTime(byId("highest-chart"), s.traceSteps, [{ values: s.traceHighest, color: CHART_LINE }], "step");
     plotOverTime(byId("start-chart"), s.traceSteps, [{ values: s.traceStart, color: CHART_LINE }], "step");
   }
+}
+
+
+// Each hole that has closed, as a dot: how long it lived (its
+// persistence, died - born, in steps) up, against the step it was born
+// at, or the step it died at ("against"), across. Both scales are
+// logarithmic (1, 10, 100, ... evenly spaced), as most holes close soon
+// and births go from 1 to now. Dots are see-through, so where many fall
+// together the color is darker.
+function persistenceChart(canvas, births, deaths, against, now) {
+  const pen = chartPen(canvas);
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  const left = 44, up = 18, bottom = h - 16, right = w - 22;
+  let longest = 10;
+  for (let k = 0; k < births.length; k++) longest = Math.max(longest, deaths[k] - births[k]);
+  const xTop = Math.ceil(Math.log10(Math.max(now, 10))), yTop = Math.ceil(Math.log10(longest));
+  function sx(step) { return left + (right - left) * Math.log10(step) / xTop; }
+  function sy(life) { return bottom - (bottom - up) * Math.log10(life) / yTop; }
+
+  // The axes' marks at 1, 10, 100, ...
+  pen.textAlign = "center";
+  pen.textBaseline = "top";
+  for (let k = 0; k <= xTop; k++) pen.fillText((10 ** k).toLocaleString(), sx(10 ** k), bottom + 3);
+  pen.textAlign = "right";
+  pen.textBaseline = "middle";
+  for (let k = 0; k <= yTop; k++) pen.fillText((10 ** k).toLocaleString(), left - 5, sy(10 ** k));
+  pen.textBaseline = "bottom";
+  pen.fillText(against === "death" ? "died at step" : "born at step", w, bottom);
+  pen.textAlign = "left";
+  pen.textBaseline = "top";
+  pen.fillText("lived (steps)", left + 4, 0);
+
+  pen.fillStyle = CHART_LINE;
+  pen.globalAlpha = 0.35;
+  for (let k = 0; k < births.length; k++) {
+    pen.beginPath();
+    pen.arc(sx(against === "death" ? deaths[k] : births[k]), sy(deaths[k] - births[k]), 2.5, 0, 2 * Math.PI);
+    pen.fill();
+  }
+  pen.globalAlpha = 1;
 }
 
 
@@ -964,6 +1026,10 @@ function showWeight() {
   byId("weight-label").textContent = s === 0 ? "0 (uniform)" : s.toFixed(1);
 }
 byId("weight-s").addEventListener("input", function () { showWeight(); restart(true); });
+
+// Shade the holes: only changes the picture.
+byId("show-holes").addEventListener("change", drawSoon);
+for (const radio of document.querySelectorAll("input[name=against]")) radio.addEventListener("change", drawSoon);
 
 // Go to step.
 byId("goto").addEventListener("click", function () {

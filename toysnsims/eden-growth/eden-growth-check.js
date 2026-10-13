@@ -1,7 +1,7 @@
 /* =====================================================================
    eden-growth-check.js  —  the tests on eden-growth-check.html
    ---------------------------------------------------------------------
-   Six kinds of test of the growth rule in eden-growth-rule.js:
+   Seven kinds of test of the growth rule in eden-growth-rule.js:
 
      1. Same mountain as nadya's Python. Her randmountain.py and
         randonesidedmountain.py turn a list of uniform numbers u into a
@@ -55,6 +55,13 @@
         and 5, and the coupling: with M = 1 every site is empty when it
         is picked, so the weight s changes nothing, and the same seed
         must give the same mountain, block for block, for every s.
+
+     7. The holes (holeHistory): a small example worked out by hand
+        (a hole split in two, where the elder rule decides which piece
+        keeps the old birth), and on long runs, the number of holes
+        beta_1 at every step, from the births and deaths, must equal a
+        plain count of the bounded empty pieces at that step (a flood
+        fill, written here without the sim's code).
 
    Random numbers come from the library seedrandom, each test with its
    own fixed seed, so the page gives the same results every time.
@@ -590,6 +597,84 @@ function sameForEveryS(options, steps, name) {
 
 
 /* ===================================================================
+   4d. THE HOLES
+   =================================================================== */
+
+// By hand: the border of the 5 x 3 box x = 0..4, y = 0..2, one square
+// a step (steps 0 to 11, going up each column from the left), closes
+// off the hole (1,1), (2,1), (3,1) at step 10, when (4, 1) lands (the
+// corners don't matter: empty squares touching at a corner aren't
+// joined). Step 12 fills (2, 1), splitting it in two; step 13 fills
+// (1, 1) and step 14 fills (3, 1). (3, 1) lives longer, so it keeps the
+// birth 10: the holes are (born 12, died 13) and (born 10, died 14).
+function checkHolesByHand() {
+  const x = [], y = [], born = [];
+  for (let i = 0; i < 5; i++) {
+    for (let j = 0; j < 3; j++) {
+      if (i === 0 || i === 4 || j === 0 || j === 2) { x.push(i); y.push(j); born.push(born.length); }
+    }
+  }
+  for (const [i, j] of [[2, 1], [1, 1], [3, 1]]) { x.push(i); y.push(j); born.push(born.length); }
+  const h = holeHistory(x, y, born, born.map(function () { return 1; }), 14);
+  const pairs = h.births.map(function (b, k) { return "(" + b + ", " + h.deaths[k] + ")"; }).sort().join(" ");
+  return pairs === "(10, 14) (12, 13)" && h.openBirths.length === 0 ? "" : "got " + pairs;
+}
+
+// The number of holes of mountain m now, by a flood fill of the empty
+// squares in the box around the base (one bigger all round).
+function countHoles(m) {
+  const filled = new Set();
+  let xmin = Infinity, xmax = -Infinity, ymin = Infinity, ymax = -Infinity;
+  for (let i = 0; i < m.height.length; i++) {
+    if (m.height[i] === 0) continue;
+    filled.add(m.siteX[i] + "," + m.siteY[i]);
+    xmin = Math.min(xmin, m.siteX[i] - 1); xmax = Math.max(xmax, m.siteX[i] + 1);
+    ymin = Math.min(ymin, m.siteY[i] - 1); ymax = Math.max(ymax, m.siteY[i] + 1);
+  }
+  const seen = new Set();
+  let holes = 0;
+  for (let x = xmin; x <= xmax; x++) {
+    for (let y = ymin; y <= ymax; y++) {
+      if (filled.has(x + "," + y) || seen.has(x + "," + y)) continue;
+      let bounded = true;
+      const todo = [[x, y]];
+      seen.add(x + "," + y);
+      while (todo.length > 0) {
+        const [a, b] = todo.pop();
+        if (a === xmin || a === xmax || b === ymin || b === ymax) bounded = false;
+        for (const [c, d] of [[a + 1, b], [a - 1, b], [a, b + 1], [a, b - 1]]) {
+          const key = c + "," + d;
+          if (c < xmin || c > xmax || d < ymin || d > ymax || filled.has(key) || seen.has(key)) continue;
+          seen.add(key);
+          todo.push([c, d]);
+        }
+      }
+      if (bounded) holes += 1;
+    }
+  }
+  return holes;
+}
+
+// Grow a mountain "steps" steps, counting its holes after every step,
+// then compare with beta_1 from holeHistory's births and deaths.
+function checkHoles(options, steps) {
+  const m = newMountain(options);
+  const counted = [countHoles(m)];
+  for (let k = 1; k <= steps && m.available.length > 0; k++) {
+    m.step();
+    counted.push(countHoles(m));
+  }
+  const h = holeHistory(m.siteX, m.siteY, m.bornAt, m.height, m.steps);
+  const births = h.births.concat(h.openBirths);
+  for (let t = 0; t < counted.length; t++) {
+    const beta = births.filter(function (b) { return b <= t; }).length - h.deaths.filter(function (d) { return d <= t; }).length;
+    if (beta !== counted[t]) return "step " + t + ": " + beta + " holes from the births and deaths, " + counted[t] + " counted";
+  }
+  return "";
+}
+
+
+/* ===================================================================
    5. THE PAGE: run the tests and fill in the table
    (addRow, runChecksOnClick and readNumbers are in js/check-page.js)
    =================================================================== */
@@ -715,7 +800,37 @@ function allTests() {
              problem || "the same mountain, block for block");
     });
   }
+
+  // 7. The holes.
+  tests.push(function () {
+    const problem = checkHolesByHand();
+    addRow("Holes: a hole split in two, by hand (elder rule)", problem === "", problem || "(born 10, died 14) and (born 12, died 13), as worked out");
+  });
+  const eight = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]];
+  for (const [name, options] of [
+    ["2D, 8 neighbors, M = 1", { dim: 2, tile: eight, domain: whole, start: [0, 0], cap: 1, clocks: "holes 1" }],
+    ["2D, 4 neighbors, M = 3, s = 1", { dim: 2, tile: [[1, 0], [-1, 0], [0, 1], [0, -1]], domain: whole, start: [0, 0], cap: 3, s: 1, clocks: "holes 2" }],
+    ["2D, ring tile r = 2 to 3, no max", { dim: 2, tile: ringTile(2, 3), domain: whole, start: [0, 0], clocks: "holes 3" }],
+    ["2D, 8 neighbors, M = 1, the 21 x 21 box until full", { dim: 2, tile: eight, domain: square, start: [0, 0], cap: 1, clocks: "holes 4" }],
+  ]) {
+    tests.push(function () {
+      const problem = checkHoles(options, 1500);
+      addRow("Holes: " + name + ", up to 1500 steps", problem === "", problem || "beta_1 matches a plain count at every step");
+    });
+  }
   return tests;
+}
+
+// The tile of every offset at distance r1 to r2 (as the page's Ring button).
+function ringTile(r1, r2) {
+  const tile = [];
+  for (let dx = -r2; dx <= r2; dx++) {
+    for (let dy = -r2; dy <= r2; dy++) {
+      const r = Math.sqrt(dx * dx + dy * dy);
+      if (r >= r1 && r <= r2) tile.push([dx, dy]);
+    }
+  }
+  return tile;
 }
 
 runChecksOnClick(allTests);
