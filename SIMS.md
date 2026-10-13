@@ -55,6 +55,12 @@ Claude wrote from the formulas, so rename them freely.
 | Continued / base-B fraction expansions | `FractionExpansion.py`, `ContFracWithFunc.py`, `RandomBaseBNumbers.py` | | idea | |
 | Periodic-rule Fibonacci-like sequences | `periodicfibonnaci.js`, `fib.py` | | idea | |
 | Ulam sequence | `Ulam.py` | | idea | |
+| First passage percolation (FPP) | | | idea | |
+| Last passage percolation (LPP) | | | idea | |
+| Diffusion-limited aggregation (DLA) | | | idea | |
+| DLA from the inside | | | idea | |
+| Forest-fire model | | | idea | |
+| Invasion percolation | | | idea | |
 | D1: Product over a random walk with positive steps | Desmos | | idea | |
 | D2: Random sequence shifted left/right with weight α | Desmos | | idea | |
 | D3: Binomial average of a random sequence | Desmos | | idea | |
