@@ -4,9 +4,9 @@
   <meta charset="UTF-8">
   <!-- Makes the page fit phone screens instead of showing a zoomed-out desktop view. -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Resume — Nadya Nabahi</title>
-  <!-- All the styling lives in this one file. The Resume styles are in
-       section 4 of it, under "Resume page". -->
+  <title>Resume &amp; Publications — Nadya Nabahi</title>
+  <!-- All the styling lives in this one file. The styles for this page
+       are in section 4 of it, under "Resume & Publications page". -->
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -17,30 +17,73 @@
   <header class="topbar">
     <nav>
       <a href="about.html">About Me</a>
-      <a href="resume.html" class="active">Resume</a>
+      <a href="writing.html">Writing</a>
       <a href="index.html">Home</a>
-      <a href="publications.html">Publications</a>
+      <a href="resume-and-publications.html" class="active">Resume &amp; Publications</a>
       <a href="toysnsims.html">Toys n' Sims</a>
     </nav>
   </header>
 
   <main class="page resume">
 
-    <!-- The title row: your name on the left, the download button on the right.
-         The button opens the browser's Print window, where visitors can pick
-         "Save as PDF". The print styles in style.css hide the top bar and
-         this button, so the saved PDF is just the resume.
-         Your home address and phone number are left off on purpose,
-         since this page is public. -->
-    <div class="resume-title">
-      <div>
-        <h1>Nadya Nabahi</h1>
-        <p class="muted">
-          <a href="mailto:nadya@nabahi.com">nadya@nabahi.com</a>
+    <!-- ================================================================
+         PUBLICATIONS
+         ================================================================
+         class="no-print" leaves this whole part out of the printed
+         resume (the resume has its own short Publications list).
+
+         One card per publication, newest first. To add a paper, copy a
+         whole <div class="card"> ... </div> block and change the text.
+         Each card has:
+           <h3>          the title
+           class="muted" a gray line: authors · where it appeared · year
+           links         the arXiv page ("abs") and the PDF ("pdf").
+                         An arXiv PDF link is the abs link with "abs"
+                         swapped for "pdf". -->
+    <section class="no-print">
+      <h1>Publications</h1>
+
+      <div class="card">
+        <h3>Interface between competing random walks on a cycle</h3>
+        <p class="muted">Shirshendu Chatterjee, Nadya Nabahi, Grigory Terlov · arXiv preprint · 2026</p>
+        <p>
+          <a href="https://arxiv.org/abs/2608.21312">arXiv:2608.21312</a> ·
+          <a href="https://arxiv.org/pdf/2608.21312">PDF</a>
         </p>
       </div>
+
+      <div class="card">
+        <h3>Easy estimates of Lyapunov exponents for random products of matrices</h3>
+        <p class="muted">Nadya Nabahi, Vladimir Shpilrain · arXiv preprint · 2025</p>
+        <p>
+          <a href="https://arxiv.org/abs/2509.18944">arXiv:2509.18944</a> ·
+          <a href="https://arxiv.org/pdf/2509.18944">PDF</a>
+        </p>
+      </div>
+    </section>
+
+    <!-- ================================================================
+         RESUME
+         ================================================================
+         The heading row: "Resume" on the left, the download button on the
+         right. The button opens the browser's Print window, where visitors
+         can pick "Save as PDF". The print styles in style.css hide the top
+         bar, this row and the Publications part above, so the saved PDF
+         is just the resume, starting with your name. -->
+    <div class="resume-title no-print">
+      <h1>Resume</h1>
       <!-- onclick="window.print()" is one line of JavaScript: it opens Print. -->
-      <button class="tool-button no-print" onclick="window.print()">Download PDF</button>
+      <button class="tool-button" onclick="window.print()">Download PDF</button>
+    </div>
+
+    <!-- Your name and email: the top of the printed resume.
+         Your home address and phone number are left off on purpose,
+         since this page is public. -->
+    <div class="resume-name">
+      <h2>Nadya Nabahi</h2>
+      <p class="muted">
+        <a href="mailto:nadya@nabahi.com">nadya@nabahi.com</a>
+      </p>
     </div>
 
     <!-- HOW EACH SECTION IS BUILT
@@ -91,7 +134,8 @@
     </div>
 
     <!-- ============ PUBLICATIONS ============
-         Kept short here; the full list with PDF links is on publications.html. -->
+         Kept short here, for the printed resume; the full list with PDF
+         links is at the top of this page. -->
     <div class="card">
       <h2>Publications</h2>
       <ul>
@@ -106,7 +150,6 @@
           <a href="https://arxiv.org/abs/2509.18944">arXiv:2509.18944</a>
         </li>
       </ul>
-      <p class="muted"><a href="publications.html">See all publications</a></p>
     </div>
 
     <!-- ============ EXPERIENCE ============ -->

@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <!-- Makes the page fit phone screens instead of showing a zoomed-out desktop view. -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Writing — Nadya Nabahi</title>
+  <!-- All the styling lives in this one file. The post cards are in
+       section 4 of it, under "Writing page". -->
+  <link rel="stylesheet" href="css/style.css">
+  <!-- KaTeX (https://katex.org) typesets the math in the posts. -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/katex.min.css">
+</head>
+<body>
+
+  <!-- TOP BAR: this same block is copied onto every page.
+       If you add or rename a page, update it on every page.
+       class="active" marks the page you're currently on. -->
+  <header class="topbar">
+    <nav>
+      <a href="about.html">About Me</a>
+      <a href="writing.html" class="active">Writing</a>
+      <a href="index.html">Home</a>
+      <a href="resume-and-publications.html">Resume &amp; Publications</a>
+      <a href="toysnsims.html">Toys n' Sims</a>
+    </nav>
+  </header>
+
+  <main class="page writing">
+    <h1>Writing</h1>
+
+    <!-- HOW TO ADD A POST
+         Copy a whole <details class="card post"> ... </details> block
+         below and change four things:
+           post-date    the date, written YEAR-MONTH-DAY (2026-10-15).
+                        The page sorts the posts newest first by this
+                        date, so the order in this file doesn't matter.
+           <h2>         the title
+           post-line    the one line shown under the title while closed
+           the text     between <script type="text/markdown"> and
+                        </script>, written in Markdown (below).
+
+         <details> is a box the browser opens and closes by itself when
+         you click its <summary> (the title part). No code needed.
+
+         MARKDOWN, a quick guide:
+           A blank line           starts a new paragraph
+           # Heading              a heading (## for a smaller one)
+           *slanted*, **bold**    emphasis
+           - item                 a bulleted list (1. item for numbered)
+           [words](https://...)   a link
+           $x^2$                  math inside a sentence
+           $$\sum_n 1/n^2$$       math on its own centered line
+           \$5                    a plain dollar sign, not math
+         The text is wrapped in <script type="text/markdown"> so the
+         browser leaves it exactly as typed (so "<" in math is safe).
+         Indenting the whole text is fine; the page removes it. -->
+
+    <details class="card post">
+      <summary>
+        <div>
+          <h2>Example post</h2>
+          <p class="post-line">A placeholder showing what a post can do. Rewrite or delete it.</p>
+        </div>
+        <span class="post-date">2026-10-15</span>
+      </summary>
+      <script type="text/markdown">
+        This is an example post. Delete this whole block once you have a real one.
+
+        ## A heading
+
+        Paragraphs are separated by a blank line. Words can be *slanted* or **bold**,
+        and [links](toysnsims.html) work too.
+
+        - A list item
+        - Another one, with math: $p < 1/2$
+
+        A formula on its own line:
+
+        $$\sum_{n=1}^{\infty} \frac{1}{n^2} = \frac{\pi^2}{6}$$
+      </script>
+    </details>
+
+  </main>
+
+  <!-- marked (https://marked.js.org) turns Markdown into formatted text.
+       The version number is fixed so the page never changes on its own. -->
+  <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/katex.min.js"></script>
+  <script src="js/writing.js"></script>
+
+</body>
+</html>
