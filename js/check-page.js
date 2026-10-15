@@ -17,6 +17,8 @@
      pooledChiSquare(odds, seen, runs)   do counts match exact odds?
      equalChiSquare(counts)              are some outcomes equally likely?
      binomialZ(count, trials, p)         how far a count is from its mean
+   and, to test the holes found by holeHistory (js/sim-shape.js):
+     countHoles(cells)                   the holes of a set of cells, counted plainly
    ===================================================================== */
 
 
@@ -117,4 +119,42 @@ function equalChiSquare(counts) {
 // time in 16000.
 function binomialZ(count, trials, p) {
   return (count - trials * p) / Math.sqrt(trials * p * (1 - p));
+}
+
+
+// The number of holes of a set of square cells (a list of [x, y]): the
+// groups of empty cells, joined side to side, that can't reach the edge
+// of the box around the cells (one cell bigger all round). Found by a
+// plain flood fill, as slowly and simply as possible, to test the
+// quicker holeHistory (js/sim-shape.js) against.
+function countHoles(cells) {
+  const filled = new Set();
+  let xmin = Infinity, xmax = -Infinity, ymin = Infinity, ymax = -Infinity;
+  for (const [x, y] of cells) {
+    filled.add(x + "," + y);
+    xmin = Math.min(xmin, x - 1); xmax = Math.max(xmax, x + 1);
+    ymin = Math.min(ymin, y - 1); ymax = Math.max(ymax, y + 1);
+  }
+  const seen = new Set();
+  let holes = 0;
+  for (let x = xmin; x <= xmax; x++) {
+    for (let y = ymin; y <= ymax; y++) {
+      if (filled.has(x + "," + y) || seen.has(x + "," + y)) continue;
+      let bounded = true;
+      const todo = [[x, y]];
+      seen.add(x + "," + y);
+      while (todo.length > 0) {
+        const [a, b] = todo.pop();
+        if (a === xmin || a === xmax || b === ymin || b === ymax) bounded = false;
+        for (const [c, d] of [[a + 1, b], [a - 1, b], [a, b + 1], [a, b - 1]]) {
+          const key = c + "," + d;
+          if (c < xmin || c > xmax || d < ymin || d > ymax || filled.has(key) || seen.has(key)) continue;
+          seen.add(key);
+          todo.push([c, d]);
+        }
+      }
+      if (bounded) holes += 1;
+    }
+  }
+  return holes;
 }

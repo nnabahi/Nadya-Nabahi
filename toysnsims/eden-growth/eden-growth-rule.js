@@ -92,14 +92,15 @@
      1. newMountain(options): the growth rule itself. The check page
         (eden-growth-check.html) tests it in the browser.
      1b. newGraphMountain(options): the same rule on any graph.
-     1c. holeHistory(...): the holes of a 2D mountain's base, with the
+     1c. the holes of a 2D mountain's base (holeHistory, js/sim-shape.js), with the
         step each one was born and the step it died.
      1d. convexity(m): the base's area over the area of its convex hull.
      2. mountainWorker(): runs a mountain in a second thread (a "Web
         Worker") for the sim page, eden-growth.js, so the page never
         freezes. startWorker (js/sim-page.js) starts it, with
-        newMountain, newGraphMountain, the hyperbolic tilings and trees
-        and the run loop and trace (js/sim-worker.js) copied in.
+        newMountain, newGraphMountain, the hyperbolic tilings and trees,
+        the run loop, trace and random numbers (js/sim-worker.js) and the
+        hull and holes (js/sim-shape.js) copied in.
    ===================================================================== */
 
 
@@ -337,40 +338,12 @@ function newClocks(seed, s) {
   const due = [];      // due[i] = when site i's next block lands
   const times = [], sites = [];   // the heap: times[k] is never later than times[2k+1], times[2k+2]
 
-  // Scramble a whole number (32 bits) so that every bit of the answer
-  // depends on every bit of h: the last step of the hash MurmurHash3,
-  // by Austin Appleby, public domain (github.com/aappleby/smhasher).
-  function scramble(h) {
-    h = Math.imul(h ^ (h >>> 16), 0x85ebca6b);
-    h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35);
-    return h ^ (h >>> 16);
-  }
-  // Fold whole number w into the running hash h.
-  function fold(h, w) {
-    return scramble(h ^ scramble(w + 0x9e3779b9));
-  }
-  // A uniform number in (0, 1) from two running hashes (53 bits).
-  function toUniform(h1, h2) {
-    return ((h1 >>> 11) * 4294967296 + (h2 >>> 0) + 0.5) / 9007199254740992;
-  }
-
-  // Two whole numbers for a piece of text (the seed, or a graph cell's place).
-  function textToNumbers(text) {
-    let h1 = 1, h2 = 2;
-    for (let k = 0; k < text.length; k++) {
-      h1 = fold(h1, text.charCodeAt(k));
-      h2 = fold(h2, text.charCodeAt(k));
-    }
-    return [h1, h2];
-  }
-  const [seedA, seedB] = textToNumbers(String(seed));
-
   // E(a, b, h): exponential with mean 1, -log(U) for U uniform in (0, 1),
-  // always the same for the same seed, place and height.
+  // always the same for the same seed, place and height (seededUniform,
+  // js/sim-worker.js).
+  const random = seededUniform(seed);
   function exponential(a, b, h) {
-    const h1 = fold(fold(fold(seedA, a), b), h);
-    const h2 = fold(fold(fold(seedB, a), b), h);
-    return -Math.log(toUniform(h1, h2));
+    return -Math.log(random.uniform(a, b, h));
   }
 
   function set(i, a, b, h, now) {
@@ -413,7 +386,7 @@ function newClocks(seed, s) {
     }
   }
 
-  return { set: set, next: next, textToNumbers: textToNumbers };
+  return { set: set, next: next, textToNumbers: random.textToNumbers };
 }
 
 
@@ -532,157 +505,26 @@ function newGraphMountain(options) {
 
 
 /* =====================================================================
-   1c. THE HOLES OF A 2D MOUNTAIN
+   1c. THE HOLES AND 1d. HOW CONVEX THE BASE IS
    ---------------------------------------------------------------------
-   Only which sites have a block matters here (the base), not how tall
-   they are. The base is the union of the closed unit squares of its
-   sites. A HOLE is a bounded piece of what is left: a group of empty
-   squares joined side to side (two empty squares that only touch at a
-   corner are cut apart there, since the filled squares meet at that
-   corner), with no way out to infinity. Squares outside the domain
-   count as empty. beta_1, the first Betti number, is how many holes
-   there are.
-
-   A hole is BORN at the step whose block closes it off from the outside,
-   or splits an older hole in two. It DIES at the step that fills its
-   last square. When a hole splits, the piece that lives longer keeps
-   the old birth and the other pieces are born at the split: the elder
-   rule of persistent homology (H. Edelsbrunner, D. Letscher and
-   A. Zomorodian, "Topological persistence and simplification", Discrete
-   Comput. Geom. 28 (2002) 511-533). These are the holes studied in
+   The holes of a 2D base, with the step each one was born and died,
+   are found by holeHistory, and the convex hull by convexHull (both in
+   js/sim-shape.js, shared with Random Walk). A hole is a bounded group
+   of empty squares; these are the holes studied for the Eden model in
    F. Manin, E. Roldan and B. Schweinhart, "Topology and local geometry
    of the Eden model", Discrete Comput. Geom. (2023), arXiv:2005.12349.
 
-   How (exact, in one pass): backwards in time. Start from the base now
-   and take its squares away, last-born first. A square taken away joins
-   its empty neighbors (a "union-find": every group of empty squares
-   has one square that speaks for it, and each square points toward it).
-   Going backwards:
-     - a square with no empty neighbor is a hole of one square that,
-       forwards, died at that step;
-     - a square joining several groups is, forwards, a split: the group
-       that dies last (the outside never dies) carries on, and each of
-       the others was born at that step.
-   Every group carries the step it dies at. Groups that are still holes
-   now die "later than now", and the outside later than everything.
-   ===================================================================== */
-
-// The holes of a 2D base. The base is given by its sites: siteX, siteY,
-// bornAt (the step each site's first block landed; the start's is 0;
-// -1, or a height of 0, means no block) and height, and "now" is the
-// step the mountain is at. Returns
-//   births, deaths   one entry per hole that has died: born at step
-//                    births[k], died at step deaths[k]
-//   openBirths       the birth step of each hole still open now
-//   holeCells        the squares of the holes now, as x0, y0, x1, y1, ...
-// beta_1 at step t is (births and openBirths up to t) - (deaths up to t).
-function holeHistory(siteX, siteY, bornAt, height, now) {
-  // The box around the base, one square bigger all round, so its edge
-  // is outside the base and joins the outside.
-  let xmin = Infinity, xmax = -Infinity, ymin = Infinity, ymax = -Infinity;
-  const base = [];
-  for (let i = 0; i < height.length; i++) {
-    if (height[i] === 0) continue;
-    base.push(i);
-    xmin = Math.min(xmin, siteX[i]); xmax = Math.max(xmax, siteX[i]);
-    ymin = Math.min(ymin, siteY[i]); ymax = Math.max(ymax, siteY[i]);
-  }
-  const result = { births: [], deaths: [], openBirths: [], holeCells: [] };
-  if (base.length === 0) return result;
-  xmin -= 1; xmax += 1; ymin -= 1; ymax += 1;
-  const across = xmax - xmin + 1, down = ymax - ymin + 1;
-  const count = across * down, OUTSIDE = count;   // square number y * across + x, and one more for the outside
-
-  // The step each square was filled (-1 = empty now).
-  const filledAt = new Float64Array(count).fill(-1);
-  for (const i of base) filledAt[(siteY[i] - ymin) * across + (siteX[i] - xmin)] = bornAt[i];
-
-  // The union-find. leader[c] points toward the square that speaks for
-  // c's group; diesAt[leader] is when that group dies (forwards).
-  const LATER = now + 1;        // still a hole now: it dies after now
-  const leader = new Int32Array(count + 1);
-  const diesAt = new Float64Array(count + 1);
-  for (let c = 0; c <= count; c++) leader[c] = c;
-  diesAt[OUTSIDE] = Infinity;
-  function find(c) {
-    while (leader[c] !== c) { leader[c] = leader[leader[c]]; c = leader[c]; }   // (halving the path on the way)
-    return c;
-  }
-  // Join two groups; the one that dies later speaks for both.
-  function join(a, b) {
-    a = find(a); b = find(b);
-    if (a === b) return;
-    if (diesAt[a] < diesAt[b]) leader[a] = b; else leader[b] = a;
-  }
-
-  // Now: the empty squares, joined side to side, and the box's edge
-  // joined to the outside.
-  for (let y = 0; y < down; y++) {
-    for (let x = 0; x < across; x++) {
-      const c = y * across + x;
-      if (filledAt[c] >= 0) continue;
-      diesAt[c] = LATER;
-      if (x === 0 || y === 0 || x === across - 1 || y === down - 1) join(c, OUTSIDE);
-      if (x > 0 && filledAt[c - 1] < 0) join(c, c - 1);
-      if (y > 0 && filledAt[c - across] < 0) join(c, c - across);
-    }
-  }
-  const outside = find(OUTSIDE);
-  for (let c = 0; c < count; c++) {
-    if (filledAt[c] < 0 && find(c) !== outside) result.holeCells.push(c % across + xmin, Math.floor(c / across) + ymin);
-  }
-
-  // Backwards: take the squares away, last-born first (the start, born
-  // at step 0, stays).
-  const order = base.filter(function (i) { return bornAt[i] > 0; });
-  order.sort(function (i, j) { return bornAt[j] - bornAt[i]; });
-  for (const i of order) {
-    const x = siteX[i] - xmin, y = siteY[i] - ymin, c = y * across + x, step = bornAt[i];
-    filledAt[c] = -1;
-    // The groups of its empty neighbors (each once).
-    const groups = [];
-    for (const n of [c - 1, c + 1, c - across, c + across]) {
-      if (filledAt[n] >= 0) continue;
-      const g = find(n);
-      if (!groups.includes(g)) groups.push(g);
-    }
-    if (groups.length === 0) {   // forwards: a hole of one square, filled at this step
-      diesAt[c] = step;
-      continue;
-    }
-    // Forwards, filling c split one group into these: the one that dies
-    // last carries on, the others were born at this step.
-    let elder = groups[0];
-    for (const g of groups) if (diesAt[g] > diesAt[elder]) elder = g;
-    for (const g of groups) {
-      if (g === elder) continue;
-      if (diesAt[g] === LATER) result.openBirths.push(step);
-      else { result.births.push(step); result.deaths.push(diesAt[g]); }
-    }
-    diesAt[c] = diesAt[elder];
-    for (const g of groups) join(c, g);
-  }
-  return result;
-}
-
-
-/* =====================================================================
-   1d. HOW CONVEX THE BASE IS
-   ---------------------------------------------------------------------
    The base as the union of its unit squares, K. Its convexity is
    area(K) / area(hull of K), where the hull is the smallest convex set
    holding K: 1 when K is convex, smaller the more K has bays and holes.
    The hull of K is the hull of its squares' corners, and only the
    lowest and highest square of each column can have a corner on the
-   hull, so the hull is found from the lowest and highest corner on each
-   vertical grid line, already in order left to right (by Andrew's
-   "monotone chain": A. M. Andrew, "Another efficient algorithm for
-   convex hulls in two dimensions", Inform. Process. Lett. 9 (1979)
-   216-219).
+   hull, so only the lowest and highest corner on each vertical grid
+   line are handed to convexHull.
    ===================================================================== */
 function convexity(m) {
-  // Left to right along the vertical grid lines X = x - 1/2: the lowest
-  // and highest corner on each, from the columns on either side of it.
+  // Along the vertical grid lines X = x - 1/2: the lowest and highest
+  // corner on each, from the columns on either side of it.
   let xmin = Infinity, xmax = -Infinity;
   for (const x of m.columns.keys()) { xmin = Math.min(xmin, x); xmax = Math.max(xmax, x); }
   const points = [];
@@ -695,27 +537,8 @@ function convexity(m) {
     points.push([x - 0.5, low]);
     if (high > low) points.push([x - 0.5, high]);
   }
-  // Turning left (> 0), right (< 0) or straight (0) going o -> a -> b.
-  function turn(o, a, b) { return (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]); }
-  // The lower edge of the hull left to right, then the upper edge right to left.
-  const hull = [];
-  for (const pass of [points, points.slice().reverse()]) {
-    const start = hull.length;
-    for (const p of pass) {
-      while (hull.length >= start + 2 && turn(hull[hull.length - 2], hull[hull.length - 1], p) <= 0) hull.pop();
-      hull.push(p);
-    }
-    hull.pop();   // its last point starts the other edge
-  }
-  // The hull's area (the shoelace formula).
-  let twice = 0;
-  for (let k = 0; k < hull.length; k++) {
-    const p = hull[k], q = hull[(k + 1) % hull.length];
-    twice += p[0] * q[1] - q[0] * p[1];
-  }
-  return m.baseSize / (Math.abs(twice) / 2);
+  return m.baseSize / polygonArea(convexHull(points));
 }
-
 
 /* =====================================================================
    2. THE MOUNTAIN IN A SECOND THREAD
@@ -915,22 +738,14 @@ function mountainWorker() {
   function addHoles(message) {
     const m = mountain, now = performance.now();
     if (holesStep !== m.steps && (!loop.playing || now >= holesFree)) {
-      holes = holeHistory(m.siteX, m.siteY, m.bornAt, m.height, m.steps);
+      holes = holeHistory(m.siteX, m.siteY, m.bornAt, m.steps);
       holesStep = m.steps;
       holesFree = now + 4 * (performance.now() - now);
     }
     // beta_1 at step t: births up to t minus deaths up to t (at the
     // samples up to holesStep; the holes may be a little behind).
-    const births = holes.births.concat(holes.openBirths).sort(function (a, b) { return a - b; });
-    const deaths = holes.deaths.slice().sort(function (a, b) { return a - b; });
     const times = trace.times.filter(function (t) { return t <= holesStep; });
-    const beta = new Float64Array(times.length);
-    let b = 0, d = 0;
-    times.forEach(function (t, k) {
-      while (b < births.length && births[b] <= t) b++;
-      while (d < deaths.length && deaths[d] <= t) d++;
-      beta[k] = b - d;
-    });
+    const beta = bettiOverTime(holes, times);
     message.holes = {
       step: holesStep, now: holes.openBirths.length, closed: holes.deaths.length,
       births: Float64Array.from(holes.births), deaths: Float64Array.from(holes.deaths),

@@ -15,9 +15,10 @@
    Small helpers used by every sim page (byId, readWhole, ...) are in
    js/sim-page.js, the charts in js/sim-charts.js, moving, zooming and
    painting the 2D picture in js/sim-view.js (shared with the coloring
-   sims), the graph tool and clicking the picture in
-   js/sim-controls.js, the hyperbolic pictures in js/sim-hyperbolic.js,
-   and the 3D view in js/sim-3d.js.
+   sims), the hull and holes in js/sim-shape.js (shared with Random
+   Walk), the graph tool and clicking the picture in js/sim-controls.js,
+   the hyperbolic pictures in js/sim-hyperbolic.js, and the 3D view in
+   js/sim-3d.js.
 
    The file is split into numbered sections:
      1. Settings you might want to change
@@ -301,7 +302,8 @@ function customStart(d) {
 const worker = startWorker(mountainWorker,
   [newMountain, newGraphMountain, makeGraph, tilingShape, motionTimes, motionApply, halfTurn, coshFromStart,
    learnedRules, tilingByGeometry, tilingByRules, tilingRules, testRules, hashTable, ballAround, spreadPlace,
-   makeRunLoop, newTrace, keepSample, pickSite, newClocks, holeHistory, convexity]);
+   makeRunLoop, newTrace, keepSample, seededUniform, pickSite, newClocks, holeHistory, bettiOverTime,
+   convexHull, polygonArea, convexity]);
 
 worker.onmessage = function (event) {
   const message = event.data;
@@ -543,23 +545,11 @@ function drawGrid() {
   pen.clip();
   paintCells(view, pen, gridSites, function (i) { return s.height[i]; },
              function (h) { return h === 0 ? empty : heightColor(h, highest); }, hexToRGB(OUTSIDE));
-  if (byId("show-holes").checked && s.holes) shadeHoles(pen, s.holes.cells);
+  if (byId("show-holes").checked && s.holes) shadeSquares(view, pen, gridSites, s.holes.cells, HOLE);
   pen.restore();
   pen.strokeStyle = EMPTY;
   pen.strokeRect(view.left + 0.5, 0.5, view.width - 1, view.height - 1);
 }
-
-// Paint the squares of the holes (cells = x0, y0, x1, y1, ...) on top,
-// in the places paintCells used.
-function shadeHoles(pen, cells) {
-  pen.fillStyle = HOLE;
-  for (let k = 0; k < cells.length; k += 2) {
-    const i = cells[k] - gridSites.xmin, row = gridSites.ymax - cells[k + 1];
-    const left = squareLeft(view, i), top = squareTop(view, row);
-    pen.fillRect(left, top, squareLeft(view, i + 1) - left, squareTop(view, row + 1) - top);
-  }
-}
-
 
 /* =====================================================================
    6b. MOVING, ZOOMING AND CLICKING THE PICTURE
@@ -1003,46 +993,6 @@ function radiusHeatChart(canvas, times, radii, bins) {
   pen.textAlign = "left";
   pen.fillText("0", left, h);
 }
-
-// Each hole that has closed, as a dot: how long it lived (its
-// persistence, died - born, in steps) up, against the step it was born
-// at, or the step it died at ("against"), across. Both scales are
-// logarithmic (1, 10, 100, ... evenly spaced), as most holes close soon
-// and births go from 1 to now. Dots are see-through, so where many fall
-// together the color is darker.
-function persistenceChart(canvas, births, deaths, against, now) {
-  const pen = chartPen(canvas);
-  const w = canvas.clientWidth, h = canvas.clientHeight;
-  const left = 44, up = 18, bottom = h - 16, right = w - 22;
-  let longest = 10;
-  for (let k = 0; k < births.length; k++) longest = Math.max(longest, deaths[k] - births[k]);
-  const xTop = Math.ceil(Math.log10(Math.max(now, 10))), yTop = Math.ceil(Math.log10(longest));
-  function sx(step) { return left + (right - left) * Math.log10(step) / xTop; }
-  function sy(life) { return bottom - (bottom - up) * Math.log10(life) / yTop; }
-
-  // The axes' marks at 1, 10, 100, ...
-  pen.textAlign = "center";
-  pen.textBaseline = "top";
-  for (let k = 0; k <= xTop; k++) pen.fillText((10 ** k).toLocaleString(), sx(10 ** k), bottom + 3);
-  pen.textAlign = "right";
-  pen.textBaseline = "middle";
-  for (let k = 0; k <= yTop; k++) pen.fillText((10 ** k).toLocaleString(), left - 5, sy(10 ** k));
-  pen.textBaseline = "bottom";
-  pen.fillText(against === "death" ? "died at step" : "born at step", w, bottom);
-  pen.textAlign = "left";
-  pen.textBaseline = "top";
-  pen.fillText("lived (steps)", left + 4, 0);
-
-  pen.fillStyle = CHART_LINE;
-  pen.globalAlpha = 0.35;
-  for (let k = 0; k < births.length; k++) {
-    pen.beginPath();
-    pen.arc(sx(against === "death" ? deaths[k] : births[k]), sy(deaths[k] - births[k]), 2.5, 0, 2 * Math.PI);
-    pen.fill();
-  }
-  pen.globalAlpha = 1;
-}
-
 
 /* =====================================================================
    8. CUSTOM DOMAINS: THE GRAPH TOOL INSIDE THIS PAGE

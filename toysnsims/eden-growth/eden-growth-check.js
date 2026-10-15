@@ -620,56 +620,29 @@ function checkHolesByHand() {
     }
   }
   for (const [i, j] of [[2, 1], [1, 1], [3, 1]]) { x.push(i); y.push(j); born.push(born.length); }
-  const h = holeHistory(x, y, born, born.map(function () { return 1; }), 14);
+  const h = holeHistory(x, y, born, 14);
   const pairs = h.births.map(function (b, k) { return "(" + b + ", " + h.deaths[k] + ")"; }).sort().join(" ");
   return pairs === "(10, 14) (12, 13)" && h.openBirths.length === 0 ? "" : "got " + pairs;
 }
 
-// The number of holes of mountain m now, by a flood fill of the empty
-// squares in the box around the base (one bigger all round).
-function countHoles(m) {
-  const filled = new Set();
-  let xmin = Infinity, xmax = -Infinity, ymin = Infinity, ymax = -Infinity;
-  for (let i = 0; i < m.height.length; i++) {
-    if (m.height[i] === 0) continue;
-    filled.add(m.siteX[i] + "," + m.siteY[i]);
-    xmin = Math.min(xmin, m.siteX[i] - 1); xmax = Math.max(xmax, m.siteX[i] + 1);
-    ymin = Math.min(ymin, m.siteY[i] - 1); ymax = Math.max(ymax, m.siteY[i] + 1);
-  }
-  const seen = new Set();
-  let holes = 0;
-  for (let x = xmin; x <= xmax; x++) {
-    for (let y = ymin; y <= ymax; y++) {
-      if (filled.has(x + "," + y) || seen.has(x + "," + y)) continue;
-      let bounded = true;
-      const todo = [[x, y]];
-      seen.add(x + "," + y);
-      while (todo.length > 0) {
-        const [a, b] = todo.pop();
-        if (a === xmin || a === xmax || b === ymin || b === ymax) bounded = false;
-        for (const [c, d] of [[a + 1, b], [a - 1, b], [a, b + 1], [a, b - 1]]) {
-          const key = c + "," + d;
-          if (c < xmin || c > xmax || d < ymin || d > ymax || filled.has(key) || seen.has(key)) continue;
-          seen.add(key);
-          todo.push([c, d]);
-        }
-      }
-      if (bounded) holes += 1;
-    }
-  }
-  return holes;
+// The number of holes of mountain m's base now, by a plain flood fill
+// (countHoles, js/check-page.js).
+function holesOf(m) {
+  const cells = [];
+  for (let i = 0; i < m.height.length; i++) if (m.height[i] > 0) cells.push([m.siteX[i], m.siteY[i]]);
+  return countHoles(cells);
 }
 
 // Grow a mountain "steps" steps, counting its holes after every step,
 // then compare with beta_1 from holeHistory's births and deaths.
 function checkHoles(options, steps) {
   const m = newMountain(options);
-  const counted = [countHoles(m)];
+  const counted = [holesOf(m)];
   for (let k = 1; k <= steps && m.available.length > 0; k++) {
     m.step();
-    counted.push(countHoles(m));
+    counted.push(holesOf(m));
   }
-  const h = holeHistory(m.siteX, m.siteY, m.bornAt, m.height, m.steps);
+  const h = holeHistory(m.siteX, m.siteY, m.bornAt, m.steps);
   const births = h.births.concat(h.openBirths);
   for (let t = 0; t < counted.length; t++) {
     const beta = births.filter(function (b) { return b <= t; }).length - h.deaths.filter(function (d) { return d <= t; }).length;

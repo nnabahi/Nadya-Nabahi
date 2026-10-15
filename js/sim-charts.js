@@ -14,6 +14,9 @@
      powerOfTwoBars(...)              ... drawn as bars
      stackedSizeBars(...)             region sizes, one bar per size, stacked by color, log-log
      perimeterChart(...)              perimeter against area of each region
+     persistenceChart(...)            how long each hole lived, log-log
+     logLogChart(...)                 a number against the step, log-log,
+                                        with a guide line of a given slope
      chartZoom(canvas, redraw),       zoom a chart in time (wheel, pinch,
        shownTimes(zoom, first, last)    drag, double-click for all of it)
      niceStep, shortLabel, niceNumber numbers for axes and tables
@@ -41,7 +44,8 @@ function chartPen(canvas) {
 }
 
 // Numbers over time: one line for each entry of "lines", { values,
-// color }, where values[k] is the number at times[k]. Time goes across,
+// color, dashed }, where values[k] is the number at times[k] ("dashed":
+// optional, true for a dashed line, e.g. what theory says). Time goes across,
 // from 0 to the last time (labeled with "word", like "step 1,000"), and
 // the numbers go up, from 0 to the largest (at least 1).
 function plotOverTime(canvas, times, lines, word) {
@@ -70,8 +74,10 @@ function plotOverTime(canvas, times, lines, word) {
     });
     pen.strokeStyle = line.color;
     pen.lineWidth = 1.5;
+    pen.setLineDash(line.dashed ? [4, 3] : []);
     pen.stroke();
   }
+  pen.setLineDash([]);
 }
 
 // A histogram of "values" with 60 bars, labeled with the tallest count
@@ -278,6 +284,104 @@ function perimeterChart(canvas, regions, colorNames, border) {
     pen.fill();
     pen.stroke();
   });
+}
+
+// Each hole that has closed, as a dot: how long it lived (its
+// persistence, died - born, in steps) up, against the step it was born
+// at, or the step it died at ("against"), across. Both scales are
+// logarithmic (1, 10, 100, ... evenly spaced), as most holes close soon
+// and births go from 1 to now. Dots are see-through, so where many fall
+// together the color is darker.
+function persistenceChart(canvas, births, deaths, against, now) {
+  const pen = chartPen(canvas);
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  const left = 44, up = 18, bottom = h - 16, right = w - 22;
+  let longest = 10;
+  for (let k = 0; k < births.length; k++) longest = Math.max(longest, deaths[k] - births[k]);
+  const xTop = Math.ceil(Math.log10(Math.max(now, 10))), yTop = Math.ceil(Math.log10(longest));
+  function sx(step) { return left + (right - left) * Math.log10(step) / xTop; }
+  function sy(life) { return bottom - (bottom - up) * Math.log10(life) / yTop; }
+
+  // The axes' marks at 1, 10, 100, ...
+  pen.textAlign = "center";
+  pen.textBaseline = "top";
+  for (let k = 0; k <= xTop; k++) pen.fillText((10 ** k).toLocaleString(), sx(10 ** k), bottom + 3);
+  pen.textAlign = "right";
+  pen.textBaseline = "middle";
+  for (let k = 0; k <= yTop; k++) pen.fillText((10 ** k).toLocaleString(), left - 5, sy(10 ** k));
+  pen.textBaseline = "bottom";
+  pen.fillText(against === "death" ? "died at step" : "born at step", w, bottom);
+  pen.textAlign = "left";
+  pen.textBaseline = "top";
+  pen.fillText("lived (steps)", left + 4, 0);
+
+  pen.fillStyle = CHART_LINE;
+  pen.globalAlpha = 0.35;
+  for (let k = 0; k < births.length; k++) {
+    pen.beginPath();
+    pen.arc(sx(against === "death" ? deaths[k] : births[k]), sy(deaths[k] - births[k]), 2.5, 0, 2 * Math.PI);
+    pen.fill();
+  }
+  pen.globalAlpha = 1;
+}
+
+// A number against the step, both on logarithmic scales (1, 10, 100,
+// ... evenly spaced), as a line through the points (steps[k],
+// values[k]) (points with a value or step below 1 are left out). So a
+// power law, value = c step^a, shows as a straight line of slope a.
+// With "slope", a dashed gray guide line of that slope goes through
+// the last point, to compare with. "word" says what the numbers are.
+function logLogChart(canvas, steps, values, word, slope) {
+  const pen = chartPen(canvas);
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  const left = 44, up = 18, bottom = h - 16, right = w - 22;
+  const points = [];
+  for (let k = 0; k < steps.length; k++) if (steps[k] >= 1 && values[k] >= 1) points.push([steps[k], values[k]]);
+  if (points.length < 2) return;
+  let most = 10, last = 10;
+  for (const [step, value] of points) { most = Math.max(most, value); last = Math.max(last, step); }
+  const xTop = Math.ceil(Math.log10(last)), yTop = Math.ceil(Math.log10(most));
+  function sx(step) { return left + (right - left) * Math.log10(step) / xTop; }
+  function sy(value) { return bottom - (bottom - up) * Math.log10(value) / yTop; }
+
+  // The axes' marks at 1, 10, 100, ...
+  pen.textAlign = "center";
+  pen.textBaseline = "top";
+  for (let k = 0; k <= xTop; k++) pen.fillText((10 ** k).toLocaleString(), sx(10 ** k), bottom + 3);
+  pen.textAlign = "right";
+  pen.textBaseline = "middle";
+  for (let k = 0; k <= yTop; k++) pen.fillText((10 ** k).toLocaleString(), left - 5, sy(10 ** k));
+  pen.textBaseline = "bottom";
+  pen.fillText("step", w, bottom);
+  pen.textAlign = "left";
+  pen.textBaseline = "top";
+  pen.fillText(word + " (log-log)", left + 4, 0);
+
+  // The guide: value = c step^slope through the last point, drawn from
+  // step 1 (or where it comes in at the bottom) to the last step.
+  pen.save();
+  pen.beginPath();
+  pen.rect(left, up, right - left, bottom - up);
+  pen.clip();
+  if (slope) {
+    const [s1, v1] = points[points.length - 1];
+    pen.beginPath();
+    pen.moveTo(sx(1), sy(v1 / Math.pow(s1, slope)));
+    pen.lineTo(sx(s1), sy(v1));
+    pen.strokeStyle = CHART_TEXT;
+    pen.lineWidth = 1;
+    pen.setLineDash([4, 3]);
+    pen.stroke();
+    pen.setLineDash([]);
+  }
+  pen.beginPath();
+  points.forEach(function ([step, value], k) {
+    if (k === 0) pen.moveTo(sx(step), sy(value)); else pen.lineTo(sx(step), sy(value));
+  });
+  pen.strokeStyle = CHART_LINE;
+  pen.lineWidth = 1.5;
+  pen.stroke();
+  pen.restore();
 }
 
 // Zooming a chart in time, like the pictures: on the chart,

@@ -52,6 +52,7 @@
      cellsShown(view, d)         which cell is on each square that shows
      squareLeft, squareTop       where the sides of the squares are
      paintCells(...)             paint every square that shows, fast
+     shadeSquares(...)           paint some squares on top (e.g. holes)
      drawBorders(...)            the lines between squares of different colors
      paintLattice(...)           the same two for triangles and hexagons
      zoomBy, resetView           zoom around a point; back to the start
@@ -261,6 +262,19 @@ function paintCells(view, pen, d, groupOf, rgbOf, outsideRGB) {
   pen.drawImage(tinyCanvas, squareLeft(view, view.firstI), squareTop(view, view.firstK),
                 cols * view.cell, rows * view.cell);
   return shown;
+}
+
+// Paint some squares of domain d on top of the picture, in "color",
+// after paintCells (which works out where the squares go). "cells" are
+// their places, as x0, y0, x1, y1, ... (Eden Growth and Random Walk
+// shade their holes this way.)
+function shadeSquares(view, pen, d, cells, color) {
+  pen.fillStyle = color;
+  for (let k = 0; k < cells.length; k += 2) {
+    const i = cells[k] - d.xmin, row = d.ymax - cells[k + 1];
+    const left = squareLeft(view, i), top = squareTop(view, row);
+    pen.fillRect(left, top, squareLeft(view, i + 1) - left, squareTop(view, row + 1) - top);
+  }
 }
 
 // The border lines, all collected into one path and drawn at once: a

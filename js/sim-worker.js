@@ -9,6 +9,8 @@
      makeRunLoop(oneStep, report, isDone)   Play, Pause and Speed
      newTrace(), keepSample(...)            the run so far, for the
                                             charts over time
+     seededUniform(seed)                    random numbers tied to a
+                                            seed and a place or step
 
    A worker can't see the page's scripts, so the page hands these
    functions to startWorker in its list of helpers, for example
@@ -103,4 +105,51 @@ function keepSample(trace, time, values, now) {
     }
     trace.gap *= 2;
   }
+}
+
+
+// Random numbers tied to a seed and to some whole numbers (a site's
+// place and height, or a step number): random.uniform(a, b, ...) is a
+// uniform number in (0, 1), always the same for the same seed and the
+// same numbers. Unlike a random-number generator that runs through one
+// list in order, any number can be asked for, in any order. So a sim
+// can tie each random choice to *where* it is made, and that choice
+// stays the same when a setting changes: that is what makes the
+// sliders "coupled", changing the picture smoothly, like the p slider
+// of Bernoulli percolation. random.textToNumbers(text) turns text (the
+// seed, or a graph cell's name) into two whole numbers.
+// How: a hash. Each number is folded into two running 32-bit hashes,
+// scrambled with the last step of MurmurHash3, by Austin Appleby,
+// public domain (github.com/aappleby/smhasher); the two together give
+// 53 random bits.
+function seededUniform(seed) {
+  // Scramble a whole number (32 bits) so that every bit of the answer
+  // depends on every bit of h.
+  function scramble(h) {
+    h = Math.imul(h ^ (h >>> 16), 0x85ebca6b);
+    h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35);
+    return h ^ (h >>> 16);
+  }
+  // Fold whole number w into the running hash h.
+  function fold(h, w) {
+    return scramble(h ^ scramble(w + 0x9e3779b9));
+  }
+  function textToNumbers(text) {
+    let h1 = 1, h2 = 2;
+    for (let k = 0; k < text.length; k++) {
+      h1 = fold(h1, text.charCodeAt(k));
+      h2 = fold(h2, text.charCodeAt(k));
+    }
+    return [h1, h2];
+  }
+  const [seedA, seedB] = textToNumbers(String(seed));
+  function uniform() {
+    let h1 = seedA, h2 = seedB;
+    for (let k = 0; k < arguments.length; k++) {
+      h1 = fold(h1, arguments[k]);
+      h2 = fold(h2, arguments[k]);
+    }
+    return ((h1 >>> 11) * 4294967296 + (h2 >>> 0) + 0.5) / 9007199254740992;
+  }
+  return { uniform: uniform, textToNumbers: textToNumbers };
 }

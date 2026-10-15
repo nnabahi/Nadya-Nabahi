@@ -61,17 +61,18 @@ a link back to the sim.
 | File | What it holds |
 | --- | --- |
 | `js/sim-page.js` | Small helpers every sim page uses: the second thread, Play and the Speed and Seed boxes, the drawing tool's messages, the full screen button, the About tabs, typesetting the formulas |
-| `js/sim-worker.js` | What the second threads share: Play, Pause and Speed (the run loop) and the run so far for the charts over time |
-| `js/sim-charts.js` | The small charts: lines over time, histograms, power-of-2 bars, perimeter against area, zooming a chart in time |
+| `js/sim-worker.js` | What the second threads share: Play, Pause and Speed (the run loop), the run so far for the charts over time, and random numbers tied to a seed and a place or step (for coupled sliders) |
+| `js/sim-charts.js` | The small charts: lines over time, histograms, power-of-2 bars, perimeter against area, hole lifetimes, log-log lines, zooming a chart in time |
 | `js/sim-colors.js` | The old site's colors, color conversions, and the blue-to-red colors of heights |
 | `js/sim-domains.js` | Domains: box, torus, Aztec diamond, a region drawn in the graph tool, boxes and tori of triangles or hexagons, a hexagon of triangles, and counting connected pieces (with their areas and perimeters) |
 | `js/sim-view.js` | The picture of a domain of square (or triangle or hexagon) cells: where it goes, painting the cells, moving and zooming it |
+| `js/sim-shape.js` | The shape of a set of cells: its convex hull (with area and perimeter) and its holes over time (Eden Growth, Random Walk) |
 | `js/sim-graphs.js` | Graphs beyond the square grid, built cell by cell as a sim asks: the line, the grid, hyperbolic tilings {p,q} and regular trees |
 | `js/sim-hyperbolic.js` | Pictures of a hyperbolic tiling or tree (the disk, the half-plane, a tree spread out), dragging across the plane, and the ball a sim runs on |
 | `js/sim-controls.js` | The controls the sims on cells repeat: the Domain options, the graph tool inside the page, dragging, zooming and clicking the picture, and the clickable grid of offsets (a tile or a neighborhood) |
 | `js/sim-3d.js` | The 3D view (stacks of cubes or coins, or a colored surface with balls on it, turned with the mouse), loaded only when a sim switches to 3D |
 | `js/formulas.js` | Typed formulas and their sliders, like Desmos, with piecewise {condition: a, b} (the graph tool and the sims that take formulas) |
-| `js/check-page.js` | The check pages' results table, "Run the checks" button and shared tests (chi-square, z-score) |
+| `js/check-page.js` | The check pages' results table, "Run the checks" button and shared tests (chi-square, z-score, counting holes plainly) |
 
 ## Common changes
 
