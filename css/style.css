@@ -459,6 +459,12 @@ a.card:hover {
   overflow-x: auto;
 }
 
+/* The comment box under an open post (filled in by giscus). */
+.post .giscus {
+  margin-top: 24px;
+  padding-left: 24px;
+}
+
 
 /* =====================================================================
    5. Home page image area

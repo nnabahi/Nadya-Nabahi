@@ -5,12 +5,27 @@
 //   2. turns each post's Markdown text into formatted text, with the math
 //      typeset by KaTeX.
 //
+// It also gives each open post a comment box at its bottom, via giscus
+// (https://giscus.app): comments are stored in this repo's Discussions
+// tab, and people sign in with GitHub to write one.
+//
 // Libraries it uses (loaded by writing.html before this file):
 //   marked  (marked.parse)        Markdown -> HTML
 //   KaTeX   (katex.renderToString) a formula -> HTML
 
+// The giscus settings, copied from giscus.app. Until repoId and
+// categoryId are filled in, the posts simply have no comment box.
+const GISCUS = {
+  repo:       "nnabahi/Nadya-Nabahi",
+  repoId:     "",
+  category:   "Announcements",
+  categoryId: "",
+};
+
 sortPostsNewestFirst();
 document.querySelectorAll('script[type="text/markdown"]').forEach(renderPost);
+document.querySelectorAll(".post").forEach(post =>
+  post.addEventListener("toggle", () => { if (post.open) showComments(post); }));
 
 
 // Moves the posts into date order, newest at the top. Dates are written
@@ -62,4 +77,43 @@ function removeIndent(text) {
   const indents = lines.filter(line => line.trim() !== "").map(line => line.match(/^ */)[0].length);
   const shared = Math.min(...indents);
   return lines.map(line => line.slice(shared)).join("\n").trim();
+}
+
+// Puts the comment box at the bottom of this post. giscus allows one box
+// per page, so the box leaves the post it was in before. Each post's
+// comments are filed under its id (the id="..." on its <details>), so
+// changing a title keeps its comments.
+function showComments(post) {
+  if (!GISCUS.repoId || !GISCUS.categoryId) return;
+  document.querySelectorAll(".giscus, .giscus-loader").forEach(old => old.remove());
+
+  const box = document.createElement("div");
+  box.className = "giscus";              // giscus puts its comments into this div
+  post.appendChild(box);
+  post.appendChild(giscusLoader(post.id));
+}
+
+// The <script> that loads giscus, with its settings as data-... attributes.
+function giscusLoader(term) {
+  const script = document.createElement("script");
+  script.className = "giscus-loader";
+  script.src = "https://giscus.app/client.js";
+  script.crossOrigin = "anonymous";
+  script.async = true;
+  const settings = {
+    "repo": GISCUS.repo,
+    "repo-id": GISCUS.repoId,
+    "category": GISCUS.category,
+    "category-id": GISCUS.categoryId,
+    "mapping": "specific",               // file comments under our own name ...
+    "term": term,                        // ... the post's id
+    "strict": "1",
+    "reactions-enabled": "1",
+    "emit-metadata": "0",
+    "input-position": "bottom",
+    "theme": "light",
+    "lang": "en",
+  };
+  for (const [name, value] of Object.entries(settings)) script.setAttribute("data-" + name, value);
+  return script;
 }
