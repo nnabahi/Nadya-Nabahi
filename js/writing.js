@@ -17,9 +17,9 @@
 // categoryId are filled in, the posts simply have no comment box.
 const GISCUS = {
   repo:       "nnabahi/Nadya-Nabahi",
-  repoId:     "",
+  repoId:     "R_kgDOUxMSjQ",
   category:   "Announcements",
-  categoryId: "",
+  categoryId: "DIC_kwDOUxMSjc4DIj3A",
 };
 
 sortPostsNewestFirst();
