@@ -11,6 +11,9 @@
        SURFACES: a colored surface over a grid, like a graph
          z = h(x, y) in Desmos 3D, with balls on some of its points.
          Lattice Path Counting uses it.
+       CELLS: cubes floating in space, one per cell of the cubic grid,
+         with a see-through convex hull around them. Random Walk uses
+         it in 3D.
 
        drag (left mouse, one finger)     turn the picture around
        mouse wheel, or pinch             zoom in or out
@@ -34,12 +37,15 @@
      make3DView(box, height)       a 3D picture inside the element "box"
      drawStacks(view3d, stacks)    a floor with stacks of blocks on it
      drawSurface(view3d, surface)  a surface over a grid, with balls on it
+     drawCells(view3d, cells)      cubes in space, and their convex hull
      resetCamera(view3d, toward)   look from the starting angle again
      setHeight(view3d, height)     make the picture taller or shorter (full screen popup)
    ===================================================================== */
 
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { ConvexHull } from "three/addons/math/ConvexHull.js";
+import { ConvexGeometry } from "three/addons/geometries/ConvexGeometry.js";
 
 
 /* ---------------------------------------------------------------------
@@ -463,4 +469,93 @@ export function drawSurface(view3d, surface) {
   drawLines(view3d, surface.lines || NO_LINES, surface.lineColor);
   fitWorld(view3d, floor, 1.2 * n, top);   // a little room around the floor
   render(view3d);
+}
+
+
+/* ---------------------------------------------------------------------
+   Cells in space
+   --------------------------------------------------------------------- */
+
+// Draw one cube per cell of the cubic grid, a ball where the walker is,
+// and the convex hull of some points as a see-through solid. "cells" has:
+//   x, y, z     each cell's place (lists of whole numbers; x goes right,
+//               y away from where you start, z up)
+//   color(i)    cell i's color [r, g, b] (0..255)
+//   at          [x, y, z]: where the ball goes (the walker), and
+//   atColor     its color [r, g, b]
+//   hull        (optional) the points to take the convex hull of, as
+//               x0, y0, z0, x1, ... (in the same places as the cells)
+//   hullColor   its color [r, g, b]
+// Past MAX_BLOCKS.cubes cells, only the last ones in the list are drawn.
+// Returns the hull's surface area and volume, { area, volume } (both 0
+// while the points are all on one plane), found by three.js's
+// ConvexHull (the "Quickhull" algorithm: C. B. Barber, D. P. Dobkin
+// and H. Huhdanpaa, "The Quickhull algorithm for convex hulls", ACM
+// Trans. Math. Software 22 (1996) 469-483).
+export function drawCells(view3d, cells) {
+  if (view3d.box.clientWidth && view3d.box.clientWidth !== view3d.width) fitToBox(view3d);   // the box changed size
+  const n = cells.x.length, from = Math.max(0, n - MAX_BLOCKS.cubes);
+  // three.js has "up" as its second number, and its third pointing
+  // toward you, so the cell (x, y, z) goes at (x, z, -y).
+  const blockMesh = useMesh(view3d, "blocks", "cubes", n - from);
+  let low = [Infinity, Infinity, Infinity], high = [-Infinity, -Infinity, -Infinity];
+  for (let i = from; i < n; i++) {
+    const place = [cells.x[i], cells.z[i], -cells.y[i]];
+    for (let c = 0; c < 3; c++) { low[c] = Math.min(low[c], place[c]); high[c] = Math.max(high[c], place[c]); }
+    placeCopy(blockMesh, i - from, place[0], place[1] - BLOCK_WIDTH / 2, place[2], BLOCK_WIDTH, BLOCK_WIDTH, toThree(cells.color(i)));
+  }
+  blockMesh.instanceMatrix.needsUpdate = blockMesh.instanceColor.needsUpdate = true;
+
+  const ball = useMesh(view3d, "walker", "balls", 1);
+  const [ax, ay, az] = cells.at;
+  placeCopy(ball, 0, ax, az - 0.6, -ay, 1.2, 1.2, toThree(cells.atColor));
+  ball.instanceMatrix.needsUpdate = ball.instanceColor.needsUpdate = true;
+
+  // The hull: its measures, and a see-through solid.
+  const measures = { area: 0, volume: 0 };
+  const points = [];
+  if (cells.hull) {
+    for (let k = 0; k < cells.hull.length; k += 3) {
+      points.push(new THREE.Vector3(cells.hull[k], cells.hull[k + 2], -cells.hull[k + 1]));
+    }
+  }
+  let solid = null;
+  if (points.length >= 4) {
+    try {
+      const hull = new ConvexHull().setFromPoints(points);
+      for (const face of hull.faces) {
+        // A face's area, and its plane's distance from (0, 0, 0)
+        // ("constant"): the volume is the sum of the pyramids from
+        // (0, 0, 0) on the faces, area x distance / 3.
+        measures.area += face.area;
+        measures.volume += face.area * face.constant / 3;
+      }
+      if (!(isFinite(measures.area) && isFinite(measures.volume) && measures.volume > 1e-9)) {
+        measures.area = measures.volume = 0;          // flat: all the points on one plane
+      } else {
+        solid = new ConvexGeometry(points);
+      }
+    } catch (error) {
+      measures.area = measures.volume = 0;
+    }
+  }
+  if (!view3d.hull) {
+    view3d.hull = new THREE.Mesh(new THREE.BufferGeometry(),
+      new THREE.MeshLambertMaterial({ transparent: true, opacity: 0.25, depthWrite: false, side: THREE.DoubleSide }));
+    view3d.world.add(view3d.hull);
+  }
+  view3d.hull.geometry.dispose();
+  view3d.hull.geometry = solid || new THREE.BufferGeometry();
+  view3d.hull.visible = Boolean(solid);
+  if (cells.hullColor) view3d.hull.material.color.setRGB(...toThree(cells.hullColor));
+
+  // Shrink the whole picture to fit, with its middle at the center (and
+  // room to spare, so it still fits when turned around).
+  const across = 1.4 * (Math.max(high[0] - low[0], high[1] - low[1], high[2] - low[2], 1) + 2);
+  const scale = PICTURE_SIZE / across;
+  view3d.world.scale.setScalar(scale);
+  view3d.world.position.set(-scale * (low[0] + high[0]) / 2, -scale * (low[1] + high[1]) / 2 + 0.25,
+                            -scale * (low[2] + high[2]) / 2);
+  render(view3d);
+  return measures;
 }

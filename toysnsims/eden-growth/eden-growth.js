@@ -721,17 +721,7 @@ function keepPlaces(message) {
   places = keepAlong(places, message.places, 4 * message.placesFrom);
   if (message.spread) spreads = keepAlong(spreads, message.spread, 2 * message.placesFrom);
 }
-// Copy "more" into the list "kept" from position "at" on, making the
-// list bigger first if it has to be. Returns the list.
-function keepAlong(kept, more, at) {
-  if (at + more.length > kept.length) {
-    const bigger = new Float64Array(Math.max(at + more.length, 2 * kept.length));
-    bigger.set(kept);
-    kept = bigger;
-  }
-  kept.set(more, at);
-  return kept;
-}
+// (keepAlong, which copies them into the lists, is in js/sim-page.js.)
 
 // Where site i is: its motion.
 function sitePlace(i) { return places.subarray(4 * i, 4 * i + 4); }

@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Random Walk — Check Page</title>
+  <link rel="stylesheet" href="../../css/style.css">
+</head>
+<body>
+
+  <!-- A test page for Random Walk's walk (random-walk-rule.js). It
+       opens from the sim's "model check" button. -->
+  <main class="page">
+    <p><a href="random-walk.html">&larr; Back to the sim</a></p>
+    <h1>Random Walk: Check Page</h1>
+    <p>
+      These tests check the walk in <code>random-walk-rule.js</code>, the
+      math behind the sim, and the hull and holes it shares with Eden
+      Growth (<code>js/sim-shape.js</code>). Press the button; it takes a few
+      seconds. The tests use fixed seeds, so they do the same thing every time.
+    </p>
+
+    <p><button id="run-checks">Run the checks</button></p>
+
+    <table class="check-table">
+      <tbody id="results"></tbody>
+    </table>
+  </main>
+
+  <!-- jStat (chi-square p-values). The version is fixed so an update
+       can never change the tests by surprise. -->
+  <script src="https://cdn.jsdelivr.net/npm/jstat@1.9.6/dist/jstat.min.js"></script>
+  <!-- byId(), and the results table shared by the check pages. -->
+  <script src="../../js/sim-page.js"></script>
+  <script src="../../js/check-page.js"></script>
+  <!-- niceNumber, the seeded random numbers, and the hull and holes. -->
+  <script src="../../js/sim-charts.js"></script>
+  <script src="../../js/sim-worker.js"></script>
+  <script src="../../js/sim-shape.js"></script>
+  <script src="random-walk-rule.js"></script>
+  <script src="random-walk-check.js"></script>
+</body>
+</html>

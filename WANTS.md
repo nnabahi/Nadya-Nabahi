@@ -16,3 +16,16 @@ is and where the details are. When one gets built, it moves out of here
 - **The bacteria rule**: a random bacterium copies itself into its own cell
   or into a neighbor (or only into an empty neighbor). Today's rule is not a
   special case of it, so it would be a second rule to switch to.
+
+## Random Walk
+
+- **3D holes**: tunnels (beta_1) and cavities (beta_2) of the visited
+  cubes, and the 3D outer boundary. The 2D holes are on the page.
+- **The 3D hull over time**: today the page shows the hull's surface area
+  and volume now (worked out by three.js when it draws); charts over time
+  would need a 3D hull in the second thread.
+- **Box-counting dimension** of the visited set (left out of the first
+  version, 2026-10-15).
+- **Other lattices and more walkers**: the walk on triangles or hexagons,
+  several walkers, cut points of the path (Brownian cut points have
+  dimension 3/4: Lawler, Schramm and Werner).

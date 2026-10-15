@@ -163,8 +163,11 @@ function makeDomain(xs, ys, edges, wrapRange, ids) {
 }
 
 // Which cell of domain d is at (x, y)? -1 if none. On a torus, (x, y)
-// is first wrapped back into the grid.
+// is first wrapped back into the grid. (A picture whose cells live
+// somewhere else can give its own d.lookup(x, y) instead: Random Walk
+// keeps its visited sites in a grid that grows as the walk spreads.)
 function cellAt(d, x, y) {
+  if (d.lookup) return d.lookup(x, y);
   if (d.wrap) {
     x = wrap(x, d.wrap.xmin, d.wrap.xmax);
     y = wrap(y, d.wrap.ymin, d.wrap.ymax);

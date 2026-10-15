@@ -10,6 +10,7 @@
      showMessage(text)                a line of text under the picture
      readWhole(id, lo, hi, fallback)  a whole number typed in a box
      startWorker(fn, helpers)         run a function in a second thread
+     keepAlong(kept, more, at)        add numbers a second thread sent to a list
      oncePerFrame(draw)               draw at the next screen refresh
      showPlaying(on)                  the Play button, while it plays
      speedText(speed, one, many)      "5 moves per second", for the Speed slider
@@ -65,6 +66,23 @@ function startWorker(fn, helpers) {
   parts.push("(" + fn.toString() + ")();");
   const code = new Blob(parts, { type: "text/javascript" });
   return new Worker(URL.createObjectURL(code));
+}
+
+
+// A sim's second thread often sends only what is new since its last
+// message (Eden Growth's sites on a graph, Random Walk's visited
+// sites). keepAlong copies "more" into the list "kept" (a typed list,
+// like a Float64Array) from position "at" on, making the list bigger
+// first if it has to be (twice as big, so this happens rarely), and
+// returns the list.
+function keepAlong(kept, more, at) {
+  if (at + more.length > kept.length) {
+    const bigger = new kept.constructor(Math.max(at + more.length, 2 * kept.length));
+    bigger.set(kept);
+    kept = bigger;
+  }
+  kept.set(more, at);
+  return kept;
 }
 
 
@@ -282,7 +300,8 @@ async function load3D(box, height, ready, failed) {
     sim3d = await import(SIM_3D_URL);
   } catch (error) {
     loading3D = false;
-    document.querySelector('input[name="view"][value="flat"]').checked = true;
+    const flat = document.querySelector('input[name="view"][value="flat"]');   // (a page with a View choice goes back to "flat")
+    if (flat) flat.checked = true;
     failed();
     // The browser's own words go at the end, to help find what went wrong.
     showMessage("The 3D view couldn't load. It needs the library three.js from the " +

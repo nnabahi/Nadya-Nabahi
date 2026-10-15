@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Random Walk — Toys n' Sims</title>
+  <link rel="stylesheet" href="../../css/style.css">
+  <!-- KaTeX's styles, for the typeset formulas. -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/katex.min.css">
+  <!-- Where the 3D library three.js lives on the internet, for the 3D
+       picture (js/sim-3d.js). It is only loaded when you switch to 3D.
+       The version number is fixed so an update can never change the
+       site by surprise. -->
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.186.1/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+
+  <header class="topbar">
+    <nav>
+      <a href="../../about.html">About Me</a>
+      <a href="../../resume.html">Resume</a>
+      <a href="../../index.html">Home</a>
+      <a href="../../publications.html">Publications</a>
+      <a href="../../toysnsims.html" class="active">Toys n' Sims</a>
+    </nav>
+  </header>
+
+  <main class="page">
+    <p><a href="../../toysnsims.html">&larr; All sims</a></p>
+    <h1>Random Walk</h1>
+
+    <!-- The boxes, as on every sim page (their layout is in
+         section 6 of css/style.css). All the behavior lives in
+         random-walk.js; the ids below (id="...") are how that script
+         finds each button and box. -->
+    <div class="sim-layout">
+
+      <!-- TOP LEFT: the walk. -->
+      <section class="panel panel-sim">
+        <h2>Simulation</h2>
+
+        <!-- The picture. random-walk.js sets its height. In 2D the zoom
+             buttons sit in its top right corner; the full screen button
+             (added by js/sim-page.js) in its top left corner. -->
+        <div class="sim-picture">
+          <canvas id="sim-canvas"></canvas>
+          <div class="zoom-buttons" id="zoom-buttons" hidden>
+            <button class="tool-button" id="zoom-in" title="Zoom in">+</button>
+            <button class="tool-button" id="zoom-out" title="Zoom out">&minus;</button>
+            <button class="tool-button" id="zoom-reset" title="Show the whole picture once again">Reset</button>
+          </div>
+          <!-- The 3D picture: js/sim-3d.js puts it in here, with a button
+               to look from the start again. -->
+          <div class="sim-3d" id="sim-3d" hidden></div>
+          <div class="zoom-buttons" id="view3d-buttons" hidden>
+            <button class="tool-button" id="view3d-reset" title="Look from the starting angle again">Reset view</button>
+          </div>
+        </div>
+
+        <!-- Messages, e.g. a problem with the weights. -->
+        <p class="muted" id="sim-message"></p>
+      </section>
+
+      <!-- TOP RIGHT: settings. -->
+      <section class="panel panel-controls">
+        <!-- The heading, with a small "model check" button on the right
+             that opens the page testing this sim's math. -->
+        <h2 class="heading-with-button">Options
+          <a class="tool-button model-check" href="random-walk-check.html">model check</a></h2>
+
+        <h3 class="option-heading">Dimension</h3>
+        <div class="option-row">
+          <label><input type="radio" name="dimension" value="1"> 1D (a line)</label>
+          <label><input type="radio" name="dimension" value="2" checked> 2D (a grid)</label>
+          <label><input type="radio" name="dimension" value="3"> 3D (a cubic grid)</label>
+        </div>
+
+        <!-- One slider per direction; random-walk.js fills this in. -->
+        <h3 class="option-heading">Weights</h3>
+        <div id="weight-rows"></div>
+        <div class="option-row">
+          <button class="tool-button" id="equal-weights" title="Every direction equally likely">All 1 (simple random walk)</button>
+        </div>
+        <p class="muted small">Each step goes in a direction with probability its weight over
+          the sum of all the weights. All equal is the simple random walk.</p>
+
+        <!-- What the picture shows (1D: nothing to choose). -->
+        <div id="view-rows">
+          <h3 class="option-heading">View</h3>
+          <div class="option-row">
+            <label><input type="checkbox" id="show-hull" checked> Show the convex hull</label>
+          </div>
+          <div class="option-row" id="holes-row">
+            <label><input type="checkbox" id="show-holes"> Shade the holes (light blue)</label>
+          </div>
+          <p class="muted small" id="colors-help">Color: when each site was first visited, from
+            blue (early) to red (just now). The black dot is the walker.</p>
+          <p class="muted small" id="view3d-help" hidden>Drag to turn it around, use the
+            mouse wheel or a pinch to zoom, and right-drag (or two fingers) to slide it.</p>
+        </div>
+
+        <h3 class="option-heading">Run</h3>
+        <div class="option-row">
+          <button class="tool-button" id="play">Play</button>
+          <button class="tool-button" id="step" title="One step">Step</button>
+          <button class="tool-button" id="restart" title="Back to the origin, same seed">Restart</button>
+        </div>
+        <div class="option-row">
+          Speed <input type="range" class="wide-range" id="speed" min="0" step="1">
+          <span class="muted" id="speed-label"></span>
+        </div>
+        <div class="option-row">
+          Go to step <input type="number" id="goto-steps" min="0" step="1" style="width: 8em">
+          <button class="tool-button" id="goto">Go</button>
+        </div>
+        <div class="option-row">
+          Seed <input type="text" id="seed" size="8">
+          <button class="tool-button" id="new-seed" title="A random new seed">New seed</button>
+        </div>
+        <p class="muted small">The same seed always gives the same walk. Moving a weight keeps
+          the seed and the step you are at, so only the steps that weight decides
+          change, and the walk changes little by little.</p>
+      </section>
+
+      <!-- UNDER THE PICTURE: numbers about this run, and the small charts. -->
+      <section class="panel panel-stats">
+        <h2>Statistics</h2>
+        <div class="stat-grid">
+          <div class="stat">
+            <table class="stats-table">
+              <tr><td>Steps n</td><td id="stat-steps"></td></tr>
+              <tr><td>Position S<sub>n</sub></td><td id="stat-position"></td></tr>
+              <tr><td>Distance |S<sub>n</sub>|</td><td id="stat-distance"></td></tr>
+              <tr><td>Largest distance so far</td><td id="stat-max-distance"></td></tr>
+              <tr><td>Range R<sub>n</sub> (sites visited)</td><td id="stat-range"></td></tr>
+              <tr><td>Returns to the origin</td><td id="stat-returns"></td></tr>
+              <tr class="only-1d"><td>Sites visited: from &hellip; to &hellip;</td><td id="stat-ends"></td></tr>
+              <tr class="only-2d"><td>Convex hull: perimeter</td><td id="stat-perimeter"></td></tr>
+              <tr class="only-2d"><td>Convex hull: area</td><td id="stat-area"></td></tr>
+              <tr class="only-3d"><td>Convex hull: surface area</td><td id="stat-surface"></td></tr>
+              <tr class="only-3d"><td>Convex hull: volume</td><td id="stat-volume"></td></tr>
+              <tr class="only-2d"><td>Holes now (&beta;<sub>1</sub>)</td><td id="stat-holes"></td></tr>
+              <tr class="only-2d"><td>Holes closed so far</td><td id="stat-closed"></td></tr>
+              <tr class="only-2d"><td>Outer boundary length</td><td id="stat-frontier"></td></tr>
+            </table>
+            <p class="muted small" id="theory-note">Dashed gray lines on the charts: what theory
+              says for the simple random walk (all weights equal). They hide when the
+              weights differ.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- THE FULL WIDTH: the big charts, two to a row, and whatever else
+           does not fit under the picture (js/sim-page.js). -->
+      <section class="panel panel-charts">
+        <div class="stat-grid">
+          <div class="stat">
+            <h3 class="option-heading">Distance from the origin over time</h3>
+            <canvas class="chart" id="distance-chart"></canvas>
+            <p class="muted small">Blue: the largest distance so far. Light: the distance now.
+              Dashed: &radic;n.</p>
+          </div>
+          <div class="stat">
+            <h3 class="option-heading">Range over time (sites visited)</h3>
+            <canvas class="chart" id="range-chart"></canvas>
+          </div>
+          <div class="stat">
+            <h3 class="option-heading">Returns to the origin over time</h3>
+            <canvas class="chart" id="returns-chart"></canvas>
+          </div>
+          <div class="stat only-2d">
+            <h3 class="option-heading">Convex hull perimeter over time</h3>
+            <canvas class="chart" id="perimeter-chart"></canvas>
+          </div>
+          <div class="stat only-2d">
+            <h3 class="option-heading">Convex hull area over time</h3>
+            <canvas class="chart" id="area-chart"></canvas>
+          </div>
+          <div class="stat only-2d">
+            <h3 class="option-heading">Holes over time (&beta;<sub>1</sub>)</h3>
+            <canvas class="chart" id="holes-chart"></canvas>
+          </div>
+          <div class="stat only-2d">
+            <h3 class="option-heading">Hole sizes now</h3>
+            <canvas class="chart taller" id="hole-sizes-chart"></canvas>
+          </div>
+          <div class="stat only-2d">
+            <h3 class="option-heading">Outer boundary length over time</h3>
+            <canvas class="chart taller" id="frontier-chart"></canvas>
+            <p class="muted small">Dashed: slope 2/3, through the last point.</p>
+          </div>
+          <div class="stat only-2d">
+            <h3 class="option-heading">How long each closed hole lived</h3>
+            <canvas class="chart taller" id="persistence-chart"></canvas>
+            <span class="muted small">against the step it was
+              <label><input type="radio" name="against" value="birth" checked> born</label>
+              <label><input type="radio" name="against" value="death"> died</label></span>
+          </div>
+        </div>
+      </section>
+
+      <!-- BOTTOM, the full width: about the model, in two tabs (js/sim-page.js
+           switches them). Text in class="tex" is typeset by KaTeX. -->
+      <section class="panel panel-about">
+        <h2>About the model</h2>
+        <nav class="about-tabs">
+          <button class="about-tab selected" data-tab="simple">Simple</button>
+          <button class="about-tab" data-tab="details">All the details</button>
+        </nav>
+
+        <div data-panel="simple">
+        <p class="muted">(nadya will write this part.)</p>
+        </div>
+
+        <div data-panel="details" hidden>
+        <p>
+          <strong>The walk.</strong> Let <span class="tex">e_1, \dots, e_d</span> be
+          the unit vectors of <span class="tex">\mathbb{Z}^d</span>
+          (<span class="tex">d = 1, 2, 3</span>), and give each of the
+          <span class="tex">2d</span> directions <span class="tex">\pm e_i</span> a
+          weight <span class="tex">w_{\pm i} \ge 0</span>, not all 0. The walk is
+          <span class="tex">S_0 = 0</span> and
+          <span class="tex">S_n = S_{n-1} + X_n</span>, with
+          <span class="tex">X_1, X_2, \dots</span> independent and</p>
+        <div class="tex">\mathbb{P}(X_n = \pm e_i) = \frac{w_{\pm i}}{\sum_j (w_{+j} + w_{-j})}.</div>
+        <p>
+          All weights equal is the simple random walk. Otherwise the walk has
+          a drift <span class="tex">\mu = \mathbb{E} X_1 \ne 0</span> (or no drift
+          but different variances, e.g. <span class="tex">w_{+1} = w_{-1} = 2</span>,
+          <span class="tex">w_{+2} = w_{-2} = 1</span>).
+        </p>
+        <p>
+          <strong>Random numbers.</strong> Step <span class="tex">n</span> uses one
+          uniform <span class="tex">U_n \in (0, 1)</span>, made from the seed and
+          <span class="tex">n</span> only, and goes in the first direction whose
+          running total of probabilities passes <span class="tex">U_n</span>. So
+          with the same seed, moving a weight only changes the steps whose
+          <span class="tex">U_n</span> lies near a cut (the same coupling as the
+          <span class="tex">p</span> slider of Bernoulli percolation).
+        </p>
+        <p>
+          <strong>Distance.</strong> For the simple random walk,
+          <span class="tex">\mathbb{E}|S_n|^2 = n</span> in every dimension (the
+          steps are uncorrelated with mean 0 and <span class="tex">|X_k| = 1</span>),
+          which is the dashed <span class="tex">\sqrt n</span>. By Donsker's
+          invariance principle [1], <span class="tex">S_{\lfloor nt \rfloor}/\sqrt{n}</span>
+          tends to a Brownian motion, so the largest distance
+          <span class="tex">M_n = \max_{k \le n} |S_k|</span> also grows like
+          <span class="tex">\sqrt n</span>; in 1D,
+          <span class="tex">\mathbb{E} \max_{k \le n} S_k \sim \sqrt{2n/\pi}</span>
+          by the reflection principle [2, Ch. III]. It wanders, though: in 1D,
+          <span class="tex">\limsup_n |S_n| / \sqrt{2 n \log \log n} = 1</span>
+          almost surely, the law of the iterated logarithm [3], and
+          <span class="tex">\liminf_n M_n / \sqrt{n / \log \log n} = \pi/\sqrt 8</span>
+          almost surely [4]. With a drift, <span class="tex">M_n / n \to |\mu|</span>
+          by the strong law of large numbers.
+        </p>
+        <p>
+          <strong>Range and returns.</strong> For the simple random walk, the
+          number of sites visited, <span class="tex">R_n</span>, grows like
+          <span class="tex">\sqrt{8n/\pi}</span> in 1D,
+          <span class="tex">\pi n / \log n</span> in 2D, and
+          <span class="tex">(1 - F) n</span> in 3D, where
+          <span class="tex">F \approx 0.3405</span> is the chance of ever coming
+          back to the origin [5, 6, 7] (the dashed lines; in 2D the approach
+          is slow, with corrections of relative size
+          <span class="tex">\log\log n / \log n</span>). The walk comes back to
+          its start infinitely often in 1D and 2D, and only finitely often in
+          3D: P&oacute;lya's theorem [8]. The dashed line on the returns chart is
+          the exact expected number of returns by step
+          <span class="tex">n</span>,
+          <span class="tex">\sum_{k \le n/2} \mathbb{P}(S_{2k} = 0)</span>, with
+          <span class="tex">\mathbb{P}(S_{2k} = 0) = \binom{2k}{k} 4^{-k}</span> in
+          1D and <span class="tex">\big(\binom{2k}{k} 4^{-k}\big)^2</span> in 2D [2,
+          Ch. XIV]; these grow like <span class="tex">\sqrt{2n/\pi}</span> and
+          <span class="tex">(\log n)/\pi</span>. In 3D it is the limit
+          <span class="tex">F/(1-F) \approx 0.516</span>. With any drift, every
+          dimension has finitely many returns.
+        </p>
+        <p>
+          <strong>Convex hull.</strong> The hull of the walk is the smallest convex
+          set holding <span class="tex">S_0, \dots, S_n</span>: a polygon (in 3D a
+          polyhedron) whose sides are straight lines between visited sites. In
+          1D it is the interval from the lowest to the highest site. Spitzer and
+          Widom [9] showed that in the plane its perimeter
+          <span class="tex">L_n</span> has
+          <span class="tex">\mathbb{E} L_n = 2 \sum_{k=1}^n \mathbb{E}|S_k| / k</span>,
+          which for the simple random walk grows like
+          <span class="tex">2\sqrt{\pi n}</span>, matching the Brownian hull's
+          <span class="tex">\sqrt{8\pi t}</span> [10] at
+          <span class="tex">t = n/2</span>. The area
+          <span class="tex">A_n</span> grows like
+          <span class="tex">\pi n / 4</span>, from the Brownian hull's mean area
+          <span class="tex">\pi t / 2</span> [11]. With a drift both change:
+          <span class="tex">L_n \sim 2|\mu| n</span> [12]. The page finds the
+          hull from the lowest and highest site of each column (only these can
+          be corners) with Andrew's monotone chain [13]; in 3D, from the lowest
+          and highest site over each <span class="tex">(x, y)</span>, with
+          Quickhull [14].
+        </p>
+        <p>
+          <strong>Holes.</strong> In 2D, let <span class="tex">K_n</span> be the
+          union of the closed unit squares around the visited sites. Its holes
+          are the bounded components of
+          <span class="tex">\mathbb{R}^2 \setminus K_n</span>, and their number is
+          the first Betti number <span class="tex">\beta_1(K_n)</span>
+          (<span class="tex">\beta_0 = 1</span> always, since the path is
+          connected). A hole is born at the step that closes it off, or splits an
+          older one, and dies when its last square is visited; at a split the
+          piece that dies last keeps the old birth (the elder rule of persistent
+          homology [15]). They are found exactly, as in Eden Growth.
+        </p>
+        <p>
+          <strong>Fractal shape.</strong> Seen from far away, the walk's path is
+          a Brownian path, which has Hausdorff dimension 2 in the plane [16]:
+          it covers area, but leaves holes at every scale. For planar Brownian
+          motion, the number of holes of area at least
+          <span class="tex">\varepsilon</span> is about
+          <span class="tex">2\pi / (\varepsilon \log^2 \varepsilon)</span> as
+          <span class="tex">\varepsilon \to 0</span> [17], a power law (with a log
+          correction), which the log-log hole sizes chart shows. The outer
+          boundary of the Brownian path (its "frontier") has dimension 4/3, as
+          Mandelbrot conjectured and Lawler, Schramm and Werner proved [18]; at
+          the walk's scale <span class="tex">\sqrt n</span> that suggests an outer
+          boundary of about <span class="tex">(\sqrt n)^{4/3} = n^{2/3}</span>
+          squares (the dashed slope). That the walk itself follows this exponent
+          is the expected answer from the scaling limit; this page doesn't claim
+          it is proved for the walk. The outer boundary length here is the
+          number of sides between a visited square and an empty square that
+          can reach far away, worked out at steps about 10% apart.
+        </p>
+        <p><strong>References</strong></p>
+        <ol class="references">
+          <li>M. D. Donsker, &ldquo;An invariance principle for certain probability
+            limit theorems&rdquo;, <em>Memoirs of the AMS</em> 6 (1951).</li>
+          <li>W. Feller, <em>An Introduction to Probability Theory and Its
+            Applications</em>, Vol. 1, 3rd ed., Wiley, 1968.</li>
+          <li>A. Khinchin, &ldquo;&Uuml;ber einen Satz der
+            Wahrscheinlichkeitsrechnung&rdquo;, <em>Fundamenta Mathematicae</em> 6
+            (1924), 9&ndash;20.</li>
+          <li>K. L. Chung, &ldquo;On the maximum partial sums of sequences of
+            independent random variables&rdquo;, <em>Transactions of the AMS</em> 64
+            (1948), 205&ndash;233.</li>
+          <li>W. Feller, &ldquo;The asymptotic distribution of the range of sums of
+            independent random variables&rdquo;, <em>Annals of Mathematical
+            Statistics</em> 22 (1951), 427&ndash;432.</li>
+          <li>A. Dvoretzky and P. Erd&#337;s, &ldquo;Some problems on random walk in
+            space&rdquo;, <em>Proceedings of the Second Berkeley Symposium</em>,
+            1951, 353&ndash;367.</li>
+          <li>G. N. Watson, &ldquo;Three triple integrals&rdquo;, <em>Quarterly
+            Journal of Mathematics</em> 10 (1939), 266&ndash;276.</li>
+          <li>G. P&oacute;lya, &ldquo;&Uuml;ber eine Aufgabe der
+            Wahrscheinlichkeitsrechnung betreffend die Irrfahrt im
+            Stra&szlig;ennetz&rdquo;, <em>Mathematische Annalen</em> 84 (1921),
+            149&ndash;160.</li>
+          <li>F. Spitzer and H. Widom, &ldquo;The circumference of a convex
+            polygon&rdquo;, <em>Proceedings of the AMS</em> 12 (1961),
+            506&ndash;509.</li>
+          <li>L. Tak&aacute;cs, &ldquo;Expected perimeter length&rdquo;
+            (solution to problem E2629), <em>American Mathematical Monthly</em> 87
+            (1980), 142.</li>
+          <li>M. El Bachir, <em>L'enveloppe convexe du mouvement brownien</em>,
+            PhD thesis, Universit&eacute; Toulouse III, 1983.</li>
+          <li>T. L. Snyder and J. M. Steele, &ldquo;Convex hulls of random
+            walks&rdquo;, <em>Proceedings of the AMS</em> 117 (1993),
+            1165&ndash;1173.</li>
+          <li>A. M. Andrew, &ldquo;Another efficient algorithm for convex hulls in two
+            dimensions&rdquo;, <em>Information Processing Letters</em> 9 (1979),
+            216&ndash;219.</li>
+          <li>C. B. Barber, D. P. Dobkin and H. Huhdanpaa, &ldquo;The Quickhull
+            algorithm for convex hulls&rdquo;, <em>ACM Transactions on Mathematical
+            Software</em> 22 (1996), 469&ndash;483.</li>
+          <li>H. Edelsbrunner, D. Letscher and A. Zomorodian, &ldquo;Topological
+            persistence and simplification&rdquo;, <em>Discrete &amp; Computational
+            Geometry</em> 28 (2002), 511&ndash;533.</li>
+          <li>S. J. Taylor, &ldquo;The Hausdorff &alpha;-dimensional measure of
+            Brownian paths in n-space&rdquo;, <em>Proceedings of the Cambridge
+            Philosophical Society</em> 49 (1953), 31&ndash;39.</li>
+          <li>T. S. Mountford, &ldquo;On the asymptotic number of small components
+            created by planar Brownian motion&rdquo;, <em>Stochastics and Stochastic
+            Reports</em> 28 (1989).</li>
+          <li>G. F. Lawler, O. Schramm and W. Werner, &ldquo;The dimension of the
+            planar Brownian frontier is 4/3&rdquo;, <em>Mathematical Research
+            Letters</em> 8 (2001), 401&ndash;411.</li>
+        </ol>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <!-- KaTeX (https://katex.org) typesets the formulas. The version
+       number is fixed so an update can never change the site by surprise. -->
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/katex.min.js"></script>
+
+  <!-- The code the sims share (in js/, see the README): page helpers
+       (they also typeset the formulas, so they come after KaTeX), the
+       second thread's run loop and random numbers, charts, colors,
+       domains, the picture's view (moving and zooming it), clicking and
+       dragging the picture, and the convex hull and the holes. Then the
+       walk (it runs in a second thread), then this page's code. -->
+  <script src="../../js/sim-page.js"></script>
+  <script src="../../js/sim-worker.js"></script>
+  <script src="../../js/sim-charts.js"></script>
+  <script src="../../js/sim-colors.js"></script>
+  <script src="../../js/sim-domains.js"></script>
+  <script src="../../js/sim-view.js"></script>
+  <script src="../../js/sim-controls.js"></script>
+  <script src="../../js/sim-shape.js"></script>
+  <script src="random-walk-rule.js"></script>
+  <script src="random-walk.js"></script>
+
+</body>
+</html>

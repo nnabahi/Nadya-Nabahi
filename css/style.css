@@ -659,6 +659,13 @@ a.card:hover {
   margin-bottom: 8px;
 }
 
+/* A slider's name in a column of its own, so a stack of sliders lines
+   up (Random Walk's weights, one per direction). */
+.weight-name {
+  display: inline-block;
+  min-width: 8.5em;
+}
+
 /* A clickable grid of small square cells, for picking a set of offsets
    (Eden Growth's Tile T, a cellular automaton's neighborhood;
    showOffsetGrid in js/sim-controls.js): a lit cell is in the set. The
