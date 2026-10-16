@@ -2,12 +2,15 @@
    voter-model.js  —  the page of the "Generalized voter model" sim
    ---------------------------------------------------------------------
    What it does, in plain words:
-     - Builds the domain: a box or torus of cells, a region drawn in
-       the graph tool (shown inside this page), or a ball of a
-       hyperbolic tiling or a tree. The domain code is shared with the
-       other sims: the domains in js/sim-domains.js, their options and
-       the graph tool in js/sim-controls.js, and the hyperbolic tilings
-       and trees, and their pictures, in js/sim-hyperbolic.js.
+     - Builds the domain: a box or torus of cells (on the square grid,
+       or on any tiling by regular polygons, its tiles or its corners
+       being the cells), a region drawn in the graph tool (shown inside
+       this page), or a ball of a hyperbolic tiling or a tree. The
+       domain code is shared with the other sims: the domains in
+       js/sim-domains.js, the tilings in js/sim-tilings.js, their
+       options and the graph tool in js/sim-controls.js, and the
+       hyperbolic tilings and trees, and their pictures, in
+       js/sim-hyperbolic.js.
      - Reads the typed rule g(x), Desmos style (js/formulas.js): every
        letter other than x gets a slider. It hands the worker a table of
        g at the only shares a cell can see, 0, 1/d, ..., 1.
@@ -172,10 +175,18 @@ function restart() {
   latest = null;
   showMessage("");
   worker.postMessage({
-    type: "setup", run: run, n: domain.n, first: domain.first, nbr: domain.nbr, x: domain.x,
+    type: "setup", run: run, n: domain.n, first: domain.first, nbr: domain.nbr, x: leftToRight(domain),
     q: q, table: currentTable(), noise: noise, start: byId("start").value, seed: byId("seed").value,
   });
   player.carryOn();
+}
+
+// Where each cell is from left to right, for the "Stripes" start: its x
+// on the square grid (and on a ball, see useGraph); on any other tiling,
+// the x of its middle, rounded down to whole side lengths.
+function leftToRight(d) {
+  if (!d.lattice) return d.x;
+  return Int32Array.from({ length: d.n }, function (_, v) { return Math.floor(cellMiddle(d, v)[0]); });
 }
 
 // A new g, slider value or noise: the opinions carry on with them.
@@ -195,10 +206,10 @@ const player = connectPlay(worker, SPEEDS, DEFAULT_SPEED, "unit of time", "units
 /* =====================================================================
    5. DRAWING THE OPINIONS
    ---------------------------------------------------------------------
-   One square per cell in its opinion's color, and a dark line where
-   two opinions meet when the cells are big enough to see. The view
-   (js/sim-view.js) says where the picture goes and which squares show,
-   and paints them (paintCells).
+   One square per cell in its opinion's color (one polygon, on another
+   tiling), and a dark line where two opinions meet when the cells are
+   big enough to see. The view (js/sim-view.js) says where the picture
+   goes and which cells show, and paints them (paintDomain).
    On a hyperbolic tiling or tree, each cell is drawn in its opinion's
    color in the disk, the half-plane or (a tree) spread out in rings
    (drawBall, js/sim-hyperbolic.js).
@@ -225,9 +236,8 @@ function drawColoring() {
     return;
   }
   const pen = fitPicture(view, domain, MAX_PICTURE_HEIGHT);
-  const shown = paintCells(view, pen, domain,
-    function (v) { return colors[v]; }, function (k) { return colorRGB[k]; }, outsideRGB);
-  if (view.cell >= SMALLEST_BORDERED_CELL) drawBorders(view, pen, shown, BORDER);
+  paintDomain(view, pen, domain, function (v) { return colors[v]; }, function (k) { return colorRGB[k]; },
+              outsideRGB, BORDER, SMALLEST_BORDERED_CELL);
   pen.restore();
 }
 
@@ -385,7 +395,7 @@ byId("formula-g").addEventListener("input", function () {
 });
 
 // Domain: Box / Torus / Custom / Hyperbolic plane or tree, and their
-// options (js/sim-controls.js).
+// options, the Lattice options among them (js/sim-controls.js).
 connectDomainChoice({ box: useBox, torus: useBox, custom: tool.open, graph: useGraph });
 
 // Seed: the same seed gives the same run every time.
@@ -394,6 +404,7 @@ connectSeed(restart);
 
 // --- Start ------------------------------------------------------------
 fillDomainOptions(DEFAULTS, MAX_SIDE, BALL);
+fillLatticeMenu();
 byId("q-box").max = byId("q-slider").max = MAX_Q;
 byId("noise-slider").value = byId("noise-box").value = noise;
 byId("seed").value = DEFAULTS.seed;

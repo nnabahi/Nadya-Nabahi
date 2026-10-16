@@ -230,10 +230,14 @@ function toThree(rgb) {
 //   fixedSize   (optional) true: every block stays a cube however tall
 //               the stacks get, and the picture fits the floor only, so
 //               a tall stack shoots up out of the top of the picture
-//   color(k, tallest)   the color [r, g, b] (0..255) of block k (the
-//               bottom one is k = 1) when the tallest stack has
+//   color(k, tallest, kind)   the color [r, g, b] (0..255) of block k
+//               (the bottom one is k = 1) when the tallest stack has
 //               "tallest" blocks; the top of each stack has the color a
 //               top view gives that stack
+//   kind        (optional) a whole number for each cell: cells of
+//               different kinds can color their blocks differently, and
+//               color gets the cell's kind (Sandpiles: the grains that
+//               make the cell topple). 0 for every cell if left out.
 //   empty, ground   colors [r, g, b] of the empty cells and of the floor
 //   lines, lineColor    (optional) thin lines on the floor, e.g. the
 //               tiling under a mountain: a list [x1, y1, x2, y2, ...],
@@ -265,10 +269,18 @@ export function drawStacks(view3d, stacks) {
   const squash = stacks.fixedSize ? 1 : Math.min(1, across / 2 / Math.max(tallest, 1));
   const block = stacks.stretch * squash;
 
-  // The colors, worked out once per level (not once per block):
-  // levelColor[k] is the color of the (k+1)-th block from the bottom.
-  const levelColor = [];
-  for (let k = 0; k < tallest; k++) levelColor.push(toThree(stacks.color(k + 1, tallest)));
+  // The colors, worked out once per kind of cell and level (not once
+  // per block): levelColors(kind)[k] is the color of the (k+1)-th block
+  // from the bottom.
+  const levels = new Map();
+  const levelColors = function (kind) {
+    if (!levels.has(kind)) {
+      const list = [];
+      for (let k = 0; k < tallest; k++) list.push(toThree(stacks.color(k + 1, tallest, kind)));
+      levels.set(kind, list);
+    }
+    return levels.get(kind);
+  };
 
   // The blocks: one by one, or one column per stack if there are too many.
   const oneByOne = blocks <= MAX_BLOCKS[shape];
@@ -278,6 +290,7 @@ export function drawStacks(view3d, stacks) {
     const h = stacks.height[i];
     if (h === 0) continue;
     const x = stacks.x[i], z = -stacks.y[i], w = BLOCK_WIDTH * widthOf(i);
+    const levelColor = levelColors(stacks.kind ? stacks.kind[i] : 0);
     if (oneByOne) {
       for (let k = 0; k < h; k++) placeCopy(blockMesh, copy++, x, k * block, z, w, BLOCK_HEIGHT * block, levelColor[k]);
     } else {

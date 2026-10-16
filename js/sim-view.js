@@ -22,7 +22,8 @@
      const pen = fitPicture(view, domain, maxHeight);   // size the canvas
      const shown = paintCells(view, pen, domain, ...);  // paint the squares that show
      drawBorders(view, pen, shown, color);              // lines between colors
-   (or, to paint the squares itself, cellsShown says which cell is on
+   (paintDomain does both, or paints polygons on a tiling instead; to
+   paint the squares itself, cellsShown says which cell is on
    each, and squareLeft and squareTop where it goes). Its pointer events
    go to pressPointer, movePointer and releasePointer: connectPicture
    (js/sim-controls.js) does that, and a page that drags other things
@@ -56,6 +57,7 @@
      shadeSquares(...)           paint some squares on top (e.g. holes)
      drawBorders(...)            the lines between squares of different colors
      paintLattice(...)           the same two for triangles, hexagons and other tilings
+     paintDomain(...)            whichever of these fits the domain's cells
      screenCopies, nearScreen    where the polygons go on the screen (and on a
                                  torus, each copy of the picture that shows)
      zoomBy, resetView           zoom around a point; back to the start
@@ -359,6 +361,32 @@ function paintLattice(view, pen, d, colorOf, groupOf, lines) {
     pen.lineJoin = "round";
     pen.stroke(border);
   }
+}
+
+// Paint domain d after fitPicture, whatever shape its cells are: squares
+// (paintCells) or polygons (paintLattice, on a background of outsideRGB,
+// which shows around a box's ragged edge). groupOf and rgbOf are as in
+// paintCells. With "lines" (a color; null for none), a line goes
+// between cells of different groups once the cells are big enough to
+// see it: squares at least "smallest" pixels across, polygons with sides
+// at least twice that (a triangle is much smaller than a square with the
+// same side).
+function paintDomain(view, pen, d, groupOf, rgbOf, outsideRGB, lines, smallest) {
+  if (!d.lattice) {
+    const shown = paintCells(view, pen, d, groupOf, rgbOf, outsideRGB);
+    if (lines && view.cell >= smallest) drawBorders(view, pen, shown, lines);
+    return;
+  }
+  pen.fillStyle = rgbToHex(outsideRGB);
+  pen.fillRect(view.left, 0, view.width, view.height);
+  const colors = new Map();    // each group's color, worked out once
+  const colorOf = function (v) {
+    const group = groupOf(v);
+    if (!colors.has(group)) colors.set(group, rgbToHex(rgbOf(group)));
+    return colors.get(group);
+  };
+  const bordered = lines && cellSize(view) >= 2 * smallest;
+  paintLattice(view, pen, d, colorOf, bordered ? groupOf : null, lines);
 }
 
 // Where the points of domain d's picture go on the screen, for a

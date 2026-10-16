@@ -108,6 +108,26 @@
           Size <input type="number" id="set-width" min="1" step="1">
           &times; <input type="number" id="set-height" min="1" step="1">
         </div>
+        <!-- The lattice: the square grid, or any tiling by regular
+             polygons, from the menu or typed as a code (GomJau-Hogg
+             notation), with its tiles or its corners as the cells
+             (js/sim-controls.js reads these ids). -->
+        <div id="lattice-rows">
+          <div class="option-row">
+            Lattice <select id="set-tiling"></select>
+          </div>
+          <div class="option-row">
+            Code <input type="text" class="tiling-code" id="tiling-code" spellcheck="false" autocomplete="off">
+            <a class="small" href="../../help/gomjau-hogg.html">how codes work</a>
+          </div>
+          <p class="muted small tiling-message" id="tiling-message"></p>
+          <div class="option-row" id="cells-row">
+            Cells are the
+            <label><input type="radio" name="cells-are" value="tiles" checked> tiles</label>
+            <label><input type="radio" name="cells-are" value="corners"> corners</label>
+          </div>
+          <p class="muted small" id="lattice-note">Each cell topples when it has as many grains as it has neighbors.</p>
+        </div>
         <div class="option-row" id="neighbors-row">
           Neighbors
           <select id="set-neighbors">
@@ -323,8 +343,8 @@
         <div data-panel="details" hidden>
         <p>
           <strong>The rule.</strong> The table is a graph: the cells
-          <span class="tex">V</span>, joined to their 4 or 8 neighbors, plus a
-          sink <span class="tex">s</span>. Each lattice neighbor of
+          <span class="tex">V</span>, joined to their 4 or 8 neighbors (on other
+          lattices, see below), plus a sink <span class="tex">s</span>. Each lattice neighbor of
           <span class="tex">v</span> that is not on the table (or is a sink
           cell) is an edge from <span class="tex">v</span> to
           <span class="tex">s</span>, so every cell has degree
@@ -427,6 +447,28 @@
           [11]. The pictures are the Poincar&eacute; disk and the upper
           half-plane [12], and for a tree the usual radial drawing.
         </p>
+        <p>
+          <strong>Other lattices.</strong> The Lattice menu puts the table on
+          a tiling of the plane by regular polygons with sides of length 1
+          that repeats in two directions: the 11 where every corner looks
+          the same, the 20 with two kinds of corner [13, Sections 2.1 and
+          2.2], or any tiling typed as a code in GomJau-Hogg notation [14]
+          (see <a href="../../help/gomjau-hogg.html">how codes work</a>). The
+          cells are either the tiles, neighbors when they share a side, or the
+          corners, neighbors when a side joins them. A box is the cells whose
+          middles (or corners) lie in a rectangle, its sides in side lengths,
+          and a torus is a whole number of the tiling's repeating blocks each
+          way. Each cell's <span class="tex">d(v)</span> is its number of
+          neighbors in the whole tiling, a tile's number of sides or the
+          number of sides that meet at a corner, so on a tiling with more
+          than one kind of cell the cells topple at different heights: on
+          4.8&sup2;, squares at 4 grains and octagons at 8. The rule and
+          everything above are written for any graph [2, 3, 5, 6], so they
+          hold here too. The heights' colors go by each cell's own
+          <span class="tex">d(v)</span>, so dark red always means
+          &ldquo;about to topple&rdquo;; the chart of heights, which mixes
+          cells of every kind, then has bars of one color.
+        </p>
         <p><strong>References</strong></p>
         <ol class="references">
           <li>P. Bak, C. Tang, K. Wiesenfeld, &ldquo;Self-organized criticality:
@@ -466,6 +508,12 @@
             4333&ndash;4350.</li>
           <li>A. F. Beardon, <em>The Geometry of Discrete Groups</em>,
             Springer, 1983, Chapter 7.</li>
+          <li>B. Gr&uuml;nbaum, G. C. Shephard, <em>Tilings and Patterns</em>,
+            W. H. Freeman, 1987.</li>
+          <li>V. G&oacute;mez-Jauregui, H. Hogg, C. Manchado, C. Otero,
+            &ldquo;GomJau-Hogg's notation for automatic generation of k-uniform
+            tessellations with ANTWERP v3.0&rdquo;, <em>Symmetry</em> 13
+            (2021), 2376.</li>
         </ol>
         </div>
       </section>
@@ -480,8 +528,9 @@
   <!-- The code the sims share (in js/, see the README): page helpers
        (they also typeset the formulas, so they come after KaTeX),
        charts, colors, domains, the picture's view (moving and zooming
-       it), the hyperbolic tilings and trees and their pictures, and the
-       options and controls of the domain. Then the toppling rule (it
+       it), the hyperbolic tilings and trees and their pictures, the
+       tilings by regular polygons, and the options and controls of the
+       domain. Then the toppling rule (it
        runs in a second thread), then this page's code. -->
   <script src="../../js/sim-page.js"></script>
   <script src="../../js/sim-charts.js"></script>
@@ -490,6 +539,7 @@
   <script src="../../js/sim-view.js"></script>
   <script src="../../js/sim-graphs.js"></script>
   <script src="../../js/sim-hyperbolic.js"></script>
+  <script src="../../js/sim-tilings.js"></script>
   <script src="../../js/sim-controls.js"></script>
   <script src="sandpiles-pile.js"></script>
   <script src="sandpiles.js"></script>

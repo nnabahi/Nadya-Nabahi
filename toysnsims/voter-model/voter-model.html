@@ -120,6 +120,25 @@
           Size <input type="number" id="set-width" min="2" step="1">
           &times; <input type="number" id="set-height" min="2" step="1">
         </div>
+        <!-- The lattice: the square grid, or any tiling by regular
+             polygons, from the menu or typed as a code (GomJau-Hogg
+             notation), with its tiles or its corners as the cells
+             (js/sim-controls.js reads these ids). -->
+        <div id="lattice-rows">
+          <div class="option-row">
+            Lattice <select id="set-tiling"></select>
+          </div>
+          <div class="option-row">
+            Code <input type="text" class="tiling-code" id="tiling-code" spellcheck="false" autocomplete="off">
+            <a class="small" href="../../help/gomjau-hogg.html">how codes work</a>
+          </div>
+          <p class="muted small tiling-message" id="tiling-message"></p>
+          <div class="option-row" id="cells-row">
+            Cells are the
+            <label><input type="radio" name="cells-are" value="tiles" checked> tiles</label>
+            <label><input type="radio" name="cells-are" value="corners"> corners</label>
+          </div>
+        </div>
         <div class="option-row" id="neighbors-row">
           Neighbors
           <select id="set-neighbors">
@@ -278,7 +297,7 @@
         <p>
           <strong>The model.</strong> The domain is a graph
           <span class="tex">G = (V, E)</span>: the cells, joined to their 4 or
-          8 neighbors. A state is
+          8 neighbors (on other lattices, see below). A state is
           <span class="tex">\sigma \in \{1, \dots, q\}^V</span>. For a cell
           <span class="tex">v</span> with <span class="tex">d(v)</span>
           neighbors, let
@@ -336,8 +355,26 @@
         <p>
           is a martingale, so opinion 1 wins with probability
           <span class="tex">M(0) / \sum_v d(v)</span>: its share of the
-          degrees, which on a torus is its share of the cells [10]. The check
-          page tests this.
+          degrees, which on a torus of the square grid is its share of the
+          cells [10]. The check page tests this.
+        </p>
+        <p>
+          <strong>Other lattices.</strong> The Lattice menu puts the cells on
+          a tiling of the plane by regular polygons with sides of length 1
+          that repeats in two directions: the 11 where every corner looks
+          the same, the 20 with two kinds of corner [12, Sections 2.1 and
+          2.2], or any tiling typed as a code in GomJau-Hogg notation [13]
+          (see <a href="../../help/gomjau-hogg.html">how codes work</a>). The
+          cells are either the tiles, neighbors when they share a side, or the
+          corners, neighbors when a side joins them. A box is the cells whose
+          middles (or corners) lie in a rectangle, its sides in side lengths,
+          and a torus is a whole number of the tiling's repeating blocks each
+          way. The stripes start splits the domain by where each cell's
+          middle is from left to right. On a tiling whose cells have
+          different numbers of neighbors, like the squares and octagons of
+          4.8&sup2;, opinion 1 wins on a torus with its share of the degrees
+          above, not its share of the cells: an octagon counts twice as much
+          as a square.
         </p>
         <p>
           <strong>Hyperbolic plane or tree.</strong> Here
@@ -388,6 +425,12 @@
             graphs&rdquo;, <em>Phys. Rev. Lett.</em> 94 (2005), 178701.</li>
           <li>W. Woess, <em>Random Walks on Infinite Graphs and Groups</em>,
             Cambridge University Press, 2000.</li>
+          <li>B. Gr&uuml;nbaum, G. C. Shephard, <em>Tilings and Patterns</em>,
+            W. H. Freeman, 1987.</li>
+          <li>V. G&oacute;mez-Jauregui, H. Hogg, C. Manchado, C. Otero,
+            &ldquo;GomJau-Hogg's notation for automatic generation of k-uniform
+            tessellations with ANTWERP v3.0&rdquo;, <em>Symmetry</em> 13
+            (2021), 2376.</li>
         </ol>
         </div>
       </section>
@@ -405,8 +448,8 @@
        (they also typeset the formulas, so they come after KaTeX), the
        second thread's run loop, charts, colors, domains, the picture's
        view (moving and zooming it), the hyperbolic tilings and trees and
-       their pictures, the options and controls of the domain, and reading
-       formulas. Then the opinions (they run in a second thread), then
+       their pictures, the tilings by regular polygons, the options and
+       controls of the domain, and reading formulas. Then the opinions (they run in a second thread), then
        this page's code. -->
   <script src="../../js/sim-page.js"></script>
   <script src="../../js/sim-worker.js"></script>
@@ -416,6 +459,7 @@
   <script src="../../js/sim-view.js"></script>
   <script src="../../js/sim-graphs.js"></script>
   <script src="../../js/sim-hyperbolic.js"></script>
+  <script src="../../js/sim-tilings.js"></script>
   <script src="../../js/sim-controls.js"></script>
   <script src="../../js/formulas.js"></script>
   <script src="voter-model-chain.js"></script>

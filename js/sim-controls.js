@@ -118,8 +118,10 @@ function fillDomainOptions(defaults, most, ball) {
 // sides are whole numbers from "least" to "most" ("defaults" when a box
 // is left empty), and with no Neighbors option cells have 4 neighbors.
 // On a lattice other than the square grid, a tilingBox of the tiling in
-// use (readTiling), the sides in side lengths.
+// use (readTiling), the sides in side lengths, and at least
+// SMALLEST_TILING_BOX of them, so it always has a cell.
 function boxFromOptions(least, most, defaults) {
+  if (!onSquares()) least = Math.max(least, SMALLEST_TILING_BOX);
   const width = readWhole("set-width", least, most, defaults.width);
   const height = readWhole("set-height", least, most, defaults.height);
   const torus = checked("domain") === "torus";
@@ -127,6 +129,14 @@ function boxFromOptions(least, most, defaults) {
   const neighbors = byId("set-neighbors") ? Number(byId("set-neighbors").value) : 4;
   return boxDomain(width, height, neighbors, torus);
 }
+
+// A box of a tiling is at least this many side lengths on a side, so it
+// always holds a cell: every point of the plane is less than 2 side
+// lengths from a tile's middle and from a corner (a point in a tile is
+// at most as far from them as the tile's corners are from its middle,
+// 1.93 for the biggest tile, the 12-gon), so the middle of a box 4 side
+// lengths on a side has one of each within the box.
+const SMALLEST_TILING_BOX = 4;
 
 // The tiling built last from the Lattice options, so it is built again
 // only when they change: { code, corners, block } with "block" from

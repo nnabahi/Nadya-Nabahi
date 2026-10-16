@@ -275,14 +275,11 @@ function drawColoring() {
   const colors = latest.colors;
   const pen = fitPicture(view, domain, MAX_PICTURE_HEIGHT);
 
-  // The squares, each in its cell's color. "shown" is the color on each
-  // square (-1 = not reached yet, -2 = not in the domain).
-  const shown = paintCells(view, pen, domain, function (v) { return colors[v]; },
-    function (c) { return c === -1 ? blankRGB : colorRGB[c]; }, outsideRGB);
-
-  // The lines between different colors, when cells are big enough to
-  // see (the outside counts as a color of its own).
-  if (view.cell >= SMALLEST_BORDERED_CELL) drawBorders(view, pen, shown, BORDER);
+  // The squares, each in its cell's color (-1: not reached yet), with
+  // lines between different colors when cells are big enough to see
+  // (the outside counts as a color of its own).
+  paintDomain(view, pen, domain, function (v) { return colors[v]; },
+    function (c) { return c === -1 ? blankRGB : colorRGB[c]; }, outsideRGB, BORDER, SMALLEST_BORDERED_CELL);
 
   pen.restore();                       // no longer cut off at the picture's box, so
   if (showWalkers) drawWalkers(pen);   // walkers on the edge show whole

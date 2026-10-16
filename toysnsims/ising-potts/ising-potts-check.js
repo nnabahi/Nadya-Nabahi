@@ -19,6 +19,18 @@
         (1944) 117-149).
      4. With beta = 0 every coloring is equally likely, and the heat
         bath and Swendsen-Wang both give each cell a uniform color.
+     5. The critical points known exactly (section 3 of
+        ising-potts-chain.js): v = e^beta_c - 1 solves its equation on
+        the triangular lattice and the honeycomb for every q, and for
+        q = 2 gives the Ising model's (1/2) log 3 and log(2 + sqrt 3)
+        (R. M. F. Houtappel, Physica 16 (1950) 425-455; G. H. Wannier,
+        Phys. Rev. 79 (1950) 357-364); and each tiling named in
+        TILING_CRITICAL makes the graph it is named for (every cell has
+        3 neighbors in the honeycomb, 6 in the triangular lattice, 4 in
+        the kagome lattice).
+
+   Tests 1 and 2 also run on a small box of a tiling with three kinds of
+   cell (squares, hexagons and 12-gons), from js/sim-tilings.js.
 
    Random numbers come from the library seedrandom, with fixed seeds,
    so the tests do the same thing every time. Chi-square p-values come
@@ -60,10 +72,18 @@ function statsOf(d, colors) {
   return { agree: agree, zeros: zeros };
 }
 
+// The tiling with this code, as the sims build it (js/sim-tilings.js).
+function tilingOf(code, corners) {
+  const block = tilingFromCode(code);
+  return uprightBlock(corners ? cornersBlock(block) : block);
+}
+
 const SMALL_CASES = [
   { name: "3 x 2 box, q = 3, β = 0.7, h = 0.3", d: boxDomain(3, 2, 4, false), q: 3, beta: 0.7, h: 0.3 },
   { name: "3 x 3 torus, q = 2, β = 0.5, h = -0.2", d: boxDomain(3, 3, 4, true), q: 2, beta: 0.5, h: -0.2 },
   { name: "3 x 2 box with 8 neighbors, q = 4, β = 1.1, h = 0", d: boxDomain(3, 2, 8, false), q: 4, beta: 1.1, h: 0 },
+  { name: "4 x 3 box of the 4.6.12 tiling (6 cells), q = 3, β = 0.9, h = 0.2",
+    d: tilingBox(tilingOf("12-6,4/m30/r(c2)", false), 4, 3, false), q: 3, beta: 0.9, h: 0.2 },
 ];
 
 
@@ -93,7 +113,7 @@ function testHeatBathExact() {
     }
   }
   addRow("Heat bath keeps π exactly", worst < 1e-9,
-         "On 3 tiny graphs, every cell, every coloring: one update carries π to π, largest relative error " +
+         "On " + SMALL_CASES.length + " tiny graphs, every cell, every coloring: one update carries π to π, largest relative error " +
          worst.toExponential(1) + ".");
 }
 
@@ -182,11 +202,46 @@ function testUniform(dynamics) {
 }
 
 
+/* 5. The critical points known exactly. */
+function testCriticalEquations() {
+  let worst = 0;
+  for (let q = 2; q <= 10; q++) {
+    const vT = Math.exp(EXACT_BETA.triangular(q)[1]) - 1, vH = Math.exp(EXACT_BETA.honeycomb(q)[1]) - 1;
+    worst = Math.max(worst, Math.abs(vT ** 3 + 3 * vT ** 2 - q) / q, Math.abs(vH ** 3 - 3 * q * vH - q * q) / (q * q));
+  }
+  addRow("β_c on the triangular lattice and the honeycomb", worst < 1e-12,
+         "For q = 2, 3, ..., 10, v = e^β_c − 1 solves v³ + 3v² = q (triangular) and v³ = 3qv + q² (honeycomb): " +
+         "largest relative error " + worst.toExponential(1) + ".");
+}
+function testIsingCritical() {
+  const cases = [["triangular lattice", EXACT_BETA.triangular(2)[1], Math.log(3) / 2, "½ log 3"],
+                 ["honeycomb", EXACT_BETA.honeycomb(2)[1], Math.log(2 + Math.sqrt(3)), "log(2 + √3)"]];
+  for (const [name, beta, exact, formula] of cases) {
+    addRow("Ising β_c on the " + name, Math.abs(beta - exact) < 1e-12,
+           "q = 2: β_c = " + beta.toFixed(12) + ", Houtappel's and Wannier's " + formula + " = " + exact.toFixed(12) + ".");
+  }
+}
+function testCriticalLattices() {
+  const NEIGHBORS = { triangular: 6, honeycomb: 3, kagome: 4 };
+  for (const code of Object.keys(TILING_CRITICAL)) {
+    for (const cells of Object.keys(TILING_CRITICAL[code])) {
+      const lattice = TILING_CRITICAL[code][cells], want = NEIGHBORS[lattice];
+      const d = tilingBox(tilingOf(code, cells === "corners"), 12, 12, true);
+      let ok = true;
+      for (let v = 0; v < d.n; v++) if (d.first[v + 1] - d.first[v] !== want) ok = false;
+      addRow("The " + cells + " of " + code + " make the " + lattice, ok,
+             "On a torus of " + d.n + " cells, every cell has " + want + " neighbors: " + (ok ? "yes" : "no") + ".");
+    }
+  }
+}
+
+
 runChecksOnClick(function () {
   return [
     testHeatBathExact,
     function () { testSampling("heat"); }, function () { testSampling("sw"); },
     function () { testUniform("heat"); }, function () { testUniform("sw"); },
     testYang, testOnsager,
+    testCriticalEquations, testIsingCritical, testCriticalLattices,
   ];
 });

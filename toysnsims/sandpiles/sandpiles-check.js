@@ -42,7 +42,10 @@
 
    Tests 2-6 also run on small balls of hyperbolic tilings and trees
    (makeBall, js/sim-hyperbolic.js), where every cell topples at p
-   grains and grains fall off the ball's edge.
+   grains and grains fall off the ball's edge, and tests 2-7 on boxes
+   and tori of other tilings (js/sim-tilings.js), whose cells topple at
+   different heights: a tile at its number of sides, a corner at the
+   number of sides that meet there.
 
    Random numbers come from the library seedrandom, with fixed seeds,
    so the tests do the same thing every time.
@@ -97,11 +100,23 @@ function ballCase(name, p, q, R) {
   return { name: name, options: { domain: ball, threshold: p } };
 }
 
-// A torus with its middle cell as the sink cell, as the sim page makes it.
-function torusWithSink(name, size, neighbors) {
-  const c = boxCase(name, size, size, neighbors, true);
+// A box or torus of a tiling, its tiles or its corners being the cells,
+// as the sim page makes it (each cell's threshold from tilingThresholds).
+function tilingCase(name, code, corners, width, height, torus) {
+  const block = tilingFromCode(code);
+  const d = tilingBox(uprightBlock(corners ? cornersBlock(block) : block), width, height, torus);
+  return { name: name, options: { domain: d, threshold: tilingThresholds(d) } };
+}
+
+// A case with its middle cell as the sink cell.
+function withSink(c) {
   c.options.sinks = [middleCell(c.options.domain)];
   return c;
+}
+
+// A torus with its middle cell as the sink cell, as the sim page makes it.
+function torusWithSink(name, size, neighbors) {
+  return withSink(boxCase(name, size, size, neighbors, true));
 }
 
 // Random starting heights 0 .. 2 * threshold - 1 (so plenty to topple),
@@ -214,6 +229,9 @@ const mainCases = [
   torusWithSink("torus 5 x 5 with a sink cell, 8 neighbors", 5, 8),
   ballCase("ball of {7, 3}, R = 2", 7, 3, 2),
   ballCase("ball of the tree of degree 3, R = 3", 3, Infinity, 3),
+  tilingCase("box 8 x 6 of 4.8.8 (squares at 4 grains, octagons at 8)", "8-4/m90/r(h4)", false, 8, 6, false),
+  tilingCase("box 7 x 7 of the corners of 3.12.12", "12-3/m30/r(h3)", true, 7, 7, false),
+  withSink(tilingCase("torus of 4.6.12 with a sink cell", "12-6,4/m30/r(c2)", false, 4, 4, true)),
 ];
 
 // Topple until stable in four ways and compare the piles and the
@@ -300,6 +318,9 @@ const smallCases = [
   shapeCase("L shape of 6 cells, 4 neighbors", [[0, 0], [1, 0], [2, 0], [0, 1], [0, 2], [1, 2]], 4),
   ballCase("ball of {5, 4}, R = 1", 5, 4, 1),
   ballCase("ball of the tree of degree 3, R = 2", 3, Infinity, 2),
+  tilingCase("box 4 x 3 of 4.6.12 (6 cells, thresholds 4, 6 and 12)", "12-6,4/m30/r(c2)", false, 4, 3, false),
+  tilingCase("box 3 x 2 of the corners of kagome (6 cells)", "6-3-6/m30/r(v4)", true, 3, 2, false),
+  tilingCase("box 2 x 3 of 3.4.6.4 (7 cells, thresholds 3, 4 and 6)", "6-4-3/m30/r(c2)", false, 2, 3, false),
 ];
 
 // The reduced Laplacian's determinant, straight from the definition:
@@ -314,7 +335,8 @@ function reducedLaplacianDeterminant(c) {
   cells.forEach(function (v, k) { position.set(v, k); });
   const m = cells.map(function () { return new Array(cells.length).fill(0); });
   cells.forEach(function (v, k) {
-    m[k][k] = c.options.threshold;
+    const t = c.options.threshold;
+    m[k][k] = typeof t === "number" ? t : t[v];
     for (let e = d.first[v]; e < d.first[v + 1]; e++) {
       if (position.has(d.nbr[e])) m[k][position.get(d.nbr[e])] -= 1;
     }
@@ -382,6 +404,9 @@ const identityCases = [
   torusWithSink("torus 15 x 15 with a sink cell, 8 neighbors", 15, 8),
   ballCase("ball of {7, 3}, R = 4", 7, 3, 4),
   ballCase("ball of the tree of degree 3, R = 6", 3, Infinity, 6),
+  tilingCase("box 25 x 25 of 3.12.12", "12-3/m30/r(h3)", false, 25, 25, false),
+  tilingCase("box 20 x 15 of the corners of 4.8.8", "8-4/m90/r(h4)", true, 20, 15, false),
+  withSink(tilingCase("torus of triangles with a sink cell", "3/m30/r(h2)", false, 12, 12, true)),
 ];
 
 function testIdentity(c) {
@@ -415,6 +440,8 @@ const noSinkCases = [
   boxCase("torus 3 x 3, 4 neighbors", 3, 3, 4, true),
   boxCase("torus 5 x 4, 4 neighbors", 5, 4, 4, true),
   boxCase("torus 4 x 4, 8 neighbors", 4, 4, 8, true),
+  tilingCase("torus of 4.8.8", "8-4/m90/r(h4)", false, 4, 4, true),
+  tilingCase("torus of the corners of 3.4.6.4", "6-4-3/m30/r(c2)", true, 4, 4, true),
 ];
 
 function testNoSink(c) {

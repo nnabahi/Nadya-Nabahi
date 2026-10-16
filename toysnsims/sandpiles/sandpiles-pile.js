@@ -4,7 +4,9 @@
    What it does, in plain words:
      Every cell v of the domain holds height[v] grains of sand. Each cell
      has a threshold: its number of neighbors in the full lattice (4 or
-     8), counting neighbors that lie outside the domain. A cell with at
+     8 on the square grid; on another tiling, a tile's number of sides,
+     or the number of sides meeting at a corner), counting neighbors
+     that lie outside the domain. A cell with at
      least that many grains is unstable and may TOPPLE: it loses
      threshold grains, and each of its neighbors gains one. A grain sent
      to a neighbor outside the domain leaves the system: it falls into
@@ -66,9 +68,12 @@
 
 // Make a new sandpile. "options" has:
 //   domain      a domain from js/sim-domains.js (box, torus or drawn),
-//               or a ball (makeBall, js/sim-hyperbolic.js)
+//               or a ball (makeBall, js/sim-hyperbolic.js): its cells n
+//               and neighbors (first and nbr) are all the pile uses
 //   threshold   the grains that make a cell topple: the lattice's number
-//               of neighbors (4 or 8; p on a tiling {p,q} or a tree)
+//               of neighbors (4 or 8; p on a tiling {p,q} or a tree), or
+//               a list with each cell's own (on a tiling with cells of
+//               different kinds)
 //   sinks       (optional) a list of cells that are sink cells
 // The pile starts empty; use setHeights to fill it.
 function newPile(options) {
@@ -77,7 +82,8 @@ function newPile(options) {
 
   // ---------- the graph, worked out once ----------
 
-  const threshold = new Int32Array(n).fill(options.threshold);
+  const threshold = typeof options.threshold === "number" ? new Int32Array(n).fill(options.threshold)
+                                                          : Int32Array.from(options.threshold);
   const isSink = new Uint8Array(n);
   for (const s of options.sinks || []) isSink[s] = 1;
   // offEdge[v] = grains that leave the system when v topples: one per
@@ -431,6 +437,15 @@ function newPile(options) {
 }
 
 
+// The thresholds of a box or torus of any other tiling (tilingBox,
+// js/sim-domains.js): a cell topples when it has as many grains as it
+// has neighbors in the whole tiling, a tile's number of sides, or the
+// number of sides that meet at a corner.
+function tilingThresholds(d) {
+  return Int32Array.from(d.part, function (k) { return d.tiling.cells[k].next.length; });
+}
+
+
 // The starting heights from nadya's Sandpiles.js (SquareGrid.js), for
 // any domain. "kind" and the numbers in "s" are:
 //   "empty"                   no sand
@@ -458,10 +473,13 @@ function startHeights(d, kind, s, random, sinks) {
 // as in nadya's code; in general, the cell nearest the middle of the
 // smallest box around the domain. In a ball of a hyperbolic tiling or a
 // tree (js/sim-hyperbolic.js), which has no rows and columns, its start.
+// On any other tiling, x and y are where the cells' middles are (see
+// pileTable in sandpiles.js), and the box's middle is exactly halfway.
 function middleCell(d) {
   if (!d.x) return 0;
-  const mx = d.xmin + Math.floor((d.xmax - d.xmin) / 2);
-  const my = d.ymin + Math.floor((d.ymax - d.ymin) / 2);
+  const half = d.lattice ? function (t) { return t / 2; } : function (t) { return Math.floor(t / 2); };
+  const mx = d.xmin + half(d.xmax - d.xmin);
+  const my = d.ymin + half(d.ymax - d.ymin);
   let best = 0, bestDistance = Infinity;
   for (let v = 0; v < d.n; v++) {
     const distance = (d.x[v] - mx) * (d.x[v] - mx) + (d.y[v] - my) * (d.y[v] - my);

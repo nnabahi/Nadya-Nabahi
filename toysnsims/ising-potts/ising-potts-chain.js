@@ -47,7 +47,7 @@
       point it is far faster than the heat bath. One SW step counts as
       one sweep.
 
-   The file has two parts, with no drawing and no buttons:
+   The file has three parts, with no drawing and no buttons:
      1. newPotts(options) and pottsStart: the two chains, and their
         start. The check page (ising-potts-check.html) tests them in
         the browser.
@@ -56,6 +56,9 @@
         startWorker (js/sim-page.js) starts it, with newPotts,
         pottsStart and the run loop and trace (js/sim-worker.js) copied
         in.
+     3. The critical points beta_c known exactly: on the square grid,
+        the triangular lattice, the honeycomb and (for q = 2) the
+        kagome lattice. The check page tests them too.
    ===================================================================== */
 
 
@@ -262,4 +265,55 @@ function pottsWorker() {
       traceCounts: Int32Array.from(trace.lists.counts),
     }, [colors.buffer]);   // hand the copy over instead of copying again
   }
+}
+
+
+/* =====================================================================
+   3. THE CRITICAL POINTS KNOWN EXACTLY
+   ---------------------------------------------------------------------
+   With v = e^beta - 1, the critical point beta_c solves
+       v = sqrt(q)               on the square grid,
+       v^3 + 3v^2 = q            on the triangular lattice,
+       v^3 = 3qv + q^2           on the honeycomb,
+   for every q >= 1 (V. Beffara and H. Duminil-Copin, Probab. Theory
+   Related Fields 153 (2012) 511-542; R. J. Baxter, H. N. V. Temperley
+   and S. E. Ashley, Proc. R. Soc. Lond. A 358 (1978) 535-559). The
+   triangular lattice and the honeycomb are dual to each other, and
+   their two v's multiply to q; the square grid is its own dual. On the
+   kagome lattice, beta_c is known for the Ising model (q = 2) only:
+   (1/2) log(3 + 2 sqrt 3) (I. Syozi, Prog. Theor. Phys. 6 (1951)
+   306-308; this page's beta is twice the Ising one).
+   ===================================================================== */
+
+// The lattices where beta_c is known, among the tilings (js/sim-tilings.js),
+// by the tiling's code and whether its tiles or its corners are the
+// cells. The tiles of triangles and the corners of hexagons make the
+// same graph (the honeycomb), and so do the tiles of hexagons and the
+// corners of triangles (the triangular lattice). Each is a key of
+// EXACT_BETA.
+const TILING_CRITICAL = {
+  "3/m30/r(h2)": { tiles: "honeycomb", corners: "triangular" },   // triangles
+  "6/m30/r(h1)": { tiles: "triangular", corners: "honeycomb" },   // hexagons
+  "6-3-6/m30/r(v4)": { corners: "kagome" },                       // kagome (3.6.3.6)
+};
+
+// beta_c with q colors on each lattice, as [its formula, its value, what
+// v is (if the formula has a v)], or null if it isn't known.
+const EXACT_BETA = {
+  square: function (q) { return ["log(1 + √" + q + ")", Math.log(1 + Math.sqrt(q)), ""]; },
+  triangular: function (q) { return ["log(1 + v)", Math.log(1 + triangularV(q)), "v³ + 3v² = " + q]; },
+  honeycomb: function (q) { return ["log(1 + v)", Math.log(1 + q / triangularV(q)), "v³ = " + 3 * q + "v + " + q * q]; },
+  kagome: function (q) { return q === 2 ? ["½ log(3 + 2√3)", Math.log(3 + 2 * Math.sqrt(3)) / 2, ""] : null; },
+};
+
+// The v > 0 with v^3 + 3v^2 = q, found by halving an interval that holds
+// it: the left side grows with v, from 0 at v = 0 to more than q at
+// v = q. (On the honeycomb, v is q over this.)
+function triangularV(q) {
+  let low = 0, high = q;
+  for (let k = 0; k < 60; k++) {
+    const middle = (low + high) / 2;
+    if (middle * middle * (middle + 3) < q) low = middle; else high = middle;
+  }
+  return (low + high) / 2;
 }

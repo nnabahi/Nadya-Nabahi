@@ -2,12 +2,15 @@
    ising-potts.js  —  the page of the "Ising and Potts model" sim
    ---------------------------------------------------------------------
    What it does, in plain words:
-     - Builds the domain: a box or torus of cells, a region drawn in
-       the graph tool (shown inside this page), or a ball of a
-       hyperbolic tiling or a tree. The domain code is shared with the
-       other sims: the domains in js/sim-domains.js, their options and
-       the graph tool in js/sim-controls.js, and the hyperbolic tilings
-       and trees, and their pictures, in js/sim-hyperbolic.js.
+     - Builds the domain: a box or torus of cells (on the square grid,
+       or on any tiling by regular polygons, its tiles or its corners
+       being the cells), a region drawn in the graph tool (shown inside
+       this page), or a ball of a hyperbolic tiling or a tree. The
+       domain code is shared with the other sims: the domains in
+       js/sim-domains.js, the tilings in js/sim-tilings.js, their
+       options and the graph tool in js/sim-controls.js, and the
+       hyperbolic tilings and trees, and their pictures, in
+       js/sim-hyperbolic.js.
      - Hands it to the chain (ising-potts-chain.js), which runs in a
        second thread (a "Web Worker"), and draws every coloring it sends
        back, with the statistics.
@@ -123,10 +126,10 @@ const player = connectPlay(worker, SPEEDS, DEFAULT_SPEED, "sweep", "sweeps", res
 /* =====================================================================
    4. DRAWING THE COLORING
    ---------------------------------------------------------------------
-   One square per cell in its color, and a dark line where two colors
-   meet when the cells are big enough to see. The view (js/sim-view.js)
-   says where the picture goes and which squares show, and paints them
-   (paintCells).
+   One square per cell in its color (one polygon, on another tiling),
+   and a dark line where two colors meet when the cells are big enough
+   to see. The view (js/sim-view.js) says where the picture goes and
+   which cells show, and paints them (paintDomain).
    On a hyperbolic tiling or tree, each cell is drawn in its color in
    the disk, the half-plane or (a tree) spread out in rings (drawBall,
    js/sim-hyperbolic.js).
@@ -153,9 +156,8 @@ function drawColoring() {
     return;
   }
   const pen = fitPicture(view, domain, MAX_PICTURE_HEIGHT);
-  const shown = paintCells(view, pen, domain,
-    function (v) { return colors[v]; }, function (k) { return colorRGB[k]; }, outsideRGB);
-  if (view.cell >= SMALLEST_BORDERED_CELL) drawBorders(view, pen, shown, BORDER);
+  paintDomain(view, pen, domain, function (v) { return colors[v]; }, function (k) { return colorRGB[k]; },
+              outsideRGB, BORDER, SMALLEST_BORDERED_CELL);
   pen.restore();
 }
 
@@ -283,16 +285,24 @@ function showDomainChoice() {
   showCritical();
 }
 
-// The critical point beta_c = log(1 + sqrt q), known for the square
-// grid with 4 neighbors (box or torus).
+// The critical point beta_c of the box or torus in use, as in
+// EXACT_BETA, or null if it isn't known: on the square grid with 4
+// neighbors, and on the lattices of TILING_CRITICAL (both in section 3
+// of ising-potts-chain.js).
 function criticalBeta() {
-  if (domainKind === "custom" || domainKind === "graph" || byId("set-neighbors").value !== "4") return null;
-  return Math.log(1 + Math.sqrt(q));
+  if (domainKind === "custom" || domainKind === "graph") return null;
+  if (!domain.lattice) return byId("set-neighbors").value === "4" ? EXACT_BETA.square(q) : null;
+  const known = TILING_CRITICAL[domain.tiling.code];
+  const lattice = known && known[domain.tiling.corners ? "corners" : "tiles"];
+  return lattice ? EXACT_BETA[lattice](q) : null;
 }
 function showCritical() {
-  const bc = criticalBeta();
-  byId("critical-row").hidden = (bc === null);
-  if (bc !== null) byId("critical-value").textContent = "log(1 + √" + q + ") ≈ " + bc.toFixed(4);
+  const critical = criticalBeta();
+  byId("critical-row").hidden = (critical === null);
+  if (critical === null) return;
+  byId("critical-value").textContent = critical[0] + " ≈ " + critical[1].toFixed(4);
+  byId("critical-where").textContent = domain.lattice ? "lattice" : "grid";
+  byId("critical-v").textContent = critical[2] ? ", where " + critical[2] : "";
 }
 
 // q colors, each drawn in the old site's colors. Restarts.
@@ -327,14 +337,14 @@ byId("q-slider").addEventListener("input", function () { setQ(this.value); });
 byId("q-box").addEventListener("change", function () { setQ(this.value); });
 byId("beta-slider").addEventListener("input", function () { setBeta(this.value); });
 byId("beta-box").addEventListener("change", function () { setBeta(this.value); });
-byId("beta-critical").addEventListener("click", function () { setBeta(criticalBeta()); });
+byId("beta-critical").addEventListener("click", function () { setBeta(criticalBeta()[1]); });
 byId("h-slider").addEventListener("input", function () { setField(this.value); });
 byId("h-box").addEventListener("change", function () { setField(this.value); });
 for (const radio of document.querySelectorAll('input[name="dynamics"]')) radio.addEventListener("change", sendParams);
 byId("start").addEventListener("change", restart);
 
 // Domain: Box / Torus / Custom / Hyperbolic plane or tree, and their
-// options (js/sim-controls.js).
+// options, the Lattice options among them (js/sim-controls.js).
 connectDomainChoice({ box: useBox, torus: useBox, custom: tool.open, graph: useGraph });
 
 // Seed: the same seed gives the same run every time.
@@ -343,6 +353,7 @@ connectSeed(restart);
 
 // --- Start ------------------------------------------------------------
 fillDomainOptions(DEFAULTS, MAX_SIDE, BALL);
+fillLatticeMenu();
 byId("q-box").max = byId("q-slider").max = MAX_Q;
 byId("beta-box").max = byId("beta-slider").max = MAX_BETA;
 byId("h-box").min = byId("h-slider").min = -MAX_FIELD;

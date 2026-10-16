@@ -2,13 +2,15 @@
    sandpiles.js  —  the page of the "Sandpiles" sim
    ---------------------------------------------------------------------
    What it does, in plain words:
-     - Builds the table: a box or torus of cells, a custom one drawn
-       in the graph tool (shown inside this page), or a ball of a
-       hyperbolic tiling or a tree. The domain code is shared with the
-       other sims: the domains in js/sim-domains.js, their options and
-       the graph tool in js/sim-controls.js, and the hyperbolic tilings
-       and trees, and their pictures, in js/sim-graphs.js and
-       js/sim-hyperbolic.js.
+     - Builds the table: a box or torus of cells (on the square grid,
+       or on any tiling by regular polygons, its tiles or its corners
+       being the cells), a custom one drawn in the graph tool (shown
+       inside this page), or a ball of a hyperbolic tiling or a tree.
+       The domain code is shared with the other sims: the domains in
+       js/sim-domains.js, the tilings in js/sim-tilings.js, their
+       options and the graph tool in js/sim-controls.js, and the
+       hyperbolic tilings and trees, and their pictures, in
+       js/sim-graphs.js and js/sim-hyperbolic.js.
      - Hands the table, the start and the settings to the pile
        (pileWorker in sandpiles-pile.js), which runs in a second thread
        (a "Web Worker"), and draws every pile it sends back, with the
@@ -52,6 +54,7 @@ const MAX_HEIGHT_SETTING = 50;    // "Random: up to" and "Full: height" go up to
 const MAX_PICTURE_HEIGHT = 600;   // in screen pixels
 const OUTSIDE = "#ecebe7";        // around a custom domain (cells not on the table)
 const SINK = "#555555";           // the sink cell
+const THIN_LINES = "rgba(0, 0, 0, 0.15)";   // the lines between big cells
 const NUMBER_MIN_CELL = 16;       // cells at least this big (in pixels) show their number
 const PAD = 2;                    // room above and below the picture
 const HEIGHT_BARS = 8;            // "Cells of each height": bars 0 to 7, then "8+"
@@ -78,7 +81,12 @@ const DEFAULT_STORM_RATE = 2;
 
 let domainKind = "box";         // "box", "torus", "custom" or "graph": the table in use
 let domain = null;              // the table's graph (js/sim-domains.js), or a ball (makeBall, js/sim-hyperbolic.js)
-let neighbors = 4;              // 4 or 8 (p on a tiling {p,q} or a tree): also the number of grains that makes a cell topple
+let threshold = null;           // threshold[v]: the grains that make cell v topple, its number of
+                                // neighbors in the whole lattice (4 or 8 on the square grid, p on a
+                                // tiling {p,q} or a tree; on another tiling, see tilingThresholds
+                                // in sandpiles-pile.js)
+let sameThreshold = 4;          // every cell's threshold, when they are all the same (else null)
+let mostThreshold = 4;          // the biggest threshold
 let sinks = [];                 // the sink cells, made by clicking (none at the start)
 let customDomain = null;        // the last custom domain drawn, if any
 let customNeighbors = 4;        // the graph tool's neighbors for it
@@ -105,9 +113,9 @@ let latest = null;
    ---------------------------------------------------------------------
    Three ways to color the heights:
      "White to red, then viridis" (the default, nadya's pick): heights
-                             0 up to the threshold (4 on the square grid)
-                             go white, yellow, orange, light red, dark
-                             red (colors from ColorBrewer's "YlOrRd",
+                             0 up to the cell's threshold (4 on the
+                             square grid) go white, yellow, orange, light
+                             red, dark red (colors from ColorBrewer's "YlOrRd",
                              Brewer, colorbrewer2.org). Taller cells, which
                              are about to topple, go from green to dark
                              purple at the tallest cell: the "viridis"
@@ -125,6 +133,10 @@ let latest = null;
                              and unstable cells are red.
    "Topples so far" colors each cell by how often it has toppled, from
    white (never) to dark blue (the most of any cell).
+   On a tiling with cells of different kinds, each cell is colored by
+   its own threshold, so dark red always means "about to topple": a
+   triangle (3 grains) and a 12-gon (12 grains) with 3 grains look
+   different. Only "One color per height" is the same for every cell.
    ===================================================================== */
 const HEIGHT_COLORS = ["#ffffff", "#fcaf14", "#cc2020", "#02b51c", "#3305b0",
                        "#e012ad", "#12e0dd", "#eff216", "#b34c04", "#000000"];
@@ -143,41 +155,50 @@ function alongColors(list, t) {
   return [0, 1, 2].map(function (i) { return Math.round(a[i] + f * (b[i] - a[i])); });
 }
 
-// heightRGB[h] is the color of height h, as [r, g, b], for h from 0 up
-// to the threshold "top" or 9, whichever is more (the ten colors of
-// "One color per height"); taller cells get the last one (but see
-// colorOfHeight). For "Orange to red" the colors are mixed in hue,
-// saturation and brightness with hexToHSV and hsvToHex, and turned into
-// [r, g, b] with hexToRGB (all three in js/sim-colors.js).
-let heightRGB = [];
+// heightList(top)[h] is the color of height h on a cell that topples at
+// "top" grains, as [r, g, b], for h from 0 up to top or 9, whichever is
+// more (the ten colors of "One color per height"); taller cells get the
+// last one (but see colorOfHeight). For "Orange to red" the colors are
+// mixed in hue, saturation and brightness with hexToHSV and hsvToHex,
+// and turned into [r, g, b] with hexToRGB (all three in
+// js/sim-colors.js). Each list is made the first time it is needed, and
+// made again after the Colors menu changes.
+const heightLists = new Map();   // top -> its list
 let palette = "smooth";   // the Colors menu's choice
 let tallest = 0;          // the tallest cell right now (set by drawPile), for the viridis colors
 function makeHeightColors() {
-  const top = neighbors;
   palette = byId("palette").value;
-  heightRGB = [];
+  heightLists.clear();
+}
+function heightList(top) {
+  if (heightLists.has(top)) return heightLists.get(top);
+  const list = [];
   for (let h = 0; h <= Math.max(top, HEIGHT_COLORS.length - 1); h++) {
     if (palette === "smooth") {
-      heightRGB.push(alongColors(LOW_RGB, Math.min(h / top, 1)));
+      list.push(alongColors(LOW_RGB, Math.min(h / top, 1)));
     } else if (palette === "list") {
-      heightRGB.push(hexToRGB(HEIGHT_COLORS[Math.min(h, HEIGHT_COLORS.length - 1)]));
+      list.push(hexToRGB(HEIGHT_COLORS[Math.min(h, HEIGHT_COLORS.length - 1)]));
     } else if (h < 1) {
-      heightRGB.push(hexToRGB(HEIGHT_COLORS[0]));
+      list.push(hexToRGB(HEIGHT_COLORS[0]));
     } else if (h >= top) {
-      heightRGB.push(hexToRGB(HEIGHT_COLORS[2]));
+      list.push(hexToRGB(HEIGHT_COLORS[2]));
     } else {
       const a = hexToHSV(HEIGHT_COLORS[1]), b = hexToHSV(HEIGHT_COLORS[2]), t = (h - 1) / (top - 1);
-      heightRGB.push(hexToRGB(hsvToHex(a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1]), a[2] + t * (b[2] - a[2]))));
+      list.push(hexToRGB(hsvToHex(a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1]), a[2] + t * (b[2] - a[2]))));
     }
   }
+  heightLists.set(top, list);
+  return list;
 }
-function colorOfHeight(h) {
-  if (palette === "smooth" && h > neighbors) {
+// The color of height h on a cell that topples at "top" grains.
+function colorOfHeight(h, top) {
+  if (palette === "smooth" && h > top) {
     // Above the threshold: green just above it, dark purple at the tallest.
-    const t = tallest > neighbors + 1 ? (tallest - h) / (tallest - neighbors - 1) : 1;
+    const t = tallest > top + 1 ? (tallest - h) / (tallest - top - 1) : 1;
     return alongColors(TALL_RGB, Math.max(0, Math.min(1, t)));
   }
-  return heightRGB[Math.min(h, heightRGB.length - 1)];
+  const list = heightList(top);
+  return list[Math.min(h, list.length - 1)];
 }
 
 // Topples: white for 0, then lighter to darker blue up to "most".
@@ -239,9 +260,26 @@ function restart() {
   lastNote = "";
   worker.postMessage({
     type: "setup", run: run,
-    domain: domain, threshold: neighbors, sinks: sinks,
+    domain: pileTable(domain), threshold: threshold, sinks: sinks,
     start: startSettings(), seed: byId("seed").value,
   });
+}
+
+// The table as the pile needs it: its cells and their neighbors, and
+// where each cell is (for the "center" and "linear" starts). On a
+// tiling, where each cell is is its middle (in side lengths), and only
+// these go to the second thread, not the tiling itself.
+function pileTable(d) {
+  if (!d.lattice) return d;
+  const table = { n: d.n, first: d.first, nbr: d.nbr, lattice: d.lattice, x: new Float64Array(d.n), y: new Float64Array(d.n),
+                  xmin: Infinity, xmax: -Infinity, ymin: Infinity, ymax: -Infinity };
+  for (let v = 0; v < d.n; v++) {
+    const [u, w] = cellMiddle(d, v);
+    table.x[v] = u; table.y[v] = w;
+    table.xmin = Math.min(table.xmin, u); table.xmax = Math.max(table.xmax, u);
+    table.ymin = Math.min(table.ymin, w); table.ymax = Math.max(table.ymax, w);
+  }
+  return table;
 }
 
 // Tell the pile the settings of the Run and Storm boxes.
@@ -284,6 +322,10 @@ function setPlaying(on) {
    image, one pixel per square, and blows it up with smoothing off so
    the squares stay crisp.
 
+   On any other tiling each cell is its own polygon (paintDomain,
+   js/sim-view.js), and the numbers go on the cells whose biggest circle
+   around the middle is big enough to write in.
+
    A ball of a hyperbolic tiling or a tree is drawn by
    js/sim-hyperbolic.js instead: in the disk or the half-plane (drag to
    move around the plane), or, for a tree, spread out in rings, with the
@@ -316,62 +358,94 @@ function drawPile() {
   // The number shown on cell v (its grains, or its topples), and its
   // color, as [r, g, b].
   const valueOf = function (v) { return showTopples ? odometer[v] : heights[v]; };
-  const rgbOf = function (v) { return showTopples ? colorOfTopples(odometer[v], mostTopples) : colorOfHeight(heights[v]); };
+  const rgbOf = function (v) {
+    return showTopples ? colorOfTopples(odometer[v], mostTopples) : colorOfHeight(heights[v], threshold[v]);
+  };
   if (show3D) { draw3D(valueOf, showTopples); return; }
   if (domainKind === "graph") { drawOnGraph(valueOf, rgbOf); return; }
 
   // The picture's box: as big as fits the width (and at most
-  // MAX_PICTURE_HEIGHT tall), in the middle of the canvas: view.cols x
-  // view.rows squares, each view.cell pixels big. Then each square that
-  // shows in its cell's color; cellOf is the cell on each square, row by
-  // row from the top (negative: not on the table).
+  // MAX_PICTURE_HEIGHT tall), in the middle of the canvas.
   const screen = fitPicture(view, d, MAX_PICTURE_HEIGHT);
+  if (d.lattice) drawTilingPile(screen, valueOf, rgbOf);
+  else drawSquarePile(screen, valueOf, rgbOf);
+  screen.restore();
+}
+
+// Squares: view.cols x view.rows squares, each view.cell pixels big,
+// each that shows in its cell's color; cellOf is the cell on each
+// square, row by row from the top (negative: not on the table). Big
+// cells also get thin lines between them, and their marks (markCell).
+function drawSquarePile(screen, valueOf, rgbOf) {
   const sinkColor = hexToRGB(SINK);
-  const cellOf = paintCells(view, screen, d, function (v) { return v; },
+  const cellOf = paintCells(view, screen, domain, function (v) { return v; },
     function (v) { return sinks.includes(v) ? sinkColor : rgbOf(v); }, hexToRGB(OUTSIDE));
   const cols = view.cols, rows = view.rows, size = view.cell;     // (paintCells works these out)
+  if (size < NUMBER_MIN_CELL) return;
 
-  // Big cells: thin lines between the cells, the numbers, and a cross
-  // on the sink cell.
-  if (size >= NUMBER_MIN_CELL) {
-    screen.beginPath();
-    for (let i = view.firstI; i <= view.lastI + 1; i++) {
-      const x = squareLeft(view, i) + 0.5;
-      screen.moveTo(x, 0); screen.lineTo(x, view.height);
-    }
-    for (let k = view.firstK; k <= view.lastK + 1; k++) {
-      const y = squareTop(view, k) + 0.5;
-      screen.moveTo(view.left, y); screen.lineTo(view.left + view.width, y);
-    }
-    screen.strokeStyle = "rgba(0, 0, 0, 0.15)";
-    screen.lineWidth = 1;
-    screen.stroke();
+  screen.beginPath();
+  for (let i = view.firstI; i <= view.lastI + 1; i++) {
+    const x = squareLeft(view, i) + 0.5;
+    screen.moveTo(x, 0); screen.lineTo(x, view.height);
+  }
+  for (let k = view.firstK; k <= view.lastK + 1; k++) {
+    const y = squareTop(view, k) + 0.5;
+    screen.moveTo(view.left, y); screen.lineTo(view.left + view.width, y);
+  }
+  screen.strokeStyle = THIN_LINES;
+  screen.lineWidth = 1;
+  screen.stroke();
 
-    screen.textAlign = "center";
-    screen.textBaseline = "middle";
-    screen.font = Math.round(size * 0.45) + "px sans-serif";
-    for (let k = 0; k < rows; k++) {
-      for (let i = 0; i < cols; i++) {
-        const v = cellOf[k * cols + i];
-        if (v < 0) continue;
-        const cx = (squareLeft(view, view.firstI + i) + squareLeft(view, view.firstI + i + 1)) / 2;
-        const cy = (squareTop(view, view.firstK + k) + squareTop(view, view.firstK + k + 1)) / 2;
-        if (sinks.includes(v)) {
-          const r = size * 0.25;
-          screen.beginPath();
-          screen.moveTo(cx - r, cy - r); screen.lineTo(cx + r, cy + r);
-          screen.moveTo(cx + r, cy - r); screen.lineTo(cx - r, cy + r);
-          screen.strokeStyle = "#ffffff";
-          screen.lineWidth = 2;
-          screen.stroke();
-        } else if (byId("show-numbers").checked) {
-          screen.fillStyle = textColorOn(rgbOf(v));
-          screen.fillText(String(valueOf(v)), cx, cy + 1);
-        }
-      }
+  for (let k = 0; k < rows; k++) {
+    for (let i = 0; i < cols; i++) {
+      const v = cellOf[k * cols + i];
+      if (v < 0) continue;
+      const cx = (squareLeft(view, view.firstI + i) + squareLeft(view, view.firstI + i + 1)) / 2;
+      const cy = (squareTop(view, view.firstK + k) + squareTop(view, view.firstK + k + 1)) / 2;
+      markCell(screen, v, cx, cy, size, valueOf, rgbOf);
     }
   }
-  screen.restore();
+}
+
+// Any other tiling: each cell a polygon in its color, with thin lines
+// between the cells once a side is NUMBER_MIN_CELL pixels long. Then the
+// marks of the cells big enough (their biggest circle around the middle
+// at least NUMBER_MIN_CELL pixels across), in every copy of a torus that
+// shows.
+function drawTilingPile(screen, valueOf, rgbOf) {
+  const sinkColor = hexToRGB(SINK);
+  paintDomain(view, screen, domain, function (v) { return v; },
+    function (v) { return sinks.includes(v) ? sinkColor : rgbOf(v); }, hexToRGB(OUTSIDE),
+    THIN_LINES, NUMBER_MIN_CELL / 2);
+  for (const { sx, sy } of screenCopies(view, domain)) {
+    for (let v = 0; v < domain.n; v++) {
+      const size = 2 * cellRadius(domain, v) * view.cell;
+      if (size < NUMBER_MIN_CELL) continue;
+      const [u, w] = cellMiddle(domain, v), x = sx(u), y = sy(w);
+      if (nearScreen(view, x, y)) markCell(screen, v, x, y, size, valueOf, rgbOf);
+    }
+  }
+}
+
+// The mark on big cell v, centered at (x, y), "size" pixels across: a
+// white cross on a sink cell, or else (with "Numbers on the cells") its
+// number, like nadya's Python pictures.
+function markCell(pen, v, x, y, size, valueOf, rgbOf) {
+  if (sinks.includes(v)) {
+    const r = size * 0.25;
+    pen.beginPath();
+    pen.moveTo(x - r, y - r); pen.lineTo(x + r, y + r);
+    pen.moveTo(x + r, y - r); pen.lineTo(x - r, y + r);
+    pen.strokeStyle = "#ffffff";
+    pen.lineWidth = 2;
+    pen.stroke();
+  } else if (byId("show-numbers").checked) {
+    pen.textAlign = "center";
+    pen.textBaseline = "middle";
+    pen.font = Math.round(size * 0.45) + "px sans-serif";
+    pen.fillStyle = textColorOn(rgbOf(v));
+    pen.fillText(String(valueOf(v)), x, y + 1);
+  }
 }
 
 // Hyperbolic plane or tree: the ball's cells in their colors, with the
@@ -416,7 +490,9 @@ window.addEventListener("resize", function () {
    bottom up with the same colors as the view from above. Sink cells
    are left out, so they show as holes in the floor. On a hyperbolic
    tiling or a tree, the disk is the floor, and each stack is a pile of
-   coins as wide as its cell, as in the Eden Mountain. The 3D code is
+   coins as wide as its cell, as in the Eden Mountain. On any other
+   tiling, each stack is a pile of coins as wide as the biggest circle
+   around its cell's middle, with the tiling drawn on the floor. The 3D code is
    shared, in js/sim-3d.js; it loads the 3D library three.js from the
    internet the first time 3D is switched on.
 
@@ -447,11 +523,13 @@ function start3D() {
   }, function () { show3D = false; showPictureKind(); });
 }
 
-// The stacks: valueOf(v) blocks on cell v (sink cells left out).
+// The stacks: valueOf(v) blocks on cell v (sink cells left out). Each
+// stack's kind is its threshold, so its blocks get the colors of a cell
+// that topples there.
 function draw3D(valueOf, showTopples) {
   if (!view3d) return;
-  const d = domain, x = [], y = [], height = [], width = [];
-  let floor;
+  const d = domain, x = [], y = [], height = [], width = [], kind = [];
+  let floor, lines;
   if (domainKind === "graph") {
     // Each cell where the disk picture puts it, as wide as it looks
     // there (the start cell, in the middle, is 1 wide; on a tree a bit
@@ -463,24 +541,55 @@ function draw3D(valueOf, showTopples) {
       const [mx, my] = motionApply(seenFrom(disk, ballPlace(d, v)), 0, 0);
       const w = 1 - mx * mx - my * my;         // how much smaller than the start cell it looks
       if (w < 0.004) continue;                 // too small to see
-      x.push(mx * unit); y.push(my * unit); height.push(valueOf(v)); width.push(thinner * w);
+      x.push(mx * unit); y.push(my * unit); height.push(valueOf(v)); width.push(thinner * w); kind.push(threshold[v]);
     }
     floor = { disk: unit };
+  } else if (d.lattice) {
+    for (let v = 0; v < d.n; v++) {
+      if (sinks.includes(v)) continue;
+      const [u, w] = cellMiddle(d, v);
+      x.push(u); y.push(w); height.push(valueOf(v)); width.push(2 * cellRadius(d, v)); kind.push(threshold[v]);
+    }
+    // The floor is the picture's box (one big flat box: drawStacks counts
+    // a box of cells from the middle of its first one to the middle of its
+    // last, so half a side length comes off each end).
+    const box = pictureBox(d);
+    floor = { xmin: box.left + 0.5, xmax: box.right - 0.5, ymin: box.bottom + 0.5, ymax: box.top - 0.5 };
+    lines = tilingLines(d);
   } else {
     for (let v = 0; v < d.n; v++) {
       if (sinks.includes(v)) continue;
-      x.push(d.x[v]); y.push(d.y[v]); height.push(valueOf(v)); width.push(1);
+      x.push(d.x[v]); y.push(d.y[v]); height.push(valueOf(v)); width.push(1); kind.push(threshold[v]);
     }
     // A box or torus stands on one flat box; a custom table on its own cells.
     floor = domainKind === "custom" ? { x: d.x, y: d.y } : { xmin: d.xmin, xmax: d.xmax, ymin: d.ymin, ymax: d.ymax };
   }
-  const most = Math.max(1, ...height);
+  const most = height.reduce(function (a, b) { return Math.max(a, b); }, 1);   // (a long list can't be spread into Math.max)
   sim3d.drawStacks(view3d, {
-    x: x, y: y, height: height, width: width, floor: floor,
-    shape: domainKind === "graph" ? "coins" : "cubes", stretch: 1, fixedSize: true,
-    color: function (k) { return showTopples ? colorOfTopples(k, most) : colorOfHeight(k); },
-    empty: colorOfHeight(0), ground: hexToRGB(OUTSIDE),
+    x: x, y: y, height: height, width: width, kind: kind, floor: floor,
+    shape: domainKind === "graph" || d.lattice ? "coins" : "cubes", stretch: 1, fixedSize: true,
+    color: function (k, tallestStack, top) { return showTopples ? colorOfTopples(k, most) : colorOfHeight(k, top); },
+    empty: colorOfHeight(0, mostThreshold), ground: hexToRGB(OUTSIDE),
+    lines: lines, lineColor: hexToRGB(SINK),
   });
+}
+
+// The sides of a tiling's cells, as lines on the 3D floor: [x1, y1, x2,
+// y2, ...], each side once (from the cell with the smaller number, or
+// on the table's edge). Worked out once per table, and kept.
+function tilingLines(d) {
+  if (d.floorLines) return d.floorLines;
+  const sides = latticeSides(d), lines = [];
+  for (let v = 0; v < d.n; v++) {
+    const corners = cornersOf(d, v);
+    corners.forEach(function (c, k) {
+      if (sides[v][k] > v) return;
+      const next = corners[(k + 1) % corners.length];
+      lines.push(c[0], c[1], next[0], next[1]);
+    });
+  }
+  d.floorLines = lines;
+  return lines;
 }
 
 // The View option, and the button to look from the start again.
@@ -517,20 +626,29 @@ function clickCell(v) {
   } else if (sinks.includes(v)) {
     showMessage("This is a sink cell: it eats every grain it gets.");
   } else if (mode === "topple") {
-    if (latest.heights[v] < neighbors) {
-      showMessage("This cell has " + latest.heights[v] + " grains; it needs " + neighbors + " to topple.");
+    if (latest.heights[v] < threshold[v]) {
+      showMessage("This cell has " + latest.heights[v] + " grains; it needs " + threshold[v] + " to topple.");
     } else {
       worker.postMessage({ type: "topple", cell: v });
     }
   } else if (mode === "info") {
     const name = domainKind === "graph"
       ? "This cell, " + ballSteps[v] + (ballSteps[v] === 1 ? " step" : " steps") + " from the start"
+      : domain.lattice ? "This " + tilingCellName(v)
       : "Cell (" + domain.x[v] + ", " + domain.y[v] + ")";
     showMessage(name + ": " + latest.heights[v] + " grains, toppled " +
-                latest.odometer[v].toLocaleString() + " times so far.");
+                latest.odometer[v].toLocaleString() + " times so far" +
+                (domain.lattice ? "; it topples at " + threshold[v] + " grains." : "."));
   } else {
     worker.postMessage({ type: "add", cell: v, grains: mode === "add" ? 1 : -1 });
   }
+}
+
+// What cell v of a tiling is, in words: the polygon it is ("triangle",
+// "12-gon"), or "corner" when the corners are the cells.
+const POLYGON_NAMES = { 3: "triangle", 4: "square", 6: "hexagon", 8: "octagon", 12: "12-gon" };
+function tilingCellName(v) {
+  return domain.tiling.corners ? "corner" : POLYGON_NAMES[domain.tiling.cells[domain.part[v]].corners.length];
 }
 
 connectPicture(view, disk, function () { return domainKind === "graph"; }, function (event) {
@@ -591,12 +709,14 @@ function showStats() {
 }
 
 // One bar per height, in that height's color, with its count above it:
-// 0, 1, ..., 7 and "8+" (or up to the threshold, if it is more than 8).
+// 0, 1, ..., 7 and "8+" (or up to the biggest threshold, if it is more
+// than 8). On a tiling whose cells topple at different heights, a
+// height has no one color (section 3), so the bars are all one color.
 function drawHeightsChart() {
   const canvas = byId("heights-chart");
   const pen = chartPen(canvas);
   const w = canvas.clientWidth, h = canvas.clientHeight;
-  const lastBar = Math.max(HEIGHT_BARS, neighbors);  // the "8+" bar
+  const lastBar = Math.max(HEIGHT_BARS, mostThreshold);  // the "8+" bar
   const bars = lastBar + 1;
   const counts = new Array(bars).fill(0);
   for (let v = 0; v < domain.n; v++) {
@@ -611,7 +731,7 @@ function drawHeightsChart() {
   counts.forEach(function (count, b) {
     const barHeight = count === 0 ? 0 : Math.max(1, (bottom - top) * count / most);
     const left = b * barWidth + 2, width = Math.max(1, barWidth - 4);
-    pen.fillStyle = rgbToHex(colorOfHeight(b));
+    pen.fillStyle = sameThreshold === null ? CHART_LINE : rgbToHex(colorOfHeight(b, sameThreshold));
     pen.fillRect(left, bottom - barHeight, width, barHeight);
     pen.strokeRect(left, bottom - barHeight, width, barHeight);
     pen.fillStyle = CHART_TEXT;
@@ -752,11 +872,14 @@ const tool = makeCustomTool({
    9. CONNECTING THE BUTTONS ON THE PAGE
    ===================================================================== */
 
-// Switch to a new table and restart.
-function useDomain(kind, d, n) {
+// Switch to a new table and restart. "topples" is the grains that make
+// a cell topple: one number for every cell, or a list with each cell's.
+function useDomain(kind, d, topples) {
   domainKind = kind;
   domain = d;
-  neighbors = n;
+  threshold = typeof topples === "number" ? new Int32Array(d.n).fill(topples) : topples;
+  mostThreshold = threshold.reduce(function (a, b) { return Math.max(a, b); }, 0);
+  sameThreshold = threshold.every(function (t) { return t === threshold[0]; }) ? threshold[0] : null;
   useTorus(view, Boolean(d.wrap));   // moving and zooming; zooming out past the whole picture only on a torus (js/sim-view.js)
   sinks = [];                         // no sink cells on a new table (click to make some)
   makeHeightColors();
@@ -771,7 +894,7 @@ function useDomain(kind, d, n) {
 function useBox() {
   if (tool.isOpen) tool.close();
   const d = boxFromOptions(checked("domain") === "torus" ? MIN_TORUS : 1, MAX_SIDE, DEFAULTS);
-  useDomain(d.wrap ? "torus" : "box", d, Number(byId("set-neighbors").value));
+  useDomain(d.wrap ? "torus" : "box", d, d.lattice ? tilingThresholds(d) : Number(byId("set-neighbors").value));   // (sandpiles-pile.js)
 }
 
 // A ball of a hyperbolic tiling or a tree, from the options on the
@@ -791,6 +914,7 @@ function useGraph() {
 // (js/sim-controls.js), with this page's words for a custom table.
 function showDomainChoice() {
   showDomainOptions(domainKind, customDomain, disk);
+  byId("lattice-note").hidden = onSquares();   // (the Neighbors option says it on squares)
   if (domainKind === "custom" && customDomain) {
     byId("custom-info").textContent = "Your table: " + customDomain.n + " cells, " + customNeighbors +
       " neighbors" + (customDomain.wrap ? ", on a torus." : ".");
@@ -821,7 +945,7 @@ function showStartChoice() {
 }
 
 // Table: Box / Torus / Custom / Hyperbolic plane or tree, and their
-// options (js/sim-controls.js), and the sink.
+// options, the Lattice options among them (js/sim-controls.js).
 connectDomainChoice({ box: useBox, torus: useBox, custom: tool.open, graph: useGraph });
 
 // Start: the kind, and its numbers. A slider and its number box move
@@ -889,6 +1013,7 @@ connectSeed(function () { restart(); });
 
 // --- Start ------------------------------------------------------------
 fillDomainOptions(DEFAULTS, MAX_SIDE, BALL);
+fillLatticeMenu();
 byId("start-kind").value = DEFAULTS.start;
 addRangeBoxes(byId("grains-slider"), 0, GRAINS_SLIDER_MAX);   // min and max boxes (js/sim-page.js)
 byId("set-grains").value = byId("grains-slider").value = DEFAULTS.grains;

@@ -52,6 +52,8 @@
      tilingBox(...)           a box or torus of a tiling's cells
      cornersOf(d, v)          the corners of a cell that is a polygon
      cellCorners(...)         the corners of a triangle or hexagon cell
+     cellMiddle(d, v)         the middle of a cell, in the picture
+     cellRadius(d, v)         how far a cell's middle is from its sides
      pictureBox(d)            the box around the domain's picture
      torusSteps(d)            the steps by which a torus's picture repeats
      cellAtPoint(d, u, w)     which cell is at the point (u, w) of the picture
@@ -360,6 +362,31 @@ function cellMiddle(d, v) {
   let u = 0, w = 0;
   for (const c of corners) { u += c[0]; w += c[1]; }
   return [u / corners.length, w / corners.length];
+}
+
+// How far the middle of cell v of domain d is from the nearest of its
+// sides: the radius of the biggest circle around the middle that fits
+// in the cell (1/2 for a square). A number written on a cell, or a coin
+// standing on it in 3D, is sized by it. On a tiling it is worked out
+// once for each cell of the repeating block, and kept.
+function cellRadius(d, v) {
+  if (!d.lattice) return 0.5;
+  if (d.lattice !== "tiling") return sideDistance(cellMiddle(d, v), cornersOf(d, v));
+  if (!d.radii) d.radii = d.tiling.cells.map(function (cell) { return sideDistance(cell.middle, cell.corners); });
+  return d.radii[d.part[v]];
+}
+
+// How far the point p is from the nearest side of the polygon with
+// these corners (from the cross product: twice the area of the
+// triangle p makes with a side, over the side's length).
+function sideDistance(p, corners) {
+  let nearest = Infinity;
+  corners.forEach(function (a, k) {
+    const b = corners[(k + 1) % corners.length];
+    const cross = (b[0] - a[0]) * (p[1] - a[1]) - (b[1] - a[1]) * (p[0] - a[0]);
+    nearest = Math.min(nearest, Math.abs(cross) / Math.hypot(b[0] - a[0], b[1] - a[1]));
+  });
+  return nearest;
 }
 
 // The box around domain d's picture: { left, right, bottom, top }. On a

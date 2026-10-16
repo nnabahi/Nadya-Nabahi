@@ -91,7 +91,8 @@
         </div>
         <div class="option-row" id="critical-row">
           <button class="tool-button" id="beta-critical" title="Set beta to the critical point">&beta; = &beta;<sub>c</sub></button>
-          <span class="muted">&beta;<sub>c</sub> = <span id="critical-value"></span> on this grid</span>
+          <span class="muted">&beta;<sub>c</sub> = <span id="critical-value"></span> on this
+            <span id="critical-where">grid</span><span id="critical-v"></span></span>
         </div>
 
         <h3 class="option-heading">Field h (pushes cells toward color 1)</h3>
@@ -116,6 +117,25 @@
         <div class="option-row" id="size-row">
           Size <input type="number" id="set-width" min="2" step="1">
           &times; <input type="number" id="set-height" min="2" step="1">
+        </div>
+        <!-- The lattice: the square grid, or any tiling by regular
+             polygons, from the menu or typed as a code (GomJau-Hogg
+             notation), with its tiles or its corners as the cells
+             (js/sim-controls.js reads these ids). -->
+        <div id="lattice-rows">
+          <div class="option-row">
+            Lattice <select id="set-tiling"></select>
+          </div>
+          <div class="option-row">
+            Code <input type="text" class="tiling-code" id="tiling-code" spellcheck="false" autocomplete="off">
+            <a class="small" href="../../help/gomjau-hogg.html">how codes work</a>
+          </div>
+          <p class="muted small tiling-message" id="tiling-message"></p>
+          <div class="option-row" id="cells-row">
+            Cells are the
+            <label><input type="radio" name="cells-are" value="tiles" checked> tiles</label>
+            <label><input type="radio" name="cells-are" value="corners"> corners</label>
+          </div>
         </div>
         <div class="option-row" id="neighbors-row">
           Neighbors
@@ -278,7 +298,7 @@
         <p>
           <strong>The model.</strong> The domain is a graph
           <span class="tex">G = (V, E)</span>: the cells, joined to their 4 or
-          8 neighbors. A coloring is
+          8 neighbors (on other lattices, see below). A coloring is
           <span class="tex">\sigma \in \{1, \dots, q\}^V</span>, and the
           Potts model [1] gives it probability
         </p>
@@ -349,6 +369,47 @@
           and at <span class="tex">\beta_c</span> the share of agreeing
           neighbor pairs is <span class="tex">\tfrac{1}{2}(1 + 1/\sqrt{2}) \approx 0.8536</span>
           [9]. The check page compares the sim with both.
+        </p>
+        <p>
+          <strong>Other lattices.</strong> The Lattice menu puts the cells on
+          a tiling of the plane by regular polygons with sides of length 1
+          that repeats in two directions: the 11 where every corner looks
+          the same, the 20 with two kinds of corner [17, Sections 2.1 and
+          2.2], or any tiling typed as a code in GomJau-Hogg notation [18]
+          (see <a href="../../help/gomjau-hogg.html">how codes work</a>). The
+          cells are either the tiles, neighbors when they share a side, or the
+          corners, neighbors when a side joins them. These two graphs are dual
+          to each other: the tiles of triangles and the corners of hexagons
+          make the same graph (the honeycomb), and so do the tiles of hexagons
+          and the corners of triangles (the triangular lattice). A box is
+          the cells whose middles (or corners) lie in a rectangle, its sides
+          in side lengths, and a torus is a whole number of the tiling's
+          repeating blocks each way.
+        </p>
+        <p>
+          On the triangular lattice and the honeycomb the critical point is
+          known exactly for every <span class="tex">q \ge 1</span>. With
+          <span class="tex">v = e^{\beta} - 1</span>, it is the positive root of
+        </p>
+        <div class="tex">v^3 + 3v^2 = q \ \text{(triangular lattice)}, \qquad v^3 = 3qv + q^2 \ \text{(honeycomb)}</div>
+        <p>
+          (Baxter, Temperley and Ashley [19]; the proof of [8] covers both
+          lattices too). The two lattices are dual to each other, and the two
+          roots multiply to <span class="tex">q</span>, as the duality of the
+          random cluster model says they must [20, Chapter 6]; the square
+          grid is dual to itself, and there <span class="tex">v = \sqrt{q}</span>.
+          For <span class="tex">q = 2</span> these are
+          <span class="tex">\beta_c = \tfrac{1}{2}\log 3</span> on the
+          triangular lattice and <span class="tex">\log(2 + \sqrt{3})</span>
+          on the honeycomb, found by Houtappel [21] and Wannier [22] (in the
+          Ising convention, half of these). On the corners of the kagome
+          tiling (3.6.3.6), the Ising model has
+          <span class="tex">\beta_c = \tfrac{1}{2}\log(3 + 2\sqrt{3})</span>
+          [23], so there the page offers a <span class="tex">\beta_c</span>
+          button for <span class="tex">q = 2</span> only. For the Ising model, the critical point of any of these
+          tilings can be worked out exactly from one repeating block [24],
+          but this page doesn't do that yet, so on the other tilings it
+          offers no <span class="tex">\beta_c</span> button.
         </p>
         <p>
           <strong>Hyperbolic plane or tree.</strong> Here
@@ -424,6 +485,27 @@
             Fields</em> 131 (2005), 311&ndash;340.</li>
           <li>C. C. Wu, &ldquo;Ising models on hyperbolic graphs&rdquo;,
             <em>J. Stat. Phys.</em> 85 (1996), 251&ndash;259.</li>
+          <li>B. Gr&uuml;nbaum, G. C. Shephard, <em>Tilings and Patterns</em>,
+            W. H. Freeman, 1987.</li>
+          <li>V. G&oacute;mez-Jauregui, H. Hogg, C. Manchado, C. Otero,
+            &ldquo;GomJau-Hogg's notation for automatic generation of k-uniform
+            tessellations with ANTWERP v3.0&rdquo;, <em>Symmetry</em> 13
+            (2021), 2376.</li>
+          <li>R. J. Baxter, H. N. V. Temperley, S. E. Ashley, &ldquo;Triangular
+            Potts model at its transition temperature, and related
+            models&rdquo;, <em>Proc. R. Soc. Lond. A</em> 358 (1978),
+            535&ndash;559.</li>
+          <li>G. Grimmett, <em>The Random-Cluster Model</em>, Springer,
+            2006.</li>
+          <li>R. M. F. Houtappel, &ldquo;Order-disorder in hexagonal
+            lattices&rdquo;, <em>Physica</em> 16 (1950), 425&ndash;455.</li>
+          <li>G. H. Wannier, &ldquo;Antiferromagnetism. The triangular Ising
+            net&rdquo;, <em>Phys. Rev.</em> 79 (1950), 357&ndash;364.</li>
+          <li>I. Syozi, &ldquo;Statistics of kagom&eacute; lattice&rdquo;,
+            <em>Prog. Theor. Phys.</em> 6 (1951), 306&ndash;308.</li>
+          <li>D. Cimasoni, H. Duminil-Copin, &ldquo;The critical temperature
+            for the Ising model on planar doubly periodic graphs&rdquo;,
+            <em>Electron. J. Probab.</em> 18 (2013), paper no. 44.</li>
         </ol>
         </div>
       </section>
@@ -439,7 +521,8 @@
        (they also typeset the formulas, so they come after KaTeX), the
        second thread's run loop, charts, colors, domains, the picture's
        view (moving and zooming it), the hyperbolic tilings and trees and
-       their pictures, and the options and controls of the domain. Then
+       their pictures, the tilings by regular polygons, and the options
+       and controls of the domain. Then
        the chains (they run in a second thread), then this page's code. -->
   <script src="../../js/sim-page.js"></script>
   <script src="../../js/sim-worker.js"></script>
@@ -449,6 +532,7 @@
   <script src="../../js/sim-view.js"></script>
   <script src="../../js/sim-graphs.js"></script>
   <script src="../../js/sim-hyperbolic.js"></script>
+  <script src="../../js/sim-tilings.js"></script>
   <script src="../../js/sim-controls.js"></script>
   <script src="ising-potts-chain.js"></script>
   <script src="ising-potts.js"></script>

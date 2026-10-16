@@ -266,14 +266,12 @@ function drawColoring() {
   if (domainKind === "graph") { drawOnGraph(); return; }
   const pen = fitPicture(view, domain, MAX_PICTURE_HEIGHT);
 
-  // The squares, each in its cell's color. With a color highlighted, the
-  // others are faded. "shown" is the color on each square that shows.
+  // The squares, each in its cell's color, with lines between different
+  // colors (the outside counts as a color). With a color highlighted,
+  // the others are faded.
   const paint = colorNames.map(function (name, c) { return hexToRGB(shade(c)); });
-  const shown = paintCells(view, pen, domain, function (v) { return colors[v]; },
-    function (c) { return paint[c]; }, outsideRGB);
-
-  // The lines between different colors (the outside counts as a color).
-  drawBorders(view, pen, shown, BORDER);
+  paintDomain(view, pen, domain, function (v) { return colors[v]; },
+    function (c) { return paint[c]; }, outsideRGB, BORDER, 0);
 }
 
 // Hyperbolic plane or tree: the ball's cells in their colors, with the

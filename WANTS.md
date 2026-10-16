@@ -29,3 +29,16 @@ is and where the details are. When one gets built, it moves out of here
 - **Other lattices and more walkers**: the walk on triangles or hexagons,
   several walkers, cut points of the path (Brownian cut points have
   dimension 3/4: Lawler, Schramm and Werner).
+
+## Ising & Potts
+
+- **The exact Ising critical point on every tiling**: today the β_c
+  button shows only on the square grid, triangles, hexagons and the
+  corners of kagome. For Ising (q = 2) on any doubly periodic planar
+  graph, β_c is the root of an equation built from the graph's repeating
+  block: D. Cimasoni and H. Duminil-Copin, "The critical temperature for
+  the Ising model on planar doubly periodic graphs", Electronic Journal of
+  Probability 18 (2013), paper 44. A. Codello, "Exact Curie temperature
+  for the Ising model on Archimedean and Laves lattices", Journal of
+  Physics A 43 (2010) 385002, lists the values for the 11 Archimedean
+  tilings and their duals, to check against.

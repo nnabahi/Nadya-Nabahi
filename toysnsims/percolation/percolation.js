@@ -240,35 +240,21 @@ function drawPicture() {
   if (domainKind === "graph") { drawOnBall(); return; }
   const pen = fitPicture(view, domain, MAX_PICTURE_HEIGHT);
   const asEdges = KIND === "bond" && view.size * view.zoom >= SMALLEST_EDGE_CELL;
-  if (domain.lattice) {
-    if (asEdges) drawTilingEdges(pen); else paintTiling(pen);
+  if (asEdges && domain.lattice) {
+    drawTilingEdges(pen);
   } else if (asEdges) {
     drawEdges(pen);
   } else {
-    // paintCells is in js/sim-view.js. Each square's group is its
-    // cluster's root (-1 for white), so borders go between clusters.
-    const shown = paintCells(view, pen, domain, groupOf, rgbOfRoot, outsideRGB);
-    if (KIND === "site" && view.cell >= SMALLEST_BORDERED_CELL) drawBorders(view, pen, shown, BORDER);
+    // Squares or polygons (paintDomain, js/sim-view.js). Each cell's
+    // group is its cluster's root (-1 for white), so in site percolation
+    // the lines go between clusters.
+    paintDomain(view, pen, domain, groupOf, rgbOfRoot, outsideRGB, KIND === "site" ? BORDER : null, SMALLEST_BORDERED_CELL);
   }
   pen.restore();
 }
 
 // The group of cell v in the picture: its cluster's root, or -1 (white).
 function groupOf(v) { return inCluster(v) ? result.root[v] : -1; }
-
-// A tiling, as polygons (paintLattice, js/sim-view.js), each in its
-// cluster's color, with dark lines between clusters in site
-// percolation when the cells are big enough. (A triangle is much
-// smaller than a square with the same side, so the lines wait until a
-// side is twice as long as a square needs.) Around a box's ragged
-// edge, the background shows.
-function paintTiling(pen) {
-  pen.fillStyle = OUTSIDE;
-  pen.fillRect(view.left, 0, view.width, view.height);
-  const bordered = KIND === "site" && cellSize(view) >= 2 * SMALLEST_BORDERED_CELL;
-  paintLattice(view, pen, domain, function (v) { return rgbToHex(rgbOfRoot(groupOf(v))); },
-               bordered ? groupOf : null, BORDER);
-}
 
 // Bond percolation, big cells: the dots and the open edges. Each square
 // looks at the squares to its right and above (and, with 8 neighbors,
