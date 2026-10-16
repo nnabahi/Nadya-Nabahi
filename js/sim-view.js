@@ -320,7 +320,7 @@ function drawBorders(view, pen, shown, color) {
 // time, and cells off the screen are skipped. On a torus the picture
 // repeats as far as it shows.
 function paintLattice(view, pen, d, colorOf, groupOf, lines) {
-  const sides = latticeSides(d);
+  const sides = groupOf ? latticeSides(d) : null;   // (only the lines need them)
   const shapes = new Map(), border = new Path2D();
   for (const { sx, sy } of screenCopies(view, d)) {
     for (let v = 0; v < d.n; v++) {

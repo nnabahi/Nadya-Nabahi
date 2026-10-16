@@ -463,10 +463,8 @@ function drawTiling() {
 }
 
 // The cells the 2D picture shows on another tiling, as a tiling domain
-// (js/sim-domains.js): the visited sites (cell v is site v), then, with
-// "Shade the holes", the holes' cells. Its box is the box around the
-// cells' middles, with one cell and one side length to spare all round.
-// (It has no list of sides: none are drawn.)
+// (tilingCells, js/sim-domains.js): the visited sites (cell v is site
+// v), then, with "Shade the holes", the holes' cells.
 function shownTiling(s) {
   const holes = byId("show-holes").checked && s.holes ? s.holes.cells : [];
   const n = sites + holes.length / 3;
@@ -477,25 +475,7 @@ function shownTiling(s) {
     y[v] = v < sites ? siteY[v] : holes[h + 1];
     part[v] = v < sites ? siteZ[v] : holes[h + 2];
   }
-  const shown = { n: n, lattice: "tiling", tiling: walkTiling, wrap: null, sides: [], x: x, y: y, part: part };
-  let left = Infinity, right = -Infinity, bottom = Infinity, top = -Infinity;
-  for (let v = 0; v < n; v++) {
-    const [u, w] = cellMiddle(shown, v);
-    left = Math.min(left, u); right = Math.max(right, u);
-    bottom = Math.min(bottom, w); top = Math.max(top, w);
-  }
-  const spare = 1 + widestCell(walkTiling);
-  shown.pictureBox = { left: left - spare, right: right + spare, bottom: bottom - spare, top: top + spare };
-  return shown;
-}
-
-// The farthest any corner of a tiling's cell is from its middle.
-function widestCell(tiling) {
-  let widest = 0;
-  for (const cell of tiling.cells) {
-    for (const c of cell.corners) widest = Math.max(widest, Math.hypot(c[0] - cell.middle[0], c[1] - cell.middle[1]));
-  }
-  return widest;
+  return tilingCells(walkTiling, x, y, part);
 }
 
 // The convex hull's outline (with "Show the convex hull"), through its

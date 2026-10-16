@@ -222,30 +222,6 @@ function tilingWalk(t, seed, steps) {
   return walkPath({ dim: 2, tiling: tilingOf(t.code, t.corners), seed: seed + " " + t.code }, steps);
 }
 
-// Where cell z of block (x, y) of a tiling is: its middle, and its corners.
-function middleAt(tiling, x, y, z) {
-  const m = tiling.cells[z].middle;
-  return [m[0] + x * tiling.a[0] + y * tiling.b[0], m[1] + x * tiling.a[1] + y * tiling.b[1]];
-}
-function cornersAt(tiling, x, y, z) {
-  return tiling.cells[z].corners.map(function (c) {
-    return [c[0] + x * tiling.a[0] + y * tiling.b[0], c[1] + x * tiling.a[1] + y * tiling.b[1]];
-  });
-}
-
-// A point as text, rounded to 6 decimals, so the same point worked out
-// from two cells gets the same text.
-function spotKey(u, w) { return Math.round(u * 1e6) + "," + Math.round(w * 1e6); }
-
-// The middles of the sides of cell z of block (x, y), as text (spotKey).
-function sideKeysAt(tiling, x, y, z) {
-  const c = cornersAt(tiling, x, y, z);
-  return c.map(function (p, k) {
-    const q = c[(k + 1) % c.length];
-    return spotKey((p[0] + q[0]) / 2, (p[1] + q[1]) / 2);
-  });
-}
-
 // Each step goes to one of the cell's neighbors (its list "next"), each
 // equally likely: a chi-square test for each kind of cell, added up.
 // And each step's two cells have a side in common (found from their
@@ -306,26 +282,20 @@ function checkTilingKept(t, steps) {
 }
 
 // The holes on a tiling, two ways. At every step, beta_1 from
-// holeHistory's births and deaths = 1 - V + E - F, where the visited
-// polygons have F faces, E sides and V corners (Euler's formula: K_n is
-// connected, so beta_0 = 1, and beta_0 - beta_1 = V - E + F; A. Hatcher,
-// "Algebraic Topology", Cambridge University Press, 2002, Theorem 2.44).
+// holeHistory's births and deaths = beta_1 by Euler's formula
+// (eulerCounter, js/check-page.js: the visited cells K_n are connected).
 // At the end, the holes, their cells and sizes, and the outer boundary
-// = those found from the polygons alone (holesFromPolygons).
+// = those found from the polygons alone (holesFromPolygons,
+// js/check-page.js).
 function checkTilingHoles(t, steps) {
   const { walk } = tilingWalk(t, "holes", steps);
   const h = holeHistory(walk, walk.steps);
   const beta = bettiOverTime(h, Array.from({ length: steps + 1 }, function (_, step) { return step; }));
-  const corners = new Set(), sides = new Set();
-  let faces = 0, i = 0, most = 0, problem = "";
+  const counter = eulerCounter(walk.tiling);
+  let i = 0, most = 0, problem = "";
   for (let step = 0; step <= steps && !problem; step++) {
-    for (; i < walk.siteX.length && walk.bornAt[i] === step; i++) {
-      const [x, y, z] = [walk.siteX[i], walk.siteY[i], walk.siteZ[i]];
-      for (const p of cornersAt(walk.tiling, x, y, z)) corners.add(spotKey(p[0], p[1]));
-      for (const side of sideKeysAt(walk.tiling, x, y, z)) sides.add(side);   // (a side is known by its middle)
-      faces++;
-    }
-    const euler = 1 - corners.size + sides.size - faces;
+    for (; i < walk.siteX.length && walk.bornAt[i] === step; i++) counter.add(walk.siteX[i], walk.siteY[i], walk.siteZ[i]);
+    const euler = counter.holes();
     most = Math.max(most, euler);
     if (euler !== beta[step]) problem = "step " + step + ": " + beta[step] + " from the births and deaths, " + euler + " by Euler's formula";
   }
@@ -344,68 +314,6 @@ function checkTilingHoles(t, steps) {
   addRow(t.name + ": holes and outer boundary from the polygons alone, after " + steps.toLocaleString() + " steps", problems.length === 0,
          problems.join("; ") || plain.sizes.length + " holes (" + ours.size + " cells), outer boundary " + frontier + " sides, the same both ways");
 }
-
-// The holes and the outer boundary of the cells a walk on a tiling has
-// visited, found as slowly and plainly as possible from the polygons
-// alone: two cells are neighbors when they have a side in common (the
-// same middle of a side). In the blocks around the visited cells, 3
-// more all round, the empty cells are flooded from the outermost
-// blocks; the empty cells it doesn't reach are the holes' cells, in
-// groups of neighbors. Returns { sizes, cells (as text "x,y,z"),
-// frontier (the sides between a visited cell and a flooded one) }.
-function holesFromPolygons(walk) {
-  const tiling = walk.tiling, parts = tiling.cells.length, MARGIN = 3;
-  const xs = walk.siteX, ys = walk.siteY;
-  const xmin = least(xs) - MARGIN, xmax = most(xs) + MARGIN;
-  const ymin = least(ys) - MARGIN, ymax = most(ys) + MARGIN;
-  const visited = new Set(xs.map(function (x, i) { return x + "," + ys[i] + "," + walk.siteZ[i]; }));
-  // Every cell of the window, and for each side's middle the cells with that side.
-  const cells = [], bySide = new Map();
-  for (let x = xmin; x <= xmax; x++) {
-    for (let y = ymin; y <= ymax; y++) {
-      for (let z = 0; z < parts; z++) {
-        const cell = { key: x + "," + y + "," + z, full: false, reached: false, next: [] };
-        cell.full = visited.has(cell.key);
-        cell.edge = (x === xmin || x === xmax || y === ymin || y === ymax);
-        for (const side of sideKeysAt(tiling, x, y, z)) {
-          if (!bySide.has(side)) bySide.set(side, []);
-          bySide.get(side).push(cell);
-        }
-        cells.push(cell);
-      }
-    }
-  }
-  for (const pair of bySide.values()) {
-    if (pair.length === 2) { pair[0].next.push(pair[1]); pair[1].next.push(pair[0]); }
-  }
-  // The flood from the edge.
-  const todo = cells.filter(function (cell) { return cell.edge && !cell.full; });
-  for (const cell of todo) cell.reached = true;
-  let frontier = 0;
-  while (todo.length > 0) {
-    for (const n of todo.pop().next) {
-      if (n.full) frontier++;
-      else if (!n.reached) { n.reached = true; todo.push(n); }
-    }
-  }
-  // The groups of empty cells it didn't reach.
-  const sizes = [], holeCells = new Set();
-  for (const cell of cells) {
-    if (cell.full || cell.reached) continue;
-    let size = 0;
-    const group = [cell];
-    cell.reached = true;
-    while (group.length > 0) {
-      const c = group.pop();
-      size++;
-      holeCells.add(c.key);
-      for (const n of c.next) if (!n.full && !n.reached) { n.reached = true; group.push(n); }
-    }
-    sizes.push(size);
-  }
-  return { sizes: sizes, cells: holeCells, frontier: frontier };
-}
-
 
 function allTests() {
   return [

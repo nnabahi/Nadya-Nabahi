@@ -21,6 +21,10 @@
      countHoles(cells)                   the holes of a set of cells, counted plainly
    and, for the pages that test tilings (they load js/sim-tilings.js):
      tilingOf(code, corners)             the tiling with a code, as the sims build it
+     middleAt, cornersAt(tiling, x, y, z)   where a cell is: its middle, its corners
+     spotKey(u, w), sideKeysAt(...)      points and sides as text, to match them up
+     eulerCounter(tiling)                the holes of a growing set of cells, by Euler's formula
+     holesFromPolygons(set)              its holes and outer boundary, from the polygons alone
    ===================================================================== */
 
 
@@ -168,4 +172,111 @@ function countHoles(cells) {
 function tilingOf(code, corners) {
   const block = tilingFromCode(code);
   return uprightBlock(corners ? cornersBlock(block) : block);
+}
+
+// Where cell z of block (x, y) of a tiling is: its middle, and its corners.
+function middleAt(tiling, x, y, z) {
+  const m = tiling.cells[z].middle;
+  return [m[0] + x * tiling.a[0] + y * tiling.b[0], m[1] + x * tiling.a[1] + y * tiling.b[1]];
+}
+function cornersAt(tiling, x, y, z) {
+  return tiling.cells[z].corners.map(function (c) {
+    return [c[0] + x * tiling.a[0] + y * tiling.b[0], c[1] + x * tiling.a[1] + y * tiling.b[1]];
+  });
+}
+
+// A point as text, rounded to 6 decimals, so the same point worked out
+// from two cells gets the same text.
+function spotKey(u, w) { return Math.round(u * 1e6) + "," + Math.round(w * 1e6); }
+
+// The middles of the sides of cell z of block (x, y), as text (spotKey).
+function sideKeysAt(tiling, x, y, z) {
+  const c = cornersAt(tiling, x, y, z);
+  return c.map(function (p, k) {
+    const q = c[(k + 1) % c.length];
+    return spotKey((p[0] + q[0]) / 2, (p[1] + q[1]) / 2);
+  });
+}
+
+// Euler's formula for a growing union K of a tiling's closed cells,
+// given cell by cell with add(x, y, z) (cell z of block (x, y)). While
+// K is connected, holes() is its number of holes beta_1(K) = 1 - V + E
+// - F, where K has F cells, E sides and V corners (beta_0 = 1, and
+// beta_0 - beta_1 = V - E + F: A. Hatcher, "Algebraic Topology",
+// Cambridge University Press, 2002, Theorem 2.44). A side is known by
+// its middle, and a corner by where it is (spotKey).
+function eulerCounter(tiling) {
+  const corners = new Set(), sides = new Set();
+  let faces = 0;
+  return {
+    add: function (x, y, z) {
+      for (const p of cornersAt(tiling, x, y, z)) corners.add(spotKey(p[0], p[1]));
+      for (const side of sideKeysAt(tiling, x, y, z)) sides.add(side);
+      faces++;
+    },
+    holes: function () { return 1 - corners.size + sides.size - faces; },
+  };
+}
+
+// The holes and the outer boundary of a set of a tiling's cells (a
+// walk's visited cells, say: "set" has tiling, siteX, siteY and siteZ,
+// cell i being cell siteZ[i] of block (siteX[i], siteY[i])), found as
+// slowly and plainly as possible from the polygons alone: two cells are
+// neighbors when they have a side in common (the same middle of a
+// side). In the blocks around the set's cells, 3 more all round, the
+// empty cells are flooded from the outermost blocks; the empty cells it
+// doesn't reach are the holes' cells, in groups of neighbors. (least
+// and most are in js/sim-domains.js.) Returns { sizes, cells (as text "x,y,z"),
+// frontier (the sides between a cell of the set and a flooded one) }.
+function holesFromPolygons(set) {
+  const tiling = set.tiling, parts = tiling.cells.length, MARGIN = 3;
+  const xs = set.siteX, ys = set.siteY;
+  const xmin = least(xs) - MARGIN, xmax = most(xs) + MARGIN;
+  const ymin = least(ys) - MARGIN, ymax = most(ys) + MARGIN;
+  const visited = new Set(xs.map(function (x, i) { return x + "," + ys[i] + "," + set.siteZ[i]; }));
+  // Every cell of the window, and for each side's middle the cells with that side.
+  const cells = [], bySide = new Map();
+  for (let x = xmin; x <= xmax; x++) {
+    for (let y = ymin; y <= ymax; y++) {
+      for (let z = 0; z < parts; z++) {
+        const cell = { key: x + "," + y + "," + z, full: false, reached: false, next: [] };
+        cell.full = visited.has(cell.key);
+        cell.edge = (x === xmin || x === xmax || y === ymin || y === ymax);
+        for (const side of sideKeysAt(tiling, x, y, z)) {
+          if (!bySide.has(side)) bySide.set(side, []);
+          bySide.get(side).push(cell);
+        }
+        cells.push(cell);
+      }
+    }
+  }
+  for (const pair of bySide.values()) {
+    if (pair.length === 2) { pair[0].next.push(pair[1]); pair[1].next.push(pair[0]); }
+  }
+  // The flood from the edge.
+  const todo = cells.filter(function (cell) { return cell.edge && !cell.full; });
+  for (const cell of todo) cell.reached = true;
+  let frontier = 0;
+  while (todo.length > 0) {
+    for (const n of todo.pop().next) {
+      if (n.full) frontier++;
+      else if (!n.reached) { n.reached = true; todo.push(n); }
+    }
+  }
+  // The groups of empty cells it didn't reach.
+  const sizes = [], holeCells = new Set();
+  for (const cell of cells) {
+    if (cell.full || cell.reached) continue;
+    let size = 0;
+    const group = [cell];
+    cell.reached = true;
+    while (group.length > 0) {
+      const c = group.pop();
+      size++;
+      holeCells.add(c.key);
+      for (const n of c.next) if (!n.full && !n.reached) { n.reached = true; group.push(n); }
+    }
+    sizes.push(size);
+  }
+  return { sizes: sizes, cells: holeCells, frontier: frontier };
 }

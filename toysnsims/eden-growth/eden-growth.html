@@ -104,6 +104,26 @@
           <label><input type="radio" name="dimension" value="2" checked> 2D (a grid)</label>
           <label><input type="radio" name="dimension" value="graph"> Hyperbolic plane or tree</label>
         </div>
+        <!-- 2D only (not for a custom domain, drawn in squares): the
+             lattice, the square grid or any tiling by regular polygons,
+             from the menu or typed as a code (GomJau-Hogg notation), with
+             its tiles or its corners as the cells (js/sim-controls.js
+             reads these ids). -->
+        <div id="lattice-rows">
+          <div class="option-row">
+            Lattice <select id="set-tiling"></select>
+          </div>
+          <div class="option-row">
+            Code <input type="text" class="tiling-code" id="tiling-code" spellcheck="false" autocomplete="off">
+            <a class="small" href="../../help/gomjau-hogg.html">how codes work</a>
+          </div>
+          <p class="muted small tiling-message" id="tiling-message"></p>
+          <div class="option-row" id="cells-row">
+            Cells are the
+            <label><input type="radio" name="cells-are" value="tiles" checked> tiles</label>
+            <label><input type="radio" name="cells-are" value="corners"> corners</label>
+          </div>
+        </div>
 
         <!-- Graph only: which graph. -->
         <div id="graph-rows" hidden>
@@ -154,15 +174,16 @@
         </div>
 
         <h3 class="option-heading">Tile T</h3>
-        <!-- Graph only: the tile is every cell within distance r. -->
+        <!-- A graph or another tiling: the tile is every cell within distance r. -->
         <div id="ball-tile" hidden>
           <div class="option-row">
             Every cell within distance r =
             <input type="number" id="set-radius" min="1" max="4" step="1" value="1">
           </div>
-          <p class="muted small">A graph has no offsets like (1, 0), so the tile is a
-            "ball": a block landing on a new site makes every cell within r steps of
-            it available. r = 1 means the cells sharing a side with it.</p>
+          <p class="muted small">Here the cells aren't all alike (on a graph there are
+            no offsets like (1, 0) at all), so the tile is a "ball": a block landing
+            on a new site makes every cell within r steps of it available, a step
+            crossing one side. r = 1 means the cells sharing a side with it.</p>
         </div>
         <!-- 1D and 2D: the tile is a set of offsets. -->
         <div id="offset-tile">
@@ -478,6 +499,28 @@
           1 over time is a bulge of the shape, and the rest is fluctuation.
         </p>
         <p>
+          <strong>On another tiling.</strong> In 2D, the Lattice menu (or a code
+          in GomJau-Hogg notation) puts the mountain on any tiling of the plane
+          by regular polygons, with its tiles or its corners as the cells, as in
+          the other sims. There the cells are not all alike (a triangle pointing
+          up is not a triangle pointing down moved over), so one list of offsets
+          can't be everyone's tile. The tile is the ball
+          <span class="tex">T(x) = \{y \ne x : \mathrm{dist}(x, y) \le r\}</span>,
+          where <span class="tex">\mathrm{dist}</span> counts steps across sides,
+          as on a graph (below); on the square grid <span class="tex">r = 1</span>
+          is the 4 neighbors. The rule is otherwise the same. Distances go from
+          middle to middle, and <span class="tex">K_n</span> is the union of the
+          closed polygons of the base, all in side lengths. A column of cells is
+          one cell moved again and again by the same step of the tiling's
+          repeating block, so the cells between its lowest and highest are in the
+          hull of those two, as for squares. The check page compares the tile's
+          size with the coordination sequences of the square, triangular and
+          hexagonal grids [12], and the holes with Euler's formula
+          <span class="tex">\beta_1 = 1 - V + E - F</span> for a connected base
+          [13]. The limit shape statements above are proved for the square grid
+          [2, 10].
+        </p>
+        <p>
           <strong>On a graph.</strong> With "Hyperbolic plane or tree", the sites
           are the cells of a graph <span class="tex">G</span>: the tiling
           <span class="tex">\{p, q\}</span> of the hyperbolic plane by regular
@@ -572,6 +615,11 @@
           <li>A. M. Andrew, &ldquo;Another efficient algorithm for convex hulls in two
             dimensions&rdquo;, <em>Information Processing Letters</em> 9 (1979),
             216&ndash;219.</li>
+          <li>J. H. Conway and N. J. A. Sloane, &ldquo;Low-dimensional lattices.
+            VII. Coordination sequences&rdquo;, <em>Proceedings of the Royal Society
+            of London A</em> 453 (1997), 2369&ndash;2389.</li>
+          <li>A. Hatcher, <em>Algebraic Topology</em>, Cambridge University Press,
+            2002, Theorem 2.44.</li>
         </ol>
         </div>
       </section>
@@ -598,6 +646,7 @@
   <script src="../../js/sim-view.js"></script>
   <script src="../../js/sim-graphs.js"></script>
   <script src="../../js/sim-hyperbolic.js"></script>
+  <script src="../../js/sim-tilings.js"></script>
   <script src="../../js/sim-controls.js"></script>
   <script src="../../js/sim-shape.js"></script>
   <script src="eden-growth-rule.js"></script>

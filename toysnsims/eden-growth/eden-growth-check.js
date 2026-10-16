@@ -1,7 +1,7 @@
 /* =====================================================================
    eden-growth-check.js  —  the tests on eden-growth-check.html
    ---------------------------------------------------------------------
-   Eight kinds of test of the growth rule in eden-growth-rule.js:
+   Nine kinds of test of the growth rule in eden-growth-rule.js:
 
      1. Same mountain as nadya's Python. Her randmountain.py and
         randonesidedmountain.py turn a list of uniform numbers u into a
@@ -67,6 +67,22 @@
         box is 1, an L of 5 squares is 5/7), and after a long run the
         radius in each direction, kept up to date block by block, must
         equal the radius found again from scratch.
+
+     9. Other tilings (any tiling by regular polygons, its tiles or its
+        corners as the cells), with the tile "every cell within r steps":
+          - the tile's size against the coordination sequences of the
+            square, triangular and hexagonal grids; on 14 tilings, r = 1
+            is the cell's neighbors, and tiles grow with r and go both ways;
+          - the square tiling read from its code grows the same mountain
+            as the square grid with T = {|dx| + |dy| <= r}, block for
+            block, from the same seed;
+          - exact odds (as in 2, listed from the tilings' neighbor lists),
+            invariants (as in 3), the capacity (5) and the coupling (6),
+            in the whole plane, boxes and tori of the tilings;
+          - the holes: beta_1 at every step against Euler's formula, and
+            the holes' cells against those found from the polygons alone;
+          - the shape: one cell has convexity 1, the area and the hull
+            against every corner of every base cell, and the radii.
 
    Random numbers come from the library seedrandom, each test with its
    own fixed seed, so the page gives the same results every time.
@@ -156,36 +172,79 @@ function describe(heights) {
   return Array.from(heights.keys()).sort().map(function (k) { return k + ":" + heights.get(k); }).join(" ");
 }
 
-// The site (x, y) of domain d as text "x,y", after wrapping around on
-// a torus; null if it is outside the domain. Written straight from the
-// definition of the domains, without the sim's code, for the two tests
-// below.
-function siteKey(d, x, y) {
-  if (d.kind === "box" && d.torus) {
-    const w = d.xmax - d.xmin + 1, h = d.ymax - d.ymin + 1;
-    x = d.xmin + (((x - d.xmin) % w) + w) % w;
-    y = d.ymin + (((y - d.ymin) % h) + h) % h;
+// The site (x, y) of domain d as text "x,y" (on another tiling, cell z
+// of block (x, y), as "x,y,z"), after wrapping around on a torus; null
+// if it is outside the domain. Written straight from the definition of
+// the domains, without the sim's code, for the tests below.
+function siteKey(d, x, y, z) {
+  const torus = d.kind === "box" && d.torus ? d : d.kind === "cells" ? d.wrap : null;
+  if (torus) {
+    const w = torus.xmax - torus.xmin + 1, h = torus.ymax - torus.ymin + 1;
+    x = torus.xmin + (((x - torus.xmin) % w) + w) % w;
+    y = torus.ymin + (((y - torus.ymin) % h) + h) % h;
   }
+  const key = z === undefined ? x + "," + y : x + "," + y + "," + z;
   if (d.kind === "box" && (x < d.xmin || x > d.xmax || y < d.ymin || y > d.ymax)) return null;
-  if (d.kind === "cells" && !d.cells.some(function (p) { return p[0] === x && p[1] === y; })) return null;
-  return x + "," + y;
+  if (d.kind === "cells" && !cellKeys(d).has(key)) return null;
+  return key;
+}
+
+// The cells of a domain { kind: "cells", cells } as a set of text keys,
+// worked out once per domain.
+const cellKeySets = new WeakMap();
+function cellKeys(d) {
+  if (!cellKeySets.has(d)) cellKeySets.set(d, new Set(d.cells.map(function (p) { return p.join(","); })));
+  return cellKeySets.get(d);
+}
+
+// Case c's start site, as text (siteKey).
+function startKey(c) {
+  const s = c.start;
+  return c.tiling ? siteKey(c.domain, s[0], s[1], s[2]) : siteKey(c.domain, s[0], s[1] || 0);
+}
+
+// Site i of mountain m (from case c), as text (siteKey).
+function siteText(m, c, i) {
+  return c.tiling ? m.siteX[i] + "," + m.siteY[i] + "," + m.siteZ[i] : m.siteX[i] + "," + m.siteY[i];
+}
+
+// The sites (as text, siteKey) that a block landing on the site "key"
+// for the first time makes available, inside the domain: on the grids
+// key + t for each offset t of the tile; on another tiling every cell
+// within c.radius steps, a step going to a neighbor in the cell's list
+// "next", found by going out one step at a time from the site.
+function tileKeys(c, key) {
+  const [x, y, z] = key.split(",").map(Number), keys = [];
+  if (!c.tiling) {
+    for (const t of c.tile) keys.push(siteKey(c.domain, x + t[0], y + (t[1] || 0)));
+  } else {
+    const seen = new Set([key]);
+    let layer = [[x, y, z]];
+    for (let step = 0; step < c.radius; step++) {
+      const further = [];
+      for (const [a, b, k] of layer) {
+        for (const [k2, da, db] of c.tiling.cells[k].next) {
+          const cell = [a + da, b + db, k2];
+          if (seen.has(cell.join(","))) continue;
+          seen.add(cell.join(","));
+          further.push(cell);
+          keys.push(siteKey(c.domain, cell[0], cell[1], cell[2]));
+        }
+      }
+      layer = further;
+    }
+  }
+  return keys.filter(function (k) { return k !== null; });
 }
 
 // The exact odds, straight from the definition: every run of "steps"
 // steps, as a Map from describe(final mountain) to its probability.
 // Written on its own, without newMountain, so the two can be compared.
 function exactOdds(c) {
-  function site(x, y) { return siteKey(c.domain, x, y); }
   // The available sites for a mountain: the start, and base + T.
   function availableSites(heights) {
-    const s = new Set([site(c.start[0], c.start[1] || 0)]);
-    for (const key of heights.keys()) {
-      const [x, y] = key.split(",").map(Number);
-      for (const t of c.tile) {
-        const n = site(x + t[0], y + (t[1] || 0));
-        if (n !== null) s.add(n);
-      }
-    }
+    const s = new Set([startKey(c)]);
+    for (const key of heights.keys()) for (const n of tileKeys(c, key)) s.add(n);
     return Array.from(s);
   }
 
@@ -208,7 +267,7 @@ function exactOdds(c) {
       grow(next, stepsLeft - 1, probability * weight(s) / total);
     }
   }
-  grow(new Map([[site(c.start[0], c.start[1] || 0), 1]]), c.steps, 1);
+  grow(new Map([[startKey(c), 1]]), c.steps, 1);
   return odds;
 }
 
@@ -223,7 +282,7 @@ function chiSquareTest(c, runs, clocks) {
     for (let k = 0; k < c.steps; k++) m.step(random());
     const heights = new Map();
     for (let i = 0; i < m.height.length; i++) {
-      if (m.height[i] > 0) heights.set(m.siteX[i] + "," + m.siteY[i], m.height[i]);
+      if (m.height[i] > 0) heights.set(siteText(m, c, i), m.height[i]);
     }
     const key = describe(heights);
     counts.set(key, (counts.get(key) || 0) + 1);
@@ -271,15 +330,11 @@ function checkInvariants(c, steps) {
       }
     }
     if (k % 500 === 0) {
-      const should = new Set([m.siteX[m.start] + "," + m.siteY[m.start]]);
+      const should = new Set([startKey(c)]);
       for (let i = 0; i < m.height.length; i++) {
-        if (m.height[i] === 0) continue;
-        for (const t of c.tile) {
-          const key = siteKey(c.domain, m.siteX[i] + t[0], m.siteY[i] + (t[1] || 0));
-          if (key !== null) should.add(key);
-        }
+        if (m.height[i] > 0) for (const key of tileKeys(c, siteText(m, c, i))) should.add(key);
       }
-      const actual = m.available.map(function (i) { return m.siteX[i] + "," + m.siteY[i]; });
+      const actual = m.available.map(function (i) { return siteText(m, c, i); });
       if (!sameSet(actual, should)) return "step " + k + ": the available sites are wrong";
     }
   }
@@ -665,20 +720,183 @@ function convexityOfDomain(domain, start) {
 }
 
 // After "steps" steps, compare m.radii with the radii found again from
-// every base site.
+// every base site (from the middles of the cells, on another tiling
+// with middleAt, js/check-page.js).
 function checkRadii(options, steps) {
   const m = newMountain(options);
   for (let k = 0; k < steps && m.available.length > 0; k++) m.step();
   const bins = options.shapeBins, again = new Float64Array(bins);
-  const x0 = m.siteX[m.start], y0 = m.siteY[m.start];
+  const middle = function (i) {
+    return options.tiling ? middleAt(options.tiling, m.siteX[i], m.siteY[i], m.siteZ[i]) : [m.siteX[i], m.siteY[i]];
+  };
+  const [x0, y0] = middle(m.start);
   for (let i = 0; i < m.height.length; i++) {
-    if (m.height[i] === 0 || (m.siteX[i] === x0 && m.siteY[i] === y0)) continue;
-    const dx = m.siteX[i] - x0, dy = m.siteY[i] - y0;
+    if (m.height[i] === 0 || i === m.start) continue;
+    const dx = middle(i)[0] - x0, dy = middle(i)[1] - y0;
     const k = Math.min(bins - 1, Math.floor((Math.atan2(dy, dx) + Math.PI) / (2 * Math.PI) * bins));
     again[k] = Math.max(again[k], Math.hypot(dx, dy));
   }
   for (let k = 0; k < bins; k++) {
     if (Math.abs(again[k] - m.radii[k]) > 1e-9) return "direction " + k + ": kept " + m.radii[k] + ", found again " + again[k];
+  }
+  return "";
+}
+
+
+/* ===================================================================
+   4f. OTHER TILINGS
+   -------------------------------------------------------------------
+   The tilings are read from their codes as the sim reads them
+   (tilingOf, js/check-page.js), each once.
+   =================================================================== */
+const tilingsMade = new Map();
+function tilingNamed(code, corners) {
+  const key = code + (corners ? " corners" : "");
+  if (!tilingsMade.has(key)) tilingsMade.set(key, tilingOf(code, corners));
+  return tilingsMade.get(key);
+}
+const SQUARES = "4/m45/r(h1)", TRIANGLES = "3/m30/r(h2)", HEXAGONS = "6/m30/r(h1)";
+
+// A box or torus of a tiling (tilingBox, js/sim-domains.js), as the
+// growth rule wants it, and its middle cell (the start).
+function tilingDomain(t, width, height, torus) {
+  const d = tilingBox(t, width, height, torus), cells = [];
+  for (let v = 0; v < d.n; v++) cells.push([d.x[v], d.y[v], d.part[v]]);
+  return { domain: { kind: "cells", cells: cells, wrap: d.wrap }, start: cells[Math.floor(cells.length / 2)] };
+}
+
+// The size of the tile "every cell within r steps" against the
+// coordination sequences: from a cell, k steps away there are 4k cells
+// on the square grid, 3k on the triangles (their neighbors make the
+// honeycomb graph) and 6k on the hexagons (the triangular graph), so
+// the tile has 2r(r+1), 3r(r+1)/2 and 3r(r+1) cells (J. H. Conway and
+// N. J. A. Sloane, "Low-dimensional lattices. VII. Coordination
+// sequences", Proc. R. Soc. Lond. A 453 (1997) 2369-2389; OEIS A008574,
+// A008486, A008458). The corners of the triangles are hexagons and the
+// corners of the hexagons triangles, so those swap. Returns "" if every
+// kind of cell has the right count for r = 1 to 8.
+function checkTileSizes(t, perStep) {
+  for (let r = 1; r <= 8; r++) {
+    const should = perStep * r * (r + 1) / 2;
+    for (let z = 0; z < t.cells.length; z++) {
+      const size = ballTile(t, z, r).length;
+      if (size !== should) return "r = " + r + ", cell " + z + ": " + size + " cells, not " + should;
+    }
+  }
+  return "";
+}
+
+// On any tiling, for r = 1, 2, 3: the tile with r = 1 is exactly the
+// cell's neighbors (its list "next"); every tile with radius r is in
+// the one with r + 1; and it goes both ways (if cell z's tile has the
+// move (dx, dy) to cell z2, then cell z2's has (-dx, -dy) back to z).
+function checkBallTiles(t) {
+  const text = function (move) { return move.join(","); };
+  for (let z = 0; z < t.cells.length; z++) {
+    const near = new Set(ballTile(t, z, 1).map(text));
+    const next = new Set(t.cells[z].next.map(function ([k, dx, dy]) { return [dx, dy, k].join(","); }));
+    if (near.size !== next.size || [...next].some(function (m) { return !near.has(m); })) return "cell " + z + ": r = 1 isn't its neighbors";
+  }
+  for (let r = 1; r <= 3; r++) {
+    const tiles = t.cells.map(function (cell, z) { return new Set(ballTile(t, z, r).map(text)); });
+    for (let z = 0; z < t.cells.length; z++) {
+      const wider = new Set(ballTile(t, z, r + 1).map(text));
+      for (const move of tiles[z]) {
+        const [dx, dy, z2] = move.split(",").map(Number);
+        if (!wider.has(move)) return "r = " + r + ", cell " + z + ": " + move + " is missing at r = " + (r + 1);
+        if (!tiles[z2].has([-dx, -dy, z].join(","))) return "r = " + r + ": cell " + z + " reaches " + move + " but not back";
+      }
+    }
+  }
+  return "";
+}
+
+// The square tiling read from its code, with the tile "every cell
+// within r steps", against the square grid with the offsets
+// |dx| + |dy| <= r: one cell per block, so a site's clocks are made
+// from (x, y) on both, and with the same seed they must grow the same
+// mountain, block for block. Returns "" if they do.
+function sameAsSquares(r, extra, steps) {
+  const t = tilingNamed(SQUARES, false);
+  if (t.cells.length !== 1 || t.a.join() !== "1,0" || t.b.join() !== "0,1") return "its block isn't one square of side 1";
+  const diamond = [];
+  for (let dx = -r; dx <= r; dx++) {
+    for (let dy = -r; dy <= r; dy++) if ((dx !== 0 || dy !== 0) && Math.abs(dx) + Math.abs(dy) <= r) diamond.push([dx, dy]);
+  }
+  const common = Object.assign({ dim: 2, domain: { kind: "whole" }, clocks: "squares " + r }, extra);
+  const onTiling = newMountain(Object.assign({ tiling: t, radius: r, start: [0, 0, 0] }, common));
+  const onGrid = newMountain(Object.assign({ tile: diamond, start: [0, 0] }, common));
+  for (let k = 0; k < steps; k++) { onTiling.step(); onGrid.step(); }
+  if (onTiling.siteX.length !== onGrid.siteX.length) return onTiling.siteX.length + " sites on the tiling, " + onGrid.siteX.length + " on the grid";
+  for (let i = 0; i < onTiling.siteX.length; i++) {
+    const x = onTiling.siteX[i], y = onTiling.siteY[i];
+    if (onGrid.heightAt(x, y) !== onTiling.height[i]) return "different height at (" + x + ", " + y + ")";
+  }
+  return "";
+}
+
+// The holes on another tiling, two ways. Grow "steps" steps with
+// r = 1, so the base is connected (each new site shares a side with
+// it). At every step, beta_1 from holeHistory's births and deaths =
+// beta_1 by Euler's formula (eulerCounter, js/check-page.js); at the
+// end, the holes' cells and sizes = those found from the polygons alone
+// (holesFromPolygons, js/check-page.js). Returns { problem, most }:
+// what is wrong ("" if nothing), and the most holes there were at once.
+function checkTilingHoles(options, steps) {
+  const m = newMountain(options);
+  for (let k = 0; k < steps && m.available.length > 0; k++) m.step();
+  const h = holeHistory(m, m.steps);
+  const beta = bettiOverTime(h, Array.from({ length: m.steps + 1 }, function (_, step) { return step; }));
+  const base = [];
+  for (let i = 0; i < m.height.length; i++) if (m.height[i] > 0) base.push(i);
+  base.sort(function (i, j) { return m.bornAt[i] - m.bornAt[j]; });
+  const counter = eulerCounter(options.tiling);
+  let j = 0, most = 0;
+  const result = function (problem) { return { problem: problem, most: most }; };
+  for (let step = 0; step <= m.steps; step++) {
+    for (; j < base.length && m.bornAt[base[j]] === step; j++) counter.add(m.siteX[base[j]], m.siteY[base[j]], m.siteZ[base[j]]);
+    most = Math.max(most, counter.holes());
+    if (counter.holes() !== beta[step]) return result("step " + step + ": " + beta[step] + " holes from the births and deaths, " + counter.holes() + " by Euler's formula");
+  }
+  const plain = holesFromPolygons({ tiling: options.tiling, siteX: base.map(function (i) { return m.siteX[i]; }),
+                                    siteY: base.map(function (i) { return m.siteY[i]; }), siteZ: base.map(function (i) { return m.siteZ[i]; }) });
+  const ours = new Set();
+  for (let k = 0; k < h.holeCells.length; k += 3) ours.add(h.holeCells[k] + "," + h.holeCells[k + 1] + "," + h.holeCells[k + 2]);
+  const sizes = function (list) { return Array.from(list).sort(function (a, b) { return a - b; }).join(" "); };
+  if (sizes(plain.sizes) !== sizes(h.holeSizes)) return result("hole sizes " + sizes(h.holeSizes) + ", from the polygons " + sizes(plain.sizes));
+  if (ours.size !== plain.cells.size || [...ours].some(function (key) { return !plain.cells.has(key); })) return result("the holes' cells differ from the polygons'");
+  return result("");
+}
+
+// The shape on another tiling, after "steps" steps: the area kept
+// block by block = the polygons' areas added up (cornersAt,
+// js/check-page.js), and the convexity = that area over the area of the
+// hull of every corner of every base cell (convexity itself only hands
+// the lowest and highest cell of each column to the hull).
+function checkTilingShape(options, steps) {
+  const m = newMountain(Object.assign({ shapeBins: 8 }, options));
+  for (let k = 0; k < steps && m.available.length > 0; k++) m.step();
+  let area = 0;
+  const corners = [];
+  for (let i = 0; i < m.height.length; i++) {
+    if (m.height[i] === 0) continue;
+    const polygon = cornersAt(options.tiling, m.siteX[i], m.siteY[i], m.siteZ[i]);
+    area += polygonArea(polygon);
+    corners.push(...polygon);
+  }
+  const should = area / polygonArea(convexHull(corners)), got = convexity(m);
+  if (Math.abs(m.area - area) > 1e-6 * area) return "area kept " + m.area + ", added up " + area;
+  if (Math.abs(got - should) > 1e-9) return "convexity " + got + ", from every corner " + should;
+  return "";
+}
+
+// One cell is convex: on every kind of cell of a tiling, a domain of
+// just that cell, filled, has convexity 1.
+function oneCellConvexity(t) {
+  for (let z = 0; z < t.cells.length; z++) {
+    const m = newMountain({ dim: 2, tiling: t, radius: 1, domain: { kind: "cells", cells: [[0, 0, z]], wrap: null },
+                            start: [0, 0, z], shapeBins: 8 });
+    if (Math.abs(convexity(m) - 1) > 1e-9) return "cell " + z + ": " + convexity(m);
   }
   return "";
 }
@@ -844,6 +1062,148 @@ function allTests() {
     tests.push(function () {
       const problem = checkRadii(Object.assign({ clocks: "radii " + name, shapeBins: 180 }, options), 20000);
       addRow("Shape: radius in each of 180 directions, " + name + ", 20,000 steps", problem === "",
+             problem || "kept block by block = found again from scratch");
+    });
+  }
+
+  // 9. Other tilings.
+  for (const [name, code, corners, perStep] of [
+    ["the square tiling from its code", SQUARES, false, 4], ["triangles", TRIANGLES, false, 3], ["hexagons", HEXAGONS, false, 6],
+    ["the corners of the triangles (hexagons)", TRIANGLES, true, 6], ["the corners of the hexagons (triangles)", HEXAGONS, true, 3],
+  ]) {
+    tests.push(function () {
+      const problem = checkTileSizes(tilingNamed(code, corners), perStep);
+      addRow("Other tilings: tile sizes, " + name + ", r = 1 to 8", problem === "",
+             problem || "the coordination sequence's " + perStep + "k cells k steps away, for every kind of cell");
+    });
+  }
+  // The 11 tilings with one kind of corner, and three with two.
+  const someTilings = TILINGS.slice(0, 12).concat([TILINGS[17], TILINGS[20]]);
+  tests.push(function () {
+    const problems = [];
+    for (const t of someTilings) {
+      for (const corners of [false, true]) {
+        const problem = checkBallTiles(tilingNamed(t.code, corners));
+        if (problem) problems.push(t.name + (corners ? " (corners)" : "") + ": " + problem);
+      }
+    }
+    addRow("Other tilings: the tile with r = 1 is the cell's neighbors, and the tiles grow with r and go both ways, r = 1 to 3, " +
+           someTilings.length + " tilings, tiles and corners", problems.length === 0, problems.join("; ") || "all hold");
+  });
+  for (const [r, extra, name] of [[1, { cap: 1 }, "r = 1, M = 1"], [2, { s: 1 }, "r = 2, no capacity, s = 1"],
+                                  [3, { cap: 2, s: -1 }, "r = 3, M = 2, s = -1"]]) {
+    tests.push(function () {
+      const problem = sameAsSquares(r, extra, 5000);
+      addRow("Other tilings: the square tiling from its code = the square grid with T = {|dx| + |dy| ≤ r}, " + name + ", 5000 steps",
+             problem === "", problem || "the same mountain, block for block, from the same seed");
+    });
+  }
+
+  // Exact odds and invariants (as in 2 and 3), with the tile "every cell within r steps".
+  const whole2 = { dim: 2, domain: whole, start: [0, 0, 0] };
+  const tri = tilingNamed(TRIANGLES, false), hex = tilingNamed(HEXAGONS, false);
+  const triTorus = tilingDomain(tri, 4, 4, true), hexBox = tilingDomain(hex, 5, 5, false);
+  const tilingCases = [
+    Object.assign({ name: "triangles, r = 1", steps: 4, tiling: tri, radius: 1 }, whole2),
+    Object.assign({ name: "truncated square (4.8²), r = 1, s = 1", steps: 4, tiling: tilingNamed("8-4/m90/r(h4)", false), radius: 1, s: 1 }, whole2),
+    Object.assign({ name: "corners of the kagome tiling, r = 2", steps: 2, tiling: tilingNamed("6-3-6/m30/r(v4)", true), radius: 2 }, whole2),
+    Object.assign({ name: "3⁶; 3².4.3.4, r = 1", steps: 4, tiling: tilingNamed(TILINGS[11].code, false), radius: 1 }, whole2),
+    { name: "triangles, r = 1, on a small torus", steps: 4, dim: 2, tiling: tri, radius: 1, domain: triTorus.domain, start: triTorus.start },
+    { name: "hexagons, r = 1, s = -1, in a 5 x 5 box", steps: 4, dim: 2, tiling: hex, radius: 1, domain: hexBox.domain, start: hexBox.start, s: -1 },
+  ];
+  for (const c of tilingCases) {
+    tests.push(function () {
+      const result = chiSquareTest(c, 100000);
+      addRow("Other tilings, exact odds: " + c.name + ", " + c.steps + " steps", result.pass, result.text);
+    });
+    tests.push(function () {
+      const result = chiSquareTest(c, 100000, true);
+      addRow("Other tilings, clocks, exact odds: " + c.name + ", " + c.steps + " steps", result.pass, result.text);
+    });
+  }
+  const snubTorus = tilingDomain(tilingNamed("6-3-3/r60/r(h5)", true), 12, 12, true);
+  const twoBox = tilingDomain(tilingNamed(TILINGS[11].code, false), 15, 15, false);
+  for (const c of [
+    tilingCases[0], tilingCases[2],
+    Object.assign({ name: "truncated trihexagonal (4.6.12), r = 3", tiling: tilingNamed("12-6,4/m30/r(c2)", false), radius: 3 }, whole2),
+    { name: "corners of the snub hexagonal tiling, r = 1, on a 12 x 12 torus", dim: 2, tiling: tilingNamed("6-3-3/r60/r(h5)", true),
+      radius: 1, domain: snubTorus.domain, start: snubTorus.start },
+    { name: "3⁶; 3².4.3.4, r = 2, in a 15 x 15 box", dim: 2, tiling: tilingNamed(TILINGS[11].code, false), radius: 2,
+      domain: twoBox.domain, start: twoBox.start },
+  ]) {
+    tests.push(function () {
+      const problem = checkInvariants(c, 3000);
+      addRow("Other tilings, invariants: " + c.name + ", 3000 steps", problem === "", problem || "all hold after every step");
+    });
+    tests.push(function () {
+      const problem = checkInvariants(Object.assign({ clocks: "invariants " + c.name }, c), 3000);
+      addRow("Other tilings, clocks, invariants: " + c.name + ", 3000 steps", problem === "", problem || "all hold after every step");
+    });
+  }
+
+  // The capacity, the coupling, the holes and the shape.
+  const octTorus = tilingDomain(tilingNamed("8-4/m90/r(h4)", true), 8, 8, true), hexBig = tilingDomain(hex, 8, 8, false);
+  for (const [name, options] of [
+    ["triangles, r = 1, M = 1", Object.assign({ tiling: tri, radius: 1, cap: 1 }, whole2)],
+    ["corners of 4.8², r = 2, M = 2, a small torus until full",
+     { dim: 2, tiling: tilingNamed("8-4/m90/r(h4)", true), radius: 2, cap: 2, domain: octTorus.domain, start: octTorus.start }],
+    ["hexagons, r = 1, M = 3, an 8 x 8 box until full", { dim: 2, tiling: hex, radius: 1, cap: 3, domain: hexBig.domain, start: hexBig.start }],
+  ]) {
+    tests.push(function () {
+      const problem = checkMaxHeight(options, 2000, name);
+      addRow("Other tilings, capacity: " + name + ", up to 2000 steps", problem === "", problem || "all hold after every step");
+    });
+    tests.push(function () {
+      const problem = checkMaxHeight(Object.assign({ clocks: "max height " + name }, options), 2000, name);
+      addRow("Other tilings, clocks, capacity: " + name + ", up to 2000 steps", problem === "", problem || "all hold after every step");
+    });
+  }
+  tests.push(function () {
+    const options = Object.assign({ tiling: tilingNamed("6-3-6/m30/r(v4)", false), radius: 1, cap: 1, clocks: "coupling" }, whole2);
+    const problem = sameForEveryS(options, 1000, "kagome");
+    addRow("Other tilings, clocks, M = 1: kagome, r = 1, s = -2, 0 and 1.5, 1000 steps", problem === "",
+           problem || "the same mountain, block for block");
+  });
+  for (const [name, options, steps] of [
+    ["triangles, M = 1", Object.assign({ tiling: tri, cap: 1, clocks: "tiling holes 1" }, whole2), 3000],
+    ["corners of 3.12², M = 2, s = 1", Object.assign({ tiling: tilingNamed("12-3/m30/r(h3)", true), cap: 2, s: 1, clocks: "tiling holes 2" }, whole2), 3000],
+    ["[3⁶; 3⁴.6]², no capacity", Object.assign({ tiling: tilingNamed(TILINGS[20].code, false), clocks: "tiling holes 3" }, whole2), 3000],
+    ["hexagons, M = 1, an 8 x 8 box until full", { dim: 2, tiling: hex, cap: 1, clocks: "tiling holes 4", domain: hexBig.domain, start: hexBig.start }, 3000],
+  ]) {
+    tests.push(function () {
+      const { problem, most } = checkTilingHoles(Object.assign({ radius: 1 }, options), steps);
+      addRow("Other tilings, holes: " + name + ", r = 1, up to " + steps.toLocaleString() + " steps", problem === "",
+             problem || "beta_1 matches Euler's formula at every step (at most " + most + (most === 1 ? " hole" : " holes") + " at once), and the holes' cells match the polygons'");
+    });
+  }
+  tests.push(function () {
+    const problems = [];
+    for (const t of someTilings.slice(-4)) {
+      for (const corners of [false, true]) {
+        const problem = oneCellConvexity(tilingNamed(t.code, corners));
+        if (problem) problems.push(t.name + (corners ? " (corners)" : "") + ": " + problem);
+      }
+    }
+    addRow("Other tilings, shape: one cell alone has convexity 1, every kind of cell of 8 tilings", problems.length === 0,
+           problems.join("; ") || "all 1");
+  });
+  for (const [name, options, steps] of [
+    ["triangles, r = 1, M = 1", Object.assign({ tiling: tri, radius: 1, cap: 1, clocks: "tiling shape 1" }, whole2), 20000],
+    ["corners of 4.6.12, r = 2, M = 2, s = -1", Object.assign({ tiling: tilingNamed("12-6,4/m30/r(c2)", true), radius: 2, cap: 2, s: -1,
+                                                                clocks: "tiling shape 2" }, whole2), 10000],
+    ["[3⁶; 3⁴.6]², r = 1, in a 30 x 30 box", (function () {
+      const box = tilingDomain(tilingNamed(TILINGS[20].code, false), 30, 30, false);
+      return { dim: 2, tiling: tilingNamed(TILINGS[20].code, false), radius: 1, domain: box.domain, start: box.start, clocks: "tiling shape 3" };
+    })(), 10000],
+  ]) {
+    tests.push(function () {
+      const problem = checkTilingShape(options, steps);
+      addRow("Other tilings, shape: area and convexity, " + name + ", " + steps.toLocaleString() + " steps", problem === "",
+             problem || "the area added up and the hull of every corner agree");
+    });
+    tests.push(function () {
+      const problem = checkRadii(Object.assign({ shapeBins: 180 }, options), steps);
+      addRow("Other tilings, shape: radius in each of 180 directions, " + name + ", " + steps.toLocaleString() + " steps", problem === "",
              problem || "kept block by block = found again from scratch");
     });
   }
