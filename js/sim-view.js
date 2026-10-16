@@ -57,6 +57,7 @@
      shadeSquares(...)           paint some squares on top (e.g. holes)
      drawBorders(...)            the lines between squares of different colors
      paintLattice(...)           the same two for triangles, hexagons and other tilings
+     paintTinyCells(...)         ... and pixel by pixel, when the cells are tiny
      paintDomain(...)            whichever of these fits the domain's cells
      screenCopies, nearScreen    where the polygons go on the screen (and on a
                                  torus, each copy of the picture that shows)
@@ -363,9 +364,15 @@ function paintLattice(view, pen, d, colorOf, groupOf, lines) {
   }
 }
 
+// Below this many pixels per side length, paintDomain paints polygons
+// pixel by pixel (paintTinyCells): then hundreds of thousands of cells
+// can show, too many to draw one by one as polygons quickly.
+const TINY_CELL = 2;
+
 // Paint domain d after fitPicture, whatever shape its cells are: squares
-// (paintCells) or polygons (paintLattice, on a background of outsideRGB,
-// which shows around a box's ragged edge). groupOf and rgbOf are as in
+// (paintCells) or polygons (paintLattice, or paintTinyCells when they
+// are tiny, on a background of outsideRGB, which shows around a box's
+// ragged edge). groupOf and rgbOf are as in
 // paintCells. With "lines" (a color; null for none), a line goes
 // between cells of different groups once the cells are big enough to
 // see it: squares at least "smallest" pixels across, polygons with sides
@@ -379,6 +386,7 @@ function paintDomain(view, pen, d, groupOf, rgbOf, outsideRGB, lines, smallest) 
   }
   pen.fillStyle = rgbToHex(outsideRGB);
   pen.fillRect(view.left, 0, view.width, view.height);
+  if (cellSize(view) < TINY_CELL) return paintTinyCells(view, pen, d, groupOf, rgbOf);
   const colors = new Map();    // each group's color, worked out once
   const colorOf = function (v) {
     const group = groupOf(v);
@@ -387,6 +395,62 @@ function paintDomain(view, pen, d, groupOf, rgbOf, outsideRGB, lines, smallest) 
   };
   const bordered = lines && cellSize(view) >= 2 * smallest;
   paintLattice(view, pen, d, colorOf, bordered ? groupOf : null, lines);
+}
+
+// Paint the polygons of domain d pixel by pixel, after fitPicture (and
+// at the screen's own pixels, which are smaller on a sharp screen): each
+// pixel whose middle is in cell v takes its color, rgbOf(groupOf(v)),
+// and the others keep what is under them. Each cell fills, row by row,
+// the pixels between the points where its sides cross the row's middle
+// line (in pairs, so a polygon with a dent works too).
+function paintTinyCells(view, pen, d, groupOf, rgbOf) {
+  const ratio = window.devicePixelRatio || 1;
+  const width = Math.round(view.width * ratio), height = Math.round(view.height * ratio);
+  tinyCanvas.width = width;
+  tinyCanvas.height = height;
+  const tinyPen = tinyCanvas.getContext("2d");
+  const image = tinyPen.createImageData(width, height);   // see-through to start
+  const pixels = image.data;                              // 4 numbers per pixel: red, green, blue, opacity
+  for (const { sx, sy } of screenCopies(view, d)) {
+    for (let v = 0; v < d.n; v++) {
+      const corners = cornersOf(d, v).map(function ([u, w]) { return [(sx(u) - view.left) * ratio, sy(w) * ratio]; });
+      // The rows and columns of pixels whose middles the cell might hold
+      // (often none, when the cells are much smaller than a pixel).
+      let left = Infinity, right = -Infinity, top = Infinity, bottom = -Infinity;
+      for (const [x, y] of corners) {
+        left = Math.min(left, x); right = Math.max(right, x);
+        top = Math.min(top, y); bottom = Math.max(bottom, y);
+      }
+      const first = Math.max(0, Math.ceil(top - 0.5)), last = Math.min(height - 1, Math.floor(bottom - 0.5));
+      if (first > last || Math.max(0, Math.ceil(left - 0.5)) > Math.min(width - 1, Math.floor(right - 0.5))) continue;
+      const rgb = rgbOf(groupOf(v));
+      for (let row = first; row <= last; row++) {
+        for (const [from, to] of rowCrossings(corners, row + 0.5)) {
+          for (let i = Math.max(0, Math.ceil(from - 0.5)); i <= Math.min(width - 1, Math.ceil(to - 0.5) - 1); i++) {
+            const p = 4 * (row * width + i);
+            pixels[p] = rgb[0]; pixels[p + 1] = rgb[1]; pixels[p + 2] = rgb[2]; pixels[p + 3] = 255;
+          }
+        }
+      }
+    }
+  }
+  tinyPen.putImageData(image, 0, 0);
+  pen.imageSmoothingEnabled = false;
+  pen.drawImage(tinyCanvas, view.left, 0, view.width, view.height);
+}
+
+// Where the line at height y crosses the polygon with these corners, as
+// pairs [from, to] of x's: the stretches of the line inside it.
+function rowCrossings(corners, y) {
+  const xs = [];
+  corners.forEach(function (a, k) {
+    const b = corners[(k + 1) % corners.length];
+    if ((a[1] <= y) !== (b[1] <= y)) xs.push(a[0] + (y - a[1]) * (b[0] - a[0]) / (b[1] - a[1]));
+  });
+  xs.sort(function (p, q) { return p - q; });
+  const pairs = [];
+  for (let k = 0; k + 1 < xs.length; k += 2) pairs.push([xs[k], xs[k + 1]]);
+  return pairs;
 }
 
 // Where the points of domain d's picture go on the screen, for a
