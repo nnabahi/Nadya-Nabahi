@@ -45,6 +45,7 @@
    Contents:
      wrap(v, lo, hi)          wrap a whole number around, for tori
      wrapNumber(v, size)      the same for any number
+     least(list), most(list)  the smallest and biggest number of a list
      boxDomain(...)           a box or torus of cells
      aztecDiamond(N)          the Aztec diamond of order N
      latticeBox(...)          a box or torus of triangles or hexagons
@@ -54,6 +55,7 @@
      cellCorners(...)         the corners of a triangle or hexagon cell
      cellMiddle(d, v)         the middle of a cell, in the picture
      cellRadius(d, v)         how far a cell's middle is from its sides
+     cellSpots(d)             where the cells are, in whole numbers (for starts)
      pictureBox(d)            the box around the domain's picture
      torusSteps(d)            the steps by which a torus's picture repeats
      cellAtPoint(d, u, w)     which cell is at the point (u, w) of the picture
@@ -78,6 +80,12 @@ function wrap(v, lo, hi) {
 // Wrap a number into 0 .. size (not including size). Like wrap(), but
 // for any number, not just whole ones. E.g. size = 10: 12.5 -> 2.5.
 function wrapNumber(v, size) { return ((v % size) + size) % size; }
+
+// The smallest and the biggest number of a list (Infinity and -Infinity
+// for an empty one). Not Math.min(...list): handing a function more than
+// about 100,000 numbers at once overflows the browser's stack.
+function least(list) { return list.reduce(function (a, b) { return Math.min(a, b); }, Infinity); }
+function most(list) { return list.reduce(function (a, b) { return Math.max(a, b); }, -Infinity); }
 
 // A width x height box of cells, with 4 or 8 neighbors. If "torus" is
 // true, the right edge is glued to the left and the top to the bottom.
@@ -165,7 +173,7 @@ function makeDomain(xs, ys, edges, wrapRange, ids) {
   const d = {
     n: n, x: Int32Array.from(xs), y: Int32Array.from(ys),
     first: first, nbr: Int32Array.from(all), wrap: wrapRange, ids: ids,
-    xmin: Math.min(...xs), xmax: Math.max(...xs), ymin: Math.min(...ys), ymax: Math.max(...ys),
+    xmin: least(xs), xmax: most(xs), ymin: least(ys), ymax: most(ys),
   };
   const boxWidth = d.xmax - d.xmin + 1;
   d.cellAt = new Int32Array(boxWidth * (d.ymax - d.ymin + 1)).fill(-1);
@@ -387,6 +395,24 @@ function sideDistance(p, corners) {
     nearest = Math.min(nearest, Math.abs(cross) / Math.hypot(b[0] - a[0], b[1] - a[1]));
   });
   return nearest;
+}
+
+// Where the cells of domain d are, in whole numbers, for the starts
+// that cut a domain into stripes or rectangles: { x, y, xmin, xmax,
+// ymin, ymax }, as a domain has them. On the square grid they are the
+// domain's own; on any other tiling, the middle of each cell rounded
+// down to whole side lengths (so small cells can share a spot, and big
+// ones leave spots empty). Worked out once per domain, and kept.
+function cellSpots(d) {
+  if (d.lattice !== "tiling") return d;
+  if (d.spots) return d.spots;
+  const x = new Int32Array(d.n), y = new Int32Array(d.n);
+  for (let v = 0; v < d.n; v++) {
+    const [u, w] = cellMiddle(d, v);
+    x[v] = Math.floor(u); y[v] = Math.floor(w);
+  }
+  d.spots = { x: x, y: y, xmin: least(x), xmax: most(x), ymin: least(y), ymax: most(y) };
+  return d.spots;
 }
 
 // The box around domain d's picture: { left, right, bottom, top }. On a
