@@ -15,8 +15,8 @@
     <h1>Random Walk: Check Page</h1>
     <p>
       These tests check the walk in <code>random-walk-rule.js</code>, the
-      math behind the sim, and the hull and holes it shares with Eden
-      Growth (<code>js/sim-shape.js</code>). Press the button; it takes a few
+      math behind the sim, on the grids and on other tilings, and the hull
+      and holes it shares with Eden Growth (<code>js/sim-shape.js</code>). Press the button; it takes a few
       seconds. The tests use fixed seeds, so they do the same thing every time.
     </p>
 
@@ -33,9 +33,12 @@
   <!-- byId(), and the results table shared by the check pages. -->
   <script src="../../js/sim-page.js"></script>
   <script src="../../js/check-page.js"></script>
-  <!-- niceNumber, the seeded random numbers, and the hull and holes. -->
+  <!-- niceNumber, the seeded random numbers, blockStart, the tilings,
+       and the hull and holes. -->
   <script src="../../js/sim-charts.js"></script>
   <script src="../../js/sim-worker.js"></script>
+  <script src="../../js/sim-domains.js"></script>
+  <script src="../../js/sim-tilings.js"></script>
   <script src="../../js/sim-shape.js"></script>
   <script src="random-walk-rule.js"></script>
   <script src="random-walk-check.js"></script>

@@ -81,15 +81,39 @@
           <label><input type="radio" name="dimension" value="2" checked> 2D (a grid)</label>
           <label><input type="radio" name="dimension" value="3"> 3D (a cubic grid)</label>
         </div>
-
-        <!-- One slider per direction; random-walk.js fills this in. -->
-        <h3 class="option-heading">Weights</h3>
-        <div id="weight-rows"></div>
-        <div class="option-row">
-          <button class="tool-button" id="equal-weights" title="Every direction equally likely">All 1 (simple random walk)</button>
+        <!-- 2D only: the lattice, the square grid or any tiling by regular
+             polygons, from the menu or typed as a code (GomJau-Hogg
+             notation), with its tiles or its corners as the cells
+             (js/sim-controls.js reads these ids). -->
+        <div id="lattice-rows">
+          <div class="option-row">
+            Lattice <select id="set-tiling"></select>
+          </div>
+          <div class="option-row">
+            Code <input type="text" class="tiling-code" id="tiling-code" spellcheck="false" autocomplete="off">
+            <a class="small" href="../../help/gomjau-hogg.html">how codes work</a>
+          </div>
+          <p class="muted small tiling-message" id="tiling-message"></p>
+          <div class="option-row" id="cells-row">
+            Cells are the
+            <label><input type="radio" name="cells-are" value="tiles" checked> tiles</label>
+            <label><input type="radio" name="cells-are" value="corners"> corners</label>
+          </div>
         </div>
-        <p class="muted small">Each step goes in a direction with probability its weight over
-          the sum of all the weights. All equal is the simple random walk.</p>
+
+        <!-- One slider per direction; random-walk.js fills this in. On
+             another tiling, a line instead: every neighbor is equally likely. -->
+        <h3 class="option-heading">Weights</h3>
+        <div id="weights-box">
+          <div id="weight-rows"></div>
+          <div class="option-row">
+            <button class="tool-button" id="equal-weights" title="Every direction equally likely">All 1 (simple random walk)</button>
+          </div>
+          <p class="muted small">Each step goes in a direction with probability its weight over
+            the sum of all the weights. All equal is the simple random walk.</p>
+        </div>
+        <p class="muted small" id="tiling-step-note" hidden>On this lattice each step goes to one of
+          the cell's neighbors, all equally likely: the simple random walk.</p>
 
         <!-- What the picture shows (1D: nothing to choose). -->
         <div id="view-rows">
@@ -152,7 +176,7 @@
             </table>
             <p class="muted small" id="theory-note">Dashed gray lines on the charts: what theory
               says for the simple random walk (all weights equal). They hide when the
-              weights differ.</p>
+              weights differ, and on other lattices.</p>
           </div>
         </div>
       </section>
@@ -307,13 +331,14 @@
         </p>
         <p>
           <strong>Holes.</strong> In 2D, let <span class="tex">K_n</span> be the
-          union of the closed unit squares around the visited sites. Its holes
+          union of the closed unit squares around the visited sites (on another
+          tiling, of the visited cells' closed polygons). Its holes
           are the bounded components of
           <span class="tex">\mathbb{R}^2 \setminus K_n</span>, and their number is
           the first Betti number <span class="tex">\beta_1(K_n)</span>
           (<span class="tex">\beta_0 = 1</span> always, since the path is
           connected). A hole is born at the step that closes it off, or splits an
-          older one, and dies when its last square is visited; at a split the
+          older one, and dies when its last cell is visited; at a split the
           piece that dies last keeps the old birth (the elder rule of persistent
           homology [15]). They are found exactly, as in Eden Growth.
         </p>
@@ -330,11 +355,35 @@
           Mandelbrot conjectured and Lawler, Schramm and Werner proved [18]; at
           the walk's scale <span class="tex">\sqrt n</span> that suggests an outer
           boundary of about <span class="tex">(\sqrt n)^{4/3} = n^{2/3}</span>
-          squares (the dashed slope). That the walk itself follows this exponent
+          side lengths (the dashed slope). That the walk itself follows this exponent
           is the expected answer from the scaling limit; this page doesn't claim
           it is proved for the walk. The outer boundary length here is the
-          number of sides between a visited square and an empty square that
+          number of sides between a visited cell and an empty cell that
           can reach far away, worked out at steps about 10% apart.
+        </p>
+        <p>
+          <strong>Other tilings.</strong> In 2D the Lattice menu puts the walk on
+          a tiling of the plane by regular polygons with sides of length 1 that
+          repeats in two directions: the 11 where every corner looks the same,
+          the 20 with two kinds of corner [19, Sections 2.1 and 2.2], or any
+          tiling typed as a code in GomJau-Hogg notation [20] (see
+          <a href="../../help/gomjau-hogg.html">how codes work</a>). The cells are
+          its tiles, neighbors when they share a side, or its corners, neighbors
+          when a side joins them. Each step goes to one of the cell's neighbors,
+          all equally likely: the simple random walk on the graph of the cells
+          (there are no weights). Distances and the hull go by the middles of the
+          cells, in side lengths. Since the graph repeats in two directions, the
+          walk looks like the one on <span class="tex">\mathbb{Z}^2</span> from far
+          away: the chance of being back at the start after
+          <span class="tex">2n</span> steps is of order
+          <span class="tex">1/n</span> [21], so the expected number of returns by
+          step <span class="tex">n</span> grows like a constant times
+          <span class="tex">\log n</span>. That sum is infinite, so the walk comes
+          back infinitely often [22, Chapter 2]. The constants change from tiling
+          to tiling, which is why the dashed theory lines hide. On a tiling with
+          more than one kind of cell, the cells with more neighbors are visited
+          more: in the long run the walk spends time at each cell in proportion
+          to its number of neighbors [22, Chapter 2].
         </p>
         <p><strong>References</strong></p>
         <ol class="references">
@@ -389,6 +438,17 @@
           <li>G. F. Lawler, O. Schramm and W. Werner, &ldquo;The dimension of the
             planar Brownian frontier is 4/3&rdquo;, <em>Mathematical Research
             Letters</em> 8 (2001), 401&ndash;411.</li>
+          <li>B. Gr&uuml;nbaum, G. C. Shephard, <em>Tilings and Patterns</em>,
+            W. H. Freeman, 1987.</li>
+          <li>V. G&oacute;mez-Jauregui, H. Hogg, C. Manchado, C. Otero,
+            &ldquo;GomJau-Hogg's notation for automatic generation of k-uniform
+            tessellations with ANTWERP v3.0&rdquo;, <em>Symmetry</em> 13
+            (2021), 2376.</li>
+          <li>M. Kotani, T. Shirai and T. Sunada, &ldquo;Asymptotic behavior of the
+            transition probability of a random walk on an infinite graph&rdquo;,
+            <em>Journal of Functional Analysis</em> 159 (1998), 664&ndash;689.</li>
+          <li>R. Lyons, Y. Peres, <em>Probability on Trees and Networks</em>,
+            Cambridge University Press, 2016.</li>
         </ol>
         </div>
       </section>
@@ -403,15 +463,17 @@
   <!-- The code the sims share (in js/, see the README): page helpers
        (they also typeset the formulas, so they come after KaTeX), the
        second thread's run loop and random numbers, charts, colors,
-       domains, the picture's view (moving and zooming it), clicking and
-       dragging the picture, and the convex hull and the holes. Then the
-       walk (it runs in a second thread), then this page's code. -->
+       domains, the picture's view (moving and zooming it), the tilings by
+       regular polygons, clicking and dragging the picture and the Lattice
+       options, and the convex hull and the holes. Then the walk (it runs
+       in a second thread), then this page's code. -->
   <script src="../../js/sim-page.js"></script>
   <script src="../../js/sim-worker.js"></script>
   <script src="../../js/sim-charts.js"></script>
   <script src="../../js/sim-colors.js"></script>
   <script src="../../js/sim-domains.js"></script>
   <script src="../../js/sim-view.js"></script>
+  <script src="../../js/sim-tilings.js"></script>
   <script src="../../js/sim-controls.js"></script>
   <script src="../../js/sim-shape.js"></script>
   <script src="random-walk-rule.js"></script>

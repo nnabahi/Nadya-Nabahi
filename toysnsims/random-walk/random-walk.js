@@ -2,20 +2,22 @@
    random-walk.js  —  the page of the "Random Walk" sim
    ---------------------------------------------------------------------
    What it does, in plain words:
-     - Reads the dimension and the weights (one slider per direction).
+     - Reads the dimension and the weights (one slider per direction),
+       and in 2D the lattice (the square grid, or another tiling).
      - Hands them to the walk (random-walk-rule.js), which runs in a
        second thread (a "Web Worker"), and draws every state it sends
        back, with the statistics.
    Small helpers used by every sim page (byId, readWhole, keepAlong,
    ...) are in js/sim-page.js, the charts in js/sim-charts.js, moving,
    zooming and painting the 2D picture in js/sim-view.js, the hull and
-   holes in js/sim-shape.js (shared with Eden Growth), and the 3D
-   picture in js/sim-3d.js.
+   holes in js/sim-shape.js (shared with Eden Growth), the 3D
+   picture in js/sim-3d.js, and the tilings in js/sim-tilings.js, with
+   their Lattice options in js/sim-controls.js.
 
    The file is split into numbered sections:
      1. Settings you might want to change
      2. What the page remembers (the "state")
-     3. The weights
+     3. The weights and the lattice
      4. Running the walk
      5. Drawing the walk (1D, 2D, 3D)
      6. Statistics
@@ -43,6 +45,7 @@ const DEFAULT_SEED = "1";
 const PICTURE_HEIGHT = 480;
 const BACKGROUND = "#ffffff";     // sites not visited
 const HOLE = "#a9cbe8";           // the holes, with "Shade the holes" on
+const HOLE_GROUP = 64;            // (on another tiling, the holes' cells are painted as this group)
 const WALKER = "#222222";         // the walker (and the origin's outline)
 const HULL = "#444444";           // the convex hull's outline (2D) or solid (3D)
 const NOW_LINE = "#b9c8dc";       // the "distance now" line on the distance chart
@@ -78,7 +81,15 @@ let path = new Int32Array(1024), pathLength = 0;
 // 2D: the visited sites in a grid, for painting them quickly: the site
 // at (x, y) is grid.cells[(y - grid.ymin) * grid.across + (x - grid.xmin)]
 // (-1 if none). The grid grows (twice as big) when the walk leaves it.
+// (Not on another tiling: there the cells are painted as polygons.)
 let grid = null;
+
+// 2D on another tiling: the tiling's repeating block (uprightBlock,
+// js/sim-tilings.js), or null on the square grid (and in 1D and 3D).
+// runTiling is the one sent with the latest restart, walkTiling the one
+// of the walk on the screen (they differ until the new walk's first
+// message comes).
+let runTiling = null, walkTiling = null;
 
 // 3D: the hull's surface area and volume, worked out when it is drawn.
 let hull3D = { area: 0, volume: 0 };
@@ -89,11 +100,13 @@ function haveWalk() { return Boolean(latest && latest.traceSteps && latest.dim =
 
 
 /* =====================================================================
-   3. THE WEIGHTS
+   3. THE WEIGHTS AND THE LATTICE
    ---------------------------------------------------------------------
    One slider per direction, from 0 to MAX_WEIGHT, with the chance of
    that direction next to it. Every change takes effect at once, keeping
-   the seed and the step, like a Desmos slider.
+   the seed and the step, like a Desmos slider. In 2D the Lattice
+   options (js/sim-controls.js) put the walk on another tiling, where
+   every neighbor is equally likely and the sliders hide.
    ===================================================================== */
 
 // The weights now, in the walk's order.
@@ -101,11 +114,30 @@ function weights() {
   return Array.from(document.querySelectorAll(".weight-slider")).map(function (slider) { return Number(slider.value); });
 }
 
-// Are all the weights equal (the simple random walk)? The theory lines
-// on the charts show only then.
+// Are all the weights equal (the simple random walk)?
 function simpleWalk() {
   const w = weights();
   return w.every(function (v) { return v === w[0]; }) && w[0] > 0;
+}
+
+// Do the theory lines on the charts show? Only for the simple random
+// walk on the line or the square or cubic grid (on another tiling the
+// constants differ: see "Other tilings" in All the details).
+function theoryShows() { return simpleWalk() && !walkTiling; }
+
+// The tiling for a new walk: in 2D, the one the Lattice options say
+// (tilingInUse, js/sim-controls.js), or null on the square grid.
+function tilingNow() { return dim === 2 && !onSquares() ? tilingInUse.block : null; }
+
+// The Lattice options show in 2D only, "Cells are the tiles / corners"
+// only off the square grid, and the weights only on the grids (on
+// another tiling, a line saying each neighbor is equally likely).
+function showLatticeOptions() {
+  const tiling = tilingNow() !== null;
+  byId("lattice-rows").hidden = (dim !== 2);
+  byId("cells-row").hidden = onSquares();
+  byId("weights-box").hidden = tiling;
+  byId("tiling-step-note").hidden = !tiling;
 }
 
 // The sliders for this dimension, all at 1.
@@ -140,13 +172,15 @@ function showWeights() {
    ---------------------------------------------------------------------
    The walk is walkWorker() in random-walk-rule.js, with newWalk(), its
    shape, the run loop, the trace and the random numbers
-   (js/sim-worker.js) and the hull and holes (js/sim-shape.js) copied
-   in. startWorker (js/sim-page.js) runs it in a second thread, so the
-   page never freezes.
+   (js/sim-worker.js), the hull, holes and outer boundary
+   (js/sim-shape.js) and blockStart (js/sim-domains.js) copied in.
+   startWorker (js/sim-page.js) runs it in a second thread, so the page
+   never freezes.
    ===================================================================== */
 const worker = startWorker(walkWorker,
-  [newWalk, walkHull, hullCandidates3D, frontierLength, makeRunLoop, newTrace, keepSample, seededUniform,
-   convexHull, polygonArea, polygonPerimeter, holeHistory, bettiOverTime]);
+  [newWalk, cutsOf, walkHull, hullCandidates3D, makeRunLoop, newTrace, keepSample, seededUniform, blockStart,
+   convexHull, polygonArea, polygonPerimeter, holeHistory, bettiOverTime, frontierLength,
+   cellWindow, squareWindow, tilingWindow]);
 
 worker.onmessage = function (event) {
   const message = event.data;
@@ -164,16 +198,17 @@ worker.onmessage = function (event) {
 };
 
 // Add the sites (and in 1D the positions) new in this message to the
-// page's lists. A message starting from site 0 is a fresh walk.
+// page's lists. A message starting from site 0 is a fresh walk (on the
+// tiling of the latest restart).
 function keepSites(message) {
-  if (message.sitesFrom === 0) { sites = 0; grid = null; pathLength = 0; }
+  if (message.sitesFrom === 0) { sites = 0; grid = null; pathLength = 0; walkTiling = runTiling; }
   const at = message.sitesFrom, count = message.siteX.length;
   siteX = keepAlong(siteX, message.siteX, at);
   siteY = keepAlong(siteY, message.siteY, at);
   siteZ = keepAlong(siteZ, message.siteZ, at);
   bornAt = keepAlong(bornAt, message.bornAt, at);
   sites = at + count;
-  if (message.dim === 2) for (let i = at; i < sites; i++) putInGrid(i);
+  if (message.dim === 2 && !walkTiling) for (let i = at; i < sites; i++) putInGrid(i);
   if (message.path) {
     path = keepAlong(path, message.path, message.pathFrom);
     pathLength = message.pathFrom + message.path.length;
@@ -205,8 +240,9 @@ function biggerGrid(x, y, upTo) {
 // (so changing a weight keeps the step).
 function restart(keepStep) {
   run++;
+  runTiling = tilingNow();
   worker.postMessage({
-    type: "setup", run: run, dim: dim, weights: weights(), seed: byId("seed").value,
+    type: "setup", run: run, dim: dim, weights: weights(), tiling: runTiling, seed: byId("seed").value,
     steps: (keepStep && haveWalk()) ? latest.steps : 0,
   });
   player.carryOn();
@@ -224,11 +260,12 @@ const player = connectPlay(worker, SPEEDS, DEFAULT_SPEED, "step", "steps", funct
          each stretch of time, drawn from the lowest to the highest
          position in it, and in gray the lowest and highest so far (the
          hull, an interval, over time).
-     2D: the visited sites as squares, colored by when they were first
-         visited (blue early, red just now), the convex hull through
-         their middles, the holes (with "Shade the holes"), the origin
-         (an outlined square) and the walker (a black dot). It can be
-         moved and zoomed (js/sim-view.js).
+     2D: the visited sites as squares (on another tiling, as its
+         polygons), colored by when they were first visited (blue
+         early, red just now), the convex hull through their middles,
+         the holes (with "Shade the holes"), the origin (its cell
+         outlined) and the walker (a black dot). It can be moved and
+         zoomed (js/sim-view.js).
      3D: a cube for every visited site, colored the same way, the
          walker as a ball, and the hull as a see-through solid.
    ===================================================================== */
@@ -257,6 +294,7 @@ function ageGroup(i) {
 function drawWalk() {
   if (!haveWalk()) return;
   if (dim === 1) drawLine();
+  else if (dim === 2 && walkTiling) drawTiling();
   else if (dim === 2) drawGrid();
   else draw3D();
 }
@@ -381,12 +419,9 @@ function drawGrid() {
   function spot(x, y) {
     return [squareLeft(view, x - shown.xmin) + view.cell / 2, squareTop(view, shown.ymax - y) + view.cell / 2];
   }
-  if (byId("show-hull").checked && s.hull.corners.length > 1) {
-    pen.strokeStyle = HULL;
-    pen.lineWidth = Math.max(1, Math.min(2, view.cell / 6));
-    drawPolyline(pen, s.hull.corners.map(function ([x, y]) { return spot(x, y); }), true);
-  }
-  drawOrigin(pen, spot(0, 0));
+  drawHull2D(pen, s.hull.corners.map(function ([x, y]) { return spot(x, y); }));
+  const [x, y] = spot(0, 0), half = view.cell / 2;
+  drawOrigin(pen, [[x - half, y - half], [x + half, y - half], [x + half, y + half], [x - half, y + half]]);
   drawDot(pen, ...spot(s.x, s.y), Math.max(3, view.cell * 0.35));
   pen.restore();   // (fitPicture cut everything off at the picture's box)
 }
@@ -408,11 +443,75 @@ function gridSite(x, y) {
   return grid.cells[(y - grid.ymin) * grid.across + (x - grid.xmin)];
 }
 
-// The origin: an outlined square around its middle [x, y] on the canvas.
-function drawOrigin(pen, [x, y]) {
+// 2D on another tiling: the visited cells and the holes' cells as
+// polygons (paintDomain, js/sim-view.js), with the hull, the origin and
+// the walker on top, as on the square grid.
+function drawTiling() {
+  const s = latest, shown = shownTiling(s);
+  const pen = fitPicture(view, shown, pictureHeight(PICTURE_HEIGHT));
+  paintDomain(view, pen, shown,
+    function (v) { return v < sites ? ageGroup(v) : HOLE_GROUP; },
+    function (k) { return k === HOLE_GROUP ? hexToRGB(HOLE) : AGE_COLORS[k]; },
+    hexToRGB(BACKGROUND), null, 0);
+  const { sx, sy } = screenCopies(view, shown)[0];
+  const spot = function ([u, w]) { return [sx(u), sy(w)]; };
+  drawHull2D(pen, s.hull.corners.map(spot));
+  drawOrigin(pen, walkTiling.cells[0].corners.map(spot));   // (cell 0 of block (0, 0), which starts at (0, 0))
+  const cell = walkTiling.cells[s.z];
+  drawDot(pen, ...spot(s.place), Math.max(3, 0.7 * sideDistance(cell.middle, cell.corners) * view.cell));
+  pen.restore();   // (fitPicture cut everything off at the picture's box)
+}
+
+// The cells the 2D picture shows on another tiling, as a tiling domain
+// (js/sim-domains.js): the visited sites (cell v is site v), then, with
+// "Shade the holes", the holes' cells. Its box is the box around the
+// cells' middles, with one cell and one side length to spare all round.
+// (It has no list of sides: none are drawn.)
+function shownTiling(s) {
+  const holes = byId("show-holes").checked && s.holes ? s.holes.cells : [];
+  const n = sites + holes.length / 3;
+  const x = new Int32Array(n), y = new Int32Array(n), part = new Int32Array(n);
+  for (let v = 0; v < n; v++) {
+    const h = 3 * (v - sites);    // (where hole cell v is in the list holes: x, y, z, x, y, z, ...)
+    x[v] = v < sites ? siteX[v] : holes[h];
+    y[v] = v < sites ? siteY[v] : holes[h + 1];
+    part[v] = v < sites ? siteZ[v] : holes[h + 2];
+  }
+  const shown = { n: n, lattice: "tiling", tiling: walkTiling, wrap: null, sides: [], x: x, y: y, part: part };
+  let left = Infinity, right = -Infinity, bottom = Infinity, top = -Infinity;
+  for (let v = 0; v < n; v++) {
+    const [u, w] = cellMiddle(shown, v);
+    left = Math.min(left, u); right = Math.max(right, u);
+    bottom = Math.min(bottom, w); top = Math.max(top, w);
+  }
+  const spare = 1 + widestCell(walkTiling);
+  shown.pictureBox = { left: left - spare, right: right + spare, bottom: bottom - spare, top: top + spare };
+  return shown;
+}
+
+// The farthest any corner of a tiling's cell is from its middle.
+function widestCell(tiling) {
+  let widest = 0;
+  for (const cell of tiling.cells) {
+    for (const c of cell.corners) widest = Math.max(widest, Math.hypot(c[0] - cell.middle[0], c[1] - cell.middle[1]));
+  }
+  return widest;
+}
+
+// The convex hull's outline (with "Show the convex hull"), through its
+// corners on the canvas.
+function drawHull2D(pen, corners) {
+  if (!byId("show-hull").checked || corners.length < 2) return;
+  pen.strokeStyle = HULL;
+  pen.lineWidth = Math.max(1, Math.min(2, view.cell / 6));
+  drawPolyline(pen, corners, true);
+}
+
+// The origin: its cell outlined, through the cell's corners on the canvas.
+function drawOrigin(pen, corners) {
   pen.strokeStyle = WALKER;
   pen.lineWidth = 1;
-  pen.strokeRect(x - view.cell / 2, y - view.cell / 2, view.cell, view.cell);
+  drawPolyline(pen, corners, true);
 }
 
 // 3D: loaded the first time it is needed (load3D, js/sim-page.js).
@@ -452,8 +551,9 @@ function showPictureKind() {
    All for the walk on the screen. The worker keeps the numbers up to
    date, and a sample of them every so often for the charts (part 3 of
    random-walk-rule.js). The dashed gray lines are what theory says for
-   the simple random walk (all weights equal; see "All the details" for
-   where each comes from); they hide when the weights differ.
+   the simple random walk on the grids (all weights equal; see "All the
+   details" for where each comes from); they hide when the weights
+   differ, and on other tilings.
    ===================================================================== */
 const RETURN_CHANCE_3D = 0.340537;              // F, the chance the 3D walk ever comes back (Watson 1939)
 
@@ -496,22 +596,22 @@ function showStats() {
   for (const e of document.querySelectorAll(".only-2d")) e.hidden = (dim !== 2);
   for (const e of document.querySelectorAll(".only-3d")) e.hidden = (dim !== 3);
   if (!haveWalk()) return;
-  byId("theory-note").hidden = !simpleWalk();
+  byId("theory-note").hidden = !theoryShows();
   showTable(latest);
   drawCharts(latest);
   if (dim === 2) drawCharts2D(latest);
 }
 
 // The charts' lines, with the dashed theory line "guide" added for the
-// simple random walk.
+// simple random walk on the grids.
 function withGuide(lines, guide) {
-  return simpleWalk() ? lines.concat([{ values: guide, color: CHART_TEXT, dashed: true }]) : lines;
+  return theoryShows() ? lines.concat([{ values: guide, color: CHART_TEXT, dashed: true }]) : lines;
 }
 
 // The table of numbers.
 function showTable(s) {
   byId("stat-steps").textContent = s.steps.toLocaleString();
-  byId("stat-position").textContent = "(" + [s.x, s.y, s.z].slice(0, dim).join(", ") + ")";
+  byId("stat-position").textContent = "(" + positionNow(s).join(", ") + ")";
   byId("stat-distance").textContent = niceNumber(s.distance);
   byId("stat-max-distance").textContent = niceNumber(s.maxDistance);
   byId("stat-range").textContent = s.range.toLocaleString();
@@ -531,6 +631,14 @@ function showTable(s) {
     byId("stat-surface").textContent = shown ? niceNumber(hull3D.area) : "—";
     byId("stat-volume").textContent = shown ? niceNumber(hull3D.volume) : "—";
   }
+}
+
+// Where the walker is: its site, or on another tiling where its cell's
+// middle is, from the first cell's middle, in side lengths.
+function positionNow(s) {
+  if (!walkTiling) return [s.x, s.y, s.z].slice(0, dim);
+  const start = walkTiling.cells[0].middle;
+  return [s.place[0] - start[0], s.place[1] - start[1]].map(function (v) { return v.toFixed(2); });
 }
 
 // The charts every dimension has.
@@ -567,6 +675,7 @@ function setDimension(value) {
   dim = value;
   latest = null;
   showWeightRows();
+  showLatticeOptions();
   showPictureKind();
   restart(false);
 }
@@ -578,6 +687,13 @@ for (const radio of document.querySelectorAll('input[name="dimension"]')) {
 byId("equal-weights").addEventListener("click", function () {
   for (const slider of document.querySelectorAll(".weight-slider")) slider.value = 1;
   showWeights();
+  restart(true);
+});
+
+// Lattice (2D): the walk walks again to the step it was at, on the new
+// tiling, with the same seed.
+connectLattice(function () {
+  showLatticeOptions();
   restart(true);
 });
 
@@ -598,5 +714,6 @@ connectSeed(function () { restart(true); });
 // --- Start ------------------------------------------------------------
 byId("seed").value = DEFAULT_SEED;
 byId("goto-steps").value = 10000;
+fillLatticeMenu();            // the square grid
 setDimension(2);              // 2D by default
 player.setPlaying(false);     // paused: press Play

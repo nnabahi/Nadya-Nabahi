@@ -14,16 +14,25 @@
                                3D  +x, -x, +y, -y, +z, -z
      (in the 3D picture x goes right, y away from you and z up).
 
+     In 2D the walk can also run on any other tiling by regular polygons
+     (js/sim-tilings.js), its tiles or its corners being the cells. There
+     each step goes to one of the cell's neighbors, all equally likely
+     (no weights), and a site is cell z of the tiling's block (x, y). Its
+     distances, hull and holes go by the middles and polygons of the
+     cells, in side lengths.
+
    Random numbers (coupling). Step n uses one uniform number u_n in
    (0, 1), made from the seed and n only (seededUniform,
-   js/sim-worker.js). The step goes in the first direction k whose
-   running total (w_1 + ... + w_k) / (all of them) is above u_n: that
-   cuts (0, 1) into pieces, one per direction, each as long as its
-   chance. Moving a weight a little only moves the cuts a little, so
-   only the steps whose u_n sits near a cut change, and the walk
-   changes little by little, the way the p slider moves Bernoulli
+   js/sim-worker.js). On the grids the step goes in the first direction
+   k whose running total (w_1 + ... + w_k) / (all of them) is above
+   u_n: that cuts (0, 1) into pieces, one per direction, each as long
+   as its chance. Moving a weight a little only moves the cuts a
+   little, so only the steps whose u_n sits near a cut change, and the
+   walk changes little by little, the way the p slider moves Bernoulli
    percolation. (Each step changed sends the rest of the walk off in a
-   new place, though, so a big change of a weight changes a lot.)
+   new place, though, so a big change of a weight changes a lot.) On
+   another tiling the step goes to neighbor number
+   floor(u_n * the number of neighbors) of the cell's list.
 
    What it keeps track of, step by step:
      the position S_n and its distance |S_n| from the origin
@@ -33,18 +42,22 @@
      each site's first visit (bornAt), for the holes and the colors
      for the convex hull, only the sites that could be on it:
        1D the lowest and highest site; 2D the lowest and highest site
-       of each column x; 3D the lowest and highest z over each (x, y)
+       of each column x; 3D the lowest and highest z over each (x, y);
+       on another tiling, the lowest and highest y for each (x, z)
+       (those cells' middles lie on one line, in the block's step b)
 
    The file has these parts, with no drawing and no buttons:
      1. newWalk(options): the walk itself. The check page
         (random-walk-check.html) tests it in the browser.
-     2. Its shape: the hull (2D: convexHull, js/sim-shape.js) and the
-        outer boundary (frontierLength).
+     2. Its shape: the hull (2D: convexHull, js/sim-shape.js). The
+        holes and the outer boundary are holeHistory and frontierLength
+        (js/sim-shape.js).
      3. walkWorker(): runs a walk in a second thread (a "Web Worker")
         for the sim page, random-walk.js, so the page never freezes.
         startWorker (js/sim-page.js) starts it, with newWalk, the run
-        loop, trace and random numbers (js/sim-worker.js) and the hull
-        and holes (js/sim-shape.js) copied in.
+        loop, trace and random numbers (js/sim-worker.js), the hull,
+        holes and outer boundary (js/sim-shape.js) and blockStart
+        (js/sim-domains.js) copied in.
    ===================================================================== */
 
 
@@ -56,25 +69,17 @@
 //   dim      1, 2 or 3
 //   weights  one weight per direction (2, 4 or 6 numbers, at least 0,
 //            not all 0), in the order at the top of this file
+//   tiling   2D only, and only for another tiling than the squares: the
+//            tiling's repeating block (uprightBlock, js/sim-tilings.js).
+//            Then the weights are left out.
 //   seed     the seed (any text)
 // It returns an object whose step() moves the walker once, and whose
 // fields say where it has been (see the end of this function).
 function newWalk(options) {
-  const dim = options.dim;
-  // The 2d directions, as moves [dx, dy, dz].
+  const dim = options.dim, tiling = options.tiling || null;
+  // The 2d directions, as moves [dx, dy, dz], and the cuts (on the grids).
   const MOVES = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]].slice(0, 2 * dim);
-  if (options.weights.length !== MOVES.length) throw new Error("There should be " + MOVES.length + " weights.");
-  let total = 0;
-  for (const w of options.weights) {
-    if (!(w >= 0)) throw new Error("Every weight must be a number, 0 or more.");
-    total += w;
-  }
-  if (!(total > 0)) throw new Error("At least one weight must be above 0.");
-  // The cuts: cut[k] = (w_1 + ... + w_(k+1)) / total, the last one 1.
-  const cut = [];
-  let sum = 0;
-  for (const w of options.weights) { sum += w; cut.push(sum / total); }
-  cut[cut.length - 1] = 1;
+  const cut = tiling ? null : cutsOf(options.weights, MOVES.length);
   const random = seededUniform(options.seed);
 
   // Every visited site gets a number, 0, 1, 2, ..., in the order it
@@ -83,22 +88,35 @@ function newWalk(options) {
   const bornAt = [];            // the step it was first visited (0 for the origin)
   // A site's key, to look up its number: in 1D and 2D one whole number
   // (the walk stays within 2^21 of the origin, so x * 2^22 + y never
-  // mixes two sites up); in 3D, text "x,y,z".
-  function keyOf(x, y, z) { return dim === 3 ? x + "," + y + "," + z : x * 4194304 + y; }
+  // mixes two sites up); in 3D and on another tiling, text "x,y,z".
+  function keyOf(x, y, z) { return dim === 3 || tiling ? x + "," + y + "," + z : x * 4194304 + y; }
   const numberOf = new Map();
 
   const w = {
     dim: dim,
-    x: 0, y: 0, z: 0,           // where the walker is now, S_n
+    tiling: tiling,             // (null on the grids)
+    x: 0, y: 0, z: 0,           // where the walker is now, S_n (on another tiling: block (x, y), cell z)
     steps: 0,                   // n
     distance: 0,                // |S_n|
     maxDistance: 0,             // max over k <= n of |S_k|
     returns: 0,                 // how many k in 1..n have S_k = 0
     lowest: 0, highest: 0,      // 1D: the lowest and highest site visited
-    columns: new Map(),         // 2D: x -> [lowest y, highest y]; 3D: "x,y" -> [lowest z, highest z]
+    columns: new Map(),         // 2D: "x,z" -> [lowest y, highest y] (z is 0 on squares); 3D: "x,y" -> [lowest z, highest z]
     siteX: siteX, siteY: siteY, siteZ: siteZ, bornAt: bornAt,
     step: step,
+    placeOf: placeOf,
   };
+  const start = placeOf(0, 0, 0);
+
+  // 2D: where site (x, y, z) is in the plane, in side lengths: on the
+  // square grid (x, y) itself; on another tiling the middle of cell z
+  // of block (x, y) (blockStart, js/sim-domains.js: the walk carries its
+  // tiling the way a domain does).
+  function placeOf(x, y, z) {
+    if (!tiling) return [x, y];
+    const [u, v] = blockStart(w, x, y), middle = tiling.cells[z].middle;
+    return [u + middle[0], v + middle[1]];
+  }
 
   // The walker is at (x, y, z) at step n: note the site, if it is new.
   function visit(x, y, z, n) {
@@ -110,27 +128,43 @@ function newWalk(options) {
       w.lowest = Math.min(w.lowest, x);
       w.highest = Math.max(w.highest, x);
     } else {
-      const columnKey = dim === 2 ? x : x + "," + y, height = dim === 2 ? y : z;
+      const columnKey = dim === 2 ? x + "," + z : x + "," + y, height = dim === 2 ? y : z;
       const column = w.columns.get(columnKey);
       if (!column) w.columns.set(columnKey, [height, height]);
       else { column[0] = Math.min(column[0], height); column[1] = Math.max(column[1], height); }
     }
   }
 
-  // The direction for a uniform u: the first whose cut is above u.
-  function direction(u) {
+  // On the grids: the direction for a uniform u, the first whose cut is
+  // above u, and the move.
+  function moveOnGrid(u) {
     let k = 0;
     while (cut[k] <= u) k++;
-    return MOVES[k];
+    w.x += MOVES[k][0]; w.y += MOVES[k][1]; w.z += MOVES[k][2];
   }
 
-  // One step: move in the direction u_n picks (see the top of this
-  // file), then update the numbers and note the site.
+  // On another tiling: to one of the cell's neighbors, all equally
+  // likely, neighbor number floor(u * how many) of its list "next".
+  function moveOnTiling(u) {
+    const next = tiling.cells[w.z].next, [z, dx, dy] = next[Math.floor(u * next.length)];
+    w.x += dx; w.y += dy; w.z = z;
+  }
+
+  // |S_n|: how far the walker is from where it started (on another
+  // tiling, from the middle of the first cell to the middle of this one).
+  function distanceNow() {
+    if (!tiling) return Math.sqrt(w.x * w.x + w.y * w.y + w.z * w.z);
+    const [u, v] = placeOf(w.x, w.y, w.z);
+    return Math.sqrt((u - start[0]) * (u - start[0]) + (v - start[1]) * (v - start[1]));
+  }
+
+  // One step: move as u_n says (see the top of this file), then update
+  // the numbers and note the site.
   function step() {
-    const n = w.steps + 1, move = direction(random.uniform(n));
-    w.x += move[0]; w.y += move[1]; w.z += move[2];
+    const n = w.steps + 1, u = random.uniform(n);
+    if (tiling) moveOnTiling(u); else moveOnGrid(u);
     w.steps = n;
-    w.distance = Math.sqrt(w.x * w.x + w.y * w.y + w.z * w.z);
+    w.distance = distanceNow();
     w.maxDistance = Math.max(w.maxDistance, w.distance);
     if (w.x === 0 && w.y === 0 && w.z === 0) w.returns += 1;
     visit(w.x, w.y, w.z, n);
@@ -140,20 +174,40 @@ function newWalk(options) {
   return w;
 }
 
+// The cuts for these weights, one per direction ("count" of them):
+// cut[k] = (w_1 + ... + w_(k+1)) / (all of them), the last one 1.
+// Says what is wrong if the weights can't be used.
+function cutsOf(weights, count) {
+  if (weights.length !== count) throw new Error("There should be " + count + " weights.");
+  let total = 0;
+  for (const w of weights) {
+    if (!(w >= 0)) throw new Error("Every weight must be a number, 0 or more.");
+    total += w;
+  }
+  if (!(total > 0)) throw new Error("At least one weight must be above 0.");
+  const cut = [];
+  let sum = 0;
+  for (const w of weights) { sum += w; cut.push(sum / total); }
+  cut[cut.length - 1] = 1;
+  return cut;
+}
+
 
 /* =====================================================================
    2. THE SHAPE OF THE VISITED SITES
    ===================================================================== */
 
 // 2D: the convex hull of the visited sites (the smallest convex set
-// holding them, its sides straight lines between sites): its corners,
-// perimeter and area. Only the lowest and highest site of each column
-// can be a corner, so only those go to convexHull (js/sim-shape.js).
+// holding them, its sides straight lines between sites; on another
+// tiling, between the middles of the cells): its corners, perimeter and
+// area. Only the lowest and highest site of each column can be a
+// corner, so only those go to convexHull (js/sim-shape.js).
 function walkHull(w) {
   const points = [];
-  for (const [x, [low, high]] of w.columns) {
-    points.push([x, low]);
-    if (high > low) points.push([x, high]);
+  for (const [key, [low, high]] of w.columns) {
+    const [x, z] = key.split(",").map(Number);
+    points.push(w.placeOf(x, low, z));
+    if (high > low) points.push(w.placeOf(x, high, z));
   }
   const corners = convexHull(points);
   return { corners: corners, perimeter: polygonPerimeter(corners), area: polygonArea(corners) };
@@ -172,47 +226,15 @@ function hullCandidates3D(w) {
   return points;
 }
 
-// 2D: the length of the outer boundary of the visited sites, as unit
-// squares: the number of sides between a visited square and an empty
-// square that can reach far away (not in a hole). It is the perimeter
-// of the visited set with its holes filled in. Found by a flood fill of
-// the empty squares from the edge of the box around the visited set
-// (one bigger all round).
-function frontierLength(w) {
-  let xmin = Infinity, xmax = -Infinity, ymin = Infinity, ymax = -Infinity;
-  for (let i = 0; i < w.siteX.length; i++) {
-    xmin = Math.min(xmin, w.siteX[i]); xmax = Math.max(xmax, w.siteX[i]);
-    ymin = Math.min(ymin, w.siteY[i]); ymax = Math.max(ymax, w.siteY[i]);
-  }
-  xmin -= 1; xmax += 1; ymin -= 1; ymax += 1;
-  const across = xmax - xmin + 1, down = ymax - ymin + 1;
-  // 1 = visited, 2 = empty and reached from outside, 0 = not yet reached.
-  const square = new Uint8Array(across * down);
-  for (let i = 0; i < w.siteX.length; i++) square[(w.siteY[i] - ymin) * across + (w.siteX[i] - xmin)] = 1;
-  const todo = [];
-  for (let x = 0; x < across; x++) todo.push(x, (down - 1) * across + x);
-  for (let y = 0; y < down; y++) todo.push(y * across, y * across + across - 1);
-  for (const c of todo) square[c] = 2;
-  let sides = 0;
-  while (todo.length > 0) {
-    const c = todo.pop(), x = c % across;
-    for (const n of [x > 0 ? c - 1 : -1, x < across - 1 ? c + 1 : -1, c - across, c + across]) {
-      if (n < 0 || n >= square.length) continue;
-      if (square[n] === 1) sides++;
-      else if (square[n] === 0) { square[n] = 2; todo.push(n); }
-    }
-  }
-  return sides;
-}
-
 
 /* =====================================================================
    3. THE WALK IN A SECOND THREAD
    ---------------------------------------------------------------------
    The page sends:
-     { type: "setup", run, dim, weights, seed, steps }
-         a new walk, walked at once to "steps" steps with the same
-         seed (so changing a weight keeps the step you were at)
+     { type: "setup", run, dim, weights, tiling, seed, steps }
+         a new walk (newWalk's options), walked at once to "steps"
+         steps with the same seed (so changing a weight keeps the step
+         you were at)
      { type: "play", speed }   "speed" steps per second
                                (Infinity = as fast as possible)
      { type: "pause" }
@@ -220,7 +242,8 @@ function frontierLength(w) {
      { type: "goto", steps }   jump to that step (back or forward)
 
    The worker answers with "state" messages: the numbers for the
-   Statistics box, the samples for the charts, and the sites visited
+   Statistics box (on another tiling, with "place": where the walker's
+   cell's middle is), the samples for the charts, and the sites visited
    since its last message (the page keeps them all). Each carries its
    run number, so the page can ignore leftovers from an older run.
    ===================================================================== */
@@ -326,7 +349,7 @@ function walkWorker() {
     const lists = trace.lists;
     const message = {
       type: "state", run: run, problem: "", dim: w.dim,
-      steps: w.steps, x: w.x, y: w.y, z: w.z,
+      steps: w.steps, x: w.x, y: w.y, z: w.z, place: w.tiling ? w.placeOf(w.x, w.y, w.z) : null,
       distance: w.distance, maxDistance: w.maxDistance, range: w.siteX.length, returns: w.returns,
       lowest: w.lowest, highest: w.highest,
       atMax: isDone(),
@@ -375,7 +398,7 @@ function walkWorker() {
   function addHoles(message) {
     const w = walk, now = performance.now();
     if (holesStep !== w.steps && (!loop.playing || now >= holesFree)) {
-      holes = holeHistory(w.siteX, w.siteY, w.bornAt, w.steps);
+      holes = holeHistory(w, w.steps);
       holesStep = w.steps;
       holesFree = now + 4 * (performance.now() - now);
     }
