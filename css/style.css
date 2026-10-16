@@ -20,7 +20,8 @@
      9. Sim pages: the About box
     10. The graph tool (toysnsims/graph-tool/graph-tool.html), also inside a sim page
     11. Check pages
-    12. Phones and narrow screens
+    12. Help pages
+    13. Phones and narrow screens
    ===================================================================== */
 
 
@@ -599,6 +600,18 @@ a.card:hover {
   margin: 6px 0;
   overflow-x: auto;        /* a long formula scrolls instead of spilling out */
 }
+
+/* The Lattice's code box (a tiling in GomJau-Hogg notation, read by
+   js/sim-tilings.js), and the line under it: the tiling's kinds of
+   corner, or what is wrong with the code. */
+.option-row input.tiling-code {
+  flex: 1 1 12em;
+  font-family: monospace;
+  font-size: 0.95em;
+  padding: 2px 6px;
+}
+
+.tiling-message.problem { color: var(--color-problem); }
 
 /* A small picture of a formula's shape (the domain or the tile), which
    pops up above the formula's top right corner while the mouse is over
@@ -1292,7 +1305,39 @@ body.embedded .graph-wrap {
 
 
 /* =====================================================================
-   12. Phones and narrow screens
+   12. Help pages
+   ---------------------------------------------------------------------
+   Pages that explain a feature of the sims, like help/gomjau-hogg.html
+   (how to write a tiling as a code). Its "Try a code" box has two
+   pictures side by side (one above the other on narrow screens).
+   ===================================================================== */
+.help-pictures {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1em;
+}
+
+.help-pictures figure {
+  margin: 0;
+  min-width: 0;            /* lets a picture shrink with its column */
+}
+
+.help-pictures figcaption {
+  font-weight: bold;
+  margin-bottom: 0.3em;
+}
+
+.help-pictures canvas {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+}
+
+
+/* =====================================================================
+   13. Phones and narrow screens
    ---------------------------------------------------------------------
    Everything inside "@media (max-width: 760px) { ... }" only applies
    when the window is 760px wide or less. It comes last in the file so
@@ -1316,6 +1361,11 @@ body.embedded .graph-wrap {
       "charts"
       "about";
     grid-template-rows: none;
+  }
+
+  /* A help page's two pictures: one above the other. */
+  .help-pictures {
+    grid-template-columns: 1fr;
   }
 
   /* Resume skills: stack each label above its details. */

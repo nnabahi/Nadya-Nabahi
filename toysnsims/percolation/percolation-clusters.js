@@ -34,7 +34,9 @@
    results for percolation", Phys. Rev. Lett. 85 (2000) 4104-4107).
 
    Crossing and wrapping. On a box (or a drawn region), a cluster
-   CROSSES when it touches both the leftmost and the rightmost column.
+   CROSSES when it touches both the leftmost and the rightmost column
+   (on a tiling, the cells along the box's left and right sides:
+   onLeft and onRight, tilingBox in js/sim-domains.js).
    On a torus, a cluster WRAPS when it goes all the way around: each
    cell remembers where it sits relative to its root, measured in the
    plane before the torus is glued; if two cells of the same cluster
@@ -152,8 +154,8 @@ function newUnionFind(d, U) {
   };
   for (let v = 0; v < n; v++) {
     uf.parent[v] = v;
-    uf.left[v] = d.x[v] === d.xmin ? 1 : 0;
-    uf.right[v] = d.x[v] === d.xmax ? 1 : 0;
+    uf.left[v] = (d.onLeft ? d.onLeft[v] : d.x[v] === d.xmin) ? 1 : 0;
+    uf.right[v] = (d.onRight ? d.onRight[v] : d.x[v] === d.xmax) ? 1 : 0;
   }
   return uf;
 }

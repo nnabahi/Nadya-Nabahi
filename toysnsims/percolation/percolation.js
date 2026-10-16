@@ -6,13 +6,15 @@
    (data-kind="site" or data-kind="bond"), and this script reads that.
 
    What it does, in plain words:
-     - Builds the domain: a box or torus of cells, a region drawn in
-       the graph tool (shown inside this page), or a ball of a
-       hyperbolic tiling or a tree. The domain code is shared with the
-       other sims: the domains in js/sim-domains.js, their options and
-       the graph tool in js/sim-controls.js, and the hyperbolic tilings
-       and trees, and their pictures, in js/sim-graphs.js and
-       js/sim-hyperbolic.js.
+     - Builds the domain: a box or torus of cells (on the square grid,
+       or on any tiling by regular polygons, its tiles or its corners
+       being the cells), a region drawn in the graph tool (shown inside
+       this page), or a ball of a hyperbolic tiling or a tree. The
+       domain code is shared with the other sims: the domains in
+       js/sim-domains.js, the tilings in js/sim-tilings.js, their
+       options and the graph tool in js/sim-controls.js, and the
+       hyperbolic tilings and trees, and their pictures, in
+       js/sim-graphs.js and js/sim-hyperbolic.js.
      - Gives every cell (site) or every edge (bond) its own random
        number U, from the seed. At the p on the slider, the ones with
        U < p are open (percolation-clusters.js finds the clusters).
@@ -66,6 +68,28 @@ const BALL = { R: 6, most: 20, cells: 20000 };
 // null where no exact or well-established value is known. (On a tree,
 // see criticalPoint.)
 const CRITICAL = KIND === "site" ? { 4: 0.592746, 8: 1 - 0.592746 } : { 4: 0.5, 8: null };
+
+// The critical points known exactly on the other tilings, by the
+// tiling's code (js/sim-tilings.js) and whether its tiles or its
+// corners are the cells. The tiles of triangles and the corners of
+// hexagons make the same graph (the honeycomb), and so do the tiles of
+// hexagons and the corners of triangles (the triangular lattice). Each
+// is written as a key of EXACT, which gives its value.
+const EXACT = {
+  "1/2": 1 / 2,
+  "2 sin(π/18)": 2 * Math.sin(Math.PI / 18),
+  "1 − 2 sin(π/18)": 1 - 2 * Math.sin(Math.PI / 18),
+  "√(1 − 2 sin(π/18))": Math.sqrt(1 - 2 * Math.sin(Math.PI / 18)),
+};
+const TILING_CRITICAL = KIND === "site" ? {
+  "3/m30/r(h2)": { corners: "1/2" },                       // triangles
+  "6/m30/r(h1)": { tiles: "1/2" },                         // hexagons
+  "6-3-6/m30/r(v4)": { corners: "1 − 2 sin(π/18)" },       // kagome
+  "12-3/m30/r(h3)": { corners: "√(1 − 2 sin(π/18))" },     // truncated hexagonal
+} : {
+  "3/m30/r(h2)": { tiles: "1 − 2 sin(π/18)", corners: "2 sin(π/18)" },
+  "6/m30/r(h1)": { tiles: "2 sin(π/18)", corners: "1 − 2 sin(π/18)" },
+};
 
 // Play raises p by this much per second (the Speed slider).
 const SPEEDS = [0.001, 0.1];   // the slider's starting min and max (boxes at its ends change them)
@@ -183,6 +207,11 @@ function rgbOfRoot(r) {
    where lines would be a blur, each cell is a square in its cluster's
    color instead (cells with no open edge white).
 
+   On any other tiling, the same with each cell its own polygon: site
+   percolation paints the polygons, and bond percolation draws a dot in
+   the middle of each cell and a line for each open edge (a polygon per
+   cell, zoomed far out).
+
    The "view" (js/sim-view.js) says where the picture goes and which
    squares show; it also moves and zooms it (section 6).
 
@@ -210,39 +239,50 @@ function drawPicture() {
   if (!domain || !result || simCanvas.hidden) return;
   if (domainKind === "graph") { drawOnBall(); return; }
   const pen = fitPicture(view, domain, MAX_PICTURE_HEIGHT);
-  if (KIND === "bond" && view.size * view.zoom >= SMALLEST_EDGE_CELL) {
+  const asEdges = KIND === "bond" && view.size * view.zoom >= SMALLEST_EDGE_CELL;
+  if (domain.lattice) {
+    if (asEdges) drawTilingEdges(pen); else paintTiling(pen);
+  } else if (asEdges) {
     drawEdges(pen);
   } else {
     // paintCells is in js/sim-view.js. Each square's group is its
     // cluster's root (-1 for white), so borders go between clusters.
-    const shown = paintCells(view, pen, domain,
-      function (v) { return inCluster(v) ? result.root[v] : -1; }, rgbOfRoot, outsideRGB);
+    const shown = paintCells(view, pen, domain, groupOf, rgbOfRoot, outsideRGB);
     if (KIND === "site" && view.cell >= SMALLEST_BORDERED_CELL) drawBorders(view, pen, shown, BORDER);
   }
   pen.restore();
 }
 
+// The group of cell v in the picture: its cluster's root, or -1 (white).
+function groupOf(v) { return inCluster(v) ? result.root[v] : -1; }
+
+// A tiling, as polygons (paintLattice, js/sim-view.js), each in its
+// cluster's color, with dark lines between clusters in site
+// percolation when the cells are big enough. (A triangle is much
+// smaller than a square with the same side, so the lines wait until a
+// side is twice as long as a square needs.) Around a box's ragged
+// edge, the background shows.
+function paintTiling(pen) {
+  pen.fillStyle = OUTSIDE;
+  pen.fillRect(view.left, 0, view.width, view.height);
+  const bordered = KIND === "site" && cellSize(view) >= 2 * SMALLEST_BORDERED_CELL;
+  paintLattice(view, pen, domain, function (v) { return rgbToHex(rgbOfRoot(groupOf(v))); },
+               bordered ? groupOf : null, BORDER);
+}
+
 // Bond percolation, big cells: the dots and the open edges. Each square
 // looks at the squares to its right and above (and, with 8 neighbors,
 // diagonally), and if their cells share an open edge, a line joins the
-// two middles. Lines of one color are collected into one path and
-// drawn at once (much faster than one at a time).
+// two middles.
 function drawEdges(pen) {
   const cells = cellsShown(view, domain);
   const cols = view.cols, rows = view.rows, size = view.cell;
   pen.fillStyle = CLOSED;
   pen.fillRect(view.left, 0, view.width, view.height);
-  const paths = new Map();          // color -> the lines (and dots) in that color
-  function pathFor(rgb) {
-    const key = rgbToHex(rgb);
-    if (!paths.has(key)) paths.set(key, { lines: new Path2D(), dots: new Path2D() });
-    return paths.get(key);
-  }
+  const bonds = bondPaths(size);
   const looks = [[1, 0], [0, -1], [1, -1], [1, 1]];   // right, up, up-right, down-right (rows go down)
   const middleX = function (i) { return squareLeft(view, view.firstI + i) + size / 2; };
   const middleY = function (k) { return squareTop(view, view.firstK + k) + size / 2; };
-  const dot = Math.max(1.2, size * 0.13);
-  const loose = new Path2D();       // the dots of cells with no open edge
 
   for (let k = 0; k < rows; k++) {
     for (let i = 0; i < cols; i++) {
@@ -253,33 +293,95 @@ function drawEdges(pen) {
         continue;
       }
       const x = middleX(i), y = middleY(k);
-      if (!inCluster(v)) { loose.moveTo(x + dot * 0.6, y); loose.arc(x, y, dot * 0.6, 0, 2 * Math.PI); continue; }
-      const path = pathFor(rgbOfRoot(result.root[v]));
-      path.dots.moveTo(x + dot, y);
-      path.dots.arc(x, y, dot, 0, 2 * Math.PI);
+      const lines = bonds.dot(v, x, y);
+      if (lines === null) continue;
       for (const [di, dk] of looks) {
         if (i + di >= cols || k + dk < 0 || k + dk >= rows) continue;
         const w = cells[(k + dk) * cols + i + di];
-        if (w === -1) continue;
-        for (let e = domain.first[v]; e < domain.first[v + 1]; e++) {
-          if (domain.nbr[e] === w && U[entryEdge[e]] < p) {
-            path.lines.moveTo(x, y);
-            path.lines.lineTo(middleX(i + di), middleY(k + dk));
-          }
-        }
+        if (w === -1 || !isOpenEdge(v, w)) continue;
+        lines.moveTo(x, y);
+        lines.lineTo(middleX(i + di), middleY(k + dk));
       }
     }
   }
-  pen.fillStyle = OTHERS;
-  pen.fill(loose);
-  pen.lineWidth = Math.max(1.5, size * 0.22);
-  pen.lineCap = "round";
-  for (const [color, path] of paths) {
-    pen.strokeStyle = color;
-    pen.stroke(path.lines);
-    pen.fillStyle = color;
-    pen.fill(path.dots);
+  bonds.draw(pen);
+}
+
+// Bond percolation on a tiling, big cells: a dot in the middle of every
+// cell, and a line for every open edge, from the cell with the smaller
+// number to the middle of the cell across the side (on a torus, the
+// copy of it in the next block over, so the line doesn't cross the
+// whole picture). On a torus every copy that shows is drawn.
+function drawTilingEdges(pen) {
+  pen.fillStyle = CLOSED;
+  pen.fillRect(view.left, 0, view.width, view.height);
+  const copies = screenCopies(view, domain);      // (js/sim-view.js; sets view.cell)
+  const bonds = bondPaths(view.cell), tiles = domain.tiling.cells;
+  for (const { sx, sy } of copies) {
+    for (let v = 0; v < domain.n; v++) {
+      const [u, w] = cellMiddle(domain, v);
+      const x = sx(u), y = sy(w);
+      if (!nearScreen(view, x, y)) continue;
+      const lines = bonds.dot(v, x, y);
+      if (lines === null) continue;
+      tiles[domain.part[v]].next.forEach(function ([k, dI, dJ], e) {
+        const other = domain.sides[v][e];
+        if (other < v || !isOpenEdge(v, other)) return;
+        const [bu, bw] = blockStart(domain, domain.x[v] + dI, domain.y[v] + dJ);
+        lines.moveTo(x, y);
+        lines.lineTo(sx(bu + tiles[k].middle[0]), sy(bw + tiles[k].middle[1]));
+      });
+    }
   }
+  bonds.draw(pen);
+}
+
+// Is the edge between neighbors v and w open?
+function isOpenEdge(v, w) {
+  for (let e = domain.first[v]; e < domain.first[v + 1]; e++) {
+    if (domain.nbr[e] === w) return U[entryEdge[e]] < p;
+  }
+  return false;
+}
+
+// The dots and lines of bond percolation, for cells "size" pixels
+// across, collected by color so each color is drawn at once (much
+// faster than one line at a time):
+//   dot(v, x, y)   the dot of cell v at (x, y); returns the path to
+//                  put v's open edges in, or null if v has none (its
+//                  dot is small and gray)
+//   draw(pen)      draw them all
+function bondPaths(size) {
+  const paths = new Map();          // color -> the lines (and dots) in that color
+  const loose = new Path2D();       // the dots of cells with no open edge
+  const radius = Math.max(1.2, size * 0.13);
+  return {
+    dot: function (v, x, y) {
+      if (!inCluster(v)) {
+        loose.moveTo(x + radius * 0.6, y);
+        loose.arc(x, y, radius * 0.6, 0, 2 * Math.PI);
+        return null;
+      }
+      const color = rgbToHex(rgbOfRoot(result.root[v]));
+      if (!paths.has(color)) paths.set(color, { lines: new Path2D(), dots: new Path2D() });
+      const path = paths.get(color);
+      path.dots.moveTo(x + radius, y);
+      path.dots.arc(x, y, radius, 0, 2 * Math.PI);
+      return path.lines;
+    },
+    draw: function (pen) {
+      pen.fillStyle = OTHERS;
+      pen.fill(loose);
+      pen.lineWidth = Math.max(1.5, size * 0.22);
+      pen.lineCap = "round";
+      for (const [color, path] of paths) {
+        pen.strokeStyle = color;
+        pen.stroke(path.lines);
+        pen.fillStyle = color;
+        pen.fill(path.dots);
+      }
+    },
+  };
 }
 
 // Hyperbolic plane or tree: the cells in their clusters' colors (site),
@@ -439,14 +541,23 @@ function drawSizesChart() {
 }
 
 // The critical point for the domain in use: for a box or torus, where
-// the cells sit on the square grid with 4 or 8 neighbors, and for a
-// tree of degree d, where it is 1/(d - 1) for both site and bond
-// percolation (see "All the details"). No exact value is known for the
-// hyperbolic tilings.
+// the cells sit on the square grid with 4 or 8 neighbors, or on a
+// tiling where it is known exactly (tilingCritical), and for a tree of
+// degree d, where it is 1/(d - 1) for both site and bond percolation
+// (see "All the details"). No exact value is known for the hyperbolic
+// tilings.
 function criticalPoint() {
   if (domainKind === "custom") return null;
   if (domainKind === "graph") return isTree(disk.spec) ? 1 / (disk.spec.p - 1) : null;
+  if (domain.lattice) return tilingCritical() === null ? null : EXACT[tilingCritical()];
   return CRITICAL[byId("set-neighbors").value];
+}
+
+// The exact critical point on the tiling in use, as a key of EXACT, or
+// null if there is none.
+function tilingCritical() {
+  const known = TILING_CRITICAL[domain.tiling.code];
+  return (known && known[domain.tiling.corners ? "corners" : "tiles"]) || null;
 }
 
 
@@ -516,8 +627,9 @@ function showDomainChoice() {
   byId("critical-row").hidden = (pc === null);
   if (pc !== null) {
     byId("critical-value").textContent = onGraph ? "= 1/" + (disk.spec.p - 1)
+      : domain.lattice ? "= " + tilingCritical() + (pc === 0.5 ? "" : " ≈ " + pc.toFixed(4))
       : pc === 0.5 ? "= 1/2" : "≈ " + pc.toFixed(4);
-    byId("critical-where").textContent = onGraph ? "tree" : "grid";
+    byId("critical-where").textContent = onGraph ? "tree" : domain.lattice ? "lattice" : "grid";
   }
 }
 
@@ -585,6 +697,7 @@ connectSeed(function () { selected = -1; newNumbers(); });
 
 // --- Start ------------------------------------------------------------
 fillDomainOptions(DEFAULTS, MAX_SIDE, BALL);
+fillLatticeMenu();
 byId("seed").value = DEFAULTS.seed;
 byId("p-slider").value = byId("p-box").value = p;
 useBox();

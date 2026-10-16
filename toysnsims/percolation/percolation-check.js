@@ -35,6 +35,23 @@
         2016, Chapter 5), for site and bond. Tests 1 and 3 also run on
         small balls of a tree and of the {7, 3} tiling, where "crosses"
         means the start's cluster reaches the edge.
+    10. The other lattices (js/sim-tilings.js reads them from their
+        GomJau-Hogg codes):
+          - every tiling in the Lattice menu has the kinds of corner its
+            name says, and as many kinds up to symmetry (it is
+            "k-uniform" for that k; B. Grunbaum and G. C. Shephard,
+            "Tilings and Patterns", 1987, Sections 2.1 and 2.2);
+          - the two tilings that share a name but for a label (like
+            [3⁶; 3⁴.6]¹ and ²) are different tilings;
+          - the same for the 90 codes of Table 1 of the paper (V.
+            Gomez-Jauregui, H. Hogg, C. Manchado and C. Otero, Symmetry
+            13 (2021), 2376): all but 7 make the tiling named there, and
+            the 7 are the ones known to disagree;
+          - the boxes and tori of every tiling in the menu, its tiles
+            and its corners: each side is shared by the two cells it
+            joins, in the right place; a torus's cells fill it, with no
+            gaps or overlaps; clicking a cell finds that cell.
+        Tests 1-3 also run on four of these domains.
 
    Random numbers come from the library seedrandom, with fixed seeds,
    so the tests do the same thing every time.
@@ -114,7 +131,19 @@ function testDomains() {
     { name: "Aztec diamond of order 4", d: aztecDiamond(4) },
     { name: "ball of radius 3 of the tree of degree 3", d: testBall(3, Infinity, 3) },
     { name: "ball of radius 2 of the {7, 3} tiling", d: testBall(7, 3, 2) },
+    { name: "7 x 6 torus of the tiles of triangles (the honeycomb)", d: testTiling("3/m30/r(h2)", false, 7, 6, true) },
+    { name: "8 x 6 box of the corners of the kagome tiling", d: testTiling("6-3-6/m30/r(v4)", true, 8, 6, false) },
+    { name: "9 x 9 torus of the tiles of 3.4.6.4", d: testTiling("6-4-3/m30/r(c2)", false, 9, 9, true) },
+    { name: "8 x 8 box of the corners of [3³.4²; 3².4.3.4]²", d: testTiling("4-3,3,3-4,3/r(h4)/r(h4)/r(h15)", true, 8, 8, false) },
   ];
+}
+
+// A box or torus (tilingBox, js/sim-domains.js) of the tiling with this
+// code, its tiles or its corners as the cells, width x height side
+// lengths.
+function testTiling(code, corners, width, height, torus) {
+  const block = tilingFromCode(code);
+  return tilingBox(uprightBlock(corners ? cornersBlock(block) : block), width, height, torus);
 }
 
 // The ball of radius R of the tiling {p, q} (q = Infinity: the tree of
@@ -419,6 +448,318 @@ function testTreeBall(kind, degree, R, p) {
 }
 
 
+/* ---------------------------------------------------------------------
+   10. The other lattices: the tilings and their domains
+   --------------------------------------------------------------------- */
+
+// The kinds of corner a tiling's name in the Lattice menu says, the
+// short way and sorted: "Kagome (3.6.3.6)" says 3.6.3.6, and
+// "[3⁶; 3⁴.6]¹" says 3⁶ and 3⁴.6 (the ¹ is a label).
+function cornersInName(name) {
+  const inside = /\((.*)\)$/.exec(name);
+  const list = inside ? inside[1] : name.replace(/\][¹²³⁴]$/, "").replace(/[\[\]]/g, "");
+  return list.split(";").map(function (s) { return s.trim(); }).sort();
+}
+
+// A tiling's kinds of corner, the short way and sorted.
+function cornersBuilt(block) {
+  return block.vertexTypes.map(cornerShort).sort();
+}
+
+// The number of kinds of corner of a tiling up to ALL its symmetries
+// (it is "k-uniform" for this k), from its block (tilingFromCode). The
+// corners of the block are joined up, with union-find, whenever a
+// symmetry carries one to another.
+function cornerOrbits(block) {
+  const { t1, t2, cells } = block.exact.block;
+  const symmetries = tilingSymmetries(t1, t2, cells);
+  const index = new Map(), corners = [];
+  for (const cell of cells) {
+    for (const c of cell.corners) {
+      const home = homePoint(c, t1, t2), key = pointKey(home);
+      if (!index.has(key)) { index.set(key, corners.length); corners.push(home); }
+    }
+  }
+  const parent = corners.map(function (c, i) { return i; });
+  const find = function (i) { while (parent[i] !== i) i = parent[i] = parent[parent[i]]; return i; };
+  corners.forEach(function (c, i) {
+    for (const g of symmetries) {
+      const j = index.get(pointKey(homePoint(move(g, c), t1, t2)));
+      if (j === undefined) throw new Error("A symmetry moved a corner off the tiling.");
+      parent[find(i)] = find(j);
+    }
+  });
+  return new Set(corners.map(function (c, i) { return find(i); })).size;
+}
+
+// One symmetry of the tiling for each turn or mirror that is one: the
+// turns and mirrors that carry the repeating steps to repeating steps,
+// each with a shift that carries every polygon of the block onto a
+// polygon of the tiling.
+function tilingSymmetries(t1, t2, cells) {
+  const keys = new Set(cells.map(polygonKey)), first = polygonMiddle(cells[0]);
+  const found = [];
+  for (let r = 0; r < 24; r++) {
+    for (let f = 0; f < 2; f++) {
+      const linear = { r: r, f: f, t: [ZERO, ZERO] };
+      if (!isStep(move(linear, t1), t1, t2) || !isStep(move(linear, t2), t1, t2)) continue;
+      for (const cell of cells) {
+        if (cell.sides !== cells[0].sides) continue;
+        const g = { r: r, f: f, t: pointMinus(polygonMiddle(cell), move(linear, first)) };
+        const fits = cells.every(function (c) { return keys.has(polygonKey(intoBlock(movePolygon(g, c), t1, t2))); });
+        if (fits) { found.push(g); break; }
+      }
+    }
+  }
+  return found;
+}
+
+// Is p a whole step i t1 + j t2?
+function isStep(p, t1, t2) {
+  const det = cross(t1, t2);
+  return wholeNumber(over(cross(p, t2), det)) !== null && wholeNumber(over(cross(t1, p), det)) !== null;
+}
+
+// The point p moved into the block by whole steps.
+function homePoint(p, t1, t2) {
+  const [s, u] = blockPlace(p, t1, t2);
+  return pointMinus(p, pointPlus(pointScale(fraction(floorOf(s)), t1), pointScale(fraction(floorOf(u)), t2)));
+}
+
+function testMenuTilings() {
+  const wrong = [];
+  for (const tiling of TILINGS) {
+    const block = tilingFromCode(tiling.code);
+    const corners = cornersBuilt(block), k = cornerOrbits(block);
+    if (corners.join("; ") !== cornersInName(tiling.name).join("; ") || k !== tiling.kinds) {
+      wrong.push(tiling.name + " (built " + corners.join("; ") + ", " + k + " up to symmetry)");
+    }
+  }
+  addRow("Lattices: the tilings in the menu", wrong.length === 0,
+         wrong.length ? "Not the named tiling: " + wrong.join(", ")
+                      : TILINGS.length + " tilings: each has the kinds of corner its name says, and that many kinds up to symmetry.");
+}
+
+// What tells two tilings apart here: the number of turns and mirrors
+// that are symmetries, the shape of the repeating block, and how many
+// polygons of each kind it holds.
+function fingerprint(block) {
+  const { t1, t2, cells } = block.exact.block;
+  const sides = {};
+  for (const cell of block.cells) sides[cell.sides] = (sides[cell.sides] || 0) + 1;
+  const length = function (t) { return Math.hypot(t[0], t[1]).toFixed(6); };
+  return [tilingSymmetries(t1, t2, cells).length, length(block.t1), length(block.t2),
+          Math.abs(block.t1[0] * block.t2[0] + block.t1[1] * block.t2[1]).toFixed(6), JSON.stringify(sides)].join(" ");
+}
+
+function testMenuPairs() {
+  const byName = new Map();
+  for (const tiling of TILINGS) {
+    if (!/\][¹²]$/.test(tiling.name)) continue;
+    const base = tiling.name.slice(0, -1);
+    if (!byName.has(base)) byName.set(base, []);
+    byName.get(base).push(fingerprint(tilingFromCode(tiling.code)));
+  }
+  const same = Array.from(byName.keys()).filter(function (base) { return byName.get(base)[0] === byName.get(base)[1]; });
+  addRow("Lattices: tilings with the same corners are different", same.length === 0,
+         same.length ? "These pairs look the same: " + same.join(", ")
+                     : byName.size + " pairs, like [3⁶; 3⁴.6]¹ and ², each two different tilings (different symmetries, blocks, or polygons in a block).");
+}
+
+// Table 1 of the paper: each code, the name the paper gives it, the
+// kinds of corner that name says (the short way, sorted; "(3.6)²" is
+// 3.6.3.6, and "3.4.6.5" is the paper's misprint for 3.4.6.4), and how
+// many kinds up to symmetry it says (a power on a kind, like
+// "(3³.4²)²", counts it that many times).
+const PAPER_TABLE = [
+  ["3/m30/r(h2)", "3⁶", "3⁶", 1],
+  ["6/m30/r(h1)", "6³", "6³", 1],
+  ["4/m45/r(h1)", "4⁴", "4⁴", 1],
+  ["12-3/m30/r(h3)", "3.12²", "3.12²", 1],
+  ["6-4-3/m30/r(c2)", "3.4.6.4", "3.4.6.4", 1],
+  ["12-6,4/m30/r(c2)", "4.6.12", "4.6.12", 1],
+  ["6-3-6/m30/r(v4)", "(3.6)²", "3.6.3.6", 1],
+  ["8-4/m90/r(h4)", "4.8²", "4.8²", 1],
+  ["4-3-3,4/r90/r(h2)", "3².4.3.4", "3².4.3.4", 1],
+  ["4-3/m90/r(h2)", "3³.4²", "3³.4²", 1],
+  ["6-3-3/r60/r(h5)", "3⁴.6", "3⁴.6", 1],
+  ["3-4-3/m30/r(c3)", "3⁶; 3².4.3.4", "3².4.3.4; 3⁶", 2],
+  ["6-4-3,3/m30/r(h1)", "3.4.6.4; 3².4.3.4", "3.4.6.4; 3².4.3.4", 2],
+  ["6-4-3-3/m30/r(h5)", "3.4.6.5; 3³.4²", "3.4.6.4; 3³.4²", 2],
+  ["6-4-3,4-6/m30/r(c4)", "3.4.6.4; 3.4².6", "3.4.6.4; 3.4².6", 2],
+  ["12-4,6-3/m30/r(c3)", "4.6.12; 3.4.6.4", "3.4.6.4; 4.6.12", 2],
+  ["12-3,4-3/m30/r(c3)", "3⁶; 3².4.12", "3².4.12; 3⁶", 2],
+  ["12-0,3,3-0,4/m45/m(h1)", "3.12²; 3.4.3.12", "3.12²; 3.4.3.12", 2],
+  ["3-6/m30/r(c2)", "3⁶; 3².6²", "3².6²; 3⁶", 2],
+  ["6-3,3-3/m30/r(h1)", "[3⁶; 3⁴.6]¹", "3⁴.6; 3⁶", 2],
+  ["6-3-3,3-3/r60/r(h8)", "[3⁶; 3⁴.6]²", "3⁴.6; 3⁶", 2],
+  ["6-3/m90/r(h1)", "3².6²; 3⁴.6", "3².6²; 3⁴.6", 2],
+  ["6-3,6/m90/r(h3)", "3.6.3.6; 3².6²", "3.6.3.6; 3².6²", 2],
+  ["6-3,4-6-3,4-6,4/m90/r(c6)", "[3.4².6; 3.6.3.6]¹", "3.4².6; 3.6.3.6", 2],
+  ["6-3,4/m90/r(h4)", "[3.4².6; 3.6.3.6]²", "3.4².6; 3.6.3.6", 2],
+  ["4-3,3-4,3/r90/m(h3)", "[3³.4²; 3².4.3.4]¹", "3².4.3.4; 3³.4²", 2],
+  ["4-3,3,3-4,3/r(c2)/r(h13)/r(h45)", "[3³.4²; 3².4.3.4]²", "3².4.3.4; 3³.4²", 2],
+  ["4-3/m(h4)/m(h3)/r(h2)", "[4⁴; 3³.4²]¹", "3³.4²; 4⁴", 2],
+  ["4-4-3-3/m90/r(h3)", "[4⁴; 3³.4²]²", "3³.4²; 4⁴", 2],
+  ["4-3,4-3,3/m90/r(h3)", "[3⁶; 3³.4²]¹", "3³.4²; 3⁶", 2],
+  ["4-3-3-3/m90/r(h7)/r(h5)", "[3⁶; 3³.4²]²", "3³.4²; 3⁶", 2],
+  ["6-4-3,4-6,3/m30/r(c2)", "(3.4.6.4)²; 3.4².6", "3.4.6.4; 3.4².6", 3],
+  ["6-3-3/m30/r(v3)", "[(3⁶)²; 3⁴.6]¹", "3⁴.6; 3⁶", 3],
+  ["6-3-3-3-0,3/m30/r(v2)", "[(3⁶)²; 3⁴.6]²", "3⁴.6; 3⁶", 3],
+  ["6-3-3,3-3-3-0,3/r60/r(h7)", "[(3⁶)²; 3⁴.6]³", "3⁴.6; 3⁶", 3],
+  ["3-3,3-6/m90/r(h6)", "3⁶; (3⁴.6)²", "3⁴.6; 3⁶", 3],
+  ["3-4-3,3/m30/m(h2)", "3⁶; (3².4.3.4)²", "3².4.3.4; 3⁶", 3],
+  ["4-6,4-4,3,3/m90/r(h4)", "(3.4².6)²; 3.6.3.6", "3.4².6; 3.6.3.6", 3],
+  ["4-6,4-0,3,3/m/r(v1)/r(h25)", "[3.4².6; (3.6.3.6)²]¹", "3.4².6; 3.6.3.6", 3],
+  ["4-6,4-0,3,3/m90/r(v1)", "[3.4².6; (3.6.3.6)²]²", "3.4².6; 3.6.3.6", 3],
+  ["6-3,0,3,3,3,3/r(h4)/r(v15)/r(v30)", "3².6²; (3.6.3.6)²", "3.6.3.6; 3².6²", 3],
+  ["6-3,3-0,3/r/r(v1)/r(h12)", "(3⁴.6)²; 3.6.3.6", "3.6.3.6; 3⁴.6", 3],
+  ["4-4-4-3/m90/r(h4)", "[3³.4²; (4⁴)²]¹", "3³.4²; 4⁴", 3],
+  ["4-4-3/r(h6)/m(h5)/r(h3)", "[3³.4²; (4⁴)²]²", "3³.4²; 4⁴", 3],
+  ["4-4-3-3-4/m90/r(h10)/r(c3)", "[(3³.4²)²; 4⁴]¹", "3³.4²; 4⁴", 3],
+  ["4-3,4-3,3-4/m90/r(h3)", "[(3³.4²)²; 4⁴]²", "3³.4²; 4⁴", 3],
+  ["4-4,3,4-3,3,3-3,4-3-4/r/r(h17)/r(h18)", "(3³.4²)²; 3².4.3.4", "3².4.3.4; 3³.4²", 3],
+  ["4-3,3-0,4,3/r/r(h2)/r(h18)", "3³.4²; (3².4.3.4)²", "3².4.3.4; 3³.4²", 3],
+  ["4-3,0,3-3-3/r(h5)/r(h19)/m(h18)", "[3⁶; (3³.4²)²]¹", "3³.4²; 3⁶", 3],
+  ["4-3,0,3-3/r(h3)/r(h15)/m(h14)", "[3⁶; (3³.4²)²]²", "3³.4²; 3⁶", 3],
+  ["4-3-3-3-3-3/m90/r(h3)", "[(3⁶)²; 3³.4²]¹", "3³.4²; 3⁶", 3],
+  ["4-3-3-3-3/m90/r(h2)/m(h22)", "[(3⁶)²; 3³.4²]²", "3³.4²; 3⁶", 3],
+  ["12-6,4-3,3,4/m30/r(c5)", "3.4².6; 3.6.3.6; 4.6.12", "3.4².6; 3.6.3.6; 4.6.12", 3],
+  ["12-3,4,6-3/m60/m(c5)", "3⁶; 3².4.12; 4.6.12", "3².4.12; 3⁶; 4.6.12", 3],
+  ["6-4-3,12,3-3/m30/r(h2)", "3².4.12; 3.4.6.4; 3.12²", "3.12²; 3.4.6.4; 3².4.12", 3],
+  ["6-4-3,3-12-0,0,0,3/m30/r(c2)", "3.4.3.12; 3.4.6.4; 3.12²", "3.12²; 3.4.3.12; 3.4.6.4", 3],
+  ["12-4,3-6,3-0,0,4/m30/r(h11)", "3³.4²; 3².4.12; 3.4.6.4", "3.4.6.4; 3².4.12; 3³.4²", 3],
+  ["12-3,4-3-3-3/m30/m(h9)", "3⁶; 3³.4²; 3².4.12", "3².4.12; 3³.4²; 3⁶", 3],
+  ["12-3,4-3,3/m30/r(v1)", "3⁶; 3².4.3.4; 3².4.12", "3².4.12; 3².4.3.4; 3⁶", 3],
+  ["6-3-3-4-3,3/m30/r(h10)", "3⁴.6; 3³.4²; 3².4.3.4", "3².4.3.4; 3³.4²; 3⁴.6", 3],
+  ["3-4-3,4-6/m30/r(c5)", "3⁶; 3².4.3.4; 3.4².6", "3.4².6; 3².4.3.4; 3⁶", 3],
+  ["6-4-3,4-3,3/m30/r(c5)", "3⁶; 3³.4²; 3.4.6.4", "3.4.6.4; 3³.4²; 3⁶", 3],
+  ["6-4-3,3-4,3,3-3/r60/r(v5)", "3⁶; 3².4.3.4; 3.4.6.4", "3.4.6.4; 3².4.3.4; 3⁶", 3],
+  ["3-4-3-3/m30/r(h6)", "3⁶; 3³.4²; 3².4.3.4", "3².4.3.4; 3³.4²; 3⁶", 3],
+  ["12-4-3,3/m90/r(h6)", "3².4.12; 3.4.3.12; 3.12²", "3.12²; 3.4.3.12; 3².4.12", 3],
+  ["6-4,3-3,0,4-6/m90/r(v5)", "3.4.6.4; 3.4².6; 4⁴", "3.4.6.4; 3.4².6; 4⁴", 3],
+  ["6-4,3-3,3,4-0,0,6,3/m90/r(h17)/m(h1)", "3².4.3.4; 3.4.6.4; 3.4².6", "3.4.6.4; 3.4².6; 3².4.3.4", 3],
+  ["4-3-3-0,4/r90/r(h3)", "3³.4²; 3².4.3.4; 4⁴", "3².4.3.4; 3³.4²; 4⁴", 3],
+  ["4-4-3,4-6/m/r(c3)/r(h29)", "[3.4².6; 3.6.3.6; 4⁴]¹", "3.4².6; 3.6.3.6; 4⁴", 3],
+  ["4-4,4-3,4-6/m90/r(c5)/r(v1)", "[3.4².6; 3.6.3.6; 4⁴]²", "3.4².6; 3.6.3.6; 4⁴", 3],
+  ["6-3,4-0,4,4-0,4/m90/r(h9)", "[3.4².6; 3.6.3.6; 4⁴]³", "3.4².6; 3.6.3.6; 4⁴", 3],
+  ["6-4,3,3-4/m(h4)/r/r(v15)", "[3.4².6; 3.6.3.6; 4⁴]⁴", "3.4².6; 3.6.3.6; 4⁴", 3],
+  ["4-6-3,0,3,3-0,0,4/m90/r(h4)", "3³.4²; 3².6²; 3.4².6", "3.4².6; 3².6²; 3³.4²", 3],
+  ["4-6,4,3-0,3,3,0,6/m(h2)/m", "[3².6²; 3.4².6; 3.6.3.6]¹", "3.4².6; 3.6.3.6; 3².6²", 3],
+  ["4-6,4-0,3,3/r(h2)/m90/r(c9)", "[3².6²; 3.4².6; 3.6.3.6]²", "3.4².6; 3.6.3.6; 3².6²", 3],
+  ["4-6,4-0,3,3-0,3,3/r/r(c1)/r(h17)", "3⁴.6; 3³.4²; 3.4².6", "3.4².6; 3³.4²; 3⁴.6", 3],
+  ["6-6-3,3,3/r60/r(h2)", "[3².6²; 3.6.3.6; 6³]¹", "3.6.3.6; 3².6²; 6³", 3],
+  ["6-6,6,3-3,3/m//r(h8)/r(h49)", "[3².6²; 3.6.3.6; 6³]²", "3.6.3.6; 3².6²; 6³", 3],
+  ["6-3-3/m/r(h3)/r(h15)", "3⁴.6; 3².6²; 6³", "3².6²; 3⁴.6; 6³", 3],
+  ["3-6/r60/m(c2)", "3⁶; 3².6²; 6³", "3².6²; 3⁶; 6³", 3],
+  ["6-3-3,3-3,3-0,3/r(h7)/r(h29)/r(h29)", "[3⁶; 3⁴.6; 3².6²]¹", "3².6²; 3⁴.6; 3⁶", 3],
+  ["3-3,6-3/m/r(h6)/r(c6)", "[3⁶; 3⁴.6; 3².6²]²", "3².6²; 3⁴.6; 3⁶", 3],
+  ["6-3-3/m90/r(h2)", "[3⁶; 3⁴.6; 3².6²]³", "3².6²; 3⁴.6; 3⁶", 3],
+  ["3-3,3-3,6,3/m90/r(v1)/r(v15)", "[3⁶; 3⁴.6; 3.6.3.6]¹", "3.6.3.6; 3⁴.6; 3⁶", 3],
+  ["3-3-6-0,3/r60/m(c1)", "[3⁶; 3⁴.6; 3.6.3.6]²", "3.6.3.6; 3⁴.6; 3⁶", 3],
+  ["3-3-6/r60/r(v4)", "[3⁶; 3⁴.6; 3.6.3.6]³", "3.6.3.6; 3⁴.6; 3⁶", 3],
+  ["4-4-3-3/m90/r(h7)/r(v1)", "[3⁶; 3³.4²; 4⁴]¹", "3³.4²; 3⁶; 4⁴", 3],
+  ["4-4-3-3-3/m90/r(h9)/r(h3)", "[3⁶; 3³.4²; 4⁴]²", "3³.4²; 3⁶; 4⁴", 3],
+  ["4-4-3-3-3/m(h9)/r(h1)/r(v1)", "[3⁶; 3³.4²; 4⁴]³", "3³.4²; 3⁶; 4⁴", 3],
+  ["4-4-3-3-3/m(h9)/r(h1)/r(h3)", "[3⁶; 3³.4²; 4⁴]⁴", "3³.4²; 3⁶; 4⁴", 3],
+];
+
+// The 7 rows where this site's reader builds a different tiling: the
+// first two are tilings in the menu, which uses other codes for them
+// (TILINGS, js/sim-tilings.js); the last one doesn't repeat at all.
+const PAPER_DISAGREES = [
+  "3⁶; 3².6²", "[3³.4²; 3².4.3.4]²", "(3³.4²)²; 3².4.3.4", "3.4.3.12; 3.4.6.4; 3.12²",
+  "3⁶; 3².4.3.4; 3.4.6.4", "[3⁶; 3⁴.6; 3.6.3.6]¹", "[3².6²; 3.4².6; 3.6.3.6]¹",
+];
+
+function testPaperTable() {
+  const disagree = [];
+  for (const [code, name, corners, k] of PAPER_TABLE) {
+    let ok;
+    try {
+      const block = tilingFromCode(code);
+      ok = cornersBuilt(block).join("; ") === corners && cornerOrbits(block) === k;
+    } catch (error) {
+      ok = false;
+    }
+    if (!ok) disagree.push(name);
+  }
+  const surprises = disagree.filter(function (name) { return !PAPER_DISAGREES.includes(name); })
+    .concat(PAPER_DISAGREES.filter(function (name) { return !disagree.includes(name); }));
+  addRow("Lattices: the paper's table of codes", surprises.length === 0,
+         (PAPER_TABLE.length - disagree.length) + " of " + PAPER_TABLE.length + " codes make the tiling named in the table. " +
+         (surprises.length ? "Different from before: " + surprises.join(", ") + "."
+                           : "The other " + disagree.length + " are the ones known to disagree: " + disagree.join(", ") + "."));
+}
+
+// The boxes and tori the domain test uses: every tiling in the menu,
+// its tiles and its corners, about 8 side lengths each way.
+function menuDomains() {
+  const list = [];
+  for (const tiling of TILINGS) {
+    const block = tilingFromCode(tiling.code);
+    for (const corners of [false, true]) {
+      const upright = uprightBlock(corners ? cornersBlock(block) : block);
+      for (const torus of [false, true]) {
+        list.push({ name: tiling.name + (corners ? ", corners" : ", tiles") + (torus ? ", torus" : ", box"),
+                    d: tilingBox(upright, 8, 8, torus) });
+      }
+    }
+  }
+  return list;
+}
+
+// The area of a polygon from its corners (counterclockwise), by the
+// shoelace formula.
+function shoelace(corners) {
+  let twice = 0;
+  corners.forEach(function (p, k) {
+    const q = corners[(k + 1) % corners.length];
+    twice += p[0] * q[1] - q[0] * p[1];
+  });
+  return twice / 2;
+}
+
+function testTilingDomains() {
+  const near = function (p, q) { return Math.hypot(p[0] - q[0], p[1] - q[1]) < 1e-6; };
+  const problems = [];
+  const domains = menuDomains();
+  for (const { name, d } of domains) {
+    const t = d.tiling;
+    let problem = "";
+    let area = 0;
+    for (let v = 0; v < d.n && !problem; v++) {
+      const corners = cornersOf(d, v), next = t.cells[d.part[v]].next;
+      area += shoelace(corners);
+      if (cellAtPoint(d, ...cellMiddle(d, v)) !== v) problem = "clicking a cell finds another one";
+      if (d.wrap && d.first[v + 1] - d.first[v] !== corners.length) problem = "a cell of the torus has the wrong number of neighbors";
+      next.forEach(function ([k, dI, dJ], e) {
+        const w = d.sides[v][e];
+        if (w === -1) { if (d.wrap) problem = "a side of the torus has nothing across it"; return; }
+        if (!d.sides[w].includes(v)) problem = "a side is shared one way only";
+        // The cell across, where it is next to v (not wrapped around):
+        // it has both ends of the side.
+        const [u, z] = blockStart(d, d.x[v] + dI, d.y[v] + dJ);
+        const across = t.cells[k].corners.map(function (c) { return [c[0] + u, c[1] + z]; });
+        for (const end of [corners[e], corners[(e + 1) % corners.length]]) {
+          if (!across.some(function (c) { return near(c, end); })) problem = "the cell across a side is in the wrong place";
+        }
+      });
+    }
+    if (!problem && d.wrap) {
+      const blocks = (d.wrap.xmax + 1) * (d.wrap.ymax + 1), blockArea = Math.abs(t.a[0] * t.b[1] - t.a[1] * t.b[0]);
+      if (Math.abs(area - blocks * blockArea) > 1e-6 * area) problem = "the cells' areas add up to " + area.toFixed(4) + ", not the torus's " + (blocks * blockArea).toFixed(4);
+    }
+    if (!problem && !d.wrap && (!d.onLeft.includes(1) || !d.onRight.includes(1))) problem = "no cells along the left or right side";
+    if (problem) problems.push(name + ": " + problem);
+  }
+  addRow("Lattices: the boxes and tori", problems.length === 0,
+         problems.length ? problems.join("; ")
+                         : domains.length + " domains (every tiling in the menu; tiles and corners; box and torus): every side is " +
+                           "shared by the two cells it joins, in the right place; each torus is filled exactly; clicking a cell finds it.");
+}
+
+
 runChecksOnClick(function () {
   return [
     function () { testClusters("site"); }, function () { testClusters("bond"); },
@@ -428,5 +769,6 @@ runChecksOnClick(function () {
     function () { testCoupling("site"); }, function () { testCoupling("bond"); },
     testHex, testDuality, testHalf, testClustersPerCell,
     function () { testTreeBall("site", 3, 6, 0.65); }, function () { testTreeBall("bond", 4, 5, 0.4); },
+    testMenuTilings, testMenuPairs, testPaperTable, testTilingDomains,
   ];
 });

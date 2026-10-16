@@ -296,15 +296,19 @@ function drawDiskFrame(dv, pen, height, inside, edge) {
 
 // Add the outline of the cell with motion A to the pen's path (for
 // small cells, every 4th point of it is plenty). "place" (diskToScreen
-// if left out) says where a point of the disk goes.
+// if left out) says where a point of the disk goes. It ends with a
+// line back to its first point, not closePath, which in Chrome gets
+// slower with every closed piece of a path (see paintLattice,
+// js/sim-view.js).
 function traceOutline(dv, pen, A, size, place) {
   const outline = diskShape(dv).outline, every = size < 5 ? 4 : 1;
+  let first = null;
   for (let k = 0; k < outline.length; k += every) {
     const [x, y] = motionApply(A, outline[k][0], outline[k][1]);
     const [sx, sy] = place ? place(x, y) : diskToScreen(dv, x, y);
-    if (k === 0) pen.moveTo(sx, sy); else pen.lineTo(sx, sy);
+    if (k === 0) { pen.moveTo(sx, sy); first = [sx, sy]; } else pen.lineTo(sx, sy);
   }
-  pen.closePath();
+  pen.lineTo(first[0], first[1]);
 }
 
 // Add the lines from the middle of the cell with motion A to the middle
