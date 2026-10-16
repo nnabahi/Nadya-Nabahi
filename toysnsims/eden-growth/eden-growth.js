@@ -303,7 +303,7 @@ const worker = startWorker(mountainWorker,
   [newMountain, newGraphMountain, makeGraph, tilingShape, motionTimes, motionApply, halfTurn, coshFromStart,
    learnedRules, tilingByGeometry, tilingByRules, tilingRules, testRules, hashTable, ballAround, spreadPlace,
    makeRunLoop, newTrace, keepSample, seededUniform, pickSite, newClocks, holeHistory, bettiOverTime,
-   convexHull, polygonArea, convexity]);
+   cellWindow, squareWindow, tilingWindow, convexHull, polygonArea, convexity]);
 
 worker.onmessage = function (event) {
   const message = event.data;

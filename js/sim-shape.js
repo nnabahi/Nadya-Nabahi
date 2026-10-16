@@ -14,9 +14,13 @@
                                holding some points
      polygonArea(corners)      a polygon's area ...
      polygonPerimeter(corners) ... and the length around it
-     holeHistory(...)          the holes of a set of square cells, with
-                               the step each one opened and closed
+     holeHistory(set, now)     the holes of a set of cells (squares, or
+                               any tiling's cells), with the step each
+                               one opened and closed
      bettiOverTime(holes, times)   the number of holes at given steps
+     frontierLength(set)       the length of the set's outer boundary
+     cellWindow(...)           the cells around a set that these two
+                               look at (squareWindow, tilingWindow)
    ===================================================================== */
 
 
@@ -72,12 +76,15 @@ function polygonPerimeter(corners) {
 /* =====================================================================
    THE HOLES OF A SET OF CELLS, OVER TIME
    ---------------------------------------------------------------------
-   The set K is a union of unit squares (cells) that only grows: cell i
-   joins it at step bornAt[i]. The holes of K are the bounded pieces of
-   the plane outside K: groups of empty cells joined side to side (cells
-   meeting only at a corner are apart, since K holds that corner) that
-   can't reach far away. Their number is the first Betti number
-   beta_1(K).
+   The set K is a union of closed cells that only grows: cell i joins it
+   at step bornAt[i]. The cells are unit squares, or the polygons of
+   any tiling by regular polygons (js/sim-tilings.js; its tiles, or its
+   corners drawn as the polygons around them). The holes of K are the
+   bounded pieces of the plane outside K: groups of empty cells joined
+   side to side that can't reach far away. (Cells meeting only at a
+   corner don't need joining: if K misses that corner, every cell
+   around it is empty, and they are joined side to side around it.)
+   Their number is the first Betti number beta_1(K).
 
    A hole is born at the step that closes it off, or that splits an
    older hole in two, and dies at the step that fills its last cell. At
@@ -98,38 +105,37 @@ function polygonPerimeter(corners) {
        the others was born at that step.
    Every group carries the step it dies at. Groups that are still holes
    now die "later than now", and the outside later than everything.
+
+   Both this and the outer boundary (frontierLength) look at a finite
+   "window" of cells around K, whose outermost cells are far enough
+   from K to join the outside (cellWindow, below).
    ===================================================================== */
 
-// The holes of the cells given by siteX, siteY and bornAt (the step
-// each cell joined; a cell with no bornAt, or a negative one, isn't in
-// the set, and cells with bornAt 0 were there from the start). "now" is
-// the step the run is at. Returns
+// The holes of a set of cells. "set" has, for each cell i, siteX[i]
+// and siteY[i] (a square's x and y), and bornAt[i] (the step it joined;
+// a cell with no bornAt, or a negative one, isn't in the set, and cells
+// with bornAt 0 were there from the start). On another tiling it also
+// has "tiling" (the tiling's repeating block, uprightBlock in
+// js/sim-tilings.js), and cell i is cell siteZ[i] of block (siteX[i],
+// siteY[i]). "now" is the step the run is at. Returns
 //   births, deaths   one entry per hole that has died: born at step
 //                    births[k], died at step deaths[k]
 //   openBirths       the birth step of each hole still open now
 //   holeCells        the cells of the holes now, as x0, y0, x1, y1, ...
+//                    (on another tiling x0, y0, z0, x1, y1, z1, ...)
 //   holeSizes        how many cells each hole has now
 // beta_1 at step t is (births and openBirths up to t) - (deaths up to t).
-function holeHistory(siteX, siteY, bornAt, now) {
-  // The box around the set, one cell bigger all round, so its edge is
-  // outside the set and joins the outside.
-  let xmin = Infinity, xmax = -Infinity, ymin = Infinity, ymax = -Infinity;
+function holeHistory(set, now) {
   const inside = [];
-  for (let i = 0; i < siteX.length; i++) {
-    if (!(bornAt[i] >= 0)) continue;
-    inside.push(i);
-    xmin = Math.min(xmin, siteX[i]); xmax = Math.max(xmax, siteX[i]);
-    ymin = Math.min(ymin, siteY[i]); ymax = Math.max(ymax, siteY[i]);
-  }
+  for (let i = 0; i < set.siteX.length; i++) if (set.bornAt[i] >= 0) inside.push(i);
   const result = { births: [], deaths: [], openBirths: [], holeCells: [], holeSizes: [] };
   if (inside.length === 0) return result;
-  xmin -= 1; xmax += 1; ymin -= 1; ymax += 1;
-  const across = xmax - xmin + 1, down = ymax - ymin + 1;
-  const count = across * down, OUTSIDE = count;   // cell number y * across + x, and one more for the outside
+  const window = cellWindow(set, inside);
+  const count = window.count, OUTSIDE = count;   // the window's cells, and one more for the outside
 
   // The step each cell was filled (-1 = empty now).
   const filledAt = new Float64Array(count).fill(-1);
-  for (const i of inside) filledAt[(siteY[i] - ymin) * across + (siteX[i] - xmin)] = bornAt[i];
+  for (const i of inside) filledAt[window.cellOf(i)] = set.bornAt[i];
 
   // The union-find. leader[c] points toward the cell that speaks for
   // c's group; diesAt[leader] is when that group dies (forwards).
@@ -149,17 +155,13 @@ function holeHistory(siteX, siteY, bornAt, now) {
     if (diesAt[a] < diesAt[b]) leader[a] = b; else leader[b] = a;
   }
 
-  // Now: the empty cells, joined side to side, and the box's edge
-  // joined to the outside.
-  for (let y = 0; y < down; y++) {
-    for (let x = 0; x < across; x++) {
-      const c = y * across + x;
-      if (filledAt[c] >= 0) continue;
-      diesAt[c] = LATER;
-      if (x === 0 || y === 0 || x === across - 1 || y === down - 1) join(c, OUTSIDE);
-      if (x > 0 && filledAt[c - 1] < 0) join(c, c - 1);
-      if (y > 0 && filledAt[c - across] < 0) join(c, c - across);
-    }
+  // Now: the empty cells, joined to their empty neighbors, and the
+  // window's edge joined to the outside.
+  for (let c = 0; c < count; c++) {
+    if (filledAt[c] >= 0) continue;
+    diesAt[c] = LATER;
+    if (window.onEdge(c)) join(c, OUTSIDE);
+    for (const n of window.neighbors(c)) if (filledAt[n] < 0) join(c, n);
   }
   const outside = find(OUTSIDE);
   const sizeOf = new Map();     // a hole's leader -> how many cells it has
@@ -167,21 +169,21 @@ function holeHistory(siteX, siteY, bornAt, now) {
     if (filledAt[c] >= 0) continue;
     const g = find(c);
     if (g === outside) continue;
-    result.holeCells.push(c % across + xmin, Math.floor(c / across) + ymin);
+    result.holeCells.push(...window.siteOf(c));
     sizeOf.set(g, (sizeOf.get(g) || 0) + 1);
   }
   result.holeSizes = Array.from(sizeOf.values());
 
   // Backwards: take the cells away, last-born first (the cells there
   // from the start, born at step 0, stay).
-  const order = inside.filter(function (i) { return bornAt[i] > 0; });
-  order.sort(function (i, j) { return bornAt[j] - bornAt[i]; });
+  const order = inside.filter(function (i) { return set.bornAt[i] > 0; });
+  order.sort(function (i, j) { return set.bornAt[j] - set.bornAt[i]; });
   for (const i of order) {
-    const x = siteX[i] - xmin, y = siteY[i] - ymin, c = y * across + x, step = bornAt[i];
+    const c = window.cellOf(i), step = set.bornAt[i];
     filledAt[c] = -1;
     // The groups of its empty neighbors (each once).
     const groups = [];
-    for (const n of [c - 1, c + 1, c - across, c + across]) {
+    for (const n of window.neighbors(c)) {
       if (filledAt[n] >= 0) continue;
       const g = find(n);
       if (!groups.includes(g)) groups.push(g);
@@ -203,6 +205,122 @@ function holeHistory(siteX, siteY, bornAt, now) {
     for (const g of groups) join(c, g);
   }
   return result;
+}
+
+// The length of the outer boundary of a set of cells ("set" as in
+// holeHistory, without bornAt: every cell is in it): the number of
+// sides between a cell of the set and an empty cell that can reach far
+// away (not in a hole). It is the perimeter of the set with its holes
+// filled in, in side lengths. Found by a flood fill of the empty cells
+// from the window's edge.
+function frontierLength(set) {
+  const inside = [];
+  for (let i = 0; i < set.siteX.length; i++) inside.push(i);
+  const window = cellWindow(set, inside);
+  // 1 = in the set, 2 = empty and reached from outside, 0 = not yet reached.
+  const state = new Uint8Array(window.count);
+  for (const i of inside) state[window.cellOf(i)] = 1;
+  const todo = [];
+  for (let c = 0; c < window.count; c++) if (window.onEdge(c)) { state[c] = 2; todo.push(c); }
+  let sides = 0;
+  while (todo.length > 0) {
+    for (const n of window.neighbors(todo.pop())) {
+      if (state[n] === 1) sides++;
+      else if (state[n] === 0) { state[n] = 2; todo.push(n); }
+    }
+  }
+  return sides;
+}
+
+// The window of cells around the cells "inside" of a set (as in
+// holeHistory): the box of squares around them, one square bigger all
+// round, or on another tiling the box of blocks around them, a few
+// blocks bigger all round. Its cells are numbered 0 .. count-1, and it
+// says
+//   cellOf(i)      the window's number for cell i of the set
+//   siteOf(c)      which cell window cell c is, as [x, y] (on another
+//                  tiling [x, y, z], as the set has them)
+//   onEdge(c)      is c on the window's edge? Those cells are empty and
+//                  can reach far away.
+//   neighbors(c)   c's neighbors across its sides, those in the window
+function cellWindow(set, inside) {
+  return set.tiling ? tilingWindow(set, inside) : squareWindow(set, inside);
+}
+
+// The window of squares: the box around the set, one square bigger all
+// round, so its edge is outside the set. Square (x, y) is number
+// (y - ymin) * across + (x - xmin).
+function squareWindow(set, inside) {
+  let xmin = Infinity, xmax = -Infinity, ymin = Infinity, ymax = -Infinity;
+  for (const i of inside) {
+    xmin = Math.min(xmin, set.siteX[i]); xmax = Math.max(xmax, set.siteX[i]);
+    ymin = Math.min(ymin, set.siteY[i]); ymax = Math.max(ymax, set.siteY[i]);
+  }
+  xmin -= 1; xmax += 1; ymin -= 1; ymax += 1;
+  const across = xmax - xmin + 1, down = ymax - ymin + 1, count = across * down;
+  return {
+    count: count,
+    cellOf: function (i) { return (set.siteY[i] - ymin) * across + (set.siteX[i] - xmin); },
+    siteOf: function (c) { return [c % across + xmin, Math.floor(c / across) + ymin]; },
+    onEdge: function (c) {
+      const x = c % across, y = Math.floor(c / across);
+      return x === 0 || y === 0 || x === across - 1 || y === down - 1;
+    },
+    neighbors: function (c) {
+      const x = c % across, list = [];
+      if (x > 0) list.push(c - 1);
+      if (x < across - 1) list.push(c + 1);
+      if (c >= across) list.push(c - across);
+      if (c + across < count) list.push(c + across);
+      return list;
+    },
+  };
+}
+
+// The window of another tiling's cells: whole blocks, around the set's
+// blocks with "margin" more blocks all round. A cell's neighbors are at
+// most "reach" blocks away (each cell's list "next" says which), so with
+// a margin of reach + 1, the cells of the outermost blocks and all
+// their neighbors are empty, and reach far away through empty blocks.
+// Cell z of block (x, y) is number
+//   ((y - ymin) * across + (x - xmin)) * parts + z.
+function tilingWindow(set, inside) {
+  const cells = set.tiling.cells, parts = cells.length;
+  let reach = 1;
+  for (const cell of cells) for (const [, dx, dy] of cell.next) reach = Math.max(reach, Math.abs(dx), Math.abs(dy));
+  const margin = reach + 1;
+  let xmin = Infinity, xmax = -Infinity, ymin = Infinity, ymax = -Infinity;
+  for (const i of inside) {
+    xmin = Math.min(xmin, set.siteX[i]); xmax = Math.max(xmax, set.siteX[i]);
+    ymin = Math.min(ymin, set.siteY[i]); ymax = Math.max(ymax, set.siteY[i]);
+  }
+  xmin -= margin; xmax += margin; ymin -= margin; ymax += margin;
+  const across = xmax - xmin + 1, up = ymax - ymin + 1;
+  // The window's number for cell z of the window's block (i, j), or -1
+  // if that block isn't in the window.
+  const numberOf = function (i, j, z) {
+    return i < 0 || j < 0 || i >= across || j >= up ? -1 : (j * across + i) * parts + z;
+  };
+  return {
+    count: across * up * parts,
+    cellOf: function (i) { return numberOf(set.siteX[i] - xmin, set.siteY[i] - ymin, set.siteZ[i]); },
+    siteOf: function (c) {
+      const block = Math.floor(c / parts);
+      return [block % across + xmin, Math.floor(block / across) + ymin, c % parts];
+    },
+    onEdge: function (c) {
+      const block = Math.floor(c / parts), i = block % across, j = Math.floor(block / across);
+      return i === 0 || j === 0 || i === across - 1 || j === up - 1;
+    },
+    neighbors: function (c) {
+      const block = Math.floor(c / parts), i = block % across, j = Math.floor(block / across), list = [];
+      for (const [z, dx, dy] of cells[c % parts].next) {
+        const n = numberOf(i + dx, j + dy, z);
+        if (n >= 0) list.push(n);
+      }
+      return list;
+    },
+  };
 }
 
 // beta_1, the number of holes, at each of the steps "times" (in order),

@@ -620,7 +620,7 @@ function checkHolesByHand() {
     }
   }
   for (const [i, j] of [[2, 1], [1, 1], [3, 1]]) { x.push(i); y.push(j); born.push(born.length); }
-  const h = holeHistory(x, y, born, 14);
+  const h = holeHistory({ siteX: x, siteY: y, bornAt: born }, 14);
   const pairs = h.births.map(function (b, k) { return "(" + b + ", " + h.deaths[k] + ")"; }).sort().join(" ");
   return pairs === "(10, 14) (12, 13)" && h.openBirths.length === 0 ? "" : "got " + pairs;
 }
@@ -642,7 +642,7 @@ function checkHoles(options, steps) {
     m.step();
     counted.push(holesOf(m));
   }
-  const h = holeHistory(m.siteX, m.siteY, m.bornAt, m.steps);
+  const h = holeHistory(m, m.steps);
   const births = h.births.concat(h.openBirths);
   for (let t = 0; t < counted.length; t++) {
     const beta = births.filter(function (b) { return b <= t; }).length - h.deaths.filter(function (d) { return d <= t; }).length;

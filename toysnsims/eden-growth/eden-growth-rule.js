@@ -738,7 +738,7 @@ function mountainWorker() {
   function addHoles(message) {
     const m = mountain, now = performance.now();
     if (holesStep !== m.steps && (!loop.playing || now >= holesFree)) {
-      holes = holeHistory(m.siteX, m.siteY, m.bornAt, m.steps);
+      holes = holeHistory(m, m.steps);
       holesStep = m.steps;
       holesFree = now + 4 * (performance.now() - now);
     }
