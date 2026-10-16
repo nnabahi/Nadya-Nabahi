@@ -100,6 +100,25 @@
           Size <input type="number" id="set-width" min="2" step="1">
           &times; <input type="number" id="set-height" min="2" step="1">
         </div>
+        <!-- The lattice: the square grid, or any tiling by regular
+             polygons, from the menu or typed as a code (GomJau-Hogg
+             notation), with its tiles or its corners as the cells
+             (js/sim-controls.js reads these ids). -->
+        <div id="lattice-rows">
+          <div class="option-row">
+            Lattice <select id="set-tiling"></select>
+          </div>
+          <div class="option-row">
+            Code <input type="text" class="tiling-code" id="tiling-code" spellcheck="false" autocomplete="off">
+            <a class="small" href="../../help/gomjau-hogg.html">how codes work</a>
+          </div>
+          <p class="muted small tiling-message" id="tiling-message"></p>
+          <div class="option-row" id="cells-row">
+            Cells are the
+            <label><input type="radio" name="cells-are" value="tiles" checked> tiles</label>
+            <label><input type="radio" name="cells-are" value="corners"> corners</label>
+          </div>
+        </div>
         <div class="option-row" id="neighbors-row">
           Neighbors
           <select id="set-neighbors">
@@ -258,7 +277,7 @@
         <p>
           <strong>The model.</strong> The domain is a graph
           <span class="tex">G = (V, E)</span>: the cells, joined to their 4 or
-          8 neighbors. A configuration is
+          8 neighbors (on other lattices, see below). A configuration is
           <span class="tex">\omega \in \{0,1\}^V</span>, with
           <span class="tex">\omega(v) = 1</span> meaning cell
           <span class="tex">v</span> is open. Under
@@ -322,6 +341,43 @@
           cluster wraps all the way around, found as in [2]: each cell
           remembers where it sits in the unwrapped plane, and a cluster wraps
           when two of its cells meet across an edge in different copies.
+        </p>
+        <p>
+          <strong>Other lattices.</strong> The Lattice menu puts the cells on
+          a tiling of the plane by regular polygons with sides of length 1
+          that repeats in two directions: the 11 where every corner looks
+          the same, the 20 with two kinds of corner [13, Sections 2.1 and
+          2.2], or any tiling typed as a code in GomJau-Hogg notation [14]
+          (see <a href="../../help/gomjau-hogg.html">how codes work</a>). The
+          cells are either the tiles, neighbors when they share a side, or the
+          corners, neighbors when a side joins them. These two graphs are dual
+          to each other: the tiles of triangles and the corners of hexagons
+          make the same graph (the honeycomb), and so do the tiles of hexagons
+          and the corners of triangles (the triangular lattice). A box is
+          the cells whose middles (or corners) lie in a rectangle, its sides
+          in side lengths, and a cluster crosses when it touches the cells
+          along the box's left and right sides. A torus is a whole number of
+          the tiling's repeating blocks each way.
+        </p>
+        <p>
+          Three more critical points are known exactly, and the dashed line
+          shows them. On the triangular lattice
+          <span class="tex">p_c = 1/2</span> [5, 6]. On the corners of the
+          kagome tiling (3.6.3.6),
+          <span class="tex">p_c = 1 - 2\sin(\pi/18) \approx 0.6527</span>:
+          its corners are the middles of the honeycomb's sides, two of them
+          neighbors when their sides meet, so an open corner is an open edge
+          of the honeycomb, and this is bond percolation on the honeycomb
+          [5, 11]. On the corners of the truncated hexagonal tiling
+          (3.12&sup2;),
+          <span class="tex">p_c = \sqrt{1 - 2\sin(\pi/18)} \approx 0.8079</span>
+          [12]: shrink each triangle to a point and the tiling becomes the
+          honeycomb; the open corners of a triangle are all joined, and the
+          side between two triangles joins them when both its ends are open,
+          which has probability <span class="tex">p^2</span>, independently
+          for each such side. So this is bond percolation on the honeycomb at
+          <span class="tex">p^2</span>. For every other tiling only
+          numerical estimates are known [12], and no dashed line is drawn.
         </p>
         <p>
           <strong>Hyperbolic plane or tree.</strong> Here
@@ -396,6 +452,19 @@
           <li>I. Benjamini, O. Schramm, &ldquo;Percolation in the hyperbolic
             plane&rdquo;, <em>J. Amer. Math. Soc.</em> 14 (2001),
             487&ndash;507.</li>
+          <li>J. C. Wierman, &ldquo;Bond percolation on honeycomb and
+            triangular lattices&rdquo;, <em>Adv. Appl. Probab.</em> 13 (1981),
+            298&ndash;313.</li>
+          <li>P. N. Suding, R. M. Ziff, &ldquo;Site percolation thresholds for
+            Archimedean lattices&rdquo;, <em>Phys. Rev. E</em> 60 (1999),
+            275&ndash;283.</li>
+          <li>B. Gr&uuml;nbaum, G. C. Shephard, <em>Tilings and Patterns</em>,
+            W. H. Freeman, 1987.</li>
+          <li>V. G&oacute;mez-Jauregui, H. Hogg, C. Manchado, C. Otero,
+            &ldquo;GomJau-Hogg's notation for automatic generation of
+            k-uniform tessellations with ANTWERP v3.0&rdquo;,
+            <em>Symmetry</em> 13 (2021), 2376.
+            <a href="https://doi.org/10.3390/sym13122376">doi:10.3390/sym13122376</a></li>
         </ol>
         </div>
       </section>
@@ -423,6 +492,7 @@
   <script src="../../js/sim-view.js"></script>
   <script src="../../js/sim-graphs.js"></script>
   <script src="../../js/sim-hyperbolic.js"></script>
+  <script src="../../js/sim-tilings.js"></script>
   <script src="../../js/sim-controls.js"></script>
   <script src="percolation-clusters.js"></script>
   <script src="percolation.js"></script>

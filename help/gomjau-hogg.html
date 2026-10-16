@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GomJau-Hogg Notation — Toys n' Sims</title>
+  <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+
+  <!-- A help page: how to write a tiling as a GomJau-Hogg code, for the
+       code box under a sim's Lattice menu. The "Try a code" box is
+       gomjau-hogg.js; the reading itself is js/sim-tilings.js, the same
+       code the sims use. -->
+  <header class="topbar">
+    <nav>
+      <a href="../about.html">About Me</a>
+      <a href="../resume.html">Resume</a>
+      <a href="../index.html">Home</a>
+      <a href="../publications.html">Publications</a>
+      <a href="../toysnsims.html" class="active">Toys n' Sims</a>
+    </nav>
+  </header>
+
+  <main class="page help-page">
+    <p><a href="../toysnsims.html">&larr; All sims</a></p>
+    <h1>GomJau-Hogg Notation</h1>
+    <p>
+      A GomJau-Hogg code is one short line of text that describes a tiling
+      of the plane by regular polygons, like <code>6-4-3/m30/r(c2)</code>
+      for the tiling of hexagons, squares and triangles. The sims with a
+      Lattice menu (<a href="../toysnsims/percolation/site-percolation.html">Site
+      Percolation</a> and <a href="../toysnsims/percolation/bond-percolation.html">Bond
+      Percolation</a>) take any code in the box under the menu, so they
+      can run on any tiling you can write down. The notation is by
+      G&oacute;mez-Jauregui, Hogg, Manchado and Otero [1]; the code that
+      reads it here is this site's own, written from their paper.
+    </p>
+
+    <!-- Try a code: the box, the examples, the two pictures. -->
+    <section class="card help-try">
+      <h2>Try a code</h2>
+      <div class="option-row">
+        Code <input type="text" class="tiling-code" id="code" spellcheck="false" autocomplete="off">
+        <select id="examples"><option value="">Examples</option></select>
+      </div>
+      <p class="muted small tiling-message" id="message"></p>
+      <div class="help-pictures">
+        <figure>
+          <figcaption>Step by step</figcaption>
+          <canvas id="step-picture"></canvas>
+          <div class="option-row">
+            <button class="tool-button" id="step-back">&larr;</button>
+            <button class="tool-button" id="step-on">&rarr;</button>
+            <span id="step-label"></span>
+          </div>
+          <div class="option-row">
+            Number the points the next move can use:
+            <label><input type="radio" name="points" value="c"> c</label>
+            <label><input type="radio" name="points" value="v"> v</label>
+            <label><input type="radio" name="points" value="h" checked> h</label>
+            <label><input type="radio" name="points" value="none"> none</label>
+          </div>
+        </figure>
+        <figure>
+          <figcaption>The tiling</figcaption>
+          <canvas id="tiling-picture"></canvas>
+          <p class="muted small">
+            The + marks the middle of the plane. Colors: triangles,
+            squares, hexagons, octagons and 12-gons.
+          </p>
+        </figure>
+      </div>
+    </section>
+
+    <h2>How a code reads</h2>
+    <p>
+      A code is pieces separated by slashes. The first piece places a few
+      polygons; each piece after it is a <strong>move</strong> that copies
+      everything so far somewhere else. Then the moves are done again and
+      again, forever, and the polygons fill the plane. Every polygon has
+      sides of length 1, and it can have 3, 4, 6, 8 or 12 sides, the only
+      regular polygons that appear in tilings like these [2, Section 2.1].
+    </p>
+    <p>
+      Take <code>6-4-3/m30/r(c2)</code>. Step through it in the box above
+      with the arrows.
+    </p>
+    <ol>
+      <li><code>6-4-3</code>: a hexagon in the middle, a square on one of
+        its sides, and a triangle on one of the square's sides.</li>
+      <li><code>m30</code>: mirror all of that across lines through the
+        middle of the plane, 30 degrees apart. Now there is a hexagon
+        ringed by squares and triangles.</li>
+      <li><code>r(c2)</code>: a half turn around point c2, the middle of a
+        polygon. This puts a copy of the ring next to the first one.</li>
+    </ol>
+    <p>Repeating the two moves forever fills the plane.</p>
+
+    <h3>1. The polygons</h3>
+    <ul>
+      <li>
+        The first number is the polygon in the middle. It sits with two of
+        its sides upright, its middle at the middle of the plane. (A
+        triangle instead has its left side upright, going up from the
+        middle of the plane, and points right.)
+      </li>
+      <li>
+        Each dash starts a new <strong>phase</strong> (the polygon in the
+        middle is phase 1). Its polygons go on the
+        <strong>free sides</strong> of the polygons placed in the phase
+        before (sides no other polygon has yet), one polygon per side,
+        taking the sides in order going clockwise from straight up.
+        Polygons in one phase are separated by commas:
+        <code>4-3,3</code> is a square with triangles on its first two
+        free sides.
+      </li>
+      <li>
+        A <code>0</code> skips a free side: <code>4-0,3</code> puts the
+        triangle on the square's second free side.
+      </li>
+    </ul>
+
+    <h3>2. The moves</h3>
+    <table class="check-table">
+      <tbody>
+        <tr><th>Move</th><th>What it does</th></tr>
+        <tr><td><code>r60</code></td><td>Turn everything around the middle of the plane by 60
+          degrees, then 120, then 240 (doubling while under 360), keeping
+          every copy. The angle can be 30, 45, 60, 90, 120 or 180; plain
+          <code>r</code> is <code>r180</code>.</td></tr>
+        <tr><td><code>m30</code></td><td>The same with mirrors: mirror across the line through the
+          middle 30 degrees clockwise from straight up, then 60, then 120,
+          then 240.</td></tr>
+        <tr><td><code>r(h2)</code></td><td>A half turn around a point: here h2, the 2nd middle of a side.</td></tr>
+        <tr><td><code>m(h2)</code></td><td>A mirror through a point. Through the middle of a side, the
+          mirror runs along the side. Through a corner or the middle of a
+          polygon, it runs at right angles to the line from the middle of
+          the plane.</td></tr>
+      </tbody>
+    </table>
+    <p>
+      The points are of three kinds: <strong>c</strong> for the middle of a
+      polygon (its centroid), <strong>v</strong> for a corner (a vertex),
+      and <strong>h</strong> for the middle of a side (a half-way point).
+      Each kind is numbered from 1, going clockwise from straight up, and
+      at the same angle the nearer point comes first; the middle of the
+      plane itself doesn't count. The numbers are worked out again before
+      each move, from everything placed so far. That is what the "Step by
+      step" picture shows: the points numbered there are the ones the next
+      move can use.
+    </p>
+
+    <h3>3. Forever</h3>
+    <p>
+      After the last move, all the moves are done again, in order, and
+      again, forever. The tiling is everything the moves carry the first
+      polygons to. If the copies land on top of each other, or leave gaps
+      that no copy fills, the code isn't a tiling, and the line under the
+      code box says what went wrong.
+    </p>
+
+    <h2>Tips</h2>
+    <ul>
+      <li>
+        Build a code a piece at a time: type the polygons, look at the
+        numbered points, add a move, and so on. The examples menu has a
+        code for each tiling in the sims' Lattice menu.
+      </li>
+      <li>
+        A tiling has many codes. Turns and mirrors around the middle
+        (like <code>m30</code>) usually come first, then moves around
+        points (like <code>r(h2)</code>) that carry copies away from the
+        middle.
+      </li>
+      <li>
+        If the line under the box says the code "doesn't repeat", the
+        moves only spin things around a point and never move them
+        away: add a move around a point further out.
+      </li>
+    </ul>
+
+    <h2>Where this comes from</h2>
+    <p>
+      The paper [1] lists codes for 90 tilings in its Table 1. This site's
+      reader follows the paper's rules, and where the paper doesn't say
+      exactly what to do (which of two sides at the same angle comes
+      first, say), it does what the authors' own program, ANTWERP, does.
+      For two of the tilings in the Lattice menu the reader builds a
+      different tiling from the code in the paper's table, so the menu
+      uses other codes for those. The Percolation
+      <a href="../toysnsims/percolation/percolation-check.html">check page</a>
+      builds every code in the menu and in the paper's table and checks
+      the kinds of corner each one has.
+    </p>
+    <ol class="references">
+      <li>V. G&oacute;mez-Jauregui, H. Hogg, C. Manchado, C. Otero,
+        &ldquo;GomJau-Hogg's notation for automatic generation of k-uniform
+        tessellations with ANTWERP v3.0&rdquo;, <em>Symmetry</em> 13
+        (2021), 2376.
+        <a href="https://doi.org/10.3390/sym13122376">doi:10.3390/sym13122376</a></li>
+      <li>B. Gr&uuml;nbaum, G. C. Shephard, <em>Tilings and Patterns</em>,
+        W. H. Freeman, 1987.</li>
+    </ol>
+  </main>
+
+  <!-- byId and checked, the tilings, then the "Try a code" box. -->
+  <script src="../js/sim-page.js"></script>
+  <script src="../js/sim-tilings.js"></script>
+  <script src="gomjau-hogg.js"></script>
+</body>
+</html>

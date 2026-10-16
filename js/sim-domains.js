@@ -18,7 +18,9 @@
                 cell sits at each place in it (-1 = none), for drawing
      ids[v]     for a drawn domain, the graph tool's name "x,y" of cell v
      lattice    "triangle" or "hexagon" for the domains of section 2
-                below; left out for squares
+                below, "tiling" for a tiling's (then also tiling, part,
+                index, sides, onLeft and onRight: see tilingBox); left
+                out for squares
 
    OTHER LATTICES (at the end of this file). Besides squares, a domain's cells can be
    triangles or hexagons, all with sides of length 1. Their cells still
@@ -33,8 +35,12 @@
      hexagons    hexagon (x, y) has its middle at (x + 1/2, y*h) in odd
                  rows and (x, y*h) in even ones (each odd row is shifted
                  half a hexagon to the right), with 6 neighbors.
-   cellCorners gives a cell's corners, and cellAtPoint the cell at a
-   point of the picture.
+   The cells can also be the tiles, or the corners, of any tiling by
+   regular polygons (js/sim-tilings.js reads it from its code): then
+   (x, y) is the block of the tiling the cell is in, as the last part of
+   this file explains.
+   cornersOf (cellCorners for triangles and hexagons) gives a cell's
+   corners, and cellAtPoint the cell at a point of the picture.
 
    Contents:
      wrap(v, lo, hi)          wrap a whole number around, for tori
@@ -43,8 +49,11 @@
      aztecDiamond(N)          the Aztec diamond of order N
      latticeBox(...)          a box or torus of triangles or hexagons
      triangleHexagon(N)       a hexagon of side N, cut into triangles
+     tilingBox(...)           a box or torus of a tiling's cells
+     cornersOf(d, v)          the corners of a cell that is a polygon
      cellCorners(...)         the corners of a triangle or hexagon cell
      pictureBox(d)            the box around the domain's picture
+     torusSteps(d)            the steps by which a torus's picture repeats
      cellAtPoint(d, u, w)     which cell is at the point (u, w) of the picture
      drawnDomain(...)         a region drawn in the graph tool
      makeDomain(...)          a domain from its cells and edges (the
@@ -339,9 +348,14 @@ function cellCorners(lattice, x, y) {
   return corners;
 }
 
-// The middle of cell v of domain d, in the picture.
+// The middle of cell v of domain d, in the picture. (For the corners
+// of a tiling, the corner itself.)
 function cellMiddle(d, v) {
   if (!d.lattice) return [d.x[v], d.y[v]];
+  if (d.lattice === "tiling") {
+    const [u, w] = blockStart(d, d.x[v], d.y[v]), middle = d.tiling.cells[d.part[v]].middle;
+    return [middle[0] + u, middle[1] + w];
+  }
   const corners = cellCorners(d.lattice, d.x[v], d.y[v]);
   let u = 0, w = 0;
   for (const c of corners) { u += c[0]; w += c[1]; }
@@ -355,9 +369,16 @@ function cellMiddle(d, v) {
 function pictureBox(d) {
   if (!d.lattice) return { left: d.xmin - 0.5, right: d.xmax + 0.5, bottom: d.ymin - 0.5, top: d.ymax + 0.5 };
   if (d.pictureBox) return d.pictureBox;
+  if (d.lattice === "tiling" && d.wrap) {
+    // One copy of the torus: its blocks across and up (for a tiling
+    // whose blocks are slanted, the copies above are shifted sideways:
+    // torusSteps).
+    d.pictureBox = { left: 0, right: blockStart(d, d.wrap.xmax + 1, 0)[0], bottom: 0, top: blockStart(d, 0, d.wrap.ymax + 1)[1] };
+    return d.pictureBox;
+  }
   let left = Infinity, right = -Infinity, bottom = Infinity, top = -Infinity;
   for (let v = 0; v < d.n; v++) {
-    for (const [u, w] of cellCorners(d.lattice, d.x[v], d.y[v])) {
+    for (const [u, w] of cornersOf(d, v)) {
       left = Math.min(left, u); right = Math.max(right, u);
       bottom = Math.min(bottom, w); top = Math.max(top, w);
     }
@@ -374,12 +395,21 @@ function pictureBox(d) {
   return d.pictureBox;
 }
 
+// The two steps by which the picture of a torus repeats: across, and up
+// (up is slanted for a tiling with slanted blocks).
+function torusSteps(d) {
+  if (d.lattice === "tiling") return [blockStart(d, d.wrap.xmax + 1, 0), blockStart(d, 0, d.wrap.ymax + 1)];
+  const box = pictureBox(d);
+  return [[box.right - box.left, 0], [0, box.top - box.bottom]];
+}
+
 // Which cell of domain d has the point (u, w) of the picture in it, or
 // -1 if none. For squares, the nearest grid point. For the other
 // lattices, the cells around the point are tried, and the one whose
 // corners go around it wins.
 function cellAtPoint(d, u, w) {
   if (!d.lattice) return cellAt(d, Math.round(u), Math.round(w));
+  if (d.lattice === "tiling") return tilingCellAt(d, u, w);
   const row = Math.floor(w / ROW_HEIGHT + (d.lattice === "hexagon" ? 0.5 : 0));
   const across = d.lattice === "triangle" ? Math.round(2 * u) : Math.round(u);
   for (let y = row - 1; y <= row + 1; y++) {
@@ -404,4 +434,114 @@ function pointInCell(corners, u, w) {
     }
   }
   return true;
+}
+
+
+/* ---------------------------------------------------------------------
+   Tilings: any tiling by regular polygons (js/sim-tilings.js)
+   ---------------------------------------------------------------------
+   The tiling comes as its block from uprightBlock (js/sim-tilings.js):
+   blocks sit at I a + J b for whole numbers I, J, and each has the same
+   cells, cell k of block (I, J) being d.part[v] = k with d.x[v] = I and
+   d.y[v] = J. Then a torus wraps I and J around, just as x and y wrap
+   on a torus of squares.
+   --------------------------------------------------------------------- */
+
+// A box or torus of a tiling's cells. A box is the cells whose middles
+// are in the rectangle 0 <= u < width, 0 <= w < height (in side
+// lengths). A torus is a whole number of blocks each way, as near width
+// x height as it can be, but at least enough that a cell's neighbors
+// are all different cells. Besides the usual (section 1), the domain
+// has
+//   tiling, part, index   the block, cell v being cell part[v] of block
+//                         (x[v], y[v]), and index "I,J,k" -> v
+//   sides[v][e]           the cell across side e of cell v (-1: none)
+//   onLeft, onRight       for a box, 1 for the cells on its left (right)
+//                         edge: those with a missing neighbor whose
+//                         middle is left of the box (right of it), as
+//                         the left column is for squares
+// (cellAt isn't used: a block has several cells.)
+function tilingBox(tiling, width, height, torus) {
+  const [A, bx, B] = [tiling.a[0], tiling.b[0], tiling.b[1]];
+  const cells = [];   // [I, J, k] for each cell of the domain
+  let wrapRange = null;
+  if (torus) {
+    let reach = 1;    // the farthest block a neighbor is in
+    for (const cell of tiling.cells) for (const [, I, J] of cell.next) reach = Math.max(reach, Math.abs(I), Math.abs(J));
+    const across = Math.max(2 * reach + 1, Math.round(width / A)), up = Math.max(2 * reach + 1, Math.round(height / B));
+    for (let J = 0; J < up; J++) for (let I = 0; I < across; I++) tiling.cells.forEach(function (cell, k) { cells.push([I, J, k]); });
+    wrapRange = { xmin: 0, xmax: across - 1, ymin: 0, ymax: up - 1 };
+  } else {
+    for (let J = -1; J * B < height + B; J++) {
+      for (let I = Math.floor(-J * bx / A) - 2; I * A + J * bx < width + A; I++) {
+        tiling.cells.forEach(function (cell, k) {
+          const u = cell.middle[0] + I * A + J * bx, w = cell.middle[1] + J * B;
+          if (u >= 0 && u < width && w >= 0 && w < height) cells.push([I, J, k]);
+        });
+      }
+    }
+  }
+  // Number the cells, then join each to the cell across each side.
+  const index = new Map();
+  cells.forEach(function ([I, J, k], v) { index.set(I + "," + J + "," + k, v); });
+  const edges = [], sides = [];
+  const onLeft = new Uint8Array(cells.length), onRight = new Uint8Array(cells.length);
+  cells.forEach(function ([I, J, k], v) {
+    sides.push(tiling.cells[k].next.map(function ([k2, dI, dJ]) {
+      let I2 = I + dI, J2 = J + dJ;
+      if (wrapRange) { I2 = wrap(I2, 0, wrapRange.xmax); J2 = wrap(J2, 0, wrapRange.ymax); }
+      const w = index.has(I2 + "," + J2 + "," + k2) ? index.get(I2 + "," + J2 + "," + k2) : -1;
+      if (w > v) edges.push([v, w]);
+      if (w === -1) {   // the neighbor is outside the box: is it off the left or right side?
+        const u = tiling.cells[k2].middle[0] + I2 * A + J2 * bx;
+        if (u < 0) onLeft[v] = 1;
+        if (u >= width) onRight[v] = 1;
+      }
+      return w;
+    }));
+  });
+  const d = makeDomain(cells.map(function (c) { return c[0]; }), cells.map(function (c) { return c[1]; }),
+                       edges, wrapRange, null);
+  d.lattice = "tiling";
+  d.tiling = tiling;
+  d.part = Int32Array.from(cells.map(function (c) { return c[2]; }));
+  d.index = index;
+  d.sides = sides;   // as latticeSides (js/sim-view.js) gives for the other lattices
+  if (!torus) { d.onLeft = onLeft; d.onRight = onRight; }
+  return d;
+}
+
+// Where block (I, J) of domain d's tiling starts, in the picture.
+function blockStart(d, I, J) {
+  const t = d.tiling;
+  return [I * t.a[0] + J * t.b[0], I * t.a[1] + J * t.b[1]];
+}
+
+// The corners of cell v of a domain with polygons for cells (a tiling,
+// or triangles or hexagons), in the picture.
+function cornersOf(d, v) {
+  if (d.lattice !== "tiling") return cellCorners(d.lattice, d.x[v], d.y[v]);
+  const [u, w] = blockStart(d, d.x[v], d.y[v]);
+  return d.tiling.cells[d.part[v]].corners.map(function (c) { return [c[0] + u, c[1] + w]; });
+}
+
+// The cell of a tiling domain at the point (u, w), or -1 if none: the
+// blocks around the point are tried, and the cell whose corners go
+// around it wins.
+function tilingCellAt(d, u, w) {
+  const t = d.tiling, [A, bx, B] = [t.a[0], t.b[0], t.b[1]];
+  const J0 = Math.floor(w / B), I0 = Math.floor((u - J0 * bx) / A);
+  for (let J = J0 - 2; J <= J0 + 2; J++) {
+    for (let I = I0 - 2; I <= I0 + 2; I++) {
+      const [su, sw] = blockStart(d, I, J);
+      for (let k = 0; k < t.cells.length; k++) {
+        const corners = t.cells[k].corners.map(function (c) { return [c[0] + su, c[1] + sw]; });
+        if (!pointInCell(corners, u, w)) continue;
+        const I2 = d.wrap ? wrap(I, 0, d.wrap.xmax) : I, J2 = d.wrap ? wrap(J, 0, d.wrap.ymax) : J;
+        const v = d.index.get(I2 + "," + J2 + "," + k);
+        return v === undefined ? -1 : v;
+      }
+    }
+  }
+  return -1;
 }

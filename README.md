@@ -23,6 +23,7 @@ and, on the check pages, [jStat](https://jstat.github.io) (statistics).
 | `toysnsims.html` | Toys n' Sims: a list of all simulations |
 | `css/style.css` | The single stylesheet for every page |
 | `js/genre-filter.js` | Sorts the cards on `toysnsims.html` A to Z (the graph tool pinned first), builds the genre buttons and hides/shows cards |
+| `help/gomjau-hogg.html` | Help page: how to write a tiling as a GomJau-Hogg code (linked from the Lattice code box), with `gomjau-hogg.js` for its "Try a code" box |
 | `SIMS.md` | Planning list of candidate sims and their status (not shown on the site) |
 | `SIMS-priority.md` | Claude's ranking of the `SIMS.md` ideas, sims vs toys (not shown on the site) |
 | `MODELS.md` | Every model in nadya's Programming folder, sorted into families (not shown on the site) |
@@ -47,7 +48,7 @@ a link back to the sim.
 | `toysnsims/random-walk-coloring/` | Random walk coloring (N walkers color cells by first arrival, in discrete or continuous time) | `-walk.js`: the walkers (both models), in a second thread | |
 | `toysnsims/random-walk/` | Random Walk (one walker in 1D, 2D or 3D, a weight per direction; distance, range, returns, convex hull, holes, outer boundary) | `-rule.js`: the walk and its shape, in a second thread | how often each direction comes up, coupling, recounts, the hull, the holes, known answers |
 | `toysnsims/eden-growth/` | Eden Growth (blocks pile up on a line, grid, drawn domain, hyperbolic tiling or tree; any tile; 3D view) | `-rule.js`: the growth rule, in a second thread | nadya's Python, exact odds, invariants, the graphs |
-| `toysnsims/percolation/` | Site and bond percolation, two pages (`site-percolation.html`, `bond-percolation.html`) sharing `percolation.js` | `percolation-clusters.js`: the clusters at one p and at every p (union-find, Newman-Ziff), in the page | clusters, wrapping, Hex and duality crossings, trees |
+| `toysnsims/percolation/` | Site and bond percolation, two pages (`site-percolation.html`, `bond-percolation.html`) sharing `percolation.js`; on the square grid or any tiling by regular polygons (its tiles or its corners) | `percolation-clusters.js`: the clusters at one p and at every p (union-find, Newman-Ziff), in the page | clusters, wrapping, Hex and duality crossings, trees, the tilings and their boxes and tori |
 | `toysnsims/ising-potts/` | Ising and Potts model (q colors; heat bath or Swendsen-Wang) | `-chain.js`: the two Markov chains, in a second thread | exact odds on tiny graphs, Yang, Onsager |
 | `toysnsims/voter-model/` | Generalized voter model (a typed rule g of the neighbors' shares, with noise) | `-chain.js`: the update rule, in a second thread | the update odds, who wins, noise |
 | `toysnsims/sandpiles/` | Sandpiles (the abelian sandpile, storms, avalanches, the identity) | `-pile.js`: the toppling rule, in a second thread | nadya's Python, the abelian property, the identity, no sink |
@@ -65,12 +66,13 @@ a link back to the sim.
 | `js/sim-worker.js` | What the second threads share: Play, Pause and Speed (the run loop), the run so far for the charts over time, and random numbers tied to a seed and a place or step (for coupled sliders) |
 | `js/sim-charts.js` | The small charts: lines over time, histograms, power-of-2 bars, perimeter against area, hole lifetimes, log-log lines, zooming a chart in time |
 | `js/sim-colors.js` | The old site's colors, color conversions, and the blue-to-red colors of heights |
-| `js/sim-domains.js` | Domains: box, torus, Aztec diamond, a region drawn in the graph tool, boxes and tori of triangles or hexagons, a hexagon of triangles, and counting connected pieces (with their areas and perimeters) |
-| `js/sim-view.js` | The picture of a domain of square (or triangle or hexagon) cells: where it goes, painting the cells, moving and zooming it |
+| `js/sim-domains.js` | Domains: box, torus, Aztec diamond, a region drawn in the graph tool, boxes and tori of triangles or hexagons, a hexagon of triangles, boxes and tori of any tiling's cells, and counting connected pieces (with their areas and perimeters) |
+| `js/sim-view.js` | The picture of a domain of square (or polygon) cells: where it goes, painting the cells, moving and zooming it |
+| `js/sim-tilings.js` | Tilings by regular polygons read from their GomJau-Hogg codes, exactly (in whole numbers and square roots): the repeating block, its kinds of corner, the corners as cells, and the tilings in the Lattice menus |
 | `js/sim-shape.js` | The shape of a set of cells: its convex hull (with area and perimeter) and its holes over time (Eden Growth, Random Walk) |
 | `js/sim-graphs.js` | Graphs beyond the square grid, built cell by cell as a sim asks: the line, the grid, hyperbolic tilings {p,q} and regular trees |
 | `js/sim-hyperbolic.js` | Pictures of a hyperbolic tiling or tree (the disk, the half-plane, a tree spread out), dragging across the plane, and the ball a sim runs on |
-| `js/sim-controls.js` | The controls the sims on cells repeat: the Domain options, the graph tool inside the page, dragging, zooming and clicking the picture, and the clickable grid of offsets (a tile or a neighborhood) |
+| `js/sim-controls.js` | The controls the sims on cells repeat: the Domain options (and the Lattice options), the graph tool inside the page, dragging, zooming and clicking the picture, and the clickable grid of offsets (a tile or a neighborhood) |
 | `js/sim-3d.js` | The 3D view (stacks of cubes or coins, or a colored surface with balls on it, turned with the mouse), loaded only when a sim switches to 3D |
 | `js/formulas.js` | Typed formulas and their sliders, like Desmos, with piecewise {condition: a, b} (the graph tool and the sims that take formulas) |
 | `js/check-page.js` | The check pages' results table, "Run the checks" button and shared tests (chi-square, z-score, counting holes plainly) |

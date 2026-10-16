@@ -2,9 +2,10 @@
    sim-view.js  —  where a sim's picture goes, and moving and zooming it
    ---------------------------------------------------------------------
    The sims draw their domain (js/sim-domains.js) as one square per
-   cell, in a box in the middle of their canvas, as big as fits. The
-   picture can also be moved and zoomed, like a graph in Desmos, to see
-   the small details:
+   cell (or one polygon, for triangles, hexagons and other tilings), in
+   a box in the middle of their canvas, as big as fits. The picture can
+   also be moved and zoomed, like a graph in Desmos, to see the small
+   details:
      drag it                          move it
      mouse wheel, or pinch            zoom in or out, around the pointer
      the + / − / Reset buttons        zoom in, zoom out, show it all again
@@ -54,7 +55,9 @@
      paintCells(...)             paint every square that shows, fast
      shadeSquares(...)           paint some squares on top (e.g. holes)
      drawBorders(...)            the lines between squares of different colors
-     paintLattice(...)           the same two for triangles and hexagons
+     paintLattice(...)           the same two for triangles, hexagons and other tilings
+     screenCopies, nearScreen    where the polygons go on the screen (and on a
+                                 torus, each copy of the picture that shows)
      zoomBy, resetView           zoom around a point; back to the start
      pressPointer, movePointer, releasePointer   dragging and pinching
      pointerSpot, cellUnder      the cell under the pointer
@@ -304,55 +307,43 @@ function drawBorders(view, pen, shown, color) {
 }
 
 
-// Triangles and hexagons (js/sim-domains.js) can't be painted as squares,
-// so paintLattice draws each cell as its own shape, after fitPicture.
-// colorOf(v) is cell v's color (any CSS color, like "#ff0000"), and with
-// "groupOf" (as in paintCells) a line of color "lines" goes along every
-// side between two cells of different groups, and along the domain's
-// edge. Cells of one color are collected into one path and filled at
-// once, which is much faster than one at a time. On a torus the picture
+// Triangles and hexagons, and the cells of any tiling (js/sim-domains.js),
+// can't be painted as squares, so paintLattice draws each cell as its
+// own shape, after fitPicture. colorOf(v) is cell v's color (any CSS
+// color, like "#ff0000"), and with "groupOf" (as in paintCells) a line
+// of color "lines" goes along every side between two cells of different
+// groups, and along the domain's edge. Cells of one color are collected
+// into one path and filled at once, which is much faster than one at a
+// time, and cells off the screen are skipped. On a torus the picture
 // repeats as far as it shows.
 function paintLattice(view, pen, d, colorOf, groupOf, lines) {
-  view.cell = cellSize(view);
-  const box = pictureBox(d), cell = view.cell;
   const sides = latticeSides(d);
   const shapes = new Map(), border = new Path2D();
-
-  // The copies that show: copy (a, b) is shifted a tori across and b up.
-  const across = box.right - box.left, up = box.top - box.bottom;
-  const showsAcross = view.width / cell, showsUp = view.height / cell;
-  let copiesX = [0], copiesY = [0];
-  if (d.wrap) {
-    copiesX = []; copiesY = [];
-    for (let a = Math.floor(-view.scroll.x / across) - 1; a <= Math.ceil((showsAcross - view.scroll.x) / across); a++) copiesX.push(a);
-    for (let b = Math.floor((view.scroll.y - showsUp) / up) - 1; b <= Math.ceil(view.scroll.y / up) + 1; b++) copiesY.push(b);
-  }
-
-  for (const a of copiesX) {
-    for (const b of copiesY) {
-      // Screen pixels of the point (u, w) of the picture, in this copy.
-      const sx = function (u) { return view.left + (u + a * across - box.left + view.scroll.x) * cell; };
-      const sy = function (w) { return (box.top - w - b * up + view.scroll.y) * cell; };
-      for (let v = 0; v < d.n; v++) {
-        const corners = cellCorners(d.lattice, d.x[v], d.y[v]);
-        const color = colorOf(v);
-        if (!shapes.has(color)) shapes.set(color, new Path2D());
-        const shape = shapes.get(color);
-        corners.forEach(function (c, k) {
-          if (k === 0) shape.moveTo(sx(c[0]), sy(c[1])); else shape.lineTo(sx(c[0]), sy(c[1]));
-        });
-        shape.closePath();
-        if (!groupOf) continue;
-        // The side from corner k to the next: drawn once, from the cell
-        // with the smaller number (or always, on the domain's edge).
-        corners.forEach(function (c, k) {
-          const other = sides[v][k];
-          if (other > v || (other >= 0 && groupOf(other) === groupOf(v))) return;
-          const next = corners[(k + 1) % corners.length];
-          border.moveTo(sx(c[0]), sy(c[1]));
-          border.lineTo(sx(next[0]), sy(next[1]));
-        });
+  for (const { sx, sy } of screenCopies(view, d)) {
+    for (let v = 0; v < d.n; v++) {
+      const corners = cornersOf(d, v);
+      if (!nearScreen(view, sx(corners[0][0]), sy(corners[0][1]))) continue;
+      const color = colorOf(v);
+      if (!shapes.has(color)) shapes.set(color, new Path2D());
+      const shape = shapes.get(color);
+      // Around the corners and back to the first. (Not closePath: in
+      // Chrome, a path of many closed pieces gets slower with every
+      // piece, about 3 seconds for 20,000 hexagons.)
+      shape.moveTo(sx(corners[0][0]), sy(corners[0][1]));
+      for (let k = 1; k <= corners.length; k++) {
+        const c = corners[k % corners.length];
+        shape.lineTo(sx(c[0]), sy(c[1]));
       }
+      if (!groupOf) continue;
+      // The side from corner k to the next: drawn once, from the cell
+      // with the smaller number (or always, on the domain's edge).
+      corners.forEach(function (c, k) {
+        const other = sides[v][k];
+        if (other > v || (other >= 0 && groupOf(other) === groupOf(v))) return;
+        const next = corners[(k + 1) % corners.length];
+        border.moveTo(sx(c[0]), sy(c[1]));
+        border.lineTo(sx(next[0]), sy(next[1]));
+      });
     }
   }
   for (const [color, shape] of shapes) {
@@ -364,22 +355,66 @@ function paintLattice(view, pen, d, colorOf, groupOf, lines) {
   }
   if (groupOf) {
     pen.strokeStyle = lines;
-    pen.lineWidth = Math.max(1, Math.min(2.5, cell / 10));
+    pen.lineWidth = Math.max(1, Math.min(2.5, view.cell / 10));
     pen.lineJoin = "round";
     pen.stroke(border);
   }
+}
+
+// Where the points of domain d's picture go on the screen, for a
+// picture of polygons, after fitPicture: for each copy of the picture
+// that shows, the functions sx(u) and sy(w) that give the screen pixels
+// of the point (u, w) of the picture. On a torus the picture repeats as
+// far as it shows; otherwise there is one copy. (Also sets view.cell,
+// the pixels per side length.)
+function screenCopies(view, d) {
+  view.cell = cellSize(view);
+  const box = pictureBox(d), cell = view.cell;
+  return copiesShown(view, d, box, view.width / cell, view.height / cell).map(function ([du, dw]) {
+    return {
+      sx: function (u) { return view.left + (u + du - box.left + view.scroll.x) * cell; },
+      sy: function (w) { return (box.top - w - dw + view.scroll.y) * cell; },
+    };
+  });
+}
+
+// Is the screen point (x, y) on the screen, or near enough to it that
+// something drawn there (a polygon, or a line to a neighbor) can reach
+// in? Cells further off than 4 side lengths are skipped.
+function nearScreen(view, x, y) {
+  const margin = 4 * view.cell;
+  return x >= view.left - margin && x <= view.left + view.width + margin && y >= -margin && y <= view.height + margin;
+}
+
+// The copies of domain d's picture that show, as the shift [du, dw] of
+// each: off a torus just the picture itself; on a torus every copy that
+// reaches into the screen, shifted by whole steps of torusSteps
+// (js/sim-domains.js). A torus of slanted blocks leans by up[0] from
+// bottom to top, so "lean" more copies are tried on each side.
+function copiesShown(view, d, box, showsAcross, showsUp) {
+  if (!d.wrap) return [[0, 0]];
+  const [across, up] = torusSteps(d), copies = [];
+  const lean = Math.ceil(Math.abs(up[0]) / across[0]);
+  for (let b = Math.floor((view.scroll.y - showsUp) / up[1]) - 1; b <= Math.ceil(view.scroll.y / up[1]) + 1; b++) {
+    const slant = b * up[0];
+    for (let a = Math.floor((-view.scroll.x - slant) / across[0]) - 1 - lean; a <= Math.ceil((showsAcross - view.scroll.x - slant) / across[0]) + lean; a++) {
+      copies.push([a * across[0] + slant, b * up[1]]);
+    }
+  }
+  return copies;
 }
 
 // For each cell v of a triangle or hexagon domain, the cell across each
 // of its sides (sides[v][k], for the side from corner k to the next), or
 // -1 where the domain ends. In these lattices the cell across a side is
 // v's mirror image in that side, so its middle is the side's middle
-// pushed on as far again. Worked out once per domain and kept.
+// pushed on as far again. Worked out once per domain and kept. (A tiling
+// domain comes with its sides: tilingBox, js/sim-domains.js.)
 function latticeSides(d) {
   if (d.sides) return d.sides;
   d.sides = [];
   for (let v = 0; v < d.n; v++) {
-    const corners = cellCorners(d.lattice, d.x[v], d.y[v]);
+    const corners = cornersOf(d, v);
     const middle = cellMiddle(d, v);
     d.sides.push(corners.map(function (c, k) {
       const next = corners[(k + 1) % corners.length];
