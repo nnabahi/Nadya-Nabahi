@@ -18,10 +18,11 @@ and, on the check pages, [jStat](https://jstat.github.io) (statistics).
 | --- | --- |
 | `index.html` | Home page (image area + welcome line) |
 | `about.html` | About Me |
-| `resume.html` | Resume |
-| `publications.html` | Publications |
+| `writing.html` | Writing: posts as cards that open when clicked |
+| `resume-and-publications.html` | Resume & Publications |
 | `toysnsims.html` | Toys n' Sims: a list of all simulations |
 | `css/style.css` | The single stylesheet for every page |
+| `js/writing.js` | Sorts the posts on `writing.html` newest first, turns their Markdown into formatted text with math, and adds the giscus comment box to an open post |
 | `js/genre-filter.js` | Sorts the cards on `toysnsims.html` A to Z (the graph tool pinned first), builds the genre buttons and hides/shows cards |
 | `help/gomjau-hogg.html` | Help page: how to write a tiling as a GomJau-Hogg code (linked from the Lattice code box), with `gomjau-hogg.js` for its "Try a code" box |
 | `SIMS.md` | Planning list of candidate sims and their status (not shown on the site) |
