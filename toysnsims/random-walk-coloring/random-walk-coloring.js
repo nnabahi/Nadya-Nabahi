@@ -3,12 +3,15 @@
    sim
    ---------------------------------------------------------------------
    What it does, in plain words:
-     - Builds the domain: a box or torus of cells, a custom one drawn
-       in the graph tool (shown inside this page), or a ball of a
-       hyperbolic tiling or a tree. The domain code is shared with the
-       other sims: the domains in js/sim-domains.js, their options and
-       the graph tool in js/sim-controls.js, and the hyperbolic tilings
-       and trees, and their pictures, in js/sim-hyperbolic.js.
+     - Builds the domain: a box or torus of cells (on the square grid,
+       or on any tiling by regular polygons, its tiles or its corners
+       being the cells), a custom one drawn in the graph tool (shown
+       inside this page), or a ball of a hyperbolic tiling or a tree.
+       The domain code is shared with the other sims: the domains in
+       js/sim-domains.js, the tilings in js/sim-tilings.js, their
+       options and the graph tool in js/sim-controls.js, and the
+       hyperbolic tilings and trees, and their pictures, in
+       js/sim-hyperbolic.js.
      - Places the N walkers: spread out evenly to begin with, and you can
        drag them to other cells before the run starts.
      - Hands everything to the walkers (random-walk-coloring-walk.js),
@@ -111,16 +114,17 @@ function showTime(t) {
    each time the point farthest from all those picked so far (on a
    torus, distances wrap around).
 
-   Custom domains: the same idea with the region's own cells, the
-   distance being the number of steps through the region, starting from
-   the cell nearest the top left.
+   Custom domains, and boxes and tori of any other tiling: the same
+   idea with the domain's own cells, the distance being the number of
+   steps through the domain, starting from the cell nearest the top
+   left.
 
    Hyperbolic plane or tree: the same, starting from the start cell in
    the middle of the ball.
    ===================================================================== */
 function defaultStarts(d, count) {
   if (domainKind === "graph") return spreadThroughRegion(d, count, 0);
-  if (domainKind === "custom") return spreadThroughRegion(d, count, topLeftCell(d));
+  if (domainKind === "custom" || d.lattice) return spreadThroughRegion(d, count, topLeftCell(d));
   if (domainKind === "line" || domainKind === "ring") return lineStarts(d, count);
   return gridStarts(d, count);
 }
@@ -164,12 +168,13 @@ function gridStarts(d, count) {
   return picked.map(function (p) { return cellAt(d, p.x, p.y); });
 }
 
-// The cell nearest the top left of a region's box.
+// The cell nearest the top left of a domain's box (by where the cells
+// are: cellSpots, js/sim-domains.js).
 function topLeftCell(d) {
+  const spot = cellSpots(d);
+  const fromCorner = function (v) { return (spot.x[v] - spot.xmin) + (spot.ymax - spot.y[v]); };
   let corner = 0;
-  for (let v = 1; v < d.n; v++) {
-    if ((d.x[v] - d.xmin) + (d.ymax - d.y[v]) < (d.x[corner] - d.xmin) + (d.ymax - d.y[corner])) corner = v;
-  }
+  for (let v = 1; v < d.n; v++) if (fromCorner(v) < fromCorner(corner)) corner = v;
   return corner;
 }
 
@@ -233,8 +238,8 @@ const player = connectPlay(worker, SPEEDS, DEFAULT_SPEED, "step", "steps", resta
 /* =====================================================================
    5. DRAWING THE COLORING AND THE WALKERS
    ---------------------------------------------------------------------
-   Each cell is a square in its color (white until a walker reaches it).
-   When cells are big enough to see, a dark line goes along every side
+   Each cell is a square in its color (white until a walker reaches it),
+   or one polygon on another tiling. When cells are big enough to see, a dark line goes along every side
    where two cells of different colors meet (an uncolored cell counts as
    a color here), or where the domain ends. The walkers are drawn on top
    as round markers.
@@ -245,10 +250,10 @@ const player = connectPlay(worker, SPEEDS, DEFAULT_SPEED, "step", "steps", resta
    wraps around, and zoomed out it shows several times side by side,
    and so do the walkers.
 
-   paintCells (js/sim-view.js) puts the squares' colors into a small
+   paintDomain (js/sim-view.js) puts the squares' colors into a small
    image, one pixel per square, and blows it up with smoothing off so
    the squares stay crisp. (Setting pixels one by one is fast even for
-   many thousands of squares.)
+   many thousands of squares.) On another tiling it draws each polygon.
    ===================================================================== */
 const simCanvas = byId("sim-canvas");            // the canvas on the page
 
@@ -275,8 +280,8 @@ function drawColoring() {
   const colors = latest.colors;
   const pen = fitPicture(view, domain, MAX_PICTURE_HEIGHT);
 
-  // The squares, each in its cell's color (-1: not reached yet), with
-  // lines between different colors when cells are big enough to see
+  // The cells, each in its color (-1: not reached yet), with lines
+  // between different colors when cells are big enough to see
   // (the outside counts as a color of its own).
   paintDomain(view, pen, domain, function (v) { return colors[v]; },
     function (c) { return c === -1 ? blankRGB : colorRGB[c]; }, outsideRGB, BORDER, SMALLEST_BORDERED_CELL);
@@ -389,6 +394,7 @@ function walkerSpots(i) {
   const d = domain, v = latest.positions[i];
   if (domainKind === "graph") return graphSpots(v);
   if (domainKind === "ring") return [ringSpot(v)];
+  if (d.lattice) return tilingSpots(v);
   let columns = [d.x[v] - d.xmin], rows = [d.ymax - d.y[v]];   // its square (column, row)
   if (d.wrap) {
     columns = repeatsBetween(columns[0], d.wrap.xmax - d.wrap.xmin + 1, view.firstI, view.lastI);
@@ -401,6 +407,21 @@ function walkerSpots(i) {
       const x = (column + 0.5 + view.scroll.x) * view.cell, y = (row + 0.5 + view.scroll.y) * view.cell;
       if (x >= 0 && x < view.width && y >= 0 && y < view.height) spots.push({ x: view.left + x, y: y, r: r });
     }
+  }
+  return spots;
+}
+
+// On any other tiling: where the middle of cell v is on the screen, in
+// every copy of the picture that shows (screenCopies, js/sim-view.js),
+// sized like a square of the same inner radius (cellRadius,
+// js/sim-domains.js).
+function tilingSpots(v) {
+  const [u, w] = cellMiddle(domain, v);
+  const r = Math.max(5, Math.min(14, 1.4 * cellRadius(domain, v) * view.cell));
+  const spots = [];
+  for (const { sx, sy } of screenCopies(view, domain)) {
+    const x = sx(u), y = sy(w);
+    if (x >= view.left && x < view.left + view.width && y >= 0 && y < view.height) spots.push({ x: x, y: y, r: r });
   }
   return spots;
 }
@@ -736,8 +757,8 @@ for (const radio of document.querySelectorAll('input[name="model"]')) {
 }
 
 // Domain: Box / Torus / Custom / Hyperbolic plane or tree (or, on the
-// 1D page, Line / Ring), and their
-// options (js/sim-controls.js).
+// 1D page, Line / Ring), and their options, the Lattice options among
+// them on the 2D page (js/sim-controls.js).
 connectDomainChoice({ line: useBox, ring: useBox, box: useBox, torus: useBox, custom: tool.open, graph: useGraph });
 
 // N: the slider and the number box move together, and the run restarts
@@ -757,6 +778,7 @@ connectSeed(restart);
 
 // --- Start ------------------------------------------------------------
 fillDomainOptions(DEFAULTS, MAX_SIDE, BALL);
+if (byId("set-tiling")) fillLatticeMenu();   // (the 1D page has no Lattice options)
 byId("set-walkers").max = byId("walkers-slider").max = MAX_WALKERS;
 byId("seed").value = DEFAULTS.seed;
 useBox();

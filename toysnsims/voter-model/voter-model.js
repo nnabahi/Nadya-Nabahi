@@ -174,19 +174,13 @@ function restart() {
   run++;
   latest = null;
   showMessage("");
+  // x: where each cell is from left to right, for the "Stripes" start
+  // (cellSpots, js/sim-domains.js; on a ball, see useGraph).
   worker.postMessage({
-    type: "setup", run: run, n: domain.n, first: domain.first, nbr: domain.nbr, x: leftToRight(domain),
+    type: "setup", run: run, n: domain.n, first: domain.first, nbr: domain.nbr, x: cellSpots(domain).x,
     q: q, table: currentTable(), noise: noise, start: byId("start").value, seed: byId("seed").value,
   });
   player.carryOn();
-}
-
-// Where each cell is from left to right, for the "Stripes" start: its x
-// on the square grid (and on a ball, see useGraph); on any other tiling,
-// the x of its middle, rounded down to whole side lengths.
-function leftToRight(d) {
-  if (!d.lattice) return d.x;
-  return Int32Array.from({ length: d.n }, function (_, v) { return Math.floor(cellMiddle(d, v)[0]); });
 }
 
 // A new g, slider value or noise: the opinions carry on with them.

@@ -3,12 +3,14 @@
    coloring" sim
    ---------------------------------------------------------------------
    What it does, in plain words:
-     - Builds the domain: a box or torus of cells, a custom one drawn
-       in the graph tool (shown inside this page), or a ball of a
-       hyperbolic tiling or a tree. The domain code is shared with the
-       other sims: the domains (and counting their connected pieces) in
-       js/sim-domains.js, their options and the graph tool in
-       js/sim-controls.js, and the hyperbolic tilings and trees, and
+     - Builds the domain: a box or torus of cells (on the square grid,
+       or on any tiling by regular polygons, its tiles or its corners
+       being the cells), a custom one drawn in the graph tool (shown
+       inside this page), or a ball of a hyperbolic tiling or a tree.
+       The domain code is shared with the other sims: the domains (and
+       counting their connected pieces) in js/sim-domains.js, the
+       tilings in js/sim-tilings.js, their options and the graph tool
+       in js/sim-controls.js, and the hyperbolic tilings and trees, and
        their pictures, in js/sim-graphs.js and js/sim-hyperbolic.js.
      - Builds a starting coloring: an automatic one (N compact blocks)
        or one you draw yourself.
@@ -94,24 +96,27 @@ let highlighted = -1;          // the color shown highlighted, or -1 for none (s
    makes the rectangles roughly square. (E.g. N = 6 on 24 x 24: 2 rows
    of 3, each rectangle 8 wide and 12 high.) Compact pieces like these
    are a good start: thin stripes would make the chain reject almost
-   every move at first.
+   every move at first. On another tiling the rectangles are drawn in
+   side lengths, and each cell goes by where its middle is (cellSpots,
+   js/sim-domains.js).
 
    A drawn region may not cut into rectangles with each color in one
    piece (think of a ring). Then the start is N compact "blocks" instead
-   (blockStart below). So is a ball of a hyperbolic tiling or a tree,
+   (compactStart below). So is a ball of a hyperbolic tiling or a tree,
    which has no rows and columns.
    ===================================================================== */
 function automaticStart(d, count) {
-  if (domainKind === "graph") { startShape = "blocks"; return blockStart(d, count); }
+  if (domainKind === "graph") { startShape = "blocks"; return compactStart(d, count); }
   const rectangles = rectangleStart(d, count);
   startShape = rectangles ? "rectangles" : "blocks";
-  return rectangles || blockStart(d, count);
+  return rectangles || compactStart(d, count);
 }
 
 // The grid of rectangles over the smallest box around the domain, or
 // null if some color would be missing or in more than one piece.
 function rectangleStart(d, count) {
-  const across = d.xmax - d.xmin + 1, down = d.ymax - d.ymin + 1;
+  const spot = cellSpots(d);
+  const across = spot.xmax - spot.xmin + 1, down = spot.ymax - spot.ymin + 1;
   const rows = Math.min(count, down, Math.max(1, Math.round(Math.sqrt(count * down / across))));
   const rowOf = bands(down, rows);              // row of each line of cells, counted from the top
   const columnsOf = [], firstColorOf = [];      // for each row of rectangles
@@ -125,8 +130,8 @@ function rectangleStart(d, count) {
   }
   const colorOf = new Int32Array(d.n);
   for (let v = 0; v < d.n; v++) {
-    const r = rowOf[d.ymax - d.y[v]];
-    colorOf[v] = firstColorOf[r] + columnsOf[r][d.x[v] - d.xmin];
+    const r = rowOf[spot.ymax - spot.y[v]];
+    colorOf[v] = firstColorOf[r] + columnsOf[r][spot.x[v] - spot.xmin];
   }
   const pieces = countPieces(d, colorOf, count);
   return pieces.every(function (p) { return p === 1; }) ? colorOf : null;
@@ -149,7 +154,7 @@ function bands(total, parts) {
 // seed, found by a breadth-first search from all the seeds at once.
 // Each cell is reached through a neighbor of its own color, so every
 // color is one connected piece.
-function blockStart(d, count) {
+function compactStart(d, count) {
   const seeds = [];
   let distance = stepsFrom(d, [0]);   // stepsFrom is in js/sim-domains.js
   for (let k = 0; k < count; k++) {
@@ -230,11 +235,12 @@ const player = connectPlay(worker, SPEEDS, DEFAULT_SPEED, "move", "moves", resta
 /* =====================================================================
    5. DRAWING THE COLORING
    ---------------------------------------------------------------------
-   Each cell is a square in its color, with a dark line along every side
-   where two cells of different colors meet, or where the domain ends.
+   Each cell is a square in its color (one polygon, on another tiling),
+   with a dark line along every side where two cells of different colors
+   meet, or where the domain ends.
 
    The "view" (js/sim-view.js) says where the picture goes and which
-   squares show, and paints them (paintCells), as in the other sims.
+   cells show, and paints them (paintDomain), as in the other sims.
    The picture can be moved and zoomed like a graph in Desmos:
      drag it                          move it
      mouse wheel, or pinch            zoom in or out, around the pointer
@@ -266,8 +272,8 @@ function drawColoring() {
   if (domainKind === "graph") { drawOnGraph(); return; }
   const pen = fitPicture(view, domain, MAX_PICTURE_HEIGHT);
 
-  // The squares, each in its cell's color, with lines between different
-  // colors (the outside counts as a color). With a color highlighted,
+  // The cells, each in its color, with lines between different colors
+  // (the outside counts as a color). With a color highlighted,
   // the others are faded.
   const paint = colorNames.map(function (name, c) { return hexToRGB(shade(c)); });
   paintDomain(view, pen, domain, function (v) { return colors[v]; },
@@ -727,7 +733,7 @@ function showStartInfo() {
 }
 
 // Domain: Box / Torus / Custom / Hyperbolic plane or tree, and their
-// options (js/sim-controls.js).
+// options, the Lattice options among them (js/sim-controls.js).
 connectDomainChoice({ box: useBox, torus: useBox, custom: tool.open, graph: useGraph });
 
 // N: the slider and the number box move together, and the chain restarts
@@ -746,6 +752,7 @@ connectSeed(restart);
 
 // --- Start ------------------------------------------------------------
 fillDomainOptions(DEFAULTS, MAX_SIDE, BALL);
+fillLatticeMenu();
 byId("seed").value = DEFAULTS.seed;
 useBox();
 player.setPlaying(false);   // paused: press Play to start

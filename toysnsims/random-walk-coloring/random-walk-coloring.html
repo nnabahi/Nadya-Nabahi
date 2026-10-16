@@ -95,6 +95,25 @@
           <!-- (hidden on the 1D page, random-walk-coloring-1d.html) -->
           <span id="height-part">&times; <input type="number" id="set-height" min="2" step="1"></span>
         </div>
+        <!-- The lattice: the square grid, or any tiling by regular
+             polygons, from the menu or typed as a code (GomJau-Hogg
+             notation), with its tiles or its corners as the cells
+             (js/sim-controls.js reads these ids). -->
+        <div id="lattice-rows">
+          <div class="option-row">
+            Lattice <select id="set-tiling"></select>
+          </div>
+          <div class="option-row">
+            Code <input type="text" class="tiling-code" id="tiling-code" spellcheck="false" autocomplete="off">
+            <a class="small" href="../../help/gomjau-hogg.html">how codes work</a>
+          </div>
+          <p class="muted small tiling-message" id="tiling-message"></p>
+          <div class="option-row" id="cells-row">
+            Cells are the
+            <label><input type="radio" name="cells-are" value="tiles" checked> tiles</label>
+            <label><input type="radio" name="cells-are" value="corners"> corners</label>
+          </div>
+        </div>
         <div class="option-row" id="neighbors-row">
           Neighbors
           <select id="set-neighbors">
@@ -267,7 +286,7 @@
         <p>
           The domain is a graph <span class="tex">G = (V, E)</span>: the cells,
           joined to their 4 or 8 neighbors (on a torus, the edges wrap
-          around). In 1D each cell has 2 neighbors, left and right (on the
+          around; on other lattices, see below). In 1D each cell has 2 neighbors, left and right (on the
           line, the two end cells have only 1). Walker <span class="tex">i</span>, for
           <span class="tex">i = 1, \dots, N</span>, is at
           <span class="tex">X^i_t</span> and carries color
@@ -330,6 +349,25 @@
           every cell [4]; several walkers are faster [5].
         </p>
         <p>
+          <strong>Other lattices.</strong> The Lattice menu puts the cells on
+          a tiling of the plane by regular polygons with sides of length 1
+          that repeats in two directions: the 11 where every corner looks
+          the same, the 20 with two kinds of corner [10, Sections 2.1 and
+          2.2], or any tiling typed as a code in GomJau-Hogg notation [11]
+          (see <a href="../../help/gomjau-hogg.html">how codes work</a>). The
+          cells are either the tiles, neighbors when they share a side, or the
+          corners, neighbors when a side joins them. A box is the cells whose
+          middles (or corners) lie in a rectangle, its sides in side lengths,
+          and a torus is a whole number of the tiling's repeating blocks each
+          way. Each walker still steps to a uniformly
+          chosen neighbor, so on a tiling with more than one kind of cell the
+          cells with more neighbors get visited more often: in the long run a
+          simple random walk spends time at each cell in proportion to its
+          number of neighbors [8, Chapter 2]. The default start puts walker 1
+          on the cell nearest the top left and each next walker on a cell
+          farthest (in steps) from those before it, as on a drawn region.
+        </p>
+        <p>
           <strong>Hyperbolic plane or tree.</strong> Here
           <span class="tex">G</span> is the ball
           <span class="tex">B_R = \{ v : d(o, v) \le R \}</span> of a regular
@@ -381,6 +419,12 @@
             Cambridge University Press, 2016.</li>
           <li>A. F. Beardon, <em>The Geometry of Discrete Groups</em>,
             Springer, 1983, Chapter 7.</li>
+          <li>B. Gr&uuml;nbaum, G. C. Shephard, <em>Tilings and Patterns</em>,
+            W. H. Freeman, 1987.</li>
+          <li>V. G&oacute;mez-Jauregui, H. Hogg, C. Manchado, C. Otero,
+            &ldquo;GomJau-Hogg's notation for automatic generation of k-uniform
+            tessellations with ANTWERP v3.0&rdquo;, <em>Symmetry</em> 13
+            (2021), 2376.</li>
         </ol>
         </div>
       </section>
@@ -396,9 +440,9 @@
        (they also typeset the formulas, so they come after KaTeX), the
        second thread's run loop, charts, colors, domains, the picture's
        view (moving and zooming it), the hyperbolic tilings and trees and
-       their pictures, and the options and controls of the domain. Then
-       the walkers (they run in a second thread), then this page's
-       code. -->
+       their pictures, the tilings by regular polygons, and the options
+       and controls of the domain. Then the walkers (they run in a second
+       thread), then this page's code. -->
   <script src="../../js/sim-page.js"></script>
   <script src="../../js/sim-worker.js"></script>
   <script src="../../js/sim-charts.js"></script>
@@ -407,6 +451,7 @@
   <script src="../../js/sim-view.js"></script>
   <script src="../../js/sim-graphs.js"></script>
   <script src="../../js/sim-hyperbolic.js"></script>
+  <script src="../../js/sim-tilings.js"></script>
   <script src="../../js/sim-controls.js"></script>
   <script src="random-walk-coloring-walk.js"></script>
   <script src="random-walk-coloring.js"></script>
