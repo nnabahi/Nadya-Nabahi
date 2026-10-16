@@ -103,8 +103,7 @@ function ballCase(name, p, q, R) {
 // A box or torus of a tiling, its tiles or its corners being the cells,
 // as the sim page makes it (each cell's threshold from tilingThresholds).
 function tilingCase(name, code, corners, width, height, torus) {
-  const block = tilingFromCode(code);
-  const d = tilingBox(uprightBlock(corners ? cornersBlock(block) : block), width, height, torus);
+  const d = tilingBox(tilingOf(code, corners), width, height, torus);
   return { name: name, options: { domain: d, threshold: tilingThresholds(d) } };
 }
 

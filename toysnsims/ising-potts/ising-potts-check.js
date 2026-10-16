@@ -72,12 +72,6 @@ function statsOf(d, colors) {
   return { agree: agree, zeros: zeros };
 }
 
-// The tiling with this code, as the sims build it (js/sim-tilings.js).
-function tilingOf(code, corners) {
-  const block = tilingFromCode(code);
-  return uprightBlock(corners ? cornersBlock(block) : block);
-}
-
 const SMALL_CASES = [
   { name: "3 x 2 box, q = 3, β = 0.7, h = 0.3", d: boxDomain(3, 2, 4, false), q: 3, beta: 0.7, h: 0.3 },
   { name: "3 x 3 torus, q = 2, β = 0.5, h = -0.2", d: boxDomain(3, 3, 4, true), q: 2, beta: 0.5, h: -0.2 },

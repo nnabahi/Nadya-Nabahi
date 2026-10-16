@@ -142,8 +142,7 @@ function testDomains() {
 // code, its tiles or its corners as the cells, width x height side
 // lengths.
 function testTiling(code, corners, width, height, torus) {
-  const block = tilingFromCode(code);
-  return tilingBox(uprightBlock(corners ? cornersBlock(block) : block), width, height, torus);
+  return tilingBox(tilingOf(code, corners), width, height, torus);
 }
 
 // The ball of radius R of the tiling {p, q} (q = Infinity: the tree of
