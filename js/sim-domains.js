@@ -51,6 +51,7 @@
      latticeBox(...)          a box or torus of triangles or hexagons
      triangleHexagon(N)       a hexagon of side N, cut into triangles
      tilingBox(...)           a box or torus of a tiling's cells
+     tilingCells(...)         some cells of a tiling, to draw (a growing set)
      cornersOf(d, v)          the corners of a cell that is a polygon
      cellCorners(...)         the corners of a triangle or hexagon cell
      cellMiddle(d, v)         the middle of a cell, in the picture
@@ -597,4 +598,32 @@ function tilingCellAt(d, u, w) {
     }
   }
   return -1;
+}
+
+// A tiling domain of the cells listed (cell v is cell part[v] of block
+// (x[v], y[v])), for drawing a set of cells that grows, like a walk's
+// visited cells or a mountain's sites. Its picture's box is the box
+// around the cells' middles, with one cell and one side length to
+// spare all round. It has no sides (none are drawn between its cells)
+// and no index (tilingBox's domains have both).
+function tilingCells(tiling, x, y, part) {
+  const d = { n: x.length, lattice: "tiling", tiling: tiling, wrap: null, x: x, y: y, part: part };
+  let left = Infinity, right = -Infinity, bottom = Infinity, top = -Infinity;
+  for (let v = 0; v < d.n; v++) {
+    const [u, w] = cellMiddle(d, v);
+    left = Math.min(left, u); right = Math.max(right, u);
+    bottom = Math.min(bottom, w); top = Math.max(top, w);
+  }
+  const spare = 1 + widestCell(tiling);
+  d.pictureBox = { left: left - spare, right: right + spare, bottom: bottom - spare, top: top + spare };
+  return d;
+}
+
+// The farthest any corner of a tiling's cell is from its middle.
+function widestCell(tiling) {
+  let widest = 0;
+  for (const cell of tiling.cells) {
+    for (const c of cell.corners) widest = Math.max(widest, Math.hypot(c[0] - cell.middle[0], c[1] - cell.middle[1]));
+  }
+  return widest;
 }

@@ -75,6 +75,16 @@
    exactly her mountain. In 2D they are counted in the order they
    became available. Either way every site is equally likely.
 
+   ON ANY OTHER TILING (2D, the Lattice options on the page). The same
+   rule on any tiling by regular polygons (js/sim-tilings.js), its tiles
+   or its corners being the cells. A site is then cell z of the tiling's
+   repeating block (x, y). The cells aren't all alike, so a list of
+   offsets like (1, 0) can't be the same tile for every cell: the tile
+   is "every cell within r steps of the site" (a step crosses one side;
+   ballTile below), as on a graph (next paragraph). On the square grid
+   r = 1 is the 4 neighbors. Distances, the hull and the holes go by the
+   middles and polygons of the cells, in side lengths.
+
    ON ANY GRAPH ("Graph" on the page). The same rule on a graph whose
    cells are made as they are needed (js/sim-graphs.js): a hyperbolic
    tiling {p,q} or a regular tree. A graph has no offsets, so the tile
@@ -89,7 +99,8 @@
    became available.)
 
    The file has these parts, with no drawing and no buttons:
-     1. newMountain(options): the growth rule itself. The check page
+     1. newMountain(options): the growth rule itself, on the line, the
+        square grid or any other tiling. The check page
         (eden-growth-check.html) tests it in the browser.
      1b. newGraphMountain(options): the same rule on any graph.
      1c. the holes of a 2D mountain's base (holeHistory, js/sim-shape.js), with the
@@ -98,9 +109,10 @@
      2. mountainWorker(): runs a mountain in a second thread (a "Web
         Worker") for the sim page, eden-growth.js, so the page never
         freezes. startWorker (js/sim-page.js) starts it, with
-        newMountain, newGraphMountain, the hyperbolic tilings and trees,
-        the run loop, trace and random numbers (js/sim-worker.js) and the
-        hull and holes (js/sim-shape.js) copied in.
+        newMountain, ballTile, newGraphMountain, the hyperbolic tilings
+        and trees, the run loop, trace and random numbers
+        (js/sim-worker.js) and the hull and holes (js/sim-shape.js)
+        copied in.
    ===================================================================== */
 
 
@@ -112,12 +124,20 @@
 // Make a new mountain. "options" has:
 //   dim     1 or 2
 //   tile    the offsets: [[dx], ...] in 1D, [[dx, dy], ...] in 2D
+//   tiling  (2D only, and only for another tiling than the squares) the
+//           tiling's repeating block (uprightBlock, js/sim-tilings.js).
+//           A site is then cell z of block (x, y), and "tile" is left out:
+//   radius  (with a tiling) r: the tile is every cell within r steps
 //   domain  one of
 //             { kind: "whole" }
-//             { kind: "box", xmin, xmax, ymin, ymax, torus }   (1D: ymin = ymax = 0)
+//             { kind: "box", xmin, xmax, ymin, ymax, torus }   (1D: ymin = ymax = 0;
+//                 not on another tiling)
 //             { kind: "cells", cells: [[x, y], ...], wrap }    (wrap: the torus's
-//                 { xmin, xmax, ymin, ymax }, or null; a region drawn in the graph tool)
-//   start   the start site, [x] in 1D or [x, y] in 2D
+//                 { xmin, xmax, ymin, ymax }, or null): a region drawn in the
+//                 graph tool, or on another tiling a box or torus of its cells
+//                 [x, y, z] (tilingBox, js/sim-domains.js; a torus wraps around
+//                 whole blocks)
+//   start   the start site, [x] in 1D, [x, y] in 2D, [x, y, z] on another tiling
 //   cap     M, the capacity: the most blocks a site can hold
 //           (leave it out for no max)
 //   s       the weight s (leave it out for 0: uniform)
@@ -125,25 +145,37 @@
 //           it out to pick with the u's handed to step(u).
 //   shapeBins  (2D, not on a torus) keep track of the base's shape, for
 //           part 1d: m.radii[k] is the farthest distance from the start
-//           (straight-line, middle to middle) of a base site whose
-//           direction from the start is in slice k of shapeBins equal
-//           slices of the circle (slice 0 starts at angle -180 degrees,
-//           to the left), 0 if none yet; m.columns has, for each x,
-//           the lowest and highest y of the base there.
+//           (straight-line, middle to middle, in side lengths) of a base
+//           site whose direction from the start is in slice k of
+//           shapeBins equal slices of the circle (slice 0 starts at angle
+//           -180 degrees, to the left), 0 if none yet; m.columns has, for
+//           each column of cells, the lowest and highest y of the base
+//           there (a column is the cells z of the blocks (x, y) for one x
+//           and z: on the squares, one x); m.area is the base's area.
 // It returns an object whose step(u) drops one block, and whose fields
 // say how the mountain looks (see the end of this function).
 function newMountain(options) {
   const dim = options.dim;
+  const tiling = options.tiling || null;
   const domain = options.domain;
   const cap = options.cap || Infinity;     // the capacity M (see the top of this file)
   const power = options.s || 0;             // the weight s (see the top of this file)
   const clocks = options.clocks === undefined ? null : newClocks(options.clocks, power);
   const bins = options.shapeBins || 0;
 
+  // The cells: on another tiling, cell z of block (x, y) is the cell
+  // tiling.cells[z] moved by x a + y b; on the grids, the square of side
+  // 1 around (x, y), as the one cell of a block of size 1 (z is always 0).
+  const block = tiling || { a: [1, 0], b: [0, 1],
+    cells: [{ middle: [0, 0], corners: [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5]] }] };
+  const parts = block.cells.length;
+  const areas = block.cells.map(function (cell) { return polygonArea(cell.corners); });
+
   // Every site gets a number, 0, 1, 2, ..., in the order it becomes
   // available. For site number i:
-  const siteX = [];        // its coordinates
+  const siteX = [];        // its coordinates (on another tiling, its block (x, y) and cell z)
   const siteY = [];
+  const siteZ = [];
   const height = [];       // how many blocks are on it (0 = not in the base yet)
   const bornAt = [];       // the step its first block landed (0 for the start)
   const numberOf = new Map();   // a site's key (below) -> its number
@@ -152,18 +184,18 @@ function newMountain(options) {
   // kept sorted from left to right (see the top of this file).
   const available = [];
 
-  // The tile, always as pairs (in 1D the second number is 0). An offset
-  // (0, 0) changes nothing, so it is left out.
-  const tile = [];
-  for (const t of options.tile) {
-    const dx = t[0], dy = dim === 2 ? t[1] : 0;
-    if (dx !== 0 || dy !== 0) tile.push([dx, dy]);
-  }
+  // The tile, as moves [dx, dy, z2] for each kind of cell z: a block on
+  // cell z of block (x, y) makes cell z2 of block (x + dx, y + dy)
+  // available. On the grids, the offsets T, for the one kind of cell;
+  // on another tiling, every cell within r steps (ballTile, below).
+  const tiles = tiling ? block.cells.map(function (cell, z) { return ballTile(tiling, z, options.radius); })
+                       : [offsetMoves(options.tile)];
 
-  // For a drawn domain: the keys of its cells, to look them up quickly.
+  // For a drawn domain (or a box or torus of another tiling): the keys
+  // of its cells, to look them up quickly.
   const drawnCells = new Set();
   if (domain.kind === "cells") {
-    for (const c of domain.cells) drawnCells.add(keyOf(c[0], dim === 2 ? c[1] : 0));
+    for (const c of domain.cells) drawnCells.add(keyOf(c[0], dim === 2 ? c[1] : 0, c[2] || 0));
   }
 
   // The torus (or cycle) that coordinates wrap around, or null.
@@ -171,10 +203,22 @@ function newMountain(options) {
   if (domain.kind === "box" && domain.torus) wrapRange = domain;
   if (domain.kind === "cells" && domain.wrap) wrapRange = domain.wrap;
 
+  // The offsets T as moves [dx, dy, 0] (in 1D dy is 0). An offset (0, 0)
+  // changes nothing, so it is left out.
+  function offsetMoves(offsets) {
+    const moves = [];
+    for (const t of offsets) {
+      const dx = t[0], dy = dim === 2 ? t[1] : 0;
+      if (dx !== 0 || dy !== 0) moves.push([dx, dy, 0]);
+    }
+    return moves;
+  }
+
   // One number per site, for the Map above. Coordinates up to about a
-  // million either way fit without two sites sharing a key.
-  function keyOf(x, y) {
-    return (x + 1048576) * 2097152 + (y + 1048576);
+  // million either way, with up to 2048 cells in a block, fit without
+  // two sites sharing a key (it stays below 2^53).
+  function keyOf(x, y, z) {
+    return ((x + 1048576) * 2097152 + (y + 1048576)) * parts + z;
   }
 
   // Wrap a number into lo..hi, for tori. E.g. lo = 0, hi = 9: 10 -> 0, -1 -> 9.
@@ -184,32 +228,33 @@ function newMountain(options) {
     return lo + (((v - lo) % n) + n) % n;
   }
 
-  // Is (x, y) in the domain? (x, y) has already been wrapped on a torus.
-  function inDomain(x, y) {
+  // Is (x, y, z) in the domain? (x, y) has already been wrapped on a torus.
+  function inDomain(x, y, z) {
     if (domain.kind === "whole") return true;
     if (domain.kind === "box") {
       return x >= domain.xmin && x <= domain.xmax && y >= domain.ymin && y <= domain.ymax;
     }
-    return drawnCells.has(keyOf(x, y));
+    return drawnCells.has(keyOf(x, y, z));
   }
 
-  // Make the site (x, y) available, unless it is outside the domain or
-  // already available. Returns its number, or -1 if outside the domain.
-  function makeAvailable(x, y) {
+  // Make the site (x, y, z) available, unless it is outside the domain
+  // or already available. Returns its number, or -1 if outside the domain.
+  function makeAvailable(x, y, z) {
     if (wrapRange) {
       x = wrap(x, wrapRange.xmin, wrapRange.xmax);
       if (dim === 2) y = wrap(y, wrapRange.ymin, wrapRange.ymax);
     }
-    if (!inDomain(x, y)) return -1;
-    const key = keyOf(x, y);
+    if (!inDomain(x, y, z)) return -1;
+    const key = keyOf(x, y, z);
     if (numberOf.has(key)) return numberOf.get(key);
 
     const i = siteX.length;
     siteX.push(x);
     siteY.push(y);
+    siteZ.push(z);
     height.push(0);
     numberOf.set(key, i);
-    if (clocks) clocks.set(i, x, y, 0, m.time);
+    if (clocks) clocks.set(i, clockPlace(i), 0, m.time);
 
     if (dim === 2) {
       available.push(i);
@@ -226,11 +271,29 @@ function newMountain(options) {
     return i;
   }
 
+  // Site i's place, for its alarm clocks (newClocks): (x, y), and z too
+  // when a block has more than one cell.
+  function clockPlace(i) {
+    return parts === 1 ? [siteX[i], siteY[i]] : [siteX[i], siteY[i], siteZ[i]];
+  }
+
+  // Where site (x, y, z) is in the plane, in side lengths: the middle of
+  // its cell (on the grids, (x, y) itself), and its cell's corners.
+  function placeOf(x, y, z) {
+    const middle = block.cells[z].middle;
+    return [x * block.a[0] + y * block.b[0] + middle[0], x * block.a[1] + y * block.b[1] + middle[1]];
+  }
+  function polygonOf(x, y, z) {
+    const u = x * block.a[0] + y * block.b[0], w = x * block.a[1] + y * block.b[1];
+    return block.cells[z].corners.map(function (c) { return [c[0] + u, c[1] + w]; });
+  }
+
   // The mountain's numbers, kept up to date by step() below.
   const m = {
     dim: dim,
-    siteX: siteX, siteY: siteY, height: height, available: available, bornAt: bornAt,
-    radii: bins ? new Float64Array(bins) : null, columns: bins ? new Map() : null,
+    tiling: tiling,    // (null on the grids; holeHistory, js/sim-shape.js, reads it)
+    siteX: siteX, siteY: siteY, siteZ: siteZ, height: height, available: available, bornAt: bornAt,
+    radii: bins ? new Float64Array(bins) : null, columns: bins ? new Map() : null, area: 0,
     steps: 0,          // n, the number of steps so far
     time: 0,           // with clocks: when the last block landed
     blocks: 0,         // blocks dropped, including the first one (= n + 1)
@@ -241,6 +304,8 @@ function newMountain(options) {
     step: step,
     dropOn: dropOn,
     heightAt: heightAt,
+    placeOf: placeOf,
+    polygonOf: polygonOf,
   };
 
   // One step: drop a block on a random available site. "u" is a uniform
@@ -266,40 +331,69 @@ function newMountain(options) {
       available.splice(available.indexOf(i), 1);
       m.full += 1;
     }
-    if (clocks) clocks.set(i, siteX[i], siteY[i], height[i] < cap ? height[i] : -1, m.time);
+    if (clocks) clocks.set(i, clockPlace(i), height[i] < cap ? height[i] : -1, m.time);
     if (height[i] === 1) {
       bornAt[i] = m.blocks - 1;   // the start's block is block 1, step n's is block n + 1
       m.baseSize += 1;
-      if (bins) addToShape(siteX[i], siteY[i]);
-      for (const t of tile) makeAvailable(siteX[i] + t[0], siteY[i] + t[1]);
+      if (bins) addToShape(i);
+      for (const [dx, dy, z] of tiles[siteZ[i]]) makeAvailable(siteX[i] + dx, siteY[i] + dy, z);
     }
   }
 
-  // A new base site (x, y): its slice's radius and its column (see shapeBins).
-  function addToShape(x, y) {
-    const dx = x - siteX[m.start], dy = y - siteY[m.start];
+  // A new base site i: its slice's radius, its column (see shapeBins)
+  // and its area.
+  function addToShape(i) {
+    const x = siteX[i], y = siteY[i], z = siteZ[i];
+    const [u, w] = placeOf(x, y, z), dx = u - startPlace[0], dy = w - startPlace[1];
     if (dx !== 0 || dy !== 0) {
       const k = Math.min(bins - 1, Math.floor((Math.atan2(dy, dx) + Math.PI) / (2 * Math.PI) * bins));
       m.radii[k] = Math.max(m.radii[k], Math.sqrt(dx * dx + dy * dy));
     }
-    const column = m.columns.get(x);
-    if (!column) m.columns.set(x, [y, y]);
-    else { column[0] = Math.min(column[0], y); column[1] = Math.max(column[1], y); }
+    const column = m.columns.get(x * parts + z);
+    if (!column) m.columns.set(x * parts + z, { x: x, z: z, low: y, high: y });
+    else { column.low = Math.min(column.low, y); column.high = Math.max(column.high, y); }
+    m.area += areas[z];
   }
 
-  // The height at (x, y) (in 1D, y = 0), or 0 if there is no site there.
-  function heightAt(x, y) {
-    const i = numberOf.get(keyOf(x, y || 0));
+  // The height at (x, y, z) (in 1D, y = 0; on the grids, z = 0), or 0 if
+  // there is no site there.
+  function heightAt(x, y, z) {
+    const i = numberOf.get(keyOf(x, y || 0, z || 0));
     return i === undefined ? 0 : height[i];
   }
 
   // The start: one block on the start site.
   const s = options.start;
-  m.start = makeAvailable(s[0], dim === 2 ? s[1] : 0);
+  m.start = makeAvailable(s[0], dim === 2 ? s[1] : 0, s[2] || 0);
   if (m.start < 0) throw new Error("The start site is outside the domain.");
+  const startPlace = placeOf(siteX[m.start], siteY[m.start], siteZ[m.start]);
   drop(m.start);
 
   return m;
+}
+
+// On another tiling: the tile of cell z, every cell within r steps of
+// it (a step crosses one side), leaving out the cell itself, as moves
+// [dx, dy, z2] to cell z2 of the block dx right and dy up. Found by
+// going out one step at a time, as ballAround does on a graph
+// (js/sim-graphs.js).
+function ballTile(tiling, z, r) {
+  const seen = new Set(["0,0," + z]), moves = [];
+  let layer = [[0, 0, z]];
+  for (let step = 0; step < r; step++) {
+    const further = [];
+    for (const [x, y, k] of layer) {
+      for (const [k2, dx, dy] of tiling.cells[k].next) {
+        const key = (x + dx) + "," + (y + dy) + "," + k2;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        further.push([x + dx, y + dy, k2]);
+      }
+    }
+    moves.push(...further);
+    layer = further;
+  }
+  return moves;
 }
 
 
@@ -322,10 +416,10 @@ function pickSite(available, height, s, u) {
 
 
 // The clocks (see the top of this file), for a seed and the weight s.
-//   set(i, a, b, h, now)  site i (whose place is the two whole numbers
-//                         a, b, the same from run to run) has h blocks at
-//                         time "now": its next block lands at
-//                         now + E(a, b, h) / (h + 1)^s.
+//   set(i, place, h, now)  site i (whose place is a list of whole
+//                         numbers, the same from run to run, e.g. its
+//                         x and y) has h blocks at time "now": its next
+//                         block lands at now + E(place, h) / (h + 1)^s.
 //                         h = -1: site i is full, no next block.
 //   next(m)               the site whose block lands next; sets m.time
 //                         to when.
@@ -338,17 +432,17 @@ function newClocks(seed, s) {
   const due = [];      // due[i] = when site i's next block lands
   const times = [], sites = [];   // the heap: times[k] is never later than times[2k+1], times[2k+2]
 
-  // E(a, b, h): exponential with mean 1, -log(U) for U uniform in (0, 1),
-  // always the same for the same seed, place and height (seededUniform,
-  // js/sim-worker.js).
+  // E(place, h): exponential with mean 1, -log(U) for U uniform in
+  // (0, 1), always the same for the same seed, place and height
+  // (seededUniform, js/sim-worker.js).
   const random = seededUniform(seed);
-  function exponential(a, b, h) {
-    return -Math.log(random.uniform(a, b, h));
+  function exponential(place, h) {
+    return -Math.log(random.uniform(...place, h));
   }
 
-  function set(i, a, b, h, now) {
+  function set(i, place, h, now) {
     if (h < 0) { due[i] = Infinity; return; }
-    const time = now + exponential(a, b, h) / Math.pow(h + 1, s);
+    const time = now + exponential(place, h) / Math.pow(h + 1, s);
     due[i] = time;
     // Add it at the end, and move it up while it is sooner than its parent.
     let k = times.length;
@@ -426,7 +520,7 @@ function newGraphMountain(options) {
   const height = [];           // how many blocks are on it
   const siteOf = new Map();    // a cell -> its site number
   const available = [];        // the available sites (on the line: left to right)
-  const placeA = [], placeB = [];   // with clocks: the site's place as two numbers (nameOf, below)
+  const places = [];           // with clocks: the site's place as two numbers (nameOf, below)
 
   // For a ball: the cells allowed (the start and everything within R).
   const inside = options.domain.kind === "ball"
@@ -442,9 +536,8 @@ function newGraphMountain(options) {
     height.push(0);
     siteOf.set(node, i);
     if (clocks) {
-      const [a, b] = clocks.textToNumbers(nameOf(node));
-      placeA.push(a); placeB.push(b);
-      clocks.set(i, a, b, 0, m.time);
+      places.push(clocks.textToNumbers(nameOf(node)));
+      clocks.set(i, places[i], 0, m.time);
     }
     if (!graph.order) {
       available.push(i);
@@ -491,7 +584,7 @@ function newGraphMountain(options) {
       available.splice(available.indexOf(i), 1);
       m.full += 1;
     }
-    if (clocks) clocks.set(i, placeA[i], placeB[i], height[i] < cap ? height[i] : -1, m.time);
+    if (clocks) clocks.set(i, places[i], height[i] < cap ? height[i] : -1, m.time);
     if (height[i] === 1) {
       m.baseSize += 1;
       for (const w of ballAround(graph, siteNode[i], radius)) makeAvailable(w);
@@ -510,34 +603,27 @@ function newGraphMountain(options) {
    The holes of a 2D base, with the step each one was born and died,
    are found by holeHistory, and the convex hull by convexHull (both in
    js/sim-shape.js, shared with Random Walk). A hole is a bounded group
-   of empty squares; these are the holes studied for the Eden model in
-   F. Manin, E. Roldan and B. Schweinhart, "Topology and local geometry
-   of the Eden model", Discrete Comput. Geom. (2023), arXiv:2005.12349.
+   of empty cells; on the square grid these are the holes studied for
+   the Eden model in F. Manin, E. Roldan and B. Schweinhart, "Topology
+   and local geometry of the Eden model", Discrete Comput. Geom. (2023),
+   arXiv:2005.12349.
 
-   The base as the union of its unit squares, K. Its convexity is
-   area(K) / area(hull of K), where the hull is the smallest convex set
-   holding K: 1 when K is convex, smaller the more K has bays and holes.
-   The hull of K is the hull of its squares' corners, and only the
-   lowest and highest square of each column can have a corner on the
-   hull, so only the lowest and highest corner on each vertical grid
-   line are handed to convexHull.
+   The base as the union of its cells (unit squares, or the polygons of
+   another tiling), K. Its convexity is area(K) / area(hull of K), where
+   the hull is the smallest convex set holding K: 1 when K is convex,
+   smaller the more K has bays and holes. The hull of K is the hull of
+   its cells' corners. The cells of one column (see shapeBins) are one
+   cell moved along the step b again and again, so every cell between
+   the lowest and the highest lies in the hull of those two: only their
+   corners are handed to convexHull.
    ===================================================================== */
 function convexity(m) {
-  // Along the vertical grid lines X = x - 1/2: the lowest and highest
-  // corner on each, from the columns on either side of it.
-  let xmin = Infinity, xmax = -Infinity;
-  for (const x of m.columns.keys()) { xmin = Math.min(xmin, x); xmax = Math.max(xmax, x); }
   const points = [];
-  for (let x = xmin; x <= xmax + 1; x++) {
-    let low = Infinity, high = -Infinity;
-    for (const column of [m.columns.get(x - 1), m.columns.get(x)]) {
-      if (column) { low = Math.min(low, column[0] - 0.5); high = Math.max(high, column[1] + 0.5); }
-    }
-    if (low === Infinity) continue;   // a gap between columns (a drawn domain)
-    points.push([x - 0.5, low]);
-    if (high > low) points.push([x - 0.5, high]);
+  for (const column of m.columns.values()) {
+    points.push(...m.polygonOf(column.x, column.low, column.z));
+    if (column.high > column.low) points.push(...m.polygonOf(column.x, column.high, column.z));
   }
-  return m.baseSize / polygonArea(convexHull(points));
+  return m.area / polygonArea(convexHull(points));
 }
 
 /* =====================================================================
@@ -552,7 +638,8 @@ function convexity(m) {
 
    The page sends:
      { type: "setup", run, dim, tile, domain, start, cap, s, seed, steps, forgetClicks }
-         (on a graph: dim "graph", and graph and radius instead of tile and start)
+         (on another tiling: tiling and radius instead of tile; on a
+         graph: dim "graph", and graph and radius instead of tile and start)
          a new mountain, grown at once to "steps" steps with the same
          seed (so changing a setting keeps the step you were at)
      { type: "play", speed }   drop "speed" blocks per second
@@ -599,6 +686,7 @@ function mountainWorker() {
   function setup(steps) {
     problem = "";
     placesSent = 0;
+    holesStep = -1;    // (the holes kept are the old mountain's)
     try {
       const withClocks = Object.assign({}, options, { clocks: String(options.seed), shapeBins: holesWanted() ? SHAPE_BINS : 0 });
       mountain = options.dim === "graph" ? newGraphMountain(withClocks) : newMountain(withClocks);
@@ -630,7 +718,7 @@ function mountainWorker() {
   // can change): its coordinates, or its cell of the graph.
   function siteName(i) {
     const m = mountain;
-    return m.dim === "graph" ? "graph " + m.siteNode[i] : m.dim + "D " + m.siteX[i] + "," + m.siteY[i];
+    return m.dim === "graph" ? "graph " + m.siteNode[i] : m.dim + "D " + m.siteX[i] + "," + m.siteY[i] + "," + m.siteZ[i];
   }
   // The site with that name, or -1 if it isn't available.
   function findSite(name) {
@@ -720,9 +808,10 @@ function mountainWorker() {
     } else {
       message.x = Int32Array.from(m.siteX);
       message.y = Int32Array.from(m.siteY);
+      if (m.tiling) message.z = Int32Array.from(m.siteZ);
     }
     // Hand the lists of sites over instead of copying them again.
-    const lists = [message.height, message.x, message.y, message.places].filter(Boolean);
+    const lists = [message.height, message.x, message.y, message.z, message.places].filter(Boolean);
     self.postMessage(message, lists.map(function (list) { return list.buffer; }));
   }
 
