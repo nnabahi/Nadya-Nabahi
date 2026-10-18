@@ -645,10 +645,12 @@ function clickCell(v) {
 }
 
 // What cell v of a tiling is, in words: the polygon it is ("triangle",
-// "12-gon"), or "corner" when the corners are the cells.
+// "12-gon"), or "corner" when the corners are the cells. A Penrose
+// tiling's cells have their names ("kite", "thin rhomb", ...).
 const POLYGON_NAMES = { 3: "triangle", 4: "square", 6: "hexagon", 8: "octagon", 12: "12-gon" };
 function tilingCellName(v) {
-  return domain.tiling.corners ? "corner" : POLYGON_NAMES[domain.tiling.cells[domain.part[v]].corners.length];
+  const cell = domain.tiling.cells[domain.part[v]];
+  return domain.tiling.corners ? "corner" : cell.name || POLYGON_NAMES[cell.corners.length];
 }
 
 connectPicture(view, disk, function () { return domainKind === "graph"; }, function (event) {

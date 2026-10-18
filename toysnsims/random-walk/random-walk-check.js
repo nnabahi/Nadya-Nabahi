@@ -208,7 +208,7 @@ function checkSquareDistance(dim, runs, steps) {
    =================================================================== */
 
 // The tilings these tests walk on: a name, its code, and whether its
-// corners are the cells (tilingOf, js/check-page.js). Each has cells
+// corners are the cells (tilingBlock, js/sim-tilings.js). Each has cells
 // with different numbers of neighbors, or (snub hexagonal) no mirror.
 const TEST_TILINGS = [
   { name: "Truncated square (4.8²), tiles", code: "8-4/m90/r(h4)", corners: false },
@@ -219,7 +219,7 @@ const TEST_TILINGS = [
 
 // A walk of "steps" steps on one of TEST_TILINGS, and its path.
 function tilingWalk(t, seed, steps) {
-  return walkPath({ dim: 2, tiling: tilingOf(t.code, t.corners), seed: seed + " " + t.code }, steps);
+  return walkPath({ dim: 2, tiling: tilingBlock(t.code, t.corners), seed: seed + " " + t.code }, steps);
 }
 
 // Each step goes to one of the cell's neighbors (its list "next"), each

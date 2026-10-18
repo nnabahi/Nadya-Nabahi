@@ -19,8 +19,8 @@
      binomialZ(count, trials, p)         how far a count is from its mean
    and, to test the holes found by holeHistory (js/sim-shape.js):
      countHoles(cells)                   the holes of a set of cells, counted plainly
-   and, for the pages that test tilings (they load js/sim-tilings.js):
-     tilingOf(code, corners)             the tiling with a code, as the sims build it
+   and, for the pages that test tilings (they load js/sim-tilings.js,
+   whose tilingBlock(code, corners) builds a tiling as the sims do):
      middleAt, cornersAt(tiling, x, y, z)   where a cell is: its middle, its corners
      spotKey(u, w), sideKeysAt(...)      points and sides as text, to match them up
      eulerCounter(tiling)                the holes of a growing set of cells, by Euler's formula
@@ -165,14 +165,6 @@ function countHoles(cells) {
   return holes;
 }
 
-
-// The tiling with this code, its tiles or (with "corners") its corners
-// as the cells, as the sims build it (readTiling, js/sim-controls.js):
-// its repeating block, upright (js/sim-tilings.js).
-function tilingOf(code, corners) {
-  const block = tilingFromCode(code);
-  return uprightBlock(corners ? cornersBlock(block) : block);
-}
 
 // Where cell z of block (x, y) of a tiling is: its middle, and its corners.
 function middleAt(tiling, x, y, z) {
