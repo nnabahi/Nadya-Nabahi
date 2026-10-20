@@ -56,6 +56,8 @@
    usual box or torus, with its Neighbors option; any other tiling is a
    tilingBox (js/sim-domains.js), its size in side lengths. A Penrose
    tiling never repeats, so it has no torus: its Torus option hides.
+   Penrose's first tiling (P1) has only its tiles as cells, so for it
+   the cells-row hides too.
    ===================================================================== */
 
 // What each Domain option does: "choices" gives a function for each
@@ -92,7 +94,7 @@ function showDomainOptions(kind, custom, disk) {
   if (byId("set-tiling")) {
     byId("lattice-rows").hidden = isCustom || onGraph;
     byId("neighbors-row").hidden = isCustom || onGraph || !onSquares();
-    byId("cells-row").hidden = onSquares();
+    byId("cells-row").hidden = onSquares() || Boolean(tilingInUse.block.tilesOnly);
     const torus = document.querySelector('input[name="domain"][value="torus"]');
     if (torus) torus.parentElement.hidden = onFiniteTiling();
   }
@@ -206,8 +208,9 @@ function readTiling() {
   try {
     const block = tilingBlock(code, corners);   // (js/sim-tilings.js)
     tilingInUse = { code: code, corners: corners, block: block };
-    message.textContent = block.finite ? "It never repeats, so it has no torus. A box is centered on its point of five-fold symmetry."
-                                       : "Its corners: " + block.vertexTypes.map(cornerShort).join(", ") + ".";
+    message.textContent = !block.finite ? "Its corners: " + block.vertexTypes.map(cornerShort).join(", ") + "." :
+      "It never repeats, so it has no torus. A box is centered on its point of five-fold symmetry." +
+      (block.tilesOnly ? " Only its tiles can be the cells: the inner corner of a star or a boat touches just two tiles." : "");
     message.classList.remove("problem");
     return true;
   } catch (error) {

@@ -233,6 +233,7 @@ const mainCases = [
   tilingCase("box 7 x 7 of the corners of 3.12.12", "12-3/m30/r(h3)", true, 7, 7, false),
   withSink(tilingCase("torus of 4.6.12 with a sink cell", "12-6,4/m30/r(c2)", false, 4, 4, true)),
   tilingCase("box 8 x 8 of the Penrose kites and darts", "Penrose P2", false, 8, 8, false),
+  tilingCase("box 8 x 8 of Penrose's pentagons, stars, boats and diamonds (stars at 10 grains)", "Penrose P1", false, 8, 8, false),
 ];
 
 // Topple until stable in four ways and compare the piles and the

@@ -369,23 +369,30 @@
           farthest (in steps) from those before it, as on a drawn region.
         </p>
         <p>
-          <strong>Penrose tilings.</strong> The menu also has two of
-          Penrose's tilings [12, 13]: kites and darts (P2), with sides 1
-          and <span class="tex">\varphi = (1 + \sqrt 5)/2</span>, and thick and
+          <strong>Penrose tilings.</strong> The menu also has Penrose's
+          three tilings [12, 13]: pentagons, stars, boats and diamonds (P1),
+          all with sides 1; kites and darts (P2), with sides 1 and
+          <span class="tex">\varphi = (1 + \sqrt 5)/2</span>; and thick and
           thin rhombs (P3), with sides 1. They never repeat: no shift moves
           one onto itself [10, Section 10.3]. So there is no torus, and the
-          box is centered on the tiling's point of five-fold symmetry. The
-          tiling is built as in [10, Section 10.3]: each tile is cut in half
-          into two kinds of triangle, and each triangle is split again and
-          again into smaller ones of the same two kinds. Every corner is
-          worked out exactly, as a whole-number combination of the five
-          directions of a regular pentagon. The percolation pages'
-          <a href="../percolation/percolation-check.html">model check</a>
-          checks that every corner is one of the kinds a Penrose tiling allows (Conway's seven
-          for kites and darts [15], de Bruijn's eight for rhombs [14]), and
-          that the number of kites per dart, and of thick rhombs per thin
-          one, is close to <span class="tex">\varphi</span>, as it is in the
-          limit [10, Section 10.3].
+          box is centered on the tiling's point of five-fold symmetry. Only
+          P1's tiles can be cells, not its corners: the inner corner of a
+          star or a boat touches just two tiles. P2 and P3 are built as in
+          [10, Section 10.3]: each tile is cut in half into two kinds of
+          triangle, and each triangle is split again and again into smaller
+          ones of the same two kinds. P1 is built as Penrose found it [13]:
+          each pentagon is split into six smaller ones, and the gaps are
+          filled with smaller stars, boats, diamonds and pentagons, again
+          and again. Every corner is worked out exactly, as a whole-number
+          combination of the five directions of a regular pentagon. The
+          model check checks that every corner is one of the kinds a Penrose
+          tiling allows (Conway's seven for kites and darts [15], de
+          Bruijn's eight for rhombs [14], and angles adding up to 360&deg;
+          for P1); that the number of kites per dart, and of thick rhombs
+          per thin one, is close to <span class="tex">\varphi</span>, as it
+          is in the limit [10, Section 10.3]; and that each of P1's six
+          kinds of tile (three kinds of pentagon, the star, the boat and the
+          diamond) makes up close to the share Kociemba computes [16].
         </p>
         <p>
           <strong>Hyperbolic plane or tree.</strong> Here
@@ -457,6 +464,8 @@
           <li>M. Gardner, &ldquo;Extraordinary nonperiodic tiling that enriches
             the theory of tiles&rdquo;, <em>Scientific American</em> 236
             (January 1977), 110&ndash;121.</li>
+          <li>H. Kociemba, &ldquo;Computing the tile frequencies&rdquo;,
+            <a href="https://kociemba.org/themen/penrose/tiling4.html">kociemba.org/themen/penrose/tiling4.html</a>.</li>
         </ol>
         </div>
       </section>
