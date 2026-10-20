@@ -121,6 +121,7 @@ function chainWorker() {
   let proposed = 0;        // moves tried
   let accepted = 0;        // moves accepted
   let alphas = [];         // move, alpha, move, alpha, ... since the last report (for the chart)
+  let film = null;         // "watch each move": what this move did, for the page to show (section 5)
   let run = 0;             // which run this is (the page numbers them)
 
   // Scratch space, one number per cell, reused by every move.
@@ -194,6 +195,7 @@ function chainWorker() {
     if (touching.length === 0) return;   // only possible with a single color
     const key = touching[Math.floor(random() * touching.length)];
     const i = Math.floor(key / N), j = key % N;
+    if (film) film.pair = [i, j];
     const pairsBefore = pairs;                 // A(X)
     const kBefore = between[key];              // k(C_i, C_j)
 
@@ -212,6 +214,7 @@ function chainWorker() {
     let cut;
     do { cut = M[Math.floor(random() * M.length)]; } while (cut === root);
     markPieceBelow(M, cut);                    // side[v] = 1 in P (below the cut), 2 in Q
+    if (film) { film.root = root; film.cut = [cut, parent[cut]]; }
 
     // Step 5: the fair coin decides which piece gets color i.
     const colorP = random() < 0.5 ? i : j;
@@ -222,9 +225,11 @@ function chainWorker() {
       newColor[v] = (side[v] === 1) ? colorP : colorQ;
       if (newColor[v] !== color[v]) changed++;
     }
+    if (film) film.proposal = M.map(function (v) { return [v, newColor[v]]; });
     if (changed === 0) {                       // Y = X: alpha = 1 and nothing moves
       accepted++;
       alphas.push(proposed, 1);
+      if (film) { film.alpha = 1; film.accepted = true; }
       return;
     }
 
@@ -242,7 +247,9 @@ function chainWorker() {
                    + Math.log(kBefore) - Math.log(kAfter);
     alphas.push(proposed, Math.min(1, Math.exp(logAlpha)));   // for the acceptance chart
 
-    if (logAlpha >= 0 || Math.log(random()) < logAlpha) {
+    const accept = logAlpha >= 0 || Math.log(random()) < logAlpha;
+    if (film) { film.alpha = Math.min(1, Math.exp(logAlpha)); film.accepted = accept; }
+    if (accept) {
       logTau[i] = logTauI;
       logTau[j] = logTauJ;
       accepted++;
@@ -288,16 +295,24 @@ function chainWorker() {
   // hits the tree. Remembering only the LAST step out of each cell
   // erases the walk's loops; the loop-free path joins the tree. Repeat
   // until every cell is in the tree.
+  // While watching each move, every walk is kept, cell by cell, from
+  // its start to the cell where it hits the tree (film.walks). Erasing
+  // the loops as they close, in the order they close, gives the same
+  // path as "the last step out of each cell", so the page can show it.
   function randomSpanningTree(cells, root) {
     treeStamp++;
     inTree[root] = treeStamp;
     parent[root] = -1;
+    if (film) film.walks = [];
     for (const u of cells) {
       let v = u;
+      const walk = (film && inTree[u] !== treeStamp) ? [u] : null;
       while (inTree[v] !== treeStamp) {        // walk until the tree is hit
         next[v] = randomNeighborInM(v);
         v = next[v];
+        if (walk) walk.push(v);
       }
+      if (walk) film.walks.push(walk);
       v = u;
       while (inTree[v] !== treeStamp) {        // add the loop-erased path
         inTree[v] = treeStamp;
@@ -534,15 +549,37 @@ function chainWorker() {
                                   (Infinity = as fast as possible)
        { type: "pause" }
        { type: "step" }           one move
+       { type: "watch", on }      "watch each move" on or off
+       { type: "next" }           (watching) the page has shown the last move
      The worker answers with "state" messages: the colors, and the
      numbers for the Statistics box, including the acceptance
-     probability alpha of every move since the last message. Each one carries its run
-     number, so the page can ignore leftovers from an older run.
-     Play, Pause and Speed are the run loop makeRunLoop
+     probability alpha of every move since the last message. Each one
+     carries its run number, so the page can ignore leftovers from an
+     older run. Play, Pause and Speed are the run loop makeRunLoop
      (js/sim-worker.js).
+
+     Watching each move, the worker makes one move at a time and sends
+     what it did along with it ("film": the two colors, every walk of
+     Wilson's algorithm, the root, the cut edge, the proposed colors,
+     alpha, and accepted or not). It doesn't make the next move until
+     the page has shown this one and sends "next". The moves are the
+     same as without watching: the same seed gives the same run.
      =================================================================== */
   const loop = makeRunLoop(oneMove, report);
   let lastReported = -1;   // the move count last sent to the page
+  let watching = false;    // "watch each move" is on
+  let playing = false;     // the page wants the chain to play
+  let speed = 1;           // the page's last speed, for when watching stops
+  let showing = false;     // watching: the page is still showing the last move
+
+  // Watching: make one move and send it, with its film.
+  function filmMove() {
+    film = {};
+    oneMove();
+    report();
+    film = null;
+    showing = true;
+  }
 
   self.onmessage = function (event) {
     const message = event.data;
@@ -550,14 +587,28 @@ function chainWorker() {
       loop.pause();
       setup(message);
       lastReported = -1;
+      showing = false;
       report();
     } else if (message.type === "play") {
-      loop.play(message.speed);
+      playing = true;
+      speed = message.speed;
+      if (!watching) loop.play(speed);
+      else if (!showing) filmMove();
     } else if (message.type === "pause") {
+      playing = false;
       loop.pause();
     } else if (message.type === "step") {
+      if (watching) { filmMove(); return; }
       oneMove();
       report();
+    } else if (message.type === "watch") {
+      watching = message.on;
+      showing = false;
+      if (watching) { loop.pause(); if (playing) filmMove(); }
+      else if (playing) loop.play(speed);
+    } else if (message.type === "next") {
+      showing = false;
+      if (watching && playing) filmMove();
     }
   };
 
@@ -575,7 +626,8 @@ function chainWorker() {
       boundary: boundary,
       pairs: pairs,
       alphas: alphas,
-    }, [copy.buffer]);
-    alphas = [];   // hand the copy over instead of copying it again
+      film: film,
+    }, [copy.buffer]);   // hand the copy over instead of copying it again
+    alphas = [];
   }
 }
