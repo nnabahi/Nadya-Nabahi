@@ -29,6 +29,7 @@
      6. Statistics
      7. Custom domains: the graph tool inside this page
      8. Connecting the buttons on the page
+     9. The (T, h) pad
    ===================================================================== */
 
 
@@ -48,6 +49,12 @@ const MAX_PICTURE_HEIGHT = 600;   // in screen pixels
 const BORDER = "#1e1e1e";         // the lines between colors
 const OUTSIDE = "#ecebe7";        // around a custom domain (cells not in it)
 const SMALLEST_BORDERED_CELL = 4; // cells smaller than this (in pixels) get no border lines
+
+// The (T, h) pad (section 9): the temperature T = 1/beta goes across it
+// from 0 to PAD_MAX_T, and the field h up and down. A dot dragged within
+// PAD_SNAP of h = 0 snaps onto it, so the thick line is easy to land on.
+const PAD_MAX_T = 3;
+const PAD_SNAP = 0.02;
 
 // Hyperbolic plane or tree: the ball's default radius R, its largest
 // R, and the most cells it may have (a ball of a hyperbolic tiling grows
@@ -297,6 +304,7 @@ function criticalBeta() {
   return lattice ? EXACT_BETA[lattice](q) : null;
 }
 function showCritical() {
+  drawPad();
   const critical = criticalBeta();
   byId("critical-row").hidden = (critical === null);
   if (critical === null) return;
@@ -324,6 +332,7 @@ function setBeta(value) {
   byId("beta-slider").value = beta;
   byId("beta-box").value = Number(beta.toFixed(4));
   sendParams();
+  drawPad();
   drawSoon();
 }
 function setField(value) {
@@ -331,6 +340,7 @@ function setField(value) {
   byId("h-slider").value = h;
   byId("h-box").value = Number(h.toFixed(3));
   sendParams();
+  drawPad();
 }
 
 byId("q-slider").addEventListener("input", function () { setQ(this.value); });
@@ -349,6 +359,122 @@ connectDomainChoice({ box: useBox, torus: useBox, custom: tool.open, graph: useG
 
 // Seed: the same seed gives the same run every time.
 connectSeed(restart);
+
+
+/* =====================================================================
+   9. THE (T, h) PAD
+   ---------------------------------------------------------------------
+   A square like a little phase diagram (as in 3Blue1Brown's videos):
+   the temperature T = 1/beta goes across (cold on the left) and the
+   field h up and down. Dragging the dot sets both at once, and the beta
+   and h sliders move with it. Drawn on it is only what is known
+   exactly ("All the details" says where from): the line h = 0 from
+   T = 0 to the critical point T_c, where the coloring jumps from one
+   winning color to another, wherever this page knows beta_c. The tint
+   says which way h pushes: toward color 1 above the middle, away from
+   it below.
+   ===================================================================== */
+const pad = byId("phase-pad");
+const PAD_ROOM = { left: 30, right: 8, top: 8, bottom: 20 };   // room for the numbers, in pixels
+
+// Where T and h are on the pad, in pixels, and back.
+function padBox() {
+  return { x0: PAD_ROOM.left, x1: pad.clientWidth - PAD_ROOM.right,
+           y0: PAD_ROOM.top, y1: pad.clientHeight - PAD_ROOM.bottom };
+}
+function padX(T) { const b = padBox(); return b.x0 + (b.x1 - b.x0) * Math.min(T, PAD_MAX_T) / PAD_MAX_T; }
+function padY(field) { const b = padBox(); return b.y0 + (b.y1 - b.y0) * (MAX_FIELD - field) / (2 * MAX_FIELD); }
+
+function drawPad() {
+  if (pad.clientWidth === 0) return;
+  const pen = chartPen(pad), b = padBox(), middle = padY(0);
+  const critical = criticalBeta();
+
+  // The tint: color 1 above the middle (h pushes toward it), and for
+  // q = 2 color 2 below (h < 0 pushes toward it).
+  pen.globalAlpha = 0.18;
+  pen.fillStyle = colorNames[0];
+  pen.fillRect(b.x0, b.y0, b.x1 - b.x0, middle - b.y0);
+  if (q === 2) {
+    pen.fillStyle = colorNames[1];
+    pen.fillRect(b.x0, middle, b.x1 - b.x0, b.y1 - middle);
+  }
+  pen.globalAlpha = 1;
+
+  // The frame, and the line h = 0 across.
+  pen.strokeStyle = CHART_TEXT;
+  pen.lineWidth = 1;
+  pen.strokeRect(b.x0, b.y0, b.x1 - b.x0, b.y1 - b.y0);
+  pen.beginPath(); pen.moveTo(b.x0, middle); pen.lineTo(b.x1, middle);
+  pen.globalAlpha = 0.4; pen.stroke(); pen.globalAlpha = 1;
+
+  // The numbers on the sides: T along the bottom, h up the left.
+  pen.fillStyle = CHART_TEXT;
+  pen.textAlign = "center";
+  pen.textBaseline = "top";
+  for (let T = 0; T <= PAD_MAX_T; T++) pen.fillText((T === PAD_MAX_T ? "T = " : "") + T, padX(T) - (T === PAD_MAX_T ? 12 : 0), b.y1 + 3);
+  pen.textAlign = "right";
+  pen.textBaseline = "middle";
+  for (const field of [MAX_FIELD, 0, -MAX_FIELD]) pen.fillText(String(field), b.x0 - 4, padY(field));
+  pen.fillText("h", b.x0 - 4, (b.y0 + middle) / 2);
+
+  // The thick line, from T = 0 to T_c, and its end.
+  if (critical !== null) {
+    const xc = padX(1 / critical[1]);
+    pen.beginPath(); pen.moveTo(b.x0, middle); pen.lineTo(xc, middle);
+    pen.lineWidth = 4; pen.strokeStyle = BORDER; pen.stroke();
+    pen.beginPath(); pen.arc(xc, middle, 4, 0, 2 * Math.PI);
+    pen.fillStyle = "#ffffff"; pen.fill();
+    pen.lineWidth = 2; pen.stroke();
+    pen.fillStyle = CHART_TEXT;
+    pen.textAlign = "center";
+    pen.textBaseline = "bottom";
+    pen.fillText("Tc", xc, middle - 6);
+  }
+
+  // The dot: the current T and h (at the right side when T is off the pad).
+  const T = beta > 0 ? 1 / beta : Infinity;
+  pen.beginPath(); pen.arc(padX(T), padY(h), 6, 0, 2 * Math.PI);
+  pen.fillStyle = BORDER; pen.fill();
+  pen.lineWidth = 2; pen.strokeStyle = "#ffffff"; pen.stroke();
+
+  byId("phase-note").innerHTML = critical === null
+    ? "No exact critical point is known for this domain, so the pad shows only the axes."
+    : q === 2
+      ? "The thick line is h = 0 below T<sub>c</sub> = 1/β<sub>c</sub>. Crossing it there flips which color takes over; " +
+        "anywhere else the picture changes gradually."
+      : "The thick line is h = 0 below T<sub>c</sub> = 1/β<sub>c</sub>, where all " + q + " colors coexist. Below the " +
+        "middle, the other " + (q - 1) + " colors have a transition of their own, at a place not known exactly, so it isn't drawn.";
+}
+
+// Dragging the dot (or pressing anywhere on the pad) sets T and h. The
+// smallest T is 1/MAX_BETA, the largest beta the slider allows.
+let padPointer = -1;
+function padMove(event) {
+  const box = pad.getBoundingClientRect(), b = padBox();
+  const x = Math.min(Math.max(event.clientX - box.left, b.x0), b.x1);
+  const y = Math.min(Math.max(event.clientY - box.top, b.y0), b.y1);
+  const T = Math.max(PAD_MAX_T * (x - b.x0) / (b.x1 - b.x0), 1 / MAX_BETA);
+  let field = MAX_FIELD - 2 * MAX_FIELD * (y - b.y0) / (b.y1 - b.y0);
+  if (Math.abs(field) < PAD_SNAP) field = 0;
+  setBeta(1 / T);
+  setField(field);
+}
+pad.addEventListener("pointerdown", function (event) {
+  padPointer = event.pointerId;
+  pad.setPointerCapture(event.pointerId);   // keep getting moves even off the pad
+  pad.style.cursor = "grabbing";
+  padMove(event);
+});
+pad.addEventListener("pointermove", function (event) { if (event.pointerId === padPointer) padMove(event); });
+function padRelease(event) {
+  if (event.pointerId !== padPointer) return;
+  padPointer = -1;
+  pad.style.cursor = "grab";
+}
+pad.addEventListener("pointerup", padRelease);
+pad.addEventListener("pointercancel", padRelease);
+window.addEventListener("resize", drawPad);
 
 
 // --- Start ------------------------------------------------------------

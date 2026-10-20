@@ -101,6 +101,13 @@
           <input type="range" class="wide-range" id="h-slider" step="0.01">
         </div>
 
+        <!-- The (T, h) pad: drag the dot to set the temperature T = 1/beta
+             (across) and the field h (up and down) at once. The beta and
+             h sliders above move with it (section 9 of ising-potts.js). -->
+        <h3 class="option-heading">Or drag the dot: temperature T = 1/&beta; and field h</h3>
+        <canvas class="phase-pad" id="phase-pad"></canvas>
+        <p class="muted small" id="phase-note"></p>
+
         <h3 class="option-heading">Dynamics</h3>
         <div class="option-row">
           <label><input type="radio" name="dynamics" value="heat" checked> Heat bath (one cell at a time)</label>
@@ -291,7 +298,10 @@
           watch the blobs grow; slide &beta; up to freeze the picture or down to
           melt it. Push h a little to tilt the race toward color 1. Try q = 3
           and q = 5: from q = 5 on, the change at &beta;<sub>c</sub> becomes a
-          sudden jump instead of a gradual one.
+          sudden jump instead of a gradual one. On the pad, drag the dot across
+          the thick line at low temperature, then go around its end at
+          T<sub>c</sub>: the first flips the winning color all at once, the
+          second gets there gradually.
         </p>
         </div>
 
@@ -370,6 +380,34 @@
           and at <span class="tex">\beta_c</span> the share of agreeing
           neighbor pairs is <span class="tex">\tfrac{1}{2}(1 + 1/\sqrt{2}) \approx 0.8536</span>
           [9]. The check page compares the sim with both.
+        </p>
+        <p>
+          <strong>The (T, h) pad.</strong> The pad is the phase diagram in the
+          temperature <span class="tex">T = 1/\beta</span> and the field
+          <span class="tex">h</span>. For <span class="tex">q = 2</span>, the
+          free energy of the infinite lattice is analytic in
+          <span class="tex">h</span> wherever <span class="tex">h \ne 0</span>,
+          at every temperature (Lee and Yang [29]), so a phase transition can
+          only happen on the line <span class="tex">h = 0</span>. On that line
+          the magnetization jumps from <span class="tex">-m^*</span> to
+          <span class="tex">m^*</span> as <span class="tex">h</span> crosses 0
+          when <span class="tex">T &lt; T_c</span>, where the spontaneous
+          magnetization <span class="tex">m^*</span> is positive (on the square
+          grid it is Yang's formula above [12]), and
+          <span class="tex">m^* = 0</span> from <span class="tex">T_c</span> on.
+          That segment from <span class="tex">T = 0</span> to
+          <span class="tex">T_c = 1/\beta_c</span> is the thick line, drawn
+          wherever this page knows <span class="tex">\beta_c</span>. For
+          <span class="tex">q \ge 3</span>, at <span class="tex">h = 0</span>
+          and <span class="tex">T &lt; T_c</span> all
+          <span class="tex">q</span> colors coexist [8]. As
+          <span class="tex">h \to -\infty</span>, color 1 dies out and the
+          model becomes the Potts model with <span class="tex">q - 1</span>
+          colors, which has its own transition. Where that line sits for finite
+          <span class="tex">h &lt; 0</span> is not known exactly, so the pad
+          does not draw it. The tint only says which way
+          <span class="tex">h</span> pushes: toward color 1 above the axis, and
+          away from it below.
         </p>
         <p>
           <strong>Other lattices.</strong> The Lattice menu puts the cells on
@@ -538,6 +576,9 @@
           <li>M. Gardner, &ldquo;Extraordinary nonperiodic tiling that enriches
             the theory of tiles&rdquo;, <em>Scientific American</em> 236
             (January 1977), 110&ndash;121.</li>
+          <li>T. D. Lee, C. N. Yang, &ldquo;Statistical theory of equations of
+            state and phase transitions. II. Lattice gas and Ising model&rdquo;,
+            <em>Phys. Rev.</em> 87 (1952), 410&ndash;419.</li>
         </ol>
         </div>
       </section>

@@ -890,6 +890,18 @@ a.card:hover {
   height: 90px;
 }
 
+/* The (T, h) pad of the Ising and Potts page: a square you drag a dot
+   across. "touch-action: none" lets a finger drag the dot instead of
+   scrolling the page. */
+.phase-pad {
+  display: block;
+  width: 100%;
+  max-width: 280px;
+  aspect-ratio: 1;
+  cursor: grab;
+  touch-action: none;
+}
+
 /* A chart you can click (e.g. the coloring sim's color sizes: a click
    highlights that color). */
 .chart.clickable {
