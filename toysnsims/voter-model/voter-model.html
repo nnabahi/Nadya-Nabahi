@@ -120,10 +120,11 @@
           Size <input type="number" id="set-width" min="2" step="1">
           &times; <input type="number" id="set-height" min="2" step="1">
         </div>
-        <!-- The lattice: the square grid, or any tiling by regular
+        <!-- The lattice: the square grid, any tiling by regular
              polygons, from the menu or typed as a code (GomJau-Hogg
-             notation), with its tiles or its corners as the cells
-             (js/sim-controls.js reads these ids). -->
+             notation), or a Penrose tiling (js/sim-penrose.js), with its
+             tiles or its corners as the cells (js/sim-controls.js reads
+             these ids). -->
         <div id="lattice-rows">
           <div class="option-row">
             Lattice <select id="set-tiling"></select>
@@ -377,6 +378,25 @@
           as a square.
         </p>
         <p>
+          <strong>Penrose tilings.</strong> The menu also has two of
+          Penrose's tilings [14, 15]: kites and darts (P2), with sides 1
+          and <span class="tex">\varphi = (1 + \sqrt 5)/2</span>, and thick and
+          thin rhombs (P3), with sides 1. They never repeat: no shift moves
+          one onto itself [12, Section 10.3]. So there is no torus, and the
+          box is centered on the tiling's point of five-fold symmetry. The
+          tiling is built as in [12, Section 10.3]: each tile is cut in half
+          into two kinds of triangle, and each triangle is split again and
+          again into smaller ones of the same two kinds. Every corner is
+          worked out exactly, as a whole-number combination of the five
+          directions of a regular pentagon. The percolation pages'
+          <a href="../percolation/percolation-check.html">model check</a>
+          checks that every corner is one of the kinds a Penrose tiling allows (Conway's seven
+          for kites and darts [17], de Bruijn's eight for rhombs [16]), and
+          that the number of kites per dart, and of thick rhombs per thin
+          one, is close to <span class="tex">\varphi</span>, as it is in the
+          limit [12, Section 10.3].
+        </p>
+        <p>
           <strong>Hyperbolic plane or tree.</strong> Here
           <span class="tex">G</span> is the ball
           <span class="tex">B_R = \{ v : d(o, v) \le R \}</span> of a regular
@@ -431,6 +451,18 @@
             &ldquo;GomJau-Hogg's notation for automatic generation of k-uniform
             tessellations with ANTWERP v3.0&rdquo;, <em>Symmetry</em> 13
             (2021), 2376.</li>
+          <li>R. Penrose, &ldquo;The role of aesthetics in pure and applied
+            mathematical research&rdquo;, <em>Bull. Inst. Math. Appl.</em> 10
+            (1974), 266&ndash;271.</li>
+          <li>R. Penrose, &ldquo;Pentaplexity: a class of non-periodic tilings
+            of the plane&rdquo;, <em>Math. Intelligencer</em> 2 (1979),
+            32&ndash;37.</li>
+          <li>N. G. de Bruijn, &ldquo;Algebraic theory of Penrose's non-periodic
+            tilings of the plane, I and II&rdquo;, <em>Indag. Math.</em> 43
+            (1981), 39&ndash;66.</li>
+          <li>M. Gardner, &ldquo;Extraordinary nonperiodic tiling that enriches
+            the theory of tiles&rdquo;, <em>Scientific American</em> 236
+            (January 1977), 110&ndash;121.</li>
         </ol>
         </div>
       </section>
@@ -460,6 +492,7 @@
   <script src="../../js/sim-graphs.js"></script>
   <script src="../../js/sim-hyperbolic.js"></script>
   <script src="../../js/sim-tilings.js"></script>
+  <script src="../../js/sim-penrose.js"></script>
   <script src="../../js/sim-controls.js"></script>
   <script src="../../js/formulas.js"></script>
   <script src="voter-model-chain.js"></script>

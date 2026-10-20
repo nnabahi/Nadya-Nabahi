@@ -30,7 +30,8 @@
         the kagome lattice).
 
    Tests 1 and 2 also run on a small box of a tiling with three kinds of
-   cell (squares, hexagons and 12-gons), from js/sim-tilings.js.
+   cell (squares, hexagons and 12-gons), from js/sim-tilings.js, and on
+   a small box of Penrose's kites and darts (js/sim-penrose.js).
 
    Random numbers come from the library seedrandom, with fixed seeds,
    so the tests do the same thing every time. Chi-square p-values come
@@ -77,7 +78,9 @@ const SMALL_CASES = [
   { name: "3 x 3 torus, q = 2, β = 0.5, h = -0.2", d: boxDomain(3, 3, 4, true), q: 2, beta: 0.5, h: -0.2 },
   { name: "3 x 2 box with 8 neighbors, q = 4, β = 1.1, h = 0", d: boxDomain(3, 2, 8, false), q: 4, beta: 1.1, h: 0 },
   { name: "4 x 3 box of the 4.6.12 tiling (6 cells), q = 3, β = 0.9, h = 0.2",
-    d: tilingBox(tilingOf("12-6,4/m30/r(c2)", false), 4, 3, false), q: 3, beta: 0.9, h: 0.2 },
+    d: tilingBox(tilingBlock("12-6,4/m30/r(c2)", false), 4, 3, false), q: 3, beta: 0.9, h: 0.2 },
+  { name: "3 x 3 box of the Penrose kites and darts (7 cells), q = 3, β = 0.8, h = -0.1",
+    d: tilingBox(tilingBlock("Penrose P2", false), 3, 3, false), q: 3, beta: 0.8, h: -0.1 },
 ];
 
 
@@ -220,7 +223,7 @@ function testCriticalLattices() {
   for (const code of Object.keys(TILING_CRITICAL)) {
     for (const cells of Object.keys(TILING_CRITICAL[code])) {
       const lattice = TILING_CRITICAL[code][cells], want = NEIGHBORS[lattice];
-      const d = tilingBox(tilingOf(code, cells === "corners"), 12, 12, true);
+      const d = tilingBox(tilingBlock(code, cells === "corners"), 12, 12, true);
       let ok = true;
       for (let v = 0; v < d.n; v++) if (d.first[v + 1] - d.first[v] !== want) ok = false;
       addRow("The " + cells + " of " + code + " make the " + lattice, ok,

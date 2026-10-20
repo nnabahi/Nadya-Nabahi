@@ -36,9 +36,9 @@
                  rows and (x, y*h) in even ones (each odd row is shifted
                  half a hexagon to the right), with 6 neighbors.
    The cells can also be the tiles, or the corners, of any tiling by
-   regular polygons (js/sim-tilings.js reads it from its code): then
-   (x, y) is the block of the tiling the cell is in, as the last part of
-   this file explains.
+   regular polygons (js/sim-tilings.js reads it from its code), or of a
+   Penrose tiling (js/sim-penrose.js): then (x, y) is the block of the
+   tiling the cell is in, as the last part of this file explains.
    cornersOf (cellCorners for triangles and hexagons) gives a cell's
    corners, and cellAtPoint the cell at a point of the picture.
 
@@ -498,14 +498,17 @@ function pointInCell(corners, u, w) {
    blocks sit at I a + J b for whole numbers I, J, and each has the same
    cells, cell k of block (I, J) being d.part[v] = k with d.x[v] = I and
    d.y[v] = J. Then a torus wraps I and J around, just as x and y wrap
-   on a torus of squares.
+   on a torus of squares. A Penrose tiling (js/sim-penrose.js) never
+   repeats: it is one block ("finite"), a patch that grows to fit the
+   box, and every cell is in block (0, 0).
    --------------------------------------------------------------------- */
 
 // A box or torus of a tiling's cells. A box is the cells whose middles
 // are in the rectangle 0 <= u < width, 0 <= w < height (in side
-// lengths). A torus is a whole number of blocks each way, as near width
-// x height as it can be, but at least enough that a cell's neighbors
-// are all different cells. Besides the usual (section 1), the domain
+// lengths), or, for a tiling that never repeats (js/sim-penrose.js),
+// the same rectangle centered on the tiling's middle. A torus is a
+// whole number of blocks each way, as near width x height as it can be,
+// but at least enough that a cell's neighbors are all different cells. Besides the usual (section 1), the domain
 // has
 //   tiling, part, index   the block, cell v being cell part[v] of block
 //                         (x[v], y[v]), and index "I,J,k" -> v
@@ -518,8 +521,19 @@ function pointInCell(corners, u, w) {
 function tilingBox(tiling, width, height, torus) {
   const [A, bx, B] = [tiling.a[0], tiling.b[0], tiling.b[1]];
   const cells = [];   // [I, J, k] for each cell of the domain
-  let wrapRange = null;
-  if (torus) {
+  let wrapRange = null, left = 0, bottom = 0;   // (left, bottom): the box's corner
+  if (tiling.finite) {
+    // One big block, which must reach 2 past the box (a cell's
+    // neighbors' middles are less than 2 from its own), so that the
+    // cells just outside the box are known too.
+    left = -width / 2;
+    bottom = -height / 2;
+    growPenrose(tiling, width / 2 + 2, height / 2 + 2);
+    tiling.cells.forEach(function (cell, k) {
+      const [u, w] = cell.middle;
+      if (u >= left && u < left + width && w >= bottom && w < bottom + height) cells.push([0, 0, k]);
+    });
+  } else if (torus) {
     let reach = 1;    // the farthest block a neighbor is in
     for (const cell of tiling.cells) for (const [, I, J] of cell.next) reach = Math.max(reach, Math.abs(I), Math.abs(J));
     const across = Math.max(2 * reach + 1, Math.round(width / A)), up = Math.max(2 * reach + 1, Math.round(height / B));
@@ -546,10 +560,10 @@ function tilingBox(tiling, width, height, torus) {
       if (wrapRange) { I2 = wrap(I2, 0, wrapRange.xmax); J2 = wrap(J2, 0, wrapRange.ymax); }
       const w = index.has(I2 + "," + J2 + "," + k2) ? index.get(I2 + "," + J2 + "," + k2) : -1;
       if (w > v) edges.push([v, w]);
-      if (w === -1) {   // the neighbor is outside the box: is it off the left or right side?
+      if (w === -1 && k2 >= 0) {   // the neighbor is outside the box: is it off the left or right side?
         const u = tiling.cells[k2].middle[0] + I2 * A + J2 * bx;
-        if (u < 0) onLeft[v] = 1;
-        if (u >= width) onRight[v] = 1;
+        if (u < left) onLeft[v] = 1;
+        if (u >= left + width) onRight[v] = 1;
       }
       return w;
     }));
@@ -581,9 +595,15 @@ function cornersOf(d, v) {
 
 // The cell of a tiling domain at the point (u, w), or -1 if none: the
 // blocks around the point are tried, and the cell whose corners go
-// around it wins.
+// around it wins. A tiling that never repeats has one block, and only
+// the cells near the point are tried.
 function tilingCellAt(d, u, w) {
   const t = d.tiling, [A, bx, B] = [t.a[0], t.b[0], t.b[1]];
+  if (t.finite) {
+    const k = cellsNear(t, u, w).find(function (k) { return pointInPolygon(t.cells[k].corners, u, w); });
+    const v = k === undefined ? undefined : d.index.get("0,0," + k);
+    return v === undefined ? -1 : v;
+  }
   const J0 = Math.floor(w / B), I0 = Math.floor((u - J0 * bx) / A);
   for (let J = J0 - 2; J <= J0 + 2; J++) {
     for (let I = I0 - 2; I <= I0 + 2; I++) {
@@ -598,6 +618,39 @@ function tilingCellAt(d, u, w) {
     }
   }
   return -1;
+}
+
+// The cells of a tiling that never repeats whose middles are within 2
+// of the point (u, w) each way, so every cell with the point in it (a
+// cell's corners are less than 2 from its middle). The cells are put
+// in unit squares by their middles once, and again when the tiling
+// grows.
+function cellsNear(t, u, w) {
+  if (!t.squares || t.squares.count !== t.cells.length) {
+    const squares = new Map();
+    t.cells.forEach(function (cell, k) {
+      const key = Math.floor(cell.middle[0]) + "," + Math.floor(cell.middle[1]);
+      if (squares.has(key)) squares.get(key).push(k); else squares.set(key, [k]);
+    });
+    t.squares = { count: t.cells.length, map: squares };
+  }
+  const near = [];
+  for (let i = Math.floor(u) - 2; i <= Math.floor(u) + 2; i++) {
+    for (let j = Math.floor(w) - 2; j <= Math.floor(w) + 2; j++) near.push(...(t.squares.map.get(i + "," + j) || []));
+  }
+  return near;
+}
+
+// Is the point (u, w) inside the polygon with these corners (dents
+// allowed, like a Penrose dart's)? It is when the line from it straight
+// to the right crosses the polygon's sides an odd number of times.
+function pointInPolygon(corners, u, w) {
+  let inside = false;
+  for (let k = 0, j = corners.length - 1; k < corners.length; j = k++) {
+    const [u0, w0] = corners[j], [u1, w1] = corners[k];
+    if ((w0 > w) !== (w1 > w) && u < u0 + (w - w0) * (u1 - u0) / (w1 - w0)) inside = !inside;
+  }
+  return inside;
 }
 
 // A tiling domain of the cells listed (cell v is cell part[v] of block

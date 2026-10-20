@@ -49,7 +49,9 @@
    inside this file). cornersBlock(block) gives the same tiling with
    its CORNERS as the cells (the dual tiling), in the same form, and
    uprightBlock(block) turns either one upright, ready to lay out in
-   rows (section 9). TILINGS lists the tilings in the sims' menus
+   rows (section 9), and tilingBlock(code, corners) does all three, as
+   the sims need it (or builds a Penrose tiling, js/sim-penrose.js, from
+   its code). TILINGS lists the tilings in the sims' menus
    (section 10, with addTilingOptions, which puts them in a menu, and
    cornerShort, which writes a kind of corner the short way). For the
    help page, codeSteps(code) gives the tiling one block of its code at
@@ -964,6 +966,19 @@ function tilingFromCode(code) {
 }
 
 
+// The tiling with this code as the sims use it: the block from
+// uprightBlock, with the tiles or (corners true) the corners as the
+// cells; or, on the pages that load js/sim-penrose.js, the Penrose
+// tiling with this code (PENROSE_TILINGS). Throws an Error with a
+// message in plain words if the code is neither.
+function tilingBlock(code, corners) {
+  const penrose = typeof penroseFromCode === "undefined" ? null : penroseFromCode(code, corners);
+  if (penrose) return penrose;
+  const block = tilingFromCode(code);
+  return uprightBlock(corners ? cornersBlock(block) : block);
+}
+
+
 /* =====================================================================
    8. THE CORNERS AS CELLS (THE DUAL TILING)
    ---------------------------------------------------------------------
@@ -1208,12 +1223,18 @@ const TILINGS = [
   { name: "[3⁶; 3³.4²]²", code: "4-3-3-3/m90/r(h7)/r(h5)", kinds: 2 },
 ];
 
-// Put the tilings of TILINGS in a <select> menu, under two headings,
-// each option's value its place in TILINGS.
+// The tilings in the Lattice menus: TILINGS, and after them, on the
+// pages that load js/sim-penrose.js, the Penrose tilings.
+function menuTilings() {
+  return typeof PENROSE_TILINGS === "undefined" ? TILINGS : TILINGS.concat(PENROSE_TILINGS);
+}
+
+// Put the tilings of menuTilings() in a <select> menu, under headings,
+// each option's value its place in that list.
 function addTilingOptions(menu) {
-  const headings = { 1: "Every corner alike", 2: "Two kinds of corner" };
+  const headings = { 1: "Every corner alike", 2: "Two kinds of corner", penrose: "Penrose (never repeats)" };
   let group = null;
-  TILINGS.forEach(function (tiling, k) {
+  menuTilings().forEach(function (tiling, k) {
     if (!group || group.dataset.kinds !== String(tiling.kinds)) {
       group = document.createElement("optgroup");
       group.label = headings[tiling.kinds];

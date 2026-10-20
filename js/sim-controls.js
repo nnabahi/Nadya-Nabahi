@@ -25,6 +25,7 @@
           boxFromOptions(least, most, defaults)   the box or torus they say
         and the Lattice options, on pages that have them:
           onSquares()                       is the lattice the square grid?
+          onFiniteTiling()                  is it a tiling that never repeats?
           readTiling()                      the tiling the Lattice options say
      2. The graph tool inside a sim page
           makeCustomTool(page)
@@ -47,12 +48,14 @@
 
    THE LATTICE. A page whose sim runs on any tiling (js/sim-tilings.js)
    also has, in the box lattice-rows: the menu set-tiling (the square
-   grid, the other tilings with one or two kinds of corner, and "Your
-   own code"), the box tiling-code with the line tiling-message under
-   it, and the row cells-row with the radio buttons name="cells-are"
-   (the tiles or the corners of the tiling are the cells). The square
-   grid is the usual box or torus, with its Neighbors option; any other
-   tiling is a tilingBox (js/sim-domains.js), its size in side lengths.
+   grid, the other tilings with one or two kinds of corner, the Penrose
+   tilings on pages that load js/sim-penrose.js, and "Your own code"),
+   the box tiling-code with the line tiling-message under it, and the
+   row cells-row with the radio buttons name="cells-are" (the tiles or
+   the corners of the tiling are the cells). The square grid is the
+   usual box or torus, with its Neighbors option; any other tiling is a
+   tilingBox (js/sim-domains.js), its size in side lengths. A Penrose
+   tiling never repeats, so it has no torus: its Torus option hides.
    ===================================================================== */
 
 // What each Domain option does: "choices" gives a function for each
@@ -90,6 +93,8 @@ function showDomainOptions(kind, custom, disk) {
     byId("lattice-rows").hidden = isCustom || onGraph;
     byId("neighbors-row").hidden = isCustom || onGraph || !onSquares();
     byId("cells-row").hidden = onSquares();
+    const torus = document.querySelector('input[name="domain"][value="torus"]');
+    if (torus) torus.parentElement.hidden = onFiniteTiling();
   }
   byId("custom-row").hidden = !isCustom;
   byId("graph-rows").hidden = !onGraph;
@@ -124,7 +129,7 @@ function boxFromOptions(least, most, defaults) {
   if (!onSquares()) least = Math.max(least, SMALLEST_TILING_BOX);
   const width = readWhole("set-width", least, most, defaults.width);
   const height = readWhole("set-height", least, most, defaults.height);
-  const torus = checked("domain") === "torus";
+  const torus = checked("domain") === "torus" && !onFiniteTiling();
   if (!onSquares()) return tilingBox(tilingInUse.block, width, height, torus);
   const neighbors = byId("set-neighbors") ? Number(byId("set-neighbors").value) : 4;
   return boxDomain(width, height, neighbors, torus);
@@ -150,8 +155,14 @@ function onSquares() {
   return !byId("set-tiling") || byId("set-tiling").value === "0";
 }
 
-// The Lattice menu: the tilings of TILINGS (js/sim-tilings.js), and
-// "Your own code". Starts on the square grid.
+// Is the lattice a tiling that never repeats (js/sim-penrose.js)? It has
+// no torus.
+function onFiniteTiling() {
+  return !onSquares() && Boolean(tilingInUse.block.finite);
+}
+
+// The Lattice menu: the tilings of menuTilings() (js/sim-tilings.js),
+// and "Your own code". Starts on the square grid.
 function fillLatticeMenu() {
   const menu = byId("set-tiling");
   addTilingOptions(menu);   // (js/sim-tilings.js)
@@ -172,11 +183,11 @@ function connectLattice(useBox) {
     if (readTiling()) useBox();
   };
   menu.addEventListener("change", function () {
-    if (menu.value !== "own") box.value = TILINGS[Number(menu.value)].code;
+    if (menu.value !== "own") box.value = menuTilings()[Number(menu.value)].code;
     changed();
   });
   box.addEventListener("change", function () {
-    const k = TILINGS.findIndex(function (tiling) { return tiling.code === box.value.trim(); });
+    const k = menuTilings().findIndex(function (tiling) { return tiling.code === box.value.trim(); });
     menu.value = k === -1 ? "own" : String(k);
     changed();
   });
@@ -185,15 +196,18 @@ function connectLattice(useBox) {
 
 // Build the tiling the Lattice options say (tilingInUse), unless it is
 // built already. Returns false, and says why under the code box, if the
-// code isn't a tiling; otherwise the line names its kinds of corner.
+// code isn't a tiling; otherwise the line names its kinds of corner. On
+// pages that load js/sim-penrose.js, the code can also be a Penrose
+// tiling's (PENROSE_TILINGS), which never repeats.
 function readTiling() {
   const code = byId("tiling-code").value.trim(), corners = checked("cells-are") === "corners";
   if (tilingInUse && tilingInUse.code === code && tilingInUse.corners === corners) return true;
   const message = byId("tiling-message");
   try {
-    const block = tilingFromCode(code);
-    tilingInUse = { code: code, corners: corners, block: uprightBlock(corners ? cornersBlock(block) : block) };
-    message.textContent = "Its corners: " + block.vertexTypes.map(cornerShort).join(", ") + ".";
+    const block = tilingBlock(code, corners);   // (js/sim-tilings.js)
+    tilingInUse = { code: code, corners: corners, block: block };
+    message.textContent = block.finite ? "It never repeats, so it has no torus. A box is centered on its point of five-fold symmetry."
+                                       : "Its corners: " + block.vertexTypes.map(cornerShort).join(", ") + ".";
     message.classList.remove("problem");
     return true;
   } catch (error) {

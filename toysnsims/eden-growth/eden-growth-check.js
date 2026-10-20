@@ -747,12 +747,12 @@ function checkRadii(options, steps) {
    4f. OTHER TILINGS
    -------------------------------------------------------------------
    The tilings are read from their codes as the sim reads them
-   (tilingOf, js/check-page.js), each once.
+   (tilingBlock, js/sim-tilings.js), each once.
    =================================================================== */
 const tilingsMade = new Map();
 function tilingNamed(code, corners) {
   const key = code + (corners ? " corners" : "");
-  if (!tilingsMade.has(key)) tilingsMade.set(key, tilingOf(code, corners));
+  if (!tilingsMade.has(key)) tilingsMade.set(key, tilingBlock(code, corners));
   return tilingsMade.get(key);
 }
 const SQUARES = "4/m45/r(h1)", TRIANGLES = "3/m30/r(h2)", HEXAGONS = "6/m30/r(h1)";

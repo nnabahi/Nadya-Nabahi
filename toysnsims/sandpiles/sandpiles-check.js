@@ -43,9 +43,10 @@
    Tests 2-6 also run on small balls of hyperbolic tilings and trees
    (makeBall, js/sim-hyperbolic.js), where every cell topples at p
    grains and grains fall off the ball's edge, and tests 2-7 on boxes
-   and tori of other tilings (js/sim-tilings.js), whose cells topple at
-   different heights: a tile at its number of sides, a corner at the
-   number of sides that meet there.
+   and tori of other tilings (js/sim-tilings.js, and Penrose's tilings
+   from js/sim-penrose.js), whose cells topple at different heights: a
+   tile at its number of sides, a corner at the number of sides that
+   meet there.
 
    Random numbers come from the library seedrandom, with fixed seeds,
    so the tests do the same thing every time.
@@ -103,7 +104,7 @@ function ballCase(name, p, q, R) {
 // A box or torus of a tiling, its tiles or its corners being the cells,
 // as the sim page makes it (each cell's threshold from tilingThresholds).
 function tilingCase(name, code, corners, width, height, torus) {
-  const d = tilingBox(tilingOf(code, corners), width, height, torus);
+  const d = tilingBox(tilingBlock(code, corners), width, height, torus);
   return { name: name, options: { domain: d, threshold: tilingThresholds(d) } };
 }
 
@@ -231,6 +232,7 @@ const mainCases = [
   tilingCase("box 8 x 6 of 4.8.8 (squares at 4 grains, octagons at 8)", "8-4/m90/r(h4)", false, 8, 6, false),
   tilingCase("box 7 x 7 of the corners of 3.12.12", "12-3/m30/r(h3)", true, 7, 7, false),
   withSink(tilingCase("torus of 4.6.12 with a sink cell", "12-6,4/m30/r(c2)", false, 4, 4, true)),
+  tilingCase("box 8 x 8 of the Penrose kites and darts", "Penrose P2", false, 8, 8, false),
 ];
 
 // Topple until stable in four ways and compare the piles and the
@@ -406,6 +408,7 @@ const identityCases = [
   tilingCase("box 25 x 25 of 3.12.12", "12-3/m30/r(h3)", false, 25, 25, false),
   tilingCase("box 20 x 15 of the corners of 4.8.8", "8-4/m90/r(h4)", true, 20, 15, false),
   withSink(tilingCase("torus of triangles with a sink cell", "3/m30/r(h2)", false, 12, 12, true)),
+  tilingCase("box 20 x 20 of the corners of the Penrose rhombs", "Penrose P3", true, 20, 20, false),
 ];
 
 function testIdentity(c) {

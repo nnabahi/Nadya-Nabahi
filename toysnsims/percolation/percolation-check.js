@@ -52,6 +52,22 @@
             joins, in the right place; a torus's cells fill it, with no
             gaps or overlaps; clicking a cell finds that cell.
         Tests 1-3 also run on four of these domains.
+    11. The Penrose tilings (js/sim-penrose.js), kites and darts (P2)
+        and rhombs (P3):
+          - near the middle, the tiles go all the way around every
+            corner with no gaps or overlaps, and every corner is one of
+            the kinds a Penrose tiling may have (Conway's seven for P2,
+            in M. Gardner, Scientific American 236 (January 1977)
+            110-121; de Bruijn's eight for P3, in N. G. de Bruijn,
+            Indag. Math. 43 (1981) 39-66), each of which turns up;
+          - there are about phi kites per dart, and phi thick rhombs per
+            thin one (phi is the golden ratio; the ratio in the limit,
+            Grunbaum and Shephard, Section 10.3);
+          - a patch grown bigger keeps the smaller patch, every cell's
+            number and its neighbors, and inside it every side has a
+            tile on both sides.
+        Their boxes are in the domain test of 10, and tests 1 and 3 also
+        run on two of them.
 
    Random numbers come from the library seedrandom, with fixed seeds,
    so the tests do the same thing every time.
@@ -135,14 +151,16 @@ function testDomains() {
     { name: "8 x 6 box of the corners of the kagome tiling", d: testTiling("6-3-6/m30/r(v4)", true, 8, 6, false) },
     { name: "9 x 9 torus of the tiles of 3.4.6.4", d: testTiling("6-4-3/m30/r(c2)", false, 9, 9, true) },
     { name: "8 x 8 box of the corners of [3³.4²; 3².4.3.4]²", d: testTiling("4-3,3,3-4,3/r(h4)/r(h4)/r(h15)", true, 8, 8, false) },
+    { name: "10 x 8 box of the kites and darts (P2)", d: testTiling("Penrose P2", false, 10, 8, false) },
+    { name: "10 x 8 box of the corners of the rhombs (P3)", d: testTiling("Penrose P3", true, 10, 8, false) },
   ];
 }
 
 // A box or torus (tilingBox, js/sim-domains.js) of the tiling with this
-// code, its tiles or its corners as the cells, width x height side
-// lengths.
+// code (or a Penrose tiling's, js/sim-penrose.js), its tiles or its
+// corners as the cells, width x height side lengths.
 function testTiling(code, corners, width, height, torus) {
-  return tilingBox(tilingOf(code, corners), width, height, torus);
+  return tilingBox(tilingBlock(code, corners), width, height, torus);
 }
 
 // The ball of radius R of the tiling {p, q} (q = Infinity: the tree of
@@ -692,7 +710,8 @@ function testPaperTable() {
 }
 
 // The boxes and tori the domain test uses: every tiling in the menu,
-// its tiles and its corners, about 8 side lengths each way.
+// its tiles and its corners, about 8 side lengths each way (a Penrose
+// tiling has only boxes).
 function menuDomains() {
   const list = [];
   for (const tiling of TILINGS) {
@@ -703,6 +722,12 @@ function menuDomains() {
         list.push({ name: tiling.name + (corners ? ", corners" : ", tiles") + (torus ? ", torus" : ", box"),
                     d: tilingBox(upright, 8, 8, torus) });
       }
+    }
+  }
+  for (const tiling of PENROSE_TILINGS) {
+    for (const corners of [false, true]) {
+      list.push({ name: tiling.name + (corners ? ", corners" : ", tiles") + ", box",
+                  d: tilingBox(tilingBlock(tiling.code, corners), 8, 8, false) });
     }
   }
   return list;
@@ -754,8 +779,82 @@ function testTilingDomains() {
   }
   addRow("Lattices: the boxes and tori", problems.length === 0,
          problems.length ? problems.join("; ")
-                         : domains.length + " domains (every tiling in the menu; tiles and corners; box and torus): every side is " +
+                         : domains.length + " domains (every tiling in the menu; tiles and corners; box, and torus but for " +
+                           "the Penrose tilings): every side is " +
                            "shared by the two cells it joins, in the right place; each torus is filled exactly; clicking a cell finds it.");
+}
+
+
+/* ---------------------------------------------------------------------
+   11. The Penrose tilings
+   --------------------------------------------------------------------- */
+
+const PENROSE_NAMES = { P2: "kites and darts (P2)", P3: "rhombs (P3)" };
+
+// Within 40 side lengths of the middle (each way), every corner has
+// tiles all the way around it, their angles adding up to 360 degrees,
+// and is one of the kinds a Penrose tiling may have (PENROSE_CORNERS,
+// js/sim-penrose.js); each of those kinds turns up.
+function testPenroseCorners() {
+  for (const kind of ["P2", "P3"]) {
+    const kinds = penroseCornerKinds(kind, 40), allowed = Object.keys(PENROSE_CORNERS[kind]);
+    const wrong = [...kinds.keys()].filter(function (name) { return !allowed.includes(name); });
+    const missing = allowed.filter(function (name) { return !kinds.has(name); });
+    const total = [...kinds.values()].reduce(function (a, b) { return a + b; }, 0);
+    const whose = kind === "P2" ? "Conway's 7" : "de Bruijn's 8 (S and S5 have the same angles)";
+    addRow("Penrose " + PENROSE_NAMES[kind] + ": the kinds of corner", wrong.length === 0 && missing.length === 0,
+           wrong.length ? "Not allowed: " + wrong.join("; ") + "." :
+           missing.length ? "Never turned up: " + missing.join(", ") + "." :
+           "All " + total + " corners within 40 of the middle have tiles all the way around, with angles adding up to 360 degrees, " +
+           "and each is one of " + whose + ": " + allowed.map(function (name) { return name + " " + kinds.get(name); }).join(", ") + ".");
+  }
+}
+
+// About phi kites per dart, and thick rhombs per thin one, in the
+// 160 x 160 square around the middle (the ratio is phi in the limit).
+function testPenroseRatio() {
+  const phi = (1 + Math.sqrt(5)) / 2;
+  for (const [kind, many, few] of [["P2", "kite", "dart"], ["P3", "thick rhomb", "thin rhomb"]]) {
+    const block = penroseBlock(kind, false);
+    growPenrose(block, 80, 80);
+    const count = function (name) { return block.cells.filter(function (cell) { return cell.name === name; }).length; };
+    const ratio = count(many) / count(few);
+    addRow("Penrose " + PENROSE_NAMES[kind] + ": " + many + "s per " + few, Math.abs(ratio / phi - 1) < 0.01,
+           count(many) + " " + many + "s and " + count(few) + " " + few + "s in the 160 x 160 square around the middle: " +
+           ratio.toFixed(4) + " per " + few + ", within 1% of the golden ratio φ = " + phi.toFixed(4) + ".");
+  }
+}
+
+// A patch grown in steps keeps every cell's number and its neighbors,
+// and inside it every side has a cell on both sides, both ways.
+function testPenroseGrowing() {
+  const problems = [];
+  let cells = 0;
+  for (const kind of ["P2", "P3"]) {
+    for (const corners of [false, true]) {
+      const block = penroseBlock(kind, corners), name = PENROSE_NAMES[kind] + (corners ? ", corners" : ", tiles");
+      const before = block.cells.map(function (cell) { return [cell.key, cell.next.map(function (s) { return s[0]; })]; });
+      for (const [X, Y] of [[30, 20], [20, 50], [60, 60]]) growPenrose(block, X, Y);
+      let problem = "";
+      before.forEach(function ([key, next], k) {
+        if (block.cells[k].key !== key) problem = "a cell's number changed";
+        next.forEach(function (other, e) { if (other >= 0 && block.cells[k].next[e][0] !== other) problem = "a cell's neighbor changed"; });
+      });
+      block.cells.forEach(function (cell, k) {
+        if (Math.max(Math.abs(cell.middle[0]), Math.abs(cell.middle[1])) > 57) return;
+        for (const [other] of cell.next) {
+          if (other < 0) problem = "a side inside the patch has nothing across it";
+          else if (!block.cells[other].next.some(function (s) { return s[0] === k; })) problem = "a side is shared one way only";
+        }
+      });
+      if (problem) problems.push(name + ": " + problem);
+      cells += block.cells.length;
+    }
+  }
+  addRow("Penrose: a grown patch keeps the smaller one", problems.length === 0,
+         problems.length ? problems.join("; ") + "." :
+         "Kites and darts, rhombs, their tiles and their corners, grown from 20 x 20 to 120 x 120 in three steps (" + cells +
+         " cells in all): every cell keeps its number and its neighbors, and inside, every side has a cell on both sides.");
 }
 
 
@@ -769,5 +868,6 @@ runChecksOnClick(function () {
     testHex, testDuality, testHalf, testClustersPerCell,
     function () { testTreeBall("site", 3, 6, 0.65); }, function () { testTreeBall("bond", 4, 5, 0.4); },
     testMenuTilings, testMenuPairs, testPaperTable, testTilingDomains,
+    testPenroseCorners, testPenroseRatio, testPenroseGrowing,
   ];
 });
