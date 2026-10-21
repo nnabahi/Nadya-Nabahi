@@ -283,10 +283,7 @@ const drawSoon = oncePerFrame(function () { drawWalk(); showStats(); });
 
 const view = makeView(simCanvas, drawSoon);      // where the picture goes, and the 2D picture's zoom (js/sim-view.js)
 connectPicture(view);   // drag and pinch the 2D picture (js/sim-view.js)
-window.addEventListener("resize", function () {
-  if (view3d) sim3d.setHeight(view3d, pictureHeight(PICTURE_HEIGHT));
-  drawSoon();
-});
+window.addEventListener("resize", drawSoon);
 
 // The colors of "when first visited", 0 (the start) to 1 (now):
 // heatColor (js/sim-colors.js) in 64 steps, worked out once.
@@ -488,34 +485,26 @@ function drawOrigin(pen, corners) {
   drawPolyline(pen, corners, true);
 }
 
-// 3D: loaded the first time it is needed (load3D, js/sim-page.js).
-let sim3d = null, view3d = null;
-function start3D() {
-  load3D(byId("sim-3d"), pictureHeight(PICTURE_HEIGHT), function (code, picture) {
-    sim3d = code;
-    view3d = picture;
-    drawSoon();
-  }, function () {});
-}
+// 3D: loaded the first time it is needed (make3D, js/sim-page.js).
+const three = make3D(simCanvas, PICTURE_HEIGHT, { ready: drawSoon });
 
 function draw3D() {
-  if (!view3d) return;
-  hull3D = sim3d.drawCells(view3d, {
+  if (!three.view) return;
+  hull3D = three.code.drawCells(three.view, {
     x: siteX.subarray(0, sites), y: siteY.subarray(0, sites), z: siteZ.subarray(0, sites),
     color: function (i) { return AGE_COLORS[ageGroup(i)]; },
     at: [latest.x, latest.y, latest.z], atColor: hexToRGB(WALKER),
     hull: byId("show-hull").checked ? latest.hullPoints : null, hullColor: hexToRGB(HULL),
   });
 }
-byId("view3d-reset").addEventListener("click", function () { if (view3d) sim3d.resetCamera(view3d); });
 
 // Which picture shows: the flat one (1D, 2D) or the 3D one.
 function showPictureKind() {
   simCanvas.hidden = (dim === 3);
-  byId("sim-3d").hidden = byId("view3d-buttons").hidden = byId("view3d-help").hidden = (dim !== 3);
+  three.show(dim === 3);
+  byId("view3d-help").hidden = (dim !== 3);
   byId("holes-row").hidden = (dim !== 2);
   useTorus(view, false, dim === 2);       // only the 2D picture moves and zooms
-  if (dim === 3 && !view3d) start3D();
 }
 
 
@@ -601,7 +590,7 @@ function showTable(s) {
       s.frontierValues[k].toLocaleString() + " (at step " + s.frontierSteps[k].toLocaleString() + ")";
   }
   if (dim === 3) {
-    const shown = view3d && byId("show-hull").checked;   // the 3D hull is measured when it is drawn
+    const shown = three.view && byId("show-hull").checked;   // the 3D hull is measured when it is drawn
     byId("stat-surface").textContent = shown ? niceNumber(hull3D.area) : "—";
     byId("stat-volume").textContent = shown ? niceNumber(hull3D.volume) : "—";
   }

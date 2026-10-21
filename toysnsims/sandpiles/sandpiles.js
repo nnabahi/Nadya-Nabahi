@@ -453,11 +453,8 @@ function drawOnGraph(valueOf, rgbOf) {
 }
 
 // After the window changes size, or the picture opens or closes as a
-// full screen popup (js/sim-page.js): draw again at the new size, in 3D too.
-window.addEventListener("resize", function () {
-  if (view3d) sim3d.setHeight(view3d, pictureHeight(BALL_HEIGHT));
-  drawSoon();
-});
+// full screen popup (js/sim-page.js): draw again at the new size.
+window.addEventListener("resize", drawSoon);
 
 
 /* =====================================================================
@@ -478,34 +475,26 @@ window.addEventListener("resize", function () {
    get, and the picture fits the table only: a tall stack, like the
    64 grains of the center pile, shoots straight up out of the picture.
    ===================================================================== */
-let sim3d = null;            // the 3D code, once loaded (js/sim-3d.js)
-let view3d = null;           // the 3D picture
+const three = make3D(simCanvas, BALL_HEIGHT, {   // js/sim-page.js
+  ready: drawSoon,
+  failed: function () { show3D = false; showPictureKind(); },
+});
 
 // Which picture shows: the view from above, the 3D view, or neither
 // while the graph tool is open.
 function showPictureKind() {
   simCanvas.hidden = domains.tool.isOpen || show3D;
-  byId("sim-3d").hidden = byId("view3d-buttons").hidden = domains.tool.isOpen || !show3D;
+  three.show(!domains.tool.isOpen && show3D);
   byId("view3d-help").hidden = !show3D;
   showZoomButtons(view);
-  if (show3D && !view3d) start3D();
   drawSoon();
-}
-
-// Load the 3D code (the first time only) and make the 3D picture.
-function start3D() {
-  load3D(byId("sim-3d"), pictureHeight(BALL_HEIGHT), function (code, picture) {
-    sim3d = code;
-    view3d = picture;
-    drawSoon();
-  }, function () { show3D = false; showPictureKind(); });
 }
 
 // The stacks: valueOf(v) blocks on cell v (sink cells left out). Each
 // stack's kind is its threshold, so its blocks get the colors of a cell
 // that topples there.
 function draw3D(valueOf, showTopples) {
-  if (!view3d) return;
+  if (!three.view) return;
   const d = domain, x = [], y = [], height = [], width = [], kind = [], cells = [];
   let floor, lines;
   if (domains.kind === "graph") {
@@ -543,7 +532,7 @@ function draw3D(valueOf, showTopples) {
     floor = domains.kind === "custom" ? { x: d.x, y: d.y } : { xmin: d.xmin, xmax: d.xmax, ymin: d.ymin, ymax: d.ymax };
   }
   const most = height.reduce(function (a, b) { return Math.max(a, b); }, 1);   // (a long list can't be spread into Math.max)
-  sim3d.drawStacks(view3d, {
+  three.code.drawStacks(three.view, {
     x: x, y: y, height: height, width: width, kind: kind, floor: floor,
     shape: blockShape(), corners: cells, stretch: 1, fixedSize: true,
     color: function (k, tallestStack, top) { return showTopples ? colorOfTopples(k, most) : colorOfHeight(k, top); },
@@ -577,11 +566,10 @@ function tilingLines(d) {
   return lines;
 }
 
-// The View option, and the button to look from the start again.
+// The View option.
 for (const radio of document.querySelectorAll('input[name="view"]')) {
   radio.addEventListener("change", function () { show3D = (radio.value === "3d"); showPictureKind(); });
 }
-byId("view3d-reset").addEventListener("click", function () { if (view3d) sim3d.resetCamera(view3d); });
 
 
 /* =====================================================================

@@ -13,8 +13,8 @@
    (data-active is the file whose link stands out), with the script
    right after the bar so the bar is there before the rest of the page
    shows. The other pieces are filled by the files that make them work:
-   the Play, Speed and Seed rows by js/sim-page.js, and the Domain
-   options by js/sim-controls.js.
+   the Play, Speed and Seed rows and the 3D view's Heights row and help
+   line by js/sim-page.js, and the Domain options by js/sim-controls.js.
    ===================================================================== */
 
 

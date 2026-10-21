@@ -41,15 +41,11 @@
 
         <!-- The picture. random-walk.js sets its height. In 2D the zoom
              buttons sit in its top right corner; the full screen button
-             (added by js/sim-page.js) in its top left corner. -->
+             (added by js/sim-page.js) in its top left corner. In 3D,
+             js/sim-page.js puts the 3D view in its place, with a Reset view
+             button in that corner. -->
         <div class="sim-picture">
           <canvas id="sim-canvas"></canvas>
-          <!-- The 3D picture: js/sim-3d.js puts it in here, with a button
-               to look from the start again. -->
-          <div class="sim-3d" id="sim-3d" hidden></div>
-          <div class="zoom-buttons" id="view3d-buttons" hidden>
-            <button class="tool-button" id="view3d-reset" title="Look from the starting angle again">Reset view</button>
-          </div>
         </div>
 
         <!-- Messages, e.g. a problem with the weights. -->
@@ -114,8 +110,7 @@
           </div>
           <p class="muted small" id="colors-help">Color: when each site was first visited, from
             blue (early) to red (just now). The black dot is the walker.</p>
-          <p class="muted small" id="view3d-help" hidden>Drag to turn it around, use the
-            mouse wheel or a pinch to zoom, and right-drag (or two fingers) to slide it.</p>
+          <p class="muted small help-3d" id="view3d-help" hidden></p>
         </div>
 
         <h3 class="option-heading">Run</h3>

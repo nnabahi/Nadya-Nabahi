@@ -24,7 +24,7 @@
    in the browser, loaded from the internet like KaTeX. three.js is
    written as a "module" (a file that says which other files it needs
    with "import"), so this file is a module too. A sim page loads it
-   only when its 3D view is first switched on (load3D, js/sim-page.js),
+   only when its 3D view is first switched on (make3D, js/sim-page.js),
    and the page's <script type="importmap"> says where on the internet
    "three" lives. Pages that never switch to 3D never load three.js.
 

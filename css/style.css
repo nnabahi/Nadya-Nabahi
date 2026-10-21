@@ -968,7 +968,7 @@ canvas.scrollable.dragging {
 }
 
 /* The zoom buttons in the picture's top right corner (js/sim-view.js
-   puts them there), and the 3D view's "Reset view". */
+   puts them there), and the 3D view's "Reset view" (js/sim-page.js). */
 .zoom-buttons {
   position: absolute;
   top: 8px;

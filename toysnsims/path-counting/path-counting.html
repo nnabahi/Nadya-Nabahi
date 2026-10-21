@@ -41,15 +41,10 @@
 
         <!-- The picture. From above, the zoom buttons sit in its top right
              corner; the full screen button (added by js/sim-page.js) in its
-             top left corner. -->
+             top left corner. In 3D, js/sim-page.js puts the 3D view in
+             its place, with a Reset view button in that corner. -->
         <div class="sim-picture">
           <canvas id="sim-canvas"></canvas>
-          <!-- The 3D view: js/sim-3d.js puts its picture in here, with a
-               button to look from the start again. -->
-          <div class="sim-3d" id="sim-3d" hidden></div>
-          <div class="zoom-buttons" id="view3d-buttons" hidden>
-            <button class="tool-button" id="view3d-reset" title="Look from the starting angle again">Reset view</button>
-          </div>
         </div>
 
         <!-- In gray under the picture: a weight other than 0 or 1 means f
@@ -149,12 +144,8 @@
           <label><input type="checkbox" id="show-edges"> Show the open edges</label>
         </div>
         <div id="view3d-options" hidden>
-          <div class="option-row">
-            Heights <input type="range" id="stretch" min="-4" max="4" step="1" value="0">
-            <span class="muted" id="stretch-label"></span>
-          </div>
-          <p class="muted small">Drag to turn it around, use the mouse wheel or a pinch to
-            zoom, and right-drag (or two fingers) to slide it.</p>
+          <div class="option-row stretch-row"></div>
+          <p class="muted small help-3d"></p>
         </div>
       </section>
 

@@ -479,11 +479,8 @@ const view = makeView(simCanvas, drawSoon);      // where the picture goes, and 
 // how it is drawn ("Drawn in") shows the right options and buttons.
 const disk = makeDiskView(simCanvas, view, showPictureKind);
 // After the window changes size, or the picture opens or closes as a
-// full screen popup (js/sim-page.js): draw again at the new size, in 3D too.
-window.addEventListener("resize", function () {
-  if (view3d) sim3d.setHeight(view3d, pictureHeight(PICTURE_HEIGHT));
-  drawSoon();
-});
+// full screen popup (js/sim-page.js): draw again at the new size.
+window.addEventListener("resize", drawSoon);
 
 // The color of height h (h = 1, 2, ...) when the tallest stack is
 // "highest" blocks tall, as [red, green, blue] (heatColor, js/sim-colors.js).
@@ -768,15 +765,17 @@ function tilingSiteUnder(event) {
    whole mountain stays in the picture; the Heights slider makes it
    taller or flatter.
    ===================================================================== */
-let sim3d = null;            // the 3D code, once loaded (js/sim-3d.js)
-let view3d = null;           // the 3D picture
+const three = make3D(simCanvas, PICTURE_HEIGHT, {   // js/sim-page.js
+  ready: drawSoon,
+  failed: function () { show3D = false; showPictureKind(); },
+});
 
 // Which picture shows: the view from above, the 3D view (not in 1D),
 // or neither while the graph tool is open.
 function showPictureKind() {
   const in3D = (dim !== 1 && show3D);
   simCanvas.hidden = tool.isOpen || in3D;
-  byId("sim-3d").hidden = byId("view3d-buttons").hidden = tool.isOpen || !in3D;
+  three.show(!tool.isOpen && in3D);
   showDiskButtons(disk, dim === "graph" && disk.picture !== "spread");
   byId("picture-row").hidden = in3D || dim !== "graph";
   byId("view-rows").hidden = (dim === 1);
@@ -786,24 +785,14 @@ function showPictureKind() {
   byId("blocks-row").hidden = !in3D || (dim === "graph" && isTree(disk.spec));
   showHolesRow();
   showZoomButtons(view);
-  if (in3D && !view3d) start3D();
   drawSoon();
 }
 
-// Load the 3D code (the first time only) and make the 3D picture.
-function start3D() {
-  load3D(byId("sim-3d"), pictureHeight(PICTURE_HEIGHT), function (code, picture) {
-    sim3d = code;
-    view3d = picture;
-    drawSoon();
-  }, function () { show3D = false; showPictureKind(); });
-}
-
 function draw3D() {
-  if (!view3d) return;
+  if (!three.view) return;
   if (dim === "graph") { draw3DOnDisk(); return; }   // section 6d
   if (latest.setup.tiling) { draw3DOnTiling(); return; }
-  sim3d.drawStacks(view3d, {
+  three.code.drawStacks(three.view, {
     x: latest.x, y: latest.y, height: latest.height,
     floor: pictureRange(),   // as from above: a box, or a drawn domain's own cells
     shape: blockShape === "tiles" ? "cubes" : "coins", stretch: stretch,   // (a square's tile-shaped block is a cube)
@@ -832,7 +821,7 @@ function draw3DOnTiling() {
   // first one to the middle of its last, so half a side length comes off
   // each end.
   const box = pictureBox(d);
-  sim3d.drawStacks(view3d, {
+  three.code.drawStacks(three.view, {
     x: x, y: y, height: latest.height, width: width,
     floor: { xmin: box.left + 0.5, xmax: box.right - 0.5, ymin: box.bottom + 0.5, ymax: box.top - 0.5 },
     shape: blockShape, corners: cells, stretch: stretch,
@@ -849,7 +838,6 @@ for (const radio of document.querySelectorAll('input[name="blocks"]')) {
   radio.addEventListener("change", function () { blockShape = radio.value; drawSoon(); });
 }
 connectStretch(function (value) { stretch = value; drawSoon(); });
-byId("view3d-reset").addEventListener("click", function () { if (view3d) sim3d.resetCamera(view3d); });
 
 
 /* =====================================================================
@@ -933,7 +921,7 @@ function draw3DOnDisk() {
     if (!stack) continue;
     x.push(stack.x); y.push(stack.y); height.push(s.height[i]); width.push(stack.width); cells.push(stack.corners);
   }
-  sim3d.drawStacks(view3d, {
+  three.code.drawStacks(three.view, {
     x: x, y: y, height: height, width: width, floor: { disk: unit },
     shape: isTree(disk.spec) ? "coins" : blockShape, corners: cells, stretch: stretch,
     color: heightColor, empty: hexToRGB(EMPTY), ground: hexToRGB(OUTSIDE),

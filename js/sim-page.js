@@ -30,7 +30,7 @@
      connectSeed(onChange)            the Seed box and its New seed button
      pictureHeight(normal)            how tall to draw the picture (taller
                                         in the full screen popup)
-     load3D(box, height, ready, failed)   the 3D view (js/sim-3d.js), loaded once
+     make3D(canvas, height, options)  the 3D view (js/sim-3d.js), loaded when it first shows
      connectStretch(onChange)         the 3D view's Heights slider
 
    It also fits the statistics into their L-shaped box, typesets the
@@ -455,45 +455,91 @@ function connectSeed(onChange) {
    The 3D view
    ---------------------------------------------------------------------
    The sims with a 3D view (Eden Growth, Sandpiles, Lattice Path
-   Counting) load js/sim-3d.js only when you first pick "3D", since it
-   needs the library three.js from the internet.
+   Counting, Random Walk) load js/sim-3d.js only when you first pick
+   "3D", since it needs the library three.js from the internet.
    --------------------------------------------------------------------- */
 
-// Load the 3D code (the first time only) and make a 3D picture in "box",
-// "height" pixels tall; then ready(sim3d, view3d) gets the code and the
-// picture. If it can't load, the View goes back to "flat", failed()
-// runs, and the message under the picture says why.
-let loading3D = false;
 // Where js/sim-3d.js is, as a full web address worked out now, while
 // this file loads: it sits next to this file (js/sim-page.js). Browsers
 // don't agree on what a plain "./sim-3d.js" inside import() is counted
 // from (this file, or the page), so the full address avoids guessing.
 const SIM_3D_URL = new URL("sim-3d.js", document.currentScript.src).href;
-async function load3D(box, height, ready, failed) {
-  if (loading3D) return;
-  loading3D = true;
-  showMessage("Loading the 3D view...");
-  let sim3d;
-  try {
-    sim3d = await import(SIM_3D_URL);
-  } catch (error) {
-    loading3D = false;
-    const flat = document.querySelector('input[name="view"][value="flat"]');   // (a page with a View choice goes back to "flat")
-    if (flat) flat.checked = true;
-    failed();
-    // The browser's own words go at the end, to help find what went wrong.
-    showMessage("The 3D view couldn't load. It needs the library three.js from the " +
-                "internet, so check the connection and try again. (The browser said: " +
-                error.message + ")");
-    return;
+
+// The 3D view of the sim whose flat picture is "canvas": a box right
+// after the canvas, with a "Reset view" button in the picture's top
+// right corner, both hidden until three.show(true). It is "height"
+// pixels tall on the page (in the full screen popup, as tall as that:
+// pictureHeight), also after the window changes size. "options":
+//   ready()    runs once it has loaded (the page then draws it)
+//   failed()   (optional) runs if it couldn't load; the View goes back
+//              to "flat", and the message under the picture says why
+//   reset()    (optional) what Reset view does, if not look from the
+//              starting angle again
+// Returns "three":
+//   three.code       the 3D code (js/sim-3d.js), and
+//   three.view       the 3D picture, both null until it has loaded
+//   three.show(on)   show or hide it; the first time it shows, it loads
+function make3D(canvas, height, options) {
+  const three = { code: null, view: null };
+  const box = document.createElement("div");
+  box.className = "sim-3d";
+  const buttons = document.createElement("div");
+  buttons.className = "zoom-buttons";
+  buttons.append(toolButton("Reset view", function () {
+    if (!three.view) return;
+    if (options.reset) options.reset(); else three.code.resetCamera(three.view);
+  }, "Look from the starting angle again"));
+  canvas.after(box, buttons);
+  let loading = false;
+
+  async function load() {
+    loading = true;
+    showMessage("Loading the 3D view...");
+    try {
+      three.code = await import(SIM_3D_URL);
+    } catch (error) {
+      loading = false;
+      const flat = document.querySelector('input[name="view"][value="flat"]');   // (a page with a View choice goes back to "flat")
+      if (flat) flat.checked = true;
+      if (options.failed) options.failed();
+      // The browser's own words go at the end, to help find what went wrong.
+      showMessage("The 3D view couldn't load. It needs the library three.js from the " +
+                  "internet, so check the connection and try again. (The browser said: " +
+                  error.message + ")");
+      return;
+    }
+    showMessage("");
+    three.view = three.code.make3DView(box, pictureHeight(height));
+    options.ready();
   }
-  showMessage("");
-  ready(sim3d, sim3d.make3DView(box, height));
+
+  three.show = function (on) {
+    box.hidden = buttons.hidden = !on;
+    if (on && !three.view && !loading) load();
+  };
+  window.addEventListener("resize", function () {
+    if (three.view) three.code.setHeight(three.view, pictureHeight(height));
+  });
+  three.show(false);
+  return three;
 }
+
+// How to move the 3D view, said once: a page holds
+// <p class="muted small help-3d"></p> where it goes (before any words
+// of the page's own in it).
+fillBlocks(".help-3d", function () {
+  return "Drag to turn it around, use the mouse wheel or a pinch to zoom, " +
+    "and right-drag (or two fingers) to slide it.";
+});
 
 // The Heights slider (id="stretch", from -4 to 4) of a 3D view: the
 // heights are drawn 2^(value / 2) times as tall, said in words next to
-// it (id="stretch-label"). onChange(stretch) runs when it moves.
+// it (id="stretch-label"). onChange(stretch) runs when it moves. Its
+// row is written once: a page holds <div class="option-row stretch-row"></div>.
+fillBlocks(".stretch-row", function () {
+  return 'Heights <input type="range" id="stretch" min="-4" max="4" step="1" value="0"> ' +
+    '<span class="muted" id="stretch-label"></span>';
+});
 function connectStretch(onChange) {
   const slider = byId("stretch");
   function read() {

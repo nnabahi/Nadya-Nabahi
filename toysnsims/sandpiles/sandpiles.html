@@ -40,15 +40,11 @@
         <h2>Simulation</h2>
 
         <!-- The picture. Its height is set so the cells come out square
-             (js/sim-view.js). The zoom buttons sit in its top right corner. -->
+             (js/sim-view.js). The zoom buttons sit in its top right corner.
+             In 3D, js/sim-page.js puts the 3D view in its place,
+             with a Reset view button in that corner. -->
         <div class="sim-picture">
           <canvas id="sim-canvas"></canvas>
-          <!-- The 3D view: js/sim-3d.js puts its picture in here, with a
-               button to look from the start again. -->
-          <div class="sim-3d" id="sim-3d" hidden></div>
-          <div class="zoom-buttons" id="view3d-buttons" hidden>
-            <button class="tool-button" id="view3d-reset" title="Look from the starting angle again">Reset view</button>
-          </div>
         </div>
 
         <!-- Messages, e.g. "the pile is stable". -->
@@ -134,9 +130,8 @@
           <label><input type="radio" name="view" value="flat" checked> From above</label>
           <label><input type="radio" name="view" value="3d"> 3D</label>
         </div>
-        <p class="muted small" id="view3d-help" hidden>Each grain is a cube, so a tall stack
-          shoots up out of the picture. Drag to turn it around, use the
-          mouse wheel or a pinch to zoom, and right-drag (or two fingers) to slide it.</p>
+        <p class="muted small help-3d" id="view3d-help" hidden>
+          Each grain is a cube, so a tall stack shoots up out of the picture.</p>
         <div class="option-row">
           <label><input type="radio" name="show" value="heights" checked> Heights</label>
           <label><input type="radio" name="show" value="topples"> Topples so far</label>
