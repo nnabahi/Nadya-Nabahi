@@ -981,7 +981,10 @@ const GRID_PIXELS = 60;       // the grid lines are at least about this far apar
 const PLANE_ZOOM_OUT = 0.1;   // a plane with a whole zooms out to a tenth of it...
 const PLANE_ZOOM_IN = 1e6;    // ... and in a million times
 const AXIS_REACH = 10;        // how close (in pixels) the pointer must be to an axis to scale just it
-const PLANE_COLORS = { lines: "#e6e6e6", axes: "#000000", numbers: "#555555", hover: "#bfe0ff" };
+const PLANE_COLORS = {
+  lines: getComputedStyle(document.documentElement).getPropertyValue("--color-grid").trim(),   // as on the charts
+  axes: "#000000", numbers: "#555555", hover: "#bfe0ff",
+};
 
 function makePlaneView(canvas, redraw, options) {
   const plane = {
