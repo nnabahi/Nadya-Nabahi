@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Uniform Spanning Tree — Toys n' Sims</title>
+  <link rel="stylesheet" href="../../css/style.css">
+  <!-- KaTeX's styles, for the typeset formulas in About the model. -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/katex.min.css">
+  <!-- Where the 3D library three.js lives on the internet (js/sim-3d.js
+       loads it the first time 3D is switched on). The version number is
+       fixed so an update can never change the site by surprise. -->
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.186.1/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+
+  <header class="topbar" data-active="toysnsims.html"></header>
+  <script src="../../js/site.js"></script>
+
+  <main class="page">
+    <p><a href="../../toysnsims.html">&larr; All sims</a></p>
+    <h1>Uniform Spanning Tree</h1>
+
+    <!-- The boxes, as on every sim page (their layout is in
+         section 6 of css/style.css). All the behavior lives in
+         uniform-spanning-tree.js; the ids below (id="...") are how that
+         script finds each button and box. -->
+    <div class="sim-layout">
+
+      <!-- TOP LEFT: the tree. -->
+      <section class="panel panel-sim">
+        <h2>Simulation</h2>
+
+        <!-- The picture, with the zoom buttons in its top right corner
+             (js/sim-view.js). The 3D view goes in the same place. -->
+        <div class="sim-picture">
+          <canvas id="sim-canvas"></canvas>
+        </div>
+
+        <!-- The colors, from the lowest number to the highest (hidden
+             when the picture shows just the tree). -->
+        <div class="color-key" id="color-key" hidden>
+          <span id="key-low"></span><span class="color-key-strip" id="key-strip"></span><span id="key-high"></span>
+        </div>
+        <p class="muted" id="sim-message"></p>
+      </section>
+
+      <!-- TOP RIGHT: settings. -->
+      <section class="panel panel-controls">
+        <!-- The heading, with a small "model check" button on the right
+             that opens the page testing this sim's math. -->
+        <h2 class="heading-with-button">Options
+          <a class="tool-button model-check" href="uniform-spanning-tree-check.html">model check</a></h2>
+
+        <h3 class="option-heading">Show</h3>
+        <div class="option-row">
+          <label><input type="radio" name="show" value="tree" checked> The tree</label>
+          <label><input type="radio" name="show" value="colors"> Colors (how often each cell was left)</label>
+          <label><input type="radio" name="show" value="root"> Distance to the root</label>
+          <label><input type="radio" name="show" value="path"> Distance to the blue path</label>
+        </div>
+
+        <h3 class="option-heading">View</h3>
+        <div class="option-row">
+          <label><input type="radio" name="view" value="flat" checked> From above</label>
+          <label><input type="radio" name="view" value="3d"> 3D (for a number)</label>
+        </div>
+        <div class="option-row stretch-row" id="stretch-row" hidden></div>
+        <p class="muted small help-3d" id="view3d-help" hidden></p>
+
+        <div class="option-row">
+          A click:
+          <label><input type="radio" name="click" value="root" checked> moves the root (a new tree)</label>
+          <label><input type="radio" name="click" value="end"> moves the other end of the blue path</label>
+        </div>
+
+        <h3 class="option-heading">Domain</h3>
+        <div class="domain-options" data-ticked="box"></div>
+
+        <h3 class="option-heading">Run</h3>
+        <div class="option-row play-row" data-step="One step of the walk" data-restart="Back to the start, same seed"></div>
+        <div class="option-row speed-row"></div>
+        <div class="option-row seed-row"></div>
+        <p class="muted small">The same seed and root give the same tree every time. Moving the
+          root, or changing the domain or the seed, grows a new tree from the start.</p>
+      </section>
+
+      <!-- UNDER THE PICTURE: numbers about this tree. -->
+      <section class="panel panel-stats">
+        <h2>Statistics</h2>
+        <table class="stats-table">
+          <tr><td>Cells in the tree</td><td id="stat-cells"></td></tr>
+          <tr><td>Steps of the walks so far</td><td id="stat-steps"></td></tr>
+          <tr><td>Blue path, from the other end to the root</td><td id="stat-path"></td></tr>
+          <tr><td>Largest color</td><td id="stat-colors"></td></tr>
+          <tr><td>Farthest cell from the root, in the tree</td><td id="stat-root"></td></tr>
+          <tr><td>Farthest cell from the blue path, in the tree</td><td id="stat-to-path"></td></tr>
+        </table>
+      </section>
+
+      <!-- BOTTOM, the full width: about the model, in two tabs (js/sim-page.js
+           switches them). Text in class="tex" is typeset by KaTeX. -->
+      <section class="panel panel-about">
+        <h2>About the model</h2>
+        <nav class="about-tabs">
+          <button class="about-tab selected" data-tab="simple">Simple</button>
+          <button class="about-tab" data-tab="details">All the details</button>
+        </nav>
+
+        <!-- PLACEHOLDER: nadya writes the Simple text herself. -->
+        <div data-panel="simple">
+        <p class="muted">(The simple explanation is coming.)</p>
+        </div>
+
+        <div data-panel="details" hidden>
+        <p>
+          <strong>The model.</strong> The domain is a finite connected graph
+          <span class="tex">G = (V, E)</span>: the cells, joined to their 4
+          or 8 neighbors (on other lattices, see below). A spanning tree of
+          <span class="tex">G</span> is a set of edges
+          <span class="tex">T \subseteq E</span> that joins every two cells
+          by exactly one path: it has no cycles and reaches every cell. The
+          uniform spanning tree is a spanning tree chosen uniformly at random
+          among all of them. How many there are is given by Kirchhoff's
+          matrix-tree theorem [3]; the check page uses it.
+        </p>
+        <p>
+          <strong>Wilson's algorithm</strong> [1]. Pick a root
+          <span class="tex">r</span>; at first the tree is just
+          <span class="tex">r</span>. Take a cell not in the tree, and run a
+          simple random walk from it (each step to a uniformly random
+          neighbor) until it hits the tree. Erase each loop of the walk as
+          soon as it closes, and add what is left, a path with no loops, to
+          the tree. Repeat until every cell is in the tree. The tree is then
+          exactly uniform, whatever cells the walks start from and in
+          whatever order [1; 2, Theorem 4.1]. The sim shows it step by step:
+          the white line is the walk with its loops erased, and the black
+          lines are the tree. It follows that the path in the uniform
+          spanning tree between two cells has the law of the loop-erased
+          random walk from one to the other [2, Corollary 4.3; 4].
+        </p>
+        <p>
+          <strong>Colors</strong> [2, Section 4.1 and Figures 4.3, 4.4].
+          Picture each cell <span class="tex">x</span> holding a stack of
+          random neighbors <span class="tex">S^x_1, S^x_2, \dots</span>,
+          and the walk always leaving <span class="tex">x</span> along the
+          next one in its stack. Wilson's algorithm then pops cycles off the
+          stacks until the top neighbors make a tree. The color of
+          <span class="tex">x</span> is the place in its stack of the tree's
+          edge from <span class="tex">x</span>: the number of times the
+          walks stepped out of <span class="tex">x</span>. With the stacks
+          fixed, neither the tree nor the colors depend on the order the
+          walks are run in, and the colors are independent of the tree
+          [2, Lemma 4.2 and Section 4.1]. Lyons and Peres note that they seem
+          to have a fractal nature as the grid gets finer, which no one has
+          yet explained [2, Section 4.1].
+        </p>
+        <p>
+          <strong>Distances</strong> [2, Figures 4.5, 4.6]. "Distance to the
+          root" is the number of tree edges between each cell and the root,
+          and "Distance to the blue path" the number of tree edges between
+          each cell and the path in the tree from the other end to the root.
+          In 3D, each cell gets a stack that tall. In an
+          <span class="tex">n \times n</span> box, the tree distance from
+          one corner to the opposite one grows like
+          <span class="tex">n^{5/4}</span>: conjectured by Guttmann and
+          Bursill from simulations [5], calculated by Duplantier [6] and
+          Majumdar [7] with non-rigorous conformal field theory, and proved
+          in a form by Kenyon [8] (see [2, Section 4.1]).
+        </p>
+        <p>
+          <strong>Other lattices.</strong> The Lattice menu puts the cells on
+          a tiling of the plane by regular polygons with sides of length 1
+          that repeats in two directions: the 11 where every corner looks
+          the same, the 20 with two kinds of corner [9, Sections 2.1 and
+          2.2], or any tiling typed as a code in GomJau-Hogg notation [10]
+          (see <a href="../../help/gomjau-hogg.html">how codes work</a>), or
+          on one of Penrose's tilings. The cells are either the tiles,
+          neighbors when they share a side, or the corners, neighbors when a
+          side joins them. Wilson's algorithm works the same on any finite
+          connected graph [1].
+        </p>
+        <p>
+          <strong>Hyperbolic plane or tree.</strong> Here
+          <span class="tex">G</span> is the ball
+          <span class="tex">B_R = \{ v : d(o, v) \le R \}</span> of a regular
+          tiling <span class="tex">\{p, q\}</span> of the hyperbolic plane
+          (<span class="tex">1/p + 1/q &lt; 1/2</span>; neighbors share a side)
+          or of the regular tree of degree <span class="tex">d</span>, with
+          only the edges inside the ball. The root starts at the middle cell
+          <span class="tex">o</span>. (On a tree,
+          <span class="tex">B_R</span> is already a tree, so its only
+          spanning tree is itself.)
+        </p>
+        <p>
+          <strong>Several pieces.</strong> If the domain is in several
+          pieces, only the piece with the root has a spanning tree, so the
+          other cells are left out.
+        </p>
+        <p><strong>References</strong></p>
+        <ol class="references">
+          <li>D. B. Wilson, &ldquo;Generating random spanning trees more
+            quickly than the cover time&rdquo;, <em>Proceedings of the 28th
+            Annual ACM Symposium on the Theory of Computing</em> (1996),
+            296&ndash;303.</li>
+          <li>R. Lyons, Y. Peres, <em>Probability on Trees and Networks</em>,
+            Cambridge University Press, 2016.</li>
+          <li>G. Kirchhoff, &ldquo;&Uuml;ber die Aufl&ouml;sung der
+            Gleichungen, auf welche man bei der Untersuchung der linearen
+            Vertheilung galvanischer Str&ouml;me gef&uuml;hrt wird&rdquo;,
+            <em>Annalen der Physik und Chemie</em> 72 (1847),
+            497&ndash;508.</li>
+          <li>R. Pemantle, &ldquo;Choosing a spanning tree for the integer
+            lattice uniformly&rdquo;, <em>Ann. Probab.</em> 19 (1991),
+            1559&ndash;1574.</li>
+          <li>A. J. Guttmann, R. J. Bursill, &ldquo;Critical exponent for the
+            loop erased self-avoiding walk by Monte Carlo methods&rdquo;,
+            <em>J. Stat. Phys.</em> 59 (1990), 1&ndash;9.</li>
+          <li>B. Duplantier, &ldquo;Loop-erased self-avoiding walks in
+            2D&rdquo;, <em>Physica A</em> 191 (1992), 516&ndash;522.</li>
+          <li>S. N. Majumdar, &ldquo;Exact fractal dimension of the
+            loop-erased self-avoiding random walk in two dimensions&rdquo;,
+            <em>Phys. Rev. Lett.</em> 68 (1992), 2329&ndash;2331.</li>
+          <li>R. Kenyon, &ldquo;The asymptotic determinant of the discrete
+            Laplacian&rdquo;, <em>Acta Math.</em> 185 (2000),
+            239&ndash;286.</li>
+          <li>B. Gr&uuml;nbaum, G. C. Shephard, <em>Tilings and Patterns</em>,
+            W. H. Freeman, 1987.</li>
+          <li>V. G&oacute;mez-Jauregui, H. Hogg, C. Manchado, C. Otero,
+            &ldquo;GomJau-Hogg's notation for automatic generation of k-uniform
+            tessellations with ANTWERP v3.0&rdquo;, <em>Symmetry</em> 13
+            (2021), 2376.</li>
+        </ol>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <!-- KaTeX (https://katex.org) typesets the formulas. The version number
+       is fixed so an update can never change the site by surprise. -->
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/katex.min.js"></script>
+
+  <!-- The code the sims share (in js/, see the README): page helpers
+       (they also typeset the formulas, so they come after KaTeX), the
+       second thread's run loop, colors, domains, the picture's view
+       (moving and zooming it), the hyperbolic tilings and trees and their
+       pictures, the tilings by regular polygons, the options and controls
+       of the domain, and spanning trees. Then the tree (it grows in a
+       second thread), then this page's code. -->
+  <script src="../../js/sim-page.js"></script>
+  <script src="../../js/sim-worker.js"></script>
+  <script src="../../js/sim-colors.js"></script>
+  <script src="../../js/sim-domains.js"></script>
+  <script src="../../js/sim-view.js"></script>
+  <script src="../../js/sim-graphs.js"></script>
+  <script src="../../js/sim-hyperbolic.js"></script>
+  <script src="../../js/sim-tilings.js"></script>
+  <script src="../../js/sim-penrose.js"></script>
+  <script src="../../js/sim-controls.js"></script>
+  <script src="../../js/sim-spanning.js"></script>
+  <script src="uniform-spanning-tree-wilson.js"></script>
+  <script src="uniform-spanning-tree.js"></script>
+
+</body>
+</html>
