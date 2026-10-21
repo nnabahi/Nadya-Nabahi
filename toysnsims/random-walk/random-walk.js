@@ -270,7 +270,8 @@ connectPlay(sim, SPEEDS, DEFAULT_SPEED, "step", "steps", function () { restart(f
          early, red just now), the convex hull through their middles,
          the holes (with "Shade the holes"), the origin (its cell
          outlined) and the walker (a black dot). It can be moved and
-         zoomed (js/sim-view.js).
+         zoomed (js/sim-view.js). The canvas keeps one height as the
+         walk spreads, as Eden Growth's does, so the page doesn't jump.
      3D: a cube for every visited site, colored the same way, the
          walker as a ball, and the hull as a see-through solid.
    ===================================================================== */
@@ -405,7 +406,7 @@ function drawDot(pen, x, y, r) {
 // on top.
 function drawGrid() {
   const s = latest, shown = shownBox();
-  const pen = fitPicture(view, shown, PICTURE_HEIGHT);
+  const pen = fitPicture(view, shown, PICTURE_HEIGHT, true);
   paintCells(view, pen, shown, ageGroup, function (k) { return AGE_COLORS[k]; }, hexToRGB(BACKGROUND));
   if (byId("show-holes").checked && s.holes) shadeSquares(view, pen, shown, s.holes.cells, HOLE);
   // Where the middle of site (x, y) is on the canvas.
@@ -441,7 +442,7 @@ function gridSite(x, y) {
 // the walker on top, as on the square grid.
 function drawTiling() {
   const s = latest, shown = shownTiling(s);
-  const pen = fitPicture(view, shown, PICTURE_HEIGHT);
+  const pen = fitPicture(view, shown, PICTURE_HEIGHT, true);
   paintDomain(view, pen, shown,
     function (v) { return v < sites ? ageGroup(v) : HOLE_GROUP; },
     function (k) { return k === HOLE_GROUP ? hexToRGB(HOLE) : AGE_COLORS[k]; },
