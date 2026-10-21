@@ -29,6 +29,10 @@
         3 neighbors in the honeycomb, 6 in the triangular lattice, 4 in
         the kagome lattice).
 
+     6. The domains (connected pieces of one color), counted for the
+        Statistics and the chart over time and highlighted on a click,
+        match a count made another way (testRegions, js/check-page.js).
+
    Tests 1 and 2 also run on a small box of a tiling with three kinds of
    cell (squares, hexagons and 12-gons), from js/sim-tilings.js, and on
    a small box of Penrose's kites and darts (js/sim-penrose.js).
@@ -239,6 +243,6 @@ runChecksOnClick(function () {
     function () { testSampling("heat"); }, function () { testSampling("sw"); },
     function () { testUniform("heat"); }, function () { testUniform("sw"); },
     testYang, testOnsager,
-    testCriticalEquations, testIsingCritical, testCriticalLattices,
+    testCriticalEquations, testIsingCritical, testCriticalLattices, testRegions,
   ];
 });

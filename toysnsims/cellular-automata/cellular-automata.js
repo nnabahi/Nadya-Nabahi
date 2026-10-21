@@ -18,6 +18,8 @@
      - Changing the rule, b, the neighborhood, the edges or the seed
        makes the run again up to the same step, so the picture changes
        at once, like a Desmos slider. Restart goes back to step 0.
+     - With "A click: highlights its cluster" picked, a click on a cell
+       highlights its cluster instead (js/sim-highlight.js).
 
    The file is split into numbered sections:
      1. Settings you might want to change
@@ -98,6 +100,7 @@ let domain = null;           // the picture as a domain of cells (js/sim-domains
 let run = 0;                 // counts restarts, so leftovers from an older run are ignored
 let latest = null;           // the latest message from the worker (part 2 of cellular-automata-rule.js)
 let look = null;             // 1D: the last step shown when scrolled back, or null for the newest
+const highlight = newHighlight();   // the clicked cell, whose cluster is highlighted (js/sim-highlight.js)
 
 
 /* =====================================================================
@@ -248,11 +251,13 @@ function randomRule() {
    5. RUNNING THE AUTOMATON
    ---------------------------------------------------------------------
    The rule is automatonWorker() in cellular-automata-rule.js, with
-   newAutomaton, automatonStart, stateHash, and the run loop and the
-   trace (js/sim-worker.js) copied in. startWorker (js/sim-page.js)
+   newAutomaton, automatonStart, stateHash, the run loop and the trace
+   (js/sim-worker.js), and countPieces with the search behind it
+   (js/sim-domains.js) copied in. startWorker (js/sim-page.js)
    runs it in a second thread, so the page never freezes.
    ===================================================================== */
-const worker = startWorker(automatonWorker, [newAutomaton, automatonStart, stateHash, makeRunLoop, newTrace, keepSample]);
+const worker = startWorker(automatonWorker, [newAutomaton, automatonStart, stateHash, makeRunLoop, newTrace, keepSample,
+                                             countPieces, findRegions, spreadRegion]);
 
 worker.onmessage = function (event) {
   const message = event.data;
@@ -294,8 +299,18 @@ function restart(keepStep) {
     b: b, offsets: neighborhood, table: table, edge: checked("edge"),
     edgeState: readWhole("edge-state", 0, b - 1, 0), start: byId("start").value, drawn: drawn,
     seed: byId("seed").value, mode: checked("mode"), toStep: toStep, look: look,
+    links: { 4: tapeLinks(size, 4), 8: tapeLinks(size, 8) },
   });
   player.carryOn();
+}
+
+// The tape (1D) or grid (2D) as it is now, as a domain with 4 or 8
+// neighbors, for the worker to count its clusters over time. Across the
+// edges only when they wrap around (in 1D the tape is then a ring).
+// Only the cells and their neighbors go to the worker.
+function tapeLinks(size, links) {
+  const d = boxDomain(size.width, size.height, links, checked("edge") === "wrap");
+  return { n: d.n, first: d.first, nbr: d.nbr };
 }
 
 // Play / Pause, Step, Restart and the Speed slider (connectPlay,
@@ -310,7 +325,8 @@ const player = connectPlay(worker, SPEEDS, DEFAULT_SPEED, "step", "steps", funct
    cells (boxDomain, js/sim-domains.js): in 1D the rectangle of the tape
    over time (rows shown x tape length), in 2D the grid. The view
    (js/sim-view.js) says where it goes and which squares show, and
-   paints them (paintCells).
+   paints them (paintCells). A clicked cell's cluster stands out: every
+   other cell fades (js/sim-highlight.js).
    ===================================================================== */
 const simCanvas = byId("sim-canvas");
 
@@ -328,9 +344,11 @@ function pictureColors() { return dim === 1 ? latest.picture : latest.cells; }
 function drawPicture() {
   if (!latest) return;
   const colors = pictureColors();
+  findHighlight(highlight, domain, colors);
+  showHighlightInfo();
   const pen = fitPicture(view, domain, MAX_PICTURE_HEIGHT);
-  paintCells(view, pen, domain, function (v) { return colors[v]; },
-    function (s) { return s < 0 ? emptyRGB : colorRGB[s]; }, emptyRGB);
+  paintCells(view, pen, domain, highlightGroups(highlight, function (v) { return colors[v]; }, b),
+    highlightRGB(function (s) { return s < 0 ? emptyRGB : colorRGB[s]; }, b), emptyRGB);
   pen.restore();
   placeHistoryBar();
 }
@@ -443,6 +461,7 @@ function makePictureDomain() {
 // whole (useTorus, js/sim-view.js).
 function newPicture() {
   makePictureDomain();
+  clearHighlight(highlight);
   useTorus(view, Boolean(domain.wrap));
 }
 
@@ -459,16 +478,27 @@ function setColors() {
    7. MOVING, ZOOMING AND CLICKING THE PICTURE
    ---------------------------------------------------------------------
    Drag to move, mouse wheel or pinch to zoom, and the + / − / Reset
-   buttons (connectPicture, js/sim-controls.js). A click on a cell
-   changes its state to the next one (b - 1 goes back to 0), and the run
-   starts again from there, as "Your drawing". In 1D the click changes
-   that column of the newest row (the tape as it is now).
+   buttons (connectPicture, js/sim-controls.js). What a click on a cell
+   does is picked under the picture:
+     - it changes the cell's state to the next one (b - 1 goes back to
+       0), and the run starts again from there, as "Your drawing". In 1D
+       the click changes that column of the newest row (the tape as it
+       is now).
+     - or it highlights the cell's cluster in the picture
+       (js/sim-highlight.js), which follows that cell as the run goes on
+       (in 1D, the same spot of the picture). Clicking the cluster
+       again, or outside the cells, shows everything again.
    ===================================================================== */
 connectPicture(view, null, function () { return false; }, clickCell, "pointer");
 
 function clickCell(event) {
   if (!latest) return;
   const v = cellUnder(view, domain, pointerSpot(view, event));
+  if (checked("click") === "highlight") {
+    clickHighlight(highlight, v, pictureColors());
+    drawSoon();
+    return;
+  }
   if (v < 0) return;
   const cells = latest.cells.slice();
   const i = dim === 1 ? v % cells.length : v;
@@ -489,9 +519,16 @@ function forgetDrawing() {
 }
 
 function showClickHelp() {
-  byId("click-help").textContent = dim === 1
-    ? "Click a cell to change that cell of the tape as it is now; the run starts again from there."
+  byId("click-help").textContent = checked("click") === "highlight" ? ""
+    : dim === 1 ? "Click a cell to change that cell of the tape as it is now; the run starts again from there."
     : "Click a cell to change its state; the run starts again from there.";
+}
+
+// The line under the picture about the highlight: shown while a
+// cluster is highlighted, or while a click highlights.
+function showHighlightInfo() {
+  byId("highlight-info").textContent = highlightTextIf(highlight, checked("click") === "highlight", "cluster",
+                                                      function (s) { return "state " + s; });
 }
 
 
@@ -504,7 +541,9 @@ function showClickHelp() {
    each one's area and perimeter, are found here each time the picture
    is drawn, by findRegions (js/sim-domains.js), through 4 or 8
    neighbors. In 1D the counts and the interface are of the tape as it
-   is now, and the clusters are of the whole picture.
+   is now, and the clusters are of the whole picture. The worker also
+   counts the clusters of each state at each sample of the run, for the
+   chart over time: in 1D, those of the tape as it is now.
    ===================================================================== */
 function showStats() {
   if (!latest) return;
@@ -545,15 +584,12 @@ function showStats() {
   byId("interface-heading").textContent = "Interface" + onTape + ", over time";
   byId("areas-heading").textContent = "How many clusters of each size" + (dim === 1 ? " in the picture" : "") +
     " (sizes grouped 1, 2-3, 4-7, ...)";
-  const lines = [];
-  for (let c = 0; c < b; c++) {
-    const values = [];
-    for (let j = 0; j < s.traceTimes.length; j++) values.push(s.traceCounts[j * b + c] / cells);
-    lines.push({ color: c === 0 ? CHART_ZERO : colorNames[c], values: values });
-  }
-  plotOverTime(byId("shares-chart"), s.traceTimes, lines, "step");
+  byId("clusters-heading").textContent = "Clusters of each state" + onTape + ", over time (gray: all of them)";
+  const lineColor = function (c) { return c === 0 ? CHART_ZERO : colorNames[c]; };
+  plotOverTime(byId("shares-chart"), s.traceTimes, colorLines(s.traceCounts, s.traceTimes.length, b, lineColor, 1 / cells), "step");
   plotOverTime(byId("interface-chart"), s.traceTimes,
     [{ color: CHART_LINE, values: Array.from(eight ? s.traceInterface8 : s.traceInterface4) }], "step");
+  regionsChart(byId("clusters-chart"), s.traceTimes, eight ? s.tracePieces8 : s.tracePieces4, b, lineColor, "step");
 
   // The clusters' areas (powerOfTwoBars, js/sim-charts.js), and
   // perimeter against area (perimeterChart).
@@ -640,8 +676,15 @@ for (const radio of document.querySelectorAll('input[name="mode"]')) {
 }
 byId("start").addEventListener("change", function () { restart(false); });
 
-// The clusters' neighbors: only the statistics change.
+// The clusters' neighbors: only the statistics (and a highlighted
+// cluster) change.
 byId("links").addEventListener("change", function () { makePictureDomain(); drawSoon(); });
+
+// What a click on the picture does: change the cell, or highlight its
+// cluster (section 7).
+for (const radio of document.querySelectorAll('input[name="click"]')) {
+  radio.addEventListener("change", function () { showClickHelp(); drawSoon(); });
+}
 
 // Seed: the same seed gives the same run every time.
 connectSeed(function () { restart(true); });

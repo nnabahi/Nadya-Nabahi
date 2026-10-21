@@ -50,7 +50,14 @@
           </div>
         </div>
         <p class="muted small" id="history-label" hidden></p>
+        <!-- What a click on the picture does (section 7 of cellular-automata.js). -->
+        <div class="option-row small">
+          A click:
+          <label><input type="radio" name="click" value="change" checked> changes the cell</label>
+          <label><input type="radio" name="click" value="highlight"> highlights its cluster</label>
+        </div>
         <p class="muted small" id="click-help"></p>
+        <p class="muted small" id="highlight-info"></p>
         <p class="muted" id="sim-message"></p>
       </section>
 
@@ -194,6 +201,10 @@
           <div class="stat">
             <h3 class="option-heading" id="interface-heading"></h3>
             <canvas class="chart" id="interface-chart"></canvas>
+          </div>
+          <div class="stat">
+            <h3 class="option-heading" id="clusters-heading"></h3>
+            <canvas class="chart" id="clusters-chart"></canvas>
           </div>
           <div class="stat">
             <h3 class="option-heading">Perimeter against area of each cluster</h3>
@@ -365,6 +376,7 @@
   <script src="../../js/sim-charts.js"></script>
   <script src="../../js/sim-colors.js"></script>
   <script src="../../js/sim-domains.js"></script>
+  <script src="../../js/sim-highlight.js"></script>
   <script src="../../js/sim-view.js"></script>
   <script src="../../js/sim-controls.js"></script>
   <script src="cellular-automata-rule.js"></script>

@@ -219,13 +219,19 @@ function walkWorker() {
   /* ===================================================================
      4. THE RUN SO FAR, FOR THE PLOTS OVER TIME
      -------------------------------------------------------------------
-     A sample is the time, the interface and the size of each color,
-     kept by keepSample (js/sim-worker.js), and always one at the end.
+     A sample is the time, the interface, the size of each color and
+     the number of regions of each color, kept by keepSample
+     (js/sim-worker.js), and always one at the end. The regions are
+     counted (countPieces, js/sim-domains.js, copied in by the page)
+     only when a sample is due, since that looks at every cell.
      =================================================================== */
   let trace = newTrace();
 
   function takeSample() {
-    keepSample(trace, time, { interfaceEdges: interfaceEdges, sizes: sizes }, colored === n);
+    keepSample(trace, time, function () {
+      return { interfaceEdges: interfaceEdges, sizes: sizes,
+               regions: countPieces({ n: n, first: first, nbr: nbr }, color, N) };
+    }, colored === n);
   }
 
 
@@ -283,6 +289,7 @@ function walkWorker() {
       traceTimes: Float64Array.from(trace.times),
       traceInterface: Int32Array.from(trace.lists.interfaceEdges),
       traceSizes: Int32Array.from(trace.lists.sizes),
+      traceRegions: Int32Array.from(trace.lists.regions),
     }, [colorCopy.buffer, positionCopy.buffer]);   // hand the copies over instead of copying again
   }
 }

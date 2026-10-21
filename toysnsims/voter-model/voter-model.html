@@ -67,6 +67,8 @@
           <iframe class="tool-frame" id="tool-frame" title="Graph and domain tool"></iframe>
         </div>
 
+        <!-- How to highlight a domain, or what is highlighted (js/sim-highlight.js). -->
+        <p class="muted small" id="highlight-info"></p>
         <p class="muted" id="sim-message"></p>
       </section>
 
@@ -223,7 +225,7 @@
           <div class="stat">
             <h3 class="option-heading">Each opinion</h3>
             <table class="stats-table">
-              <thead><tr><td></td><td>Cells</td><td>Share</td></tr></thead>
+              <thead><tr><td></td><td>Cells</td><td>Share</td><td>Domains</td></tr></thead>
               <tbody id="color-rows"></tbody>
             </table>
           </div>
@@ -241,6 +243,10 @@
           <div class="stat">
             <h3 class="option-heading">Share of disagreeing neighbor pairs over time</h3>
             <canvas class="chart" id="disagree-chart"></canvas>
+          </div>
+          <div class="stat">
+            <h3 class="option-heading">Domains of each opinion over time (gray: all of them)</h3>
+            <canvas class="chart" id="domains-chart"></canvas>
           </div>
         </div>
       </section>
@@ -497,6 +503,7 @@
   <script src="../../js/sim-charts.js"></script>
   <script src="../../js/sim-colors.js"></script>
   <script src="../../js/sim-domains.js"></script>
+  <script src="../../js/sim-highlight.js"></script>
   <script src="../../js/sim-view.js"></script>
   <script src="../../js/sim-graphs.js"></script>
   <script src="../../js/sim-hyperbolic.js"></script>

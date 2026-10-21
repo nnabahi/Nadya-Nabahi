@@ -76,6 +76,22 @@
       <p class="muted" id="arctic-status"></p>
       <canvas id="arctic-canvas"></canvas>
     </section>
+
+    <!-- 4. Counting clusters (testRegions, js/check-page.js). -->
+    <section class="check-section">
+      <h2>4. Are the clusters counted right?</h2>
+      <p>
+        The sim counts the clusters (connected pieces of the covered cells of one color) for its
+        Statistics and the chart over time, and finds the clicked cell's cluster to highlight it.
+        Both are compared with a count made another way, by union-find (B. A. Galler &amp;
+        M. J. Fischer, <i>Comm. ACM</i> 7 (1964) 301), on random colorings of boxes, tori,
+        triangles, hexagons and an Aztec diamond, some with uncolored cells (like gaps).
+      </p>
+      <p><button class="tool-button" id="run-checks">Run the checks</button></p>
+      <table class="check-table">
+        <tbody id="results"></tbody>
+      </table>
+    </section>
   </main>
 
   <!-- seedrandom: random numbers that repeat for the same seed. jStat:
@@ -84,6 +100,7 @@
   <script src="https://cdn.jsdelivr.net/npm/seedrandom@3.0.5/seedrandom.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jstat@1.9.6/dist/jstat.min.js"></script>
   <script src="../../js/sim-page.js"></script>
+  <script src="../../js/check-page.js"></script>
   <script src="../../js/sim-charts.js"></script>
   <script src="../../js/sim-domains.js"></script>
   <script src="uniform-discrete-tiling-chain.js"></script>
