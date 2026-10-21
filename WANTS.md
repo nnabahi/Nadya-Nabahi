@@ -39,6 +39,13 @@ is and where the details are. When one gets built, it moves out of here
 - **Other lattices and more walkers**: the walk on triangles or hexagons,
   several walkers, cut points of the path (Brownian cut points have
   dimension 3/4: Lawler, Schramm and Werner).
+- **Step-reinforced walks** (from a talk abstract nadya shared, 2026-10-21, J. Bertoin):
+  at step n, with probability 1 - p_n the walk repeats a uniformly chosen
+  earlier step, otherwise it takes a fresh step. A chart of the scaling
+  exponent, against the plain walk. J. Bertoin, "Scaling exponents of
+  step-reinforced random walks", Probab. Theory Related Fields 179 (2021)
+  295-315. Related: the elephant random walk, G. Schütz and S. Trimper,
+  Phys. Rev. E 70 (2004) 045101. Exact and easy.
 
 ## Ising & Potts
 
@@ -52,6 +59,14 @@ is and where the details are. When one gets built, it moves out of here
   for the Ising model on Archimedean and Laves lattices", Journal of
   Physics A 43 (2010) 385002, lists the values for the 11 Archimedean
   tilings and their duals, to check against.
+- **3D Ising interfaces** (from a talk abstract nadya shared, 2026-10-21, E. Lubetzky): the 3D Ising model in
+  a box with plus above and minus below (Dobrushin boundary), the
+  interface drawn as a surface in the 3D view, and its maximum height
+  against log n. R. Gheissari and E. Lubetzky, "Maximum and shape of
+  interfaces in 3D Ising crystals", Comm. Pure Appl. Math. 75 (2022)
+  2575-2684; R. Dobrushin, Theory Probab. Appl. 17 (1972) 582-600.
+  Doable for boxes up to about 40 per side; at low temperature the chain
+  mixes slowly, so pictures are approximate.
 
 ## Site Percolation
 
@@ -76,6 +91,27 @@ since the site should be a bit extravagant in what it can simulate).
   probability. Y. Peres, O. Schramm, S. Sheffield and D. Wilson,
   "Random-turn Hex and other selection games", Amer. Math. Monthly 114
   (2007) 373-387.
+- **Graphs drawn by their circle packing** (from a talk abstract nadya shared, 2026-10-21, R. Peled): any
+  triangulation can be drawn as a packing of tangent circles (Koebe,
+  Andreev, Thurston), computed by a simple iteration (C. Collins and
+  K. Stephenson, Comput. Geom. 25 (2003) 233-256). Recurrent graphs pack
+  the plane and transient ones pack the disk: Z.-X. He and O. Schramm,
+  "Hyperbolic and parabolic packings", Discrete Comput. Geom. 14 (1995)
+  123-149. This would give percolation (and the walk) a picture on any
+  triangulation from the graph tool. The talk's bounds on p_c are
+  theorems, not pictures.
+- **Zero or infinitely many infinite clusters** (from a talk abstract nadya shared, 2026-10-21, M. Harel, with
+  A. Glazman and N. Zelesko): on the hyperbolic disk, show how many big
+  clusters cross a ball, as p moves; on planar graphs for p <= 1/2 the
+  number of infinite clusters is 0 or infinity. Check the paper's
+  reference before using it.
+- **Crossing probabilities** (from a talk abstract nadya shared, 2026-10-21, V. Tassion): a chart of the
+  probability that a rectangle is crossed left to right, against its
+  aspect ratio, with Cardy's formula overlaid on the triangular lattice
+  (J. Cardy, J. Phys. A 25 (1992) L201; proved by Smirnov 2001, above).
+  RSW for general symmetric, positively correlated models:
+  L. Köhler-Schindler and V. Tassion, "Crossing probabilities for planar
+  percolation", Duke Math. J. (2023). Exact and cheap.
 
 ## Gaussian free field (new sim)
 
@@ -115,7 +151,7 @@ From Scott Sheffield's work, nadya 2026-10-21.
   Math. Soc. 25 (2012) 271-301, and "Internal DLA and the Gaussian free
   field", Duke Math. J. 163 (2014) 267-308.
 
-## Tree-weighted random planar maps (new sim)
+## Random planar maps (new sim)
 
 From Scott Sheffield's work (the animations from his ICM talk "What is a
 random surface?"), nadya 2026-10-21.
@@ -132,3 +168,56 @@ random surface?"), nadya 2026-10-21.
   Lyons-Peres Sec. 9, and is a much bigger build (F. Bertacco, E. Gwynne
   and S. Sheffield, "Scaling limits of planar maps under the Smith
   embedding", arXiv:2306.02988; check this reference before using it).
+- **Percolation on random triangulations** (from a talk abstract nadya shared, 2026-10-21, O. Bernardi): a
+  percolated triangulation is encoded by a Kreweras walk in the quarter
+  plane, so sampling is exact. O. Bernardi, N. Holden and X. Sun,
+  "Percolation on triangulations: a bijective path to Liouville quantum
+  gravity", Mem. Amer. Math. Soc. (2023).
+- **Brownian map geodesics** (from a talk abstract nadya shared, 2026-10-21, J.-F. Le Gall): a uniform
+  quadrangulation, sampled exactly from a labeled tree (the
+  Cori-Vauquelin-Schaeffer bijection; labels are distances to the root,
+  so geodesics to the root are free). The Brownian map is its limit:
+  J.-F. Le Gall, Ann. Probab. 41 (2013) 2880-2960; G. Miermont, Acta
+  Math. 210 (2013) 319-401. The geodesic stars of the talk are a
+  dimension result; a picture can show the geodesics to one point, not
+  the stars themselves.
+
+## Last passage percolation (queued)
+
+- **Geodesic networks** (from a talk abstract nadya shared, 2026-10-21, D. Dauvergne): in LPP on Z^2, draw the
+  geodesics between many pairs of points and highlight where they meet
+  and split. The directed landscape is the limit: D. Dauvergne,
+  J. Ortmann and B. Virág, "The directed landscape", Acta Math. 229
+  (2022) 201-285. The classification is D. Dauvergne, "The 27 geodesic
+  networks in the directed landscape", arXiv:2302.07802 (check this
+  reference before using it). On a finite grid the exotic networks are
+  only approximate.
+
+## Loop O(n) model (new sim)
+
+- from a talk abstract nadya shared, 2026-10-21 (M. Harel): loops on the hexagonal lattice, weight
+  x^(edges) n^(loops), by Markov chain. For n in [1,2] and x in
+  [1/sqrt 2, 1], every face is surrounded by infinitely many loops
+  (Glazman, Harel and Zelesko; check the reference). n = 1 is the Ising
+  model's domain walls, so the Ising page can check it. Weighted, not
+  uniform, by definition of the model.
+
+## Random temporal graphs (new sim)
+
+- from a talk abstract nadya shared, 2026-10-21 (N. Kamčev): G(n,p) with a uniform random time on each edge;
+  shortest and longest increasing paths between two vertices, and the
+  temporal diameter, near np = log n. Exact and easy. N. Broutin,
+  N. Kamčev and G. Lugosi, "Increasing paths in random temporal graphs"
+  (check the reference). Earlier: O. Angel, A. Ferber, B. Sudakov and
+  V. Tassion, "Long monotone trails in random edge-labellings of random
+  graphs", Combin. Probab. Comput. 29 (2020) 22-30.
+
+## Minimal factorizations of a cycle (new sim)
+
+- from a talk abstract nadya shared, 2026-10-21 (I. Kortchemski): a uniform factorization of (1,...,n) into n-1
+  transpositions, drawn as chords in a disk, adding the first k one by
+  one to see the phase transition. There are n^(n-2) of them
+  (J. Dénes, 1959), in bijection with labeled trees, so sampling is
+  exact. V. Féray and I. Kortchemski, "The geometry of random minimal
+  factorizations of a long cycle via biconditioned bitype random trees",
+  Ann. Henri Lebesgue 1 (2018) 109-186.
