@@ -42,6 +42,7 @@
   --color-text:         #22252b;  /* normal writing                    */
   --color-text-muted:   #6b6f78;  /* captions, dates, small notes      */
   --color-border:       #dedbd4;  /* thin lines around cards           */
+  --color-grid:         #e6e6e6;  /* grid lines on charts and plane pictures */
   --color-accent:       #3a5a7a;  /* links, active tab, highlights     */
   --color-topbar:       #ffffff;  /* background of the top bar         */
   --color-placeholder:  #ecebe7;  /* gray boxes where content will go  */
