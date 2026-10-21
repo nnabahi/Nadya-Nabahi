@@ -33,22 +33,6 @@
           <canvas id="sim-canvas"></canvas>
         </div>
 
-        <!-- Shown instead of the picture while you draw a custom domain:
-             the graph tool itself, in an <iframe> (a page inside this page),
-             with a live check above it. -->
-        <div id="custom-area" hidden>
-          <div class="step-bar">
-            <p class="step-title">Draw the region</p>
-            <p class="muted step-help">Paint the cells to pack (any color counts). Then press Done.</p>
-            <p class="step-status" id="step-status"></p>
-            <div class="option-row">
-              <button class="tool-button" id="tool-done">Done</button>
-              <button class="tool-button" id="tool-cancel">Cancel</button>
-            </div>
-          </div>
-          <iframe class="tool-frame" id="tool-frame" title="Graph and domain tool"></iframe>
-        </div>
-
         <!-- What a click on the picture does (section 6 of uniform-discrete-tiling.js). -->
         <div class="option-row small">
           A click:

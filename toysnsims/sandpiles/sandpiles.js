@@ -790,6 +790,9 @@ const domains = connectDomains({
   box: function () { return boxFromOptions(checked("domain") === "torus" ? MIN_TORUS : 1, MAX_SIDE, DEFAULTS); },
   ball: function () { return ballFromOptions(disk, BALL, function (spec) { return ", each toppling at " + spec.p + " grains"; }); },
   custom: {
+    title: "Draw the table",
+    help: "Paint the cells of the table (any color counts). Grains that fall off its edge are lost. Pick 4 or 8 " +
+          "neighbors in the tool; that is also how many grains a cell needs to topple.",
     check: function (drawing) {
       const cells = drawing.graph.vertices.length;
       return cells === 0 ? ["Paint the table first.", ""] : ["", cells + " cells, " + drawing.grid.neighbors + " neighbors."];

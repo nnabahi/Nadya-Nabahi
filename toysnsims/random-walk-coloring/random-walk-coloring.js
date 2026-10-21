@@ -608,6 +608,8 @@ const domains = connectDomains({
   box: function () { return boxFromOptions(2, MAX_SIDE, DEFAULTS); },
   ball: function () { return ballFromOptions(disk, BALL); },
   custom: {
+    help: "Paint the cells the walkers live on (any color counts). The region must be one connected piece. " +
+          "Then press Done, and drag the walkers to where they should start.",
     check: function (drawing) {
       if (drawing.graph.vertices.length === 0) return ["Paint the region first.", ""];
       const region = drawnDomain(drawing.graph, drawing.grid);

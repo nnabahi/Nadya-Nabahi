@@ -52,24 +52,6 @@
           </div>
         </div>
 
-        <!-- Shown instead of the picture while you draw a custom domain:
-             the graph tool itself, in an <iframe> (a page inside this
-             page). -->
-        <div id="custom-area" hidden>
-          <div class="step-bar">
-            <p class="step-title">Draw the domain</p>
-            <p class="muted step-help">Paint the cells the mountain may grow on (any
-              color counts). The first block goes on (0, 0) if you painted it, otherwise
-              on the painted cell nearest the middle. Then press Done.</p>
-            <p class="step-status" id="step-status"></p>
-            <div class="option-row">
-              <button class="tool-button" id="tool-done">Done</button>
-              <button class="tool-button" id="tool-cancel">Cancel</button>
-            </div>
-          </div>
-          <iframe class="tool-frame" id="tool-frame" title="Graph and domain tool"></iframe>
-        </div>
-
         <!-- Messages, e.g. a problem with the domain. -->
         <p class="muted" id="sim-message"></p>
       </section>

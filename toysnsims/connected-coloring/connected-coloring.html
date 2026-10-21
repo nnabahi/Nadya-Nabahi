@@ -33,27 +33,6 @@
           <canvas id="sim-canvas"></canvas>
         </div>
 
-        <!-- Shown instead of the picture while you draw a custom domain:
-             the steps, and the graph tool itself in an <iframe> (a page
-             inside this page). The buttons with data-step="1" show in
-             step 1, those with data-step="2" in step 2. -->
-        <div id="custom-area" hidden>
-          <div class="step-bar">
-            <p class="step-title" id="step-title"></p>
-            <p class="muted step-help" id="step-help"></p>
-            <p class="step-status" id="step-status"></p>
-            <div class="option-row">
-              <button class="tool-button" id="use-auto" data-step="1">Use automatic start</button>
-              <button class="tool-button" id="draw-own" data-step="1">Draw my own start</button>
-              <button class="tool-button tool-cancel" data-step="1">Cancel</button>
-              <button class="tool-button" id="tool-back" data-step="2">Back to the region</button>
-              <button class="tool-button" id="tool-done" data-step="2">Done</button>
-              <button class="tool-button tool-cancel" data-step="2">Cancel</button>
-            </div>
-          </div>
-          <iframe class="tool-frame" id="tool-frame" title="Graph and domain tool"></iframe>
-        </div>
-
         <!-- How to highlight one color (section 5b of connected-coloring.js). -->
         <p class="muted small" id="highlight-info"></p>
         <!-- Messages, e.g. if the chain can't start. -->

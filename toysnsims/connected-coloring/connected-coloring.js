@@ -721,7 +721,6 @@ const domains = connectDomains({
   custom: {
     check: checkDrawing,
     onOpen: function () { showStep(1); },
-    buttons: ["use-auto", "draw-own", "tool-done"],
     // Step 2 -> "Done": start from your coloring, in the tool's colors.
     done: function (drawing) {
       const start = drawnColoring();
@@ -738,20 +737,30 @@ const domains = connectDomains({
   },
 });
 
+// Each step's buttons, beside the tool's Cancel: step 1's "Use
+// automatic start" and "Draw my own start" (which, like Done, work only
+// with a good drawing), and step 2's "Back to the region" and Done.
+const stepButtons = {
+  1: [toolButton("Use automatic start", useAutomaticStart), toolButton("Draw my own start", drawOwnStart)],
+  2: [toolButton("Back to the region", backToRegion), domains.tool.doneButton],
+};
+domains.tool.doneButton.before(...stepButtons[1], stepButtons[2][0]);
+domains.tool.goodButtons.push(...stepButtons[1]);
+
 // Show step 1 or 2: its title, its help, and its buttons. (Check the
 // drawing again afterwards, with domains.tool.check().)
 function showStep(step) {
   toolStep = step;
-  byId("step-title").textContent = step === 1
+  domains.tool.title.textContent = step === 1
     ? "Step 1 of 2: draw the region"
     : "Step 2 of 2: color the region";
-  byId("step-help").textContent = step === 1
+  domains.tool.help.textContent = step === 1
     ? "Paint the cells the coloring lives on (any color counts). The region must be one " +
       "connected piece. Then pick an automatic start, or draw your own."
     : "The rule: every cell needs a color, and each color must be one connected piece. " +
       "Cells outside the region are grayed out. The colors you use become the N colors.";
-  for (const button of document.querySelectorAll("[data-step]")) {
-    button.hidden = Number(button.dataset.step) !== step;
+  for (const s of [1, 2]) {
+    for (const button of stepButtons[s]) button.hidden = s !== step;
   }
 }
 
@@ -800,25 +809,25 @@ function drawnColoring() {
 }
 
 // Step 1 -> "Use automatic start": the region, with the automatic start.
-byId("use-auto").addEventListener("click", function () {
+function useAutomaticStart() {
   region = drawnDomain(domains.tool.drawing.graph, domains.tool.drawing.grid);
   domains.use("custom", region);
-});
+}
 
 // Step 1 -> "Draw my own start": lock the region and go to step 2.
-byId("draw-own").addEventListener("click", function () {
+function drawOwnStart() {
   region = drawnDomain(domains.tool.drawing.graph, domains.tool.drawing.grid);
   domains.tool.frame.contentWindow.postMessage({ type: "lock" }, "*");
   showStep(2);
   domains.tool.check();
-});
+}
 
 // Step 2 -> "Back to the region".
-byId("tool-back").addEventListener("click", function () {
+function backToRegion() {
   domains.tool.frame.contentWindow.postMessage({ type: "unlock" }, "*");
   showStep(1);
   domains.tool.check();
-});
+}
 
 
 /* =====================================================================

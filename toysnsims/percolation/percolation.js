@@ -570,7 +570,11 @@ const domains = connectDomains({
     const ball = ballFromOptions(disk, BALL);
     return ball === null ? null : ballForPercolation(ball);
   },
-  custom: { check: atLeastTwoCells },
+  custom: {
+    check: atLeastTwoCells,
+    help: KIND === "site" ? "Paint the cells that can be open (any color counts). Then press Done."
+      : "Paint the cells (any color counts). Every pair of neighboring cells gets an edge, open or closed. Then press Done.",
+  },
   use: function (d) {
     domain = d;
     edges = edgesOf(d);

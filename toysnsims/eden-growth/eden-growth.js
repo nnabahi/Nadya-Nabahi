@@ -1123,6 +1123,9 @@ function radiusHeatChart(canvas, times, radii, bins) {
    connected piece.
    ===================================================================== */
 const tool = makeCustomTool(view, player, {
+  title: "Draw the domain",
+  help: "Paint the cells the mountain may grow on (any color counts). The first block goes on (0, 0) " +
+        "if you painted it, otherwise on the painted cell nearest the middle. Then press Done.",
   showPicture: showPictureKind,     // the 2D or 3D picture hides while the tool is open
   check: function (drawing) {
     const cells = drawing.graph.vertices.length;

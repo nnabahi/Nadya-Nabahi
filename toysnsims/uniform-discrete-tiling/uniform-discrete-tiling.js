@@ -403,6 +403,7 @@ const domains = connectDomains({
   view: view, player: player,
   box: latticeBoxFromOptions,
   custom: {
+    help: "Paint the cells to pack (any color counts). Then press Done.",
     check: function (drawing) {
       const cells = drawing.graph.vertices.length;
       return cells === 0 ? ["Paint the region first.", ""] : ["", cells + " cells."];

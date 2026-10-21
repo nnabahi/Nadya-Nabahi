@@ -51,24 +51,6 @@
           </div>
         </div>
 
-        <!-- Shown instead of the picture while you draw a custom domain:
-             the graph tool itself, in an <iframe> (a page inside this
-             page), with a live check above it. -->
-        <div id="custom-area" hidden>
-          <div class="step-bar">
-            <p class="step-title">Draw the table</p>
-            <p class="muted step-help">Paint the cells of the table (any color counts).
-              Grains that fall off its edge are lost. Pick 4 or 8 neighbors in the tool;
-              that is also how many grains a cell needs to topple.</p>
-            <p class="step-status" id="step-status"></p>
-            <div class="option-row">
-              <button class="tool-button" id="tool-done">Done</button>
-              <button class="tool-button" id="tool-cancel">Cancel</button>
-            </div>
-          </div>
-          <iframe class="tool-frame" id="tool-frame" title="Graph and domain tool"></iframe>
-        </div>
-
         <!-- Messages, e.g. "the pile is stable". -->
         <p class="muted" id="sim-message"></p>
       </section>

@@ -29,8 +29,9 @@
           readTiling()                      the tiling the Lattice options say
      2. The graph tool inside a sim page
           makeCustomTool(view, player, parts)
+          makeToolBox(title, help)          its box: the step bar and the <iframe>
           listenToTool(frame, useDrawing)   the drawings it sends
-          showToolStatus(problem, good, buttons)   the line that checks them
+          showToolStatus(tool, problem, good)   the line that checks them
           atLeastTwoCells(drawing)          the usual check of a drawing
      3. The clickable grid of offsets
           offsetKey(t), offsetText(t)       an offset's name, and as shown
@@ -322,10 +323,10 @@ function readTiling() {
    pauses while the tool is open, and after Cancel it carries on if it
    was playing.
 
-   The page's HTML has the tool's box, id="custom-area" (hidden), with
-   the line id="step-status", the buttons id="tool-done" and
-   id="tool-cancel" (or class="tool-cancel"), and the <iframe>
-   id="tool-frame".
+   The tool's box (makeToolBox) goes right under the picture's box,
+   hidden until the tool opens: a bar with a title, a line saying what
+   to draw, that live check, and the buttons Done and Cancel, above the
+   tool itself.
    ===================================================================== */
 
 // The graph tool of the picture "view" (js/sim-view.js), on a page with
@@ -337,12 +338,12 @@ function readTiling() {
 //   done(drawing)    use the drawing (after Done)
 //   cancel()         show the domain in use again (after Cancel)
 // and, if needed:
+//   title, help      the bar's title and what to draw, said under it,
+//                    if not "Draw the region" and DEFAULT_TOOL_HELP
 //   showPicture()    hide or show the picture (tool.isOpen says which);
 //                    without it, the canvas and its zoom buttons hide
 //                    while the tool is open
 //   onOpen()         more to do when the tool opens
-//   buttons          the ids of the buttons that need a good drawing
-//                    (["tool-done"] if left out)
 // A drawing is { graph, grid, palette } (drawnDomain, in
 // js/sim-domains.js, makes a domain of it). Closing the tool draws the
 // picture again. Returns the tool:
@@ -351,13 +352,19 @@ function readTiling() {
 //   tool.drawing                the latest drawing (null until it comes)
 //   tool.check()                check the drawing again
 //   tool.frame                  the <iframe>
+//   tool.title, tool.help       the bar's title and help lines, and its
+//   tool.row, tool.doneButton   row of buttons and Done in it (Connected
+//   tool.goodButtons            Coloring's two steps change them); the
+//                               buttons that work only with a good
+//                               drawing ([tool.doneButton] at first)
+const DEFAULT_TOOL_HELP = "Paint the cells (any color counts); neighboring cells interact. Then press Done.";
 function makeCustomTool(view, player, parts) {
-  const frame = byId("tool-frame");
-  const tool = { isOpen: false, drawing: null, frame: frame };
+  const tool = Object.assign({ isOpen: false, drawing: null },
+                             makeToolBox(parts.title || "Draw the region", parts.help || DEFAULT_TOOL_HELP));
   let wasPlaying = false;     // to carry on after Cancel
 
   function showPicture() {
-    byId("custom-area").hidden = !tool.isOpen;
+    tool.box.hidden = !tool.isOpen;
     if (parts.showPicture) { parts.showPicture(); return; }
     view.canvas.hidden = tool.isOpen;
     showZoomButtons(view);
@@ -368,8 +375,8 @@ function makeCustomTool(view, player, parts) {
     if (wasPlaying) player.setPlaying(false);
     tool.isOpen = true;
     showPicture();
-    if (!frame.src) frame.src = "../graph-tool/graph-tool.html?embed";   // the first time only
-    else frame.contentWindow.postMessage({ type: "unlock" }, "*");   // in case a sim locked it
+    if (!tool.frame.src) tool.frame.src = "../graph-tool/graph-tool.html?embed";   // the first time only
+    else tool.frame.contentWindow.postMessage({ type: "unlock" }, "*");   // in case a sim locked it
     if (parts.onOpen) parts.onOpen();
     tool.check();
   };
@@ -383,23 +390,40 @@ function makeCustomTool(view, player, parts) {
   tool.check = function () {
     if (!tool.isOpen) return;
     const [problem, good] = tool.drawing ? parts.check(tool.drawing) : ["Loading the drawing tool...", ""];
-    showToolStatus(problem, good, parts.buttons);
+    showToolStatus(tool, problem, good);
   };
 
-  listenToTool(frame, function (drawing) { tool.drawing = drawing; tool.check(); });
+  listenToTool(tool.frame, function (drawing) { tool.drawing = drawing; tool.check(); });
 
-  byId("tool-done").addEventListener("click", function () {
+  tool.doneButton = toolButton("Done", function () {
     tool.close();
     parts.done(tool.drawing);
   });
-  for (const button of document.querySelectorAll("#tool-cancel, .tool-cancel")) {
-    button.addEventListener("click", function () {
-      tool.close();
-      parts.cancel();
-      if (wasPlaying) player.setPlaying(true);
-    });
-  }
+  tool.goodButtons = [tool.doneButton];
+  tool.row.append(tool.doneButton, toolButton("Cancel", function () {
+    tool.close();
+    parts.cancel();
+    if (wasPlaying) player.setPlaying(true);
+  }));
+  view.canvas.parentElement.after(tool.box);   // right under the picture's box
   return tool;
+}
+
+// The tool's box, hidden: the bar (the title, the line of help, the
+// live check "status", and an empty row for the buttons) above the
+// <iframe> "frame" the tool loads in. Returns those parts, and the
+// whole "box".
+function makeToolBox(title, help) {
+  const box = document.createElement("div");
+  box.hidden = true;
+  box.innerHTML =
+    '<div class="step-bar"><p class="step-title"></p><p class="muted step-help"></p>' +
+    '<p class="step-status"></p><div class="option-row"></div></div>' +
+    '<iframe class="tool-frame" title="Graph and domain tool"></iframe>';
+  const [titleLine, helpLine, status, row] = box.firstChild.children;
+  titleLine.textContent = title;
+  helpLine.textContent = help;
+  return { box: box, title: titleLine, help: helpLine, status: status, row: row, frame: box.lastChild };
 }
 
 // Listen to the tool in the iframe "frame". It says how tall it is (so
@@ -417,13 +441,11 @@ function listenToTool(frame, useDrawing) {
 
 // The line above the tool: what's wrong with the drawing (in red), or a
 // tick and what's good about it (in green). The buttons that use the
-// drawing work only when nothing is wrong: Done, or the buttons with
-// the ids in the list "buttons".
-function showToolStatus(problem, good, buttons) {
-  const status = byId("step-status");
-  status.textContent = problem || "✓ " + good;   // ✓ is a tick mark
-  status.className = "step-status " + (problem ? "problem" : "ok");
-  for (const id of buttons || ["tool-done"]) byId(id).disabled = Boolean(problem);
+// drawing (tool.goodButtons) work only when nothing is wrong.
+function showToolStatus(tool, problem, good) {
+  tool.status.textContent = problem || "✓ " + good;   // ✓ is a tick mark
+  tool.status.className = "step-status " + (problem ? "problem" : "ok");
+  for (const button of tool.goodButtons) button.disabled = Boolean(problem);
 }
 
 // The usual check of a drawing: any region of at least two cells, even
