@@ -74,7 +74,7 @@
         </div>
 
         <!-- Short messages from the tool ("Copied.", "Grid not changed: ..."). -->
-        <p class="muted" id="tool-message"></p>
+        <p class="muted" id="sim-message"></p>
       </section>
 
       <!-- TOP RIGHT: settings. -->
@@ -254,8 +254,9 @@
   <script src="https://cdn.jsdelivr.net/npm/mathjs@15.2.0/lib/browser/math.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/katex.min.js"></script>
 
-  <!-- Reading formulas and their sliders (shared with the sims), then
-       this tool's own code. -->
+  <!-- The helpers every sim page uses, reading formulas and their
+       sliders (both shared with the sims), then this tool's own code. -->
+  <script src="../../js/sim-page.js"></script>
   <script src="../../js/formulas.js"></script>
   <script src="graph-tool.js"></script>
 

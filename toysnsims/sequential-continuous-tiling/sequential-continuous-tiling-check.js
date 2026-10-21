@@ -259,11 +259,8 @@ function ksPValue(D, n) {
 
 // Draw "count" tiles of a packing on a canvas, colored by generation.
 function drawTiles(canvas, tiles, count, shape, win) {
-  const ratio = window.devicePixelRatio || 1;
-  canvas.width = canvas.clientWidth * ratio;
-  canvas.height = canvas.clientHeight * ratio;
-  const pen = canvas.getContext("2d");
-  const scale = canvas.width / (win.xmax - win.xmin);
+  const pen = sharpPen(canvas);   // (js/sim-page.js)
+  const scale = canvas.clientWidth / (win.xmax - win.xmin);
   let most = 1;
   for (let k = 0; k < count; k++) most = Math.max(most, tiles.generation[k]);
   for (let k = 0; k < count; k++) {

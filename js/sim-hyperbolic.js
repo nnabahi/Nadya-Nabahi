@@ -244,12 +244,7 @@ function onScreen(dv, x, y) {
 // ZOOM_CELLS-th of the canvas's shorter side.
 function diskPen(dv, height) {
   const canvas = dv.canvas, width = canvas.clientWidth, view = dv.view;
-  const ratio = window.devicePixelRatio || 1;   // 2 on sharp screens
-  canvas.style.height = height + "px";
-  canvas.width = Math.round(width * ratio);
-  canvas.height = Math.round(height * ratio);
-  const pen = canvas.getContext("2d");
-  pen.setTransform(ratio, 0, 0, ratio, 0, 0);   // draw in screen pixels from here on
+  const pen = sharpPen(canvas, width, height);   // (js/sim-page.js)
   view.left = 0;
   view.top = 0;
   view.width = width;

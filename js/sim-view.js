@@ -185,12 +185,8 @@ function fitPicture(view, d, maxHeight) {
   view.top = popup > 0 ? Math.round((popup - view.height) / 2) : view.margin;
   const tall = popup > 0 ? popup : view.height + 2 * view.top;
 
-  const ratio = window.devicePixelRatio || 1;   // 2 on sharp screens
-  canvas.style.height = tall + "px";
-  canvas.width = Math.round(cssWidth * ratio);
-  canvas.height = Math.round(tall * ratio);
-  const pen = canvas.getContext("2d");
-  pen.setTransform(ratio, 0, 0, ratio, 0, view.top * ratio);   // screen pixels from here on
+  const pen = sharpPen(canvas, cssWidth, tall);   // (js/sim-page.js)
+  pen.translate(0, view.top);
   pen.save();
   pen.beginPath();
   pen.rect(view.left, 0, view.width, view.height);

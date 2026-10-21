@@ -172,11 +172,8 @@ function largestGap(a, b, from, to) {
 
 // Draw curves on a canvas. "curves" is a list of { f, dashed }.
 function plot(canvas, curves, from, to) {
-  const ratio = window.devicePixelRatio || 1;
-  canvas.width = canvas.clientWidth * ratio;
-  canvas.height = canvas.clientHeight * ratio;
-  const pen = canvas.getContext("2d");
-  const w = canvas.width, h = canvas.height, points = 800;
+  const pen = sharpPen(canvas);   // (js/sim-page.js)
+  const w = canvas.clientWidth, h = canvas.clientHeight, points = 800;
 
   // Pick the height from the solid curve, so the picture fits it.
   let top = 0;
@@ -185,13 +182,13 @@ function plot(canvas, curves, from, to) {
   const X = function (x) { return (x - from) / (to - from) * w; };
   const Y = function (y) { return h / 2 - y / top * (h / 2); };
 
-  pen.strokeStyle = "#999"; pen.lineWidth = ratio;
+  pen.strokeStyle = "#999"; pen.lineWidth = 1;
   pen.beginPath(); pen.moveTo(0, Y(0)); pen.lineTo(w, Y(0)); pen.moveTo(X(0), 0); pen.lineTo(X(0), h); pen.stroke();
 
   for (const curve of curves) {
     pen.strokeStyle = curve.dashed ? "#999" : "#2b6cb0";
-    pen.lineWidth = 2 * ratio;
-    pen.setLineDash(curve.dashed ? [6 * ratio, 6 * ratio] : []);
+    pen.lineWidth = 2;
+    pen.setLineDash(curve.dashed ? [6, 6] : []);
     pen.beginPath();
     for (let i = 0; i <= points; i++) {
       const x = from + (to - from) * i / points;
@@ -227,25 +224,22 @@ drawSample();
   }
   offsets.sort(function (a, b) { return a - b; });
 
-  const canvas = byId("offsets");
-  const ratio = window.devicePixelRatio || 1;
-  canvas.width = canvas.clientWidth * ratio;
-  canvas.height = canvas.clientHeight * ratio;
-  const pen = canvas.getContext("2d");
+  const canvas = byId("offsets"), pen = sharpPen(canvas);
+  const width = canvas.clientWidth, height = canvas.clientHeight;
   const bins = 100, lo = 0.5, hi = 2, counts = new Array(bins).fill(0);
   for (const x of offsets) {
     const b = Math.floor((x - lo) / (hi - lo) * bins);
     if (b >= 0 && b < bins) counts[b]++;
   }
-  const most = Math.max(...counts), barW = canvas.width / bins;
+  const most = Math.max(...counts), barW = width / bins;
   pen.fillStyle = "#4682b4";
   counts.forEach(function (c, b) {
-    const barH = c / most * (canvas.height - 20 * ratio);
-    pen.fillRect(b * barW, canvas.height - 16 * ratio - barH, barW - 1, barH);
+    const barH = c / most * (height - 20);
+    pen.fillRect(b * barW, height - 16 - barH, barW - 1, barH);
   });
-  pen.fillStyle = "#555"; pen.font = (12 * ratio) + "px sans-serif";
-  pen.fillText(lo, 2, canvas.height - 2 * ratio);
-  pen.fillText(hi, canvas.width - 24 * ratio, canvas.height - 2 * ratio);
+  pen.fillStyle = "#555"; pen.font = "12px sans-serif";
+  pen.fillText(lo, 2, height - 2);
+  pen.fillText(hi, width - 24, height - 2);
 
   const q = function (p) { return offsets[Math.floor(p * (offsets.length - 1))].toFixed(4); };
   byId("offset-summary").textContent =

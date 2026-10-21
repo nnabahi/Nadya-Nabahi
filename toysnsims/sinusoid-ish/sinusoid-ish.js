@@ -219,14 +219,9 @@ function py(v) { return (view.ymax - v) / (view.ymax - view.ymin) * height; }
 
 function sizeCanvas() {
   const oldWidth = width, oldHeight = height;
-  const ratio = window.devicePixelRatio || 1;
   width = simCanvas.clientWidth;
   height = pictureHeight(PICTURE_HEIGHT);         // taller in the full screen popup (js/sim-page.js)
-  simCanvas.style.height = height + "px";
-  simCanvas.width = Math.round(width * ratio);
-  simCanvas.height = Math.round(height * ratio);
-  pen = simCanvas.getContext("2d");
-  pen.setTransform(ratio, 0, 0, ratio, 0, 0);    // draw in screen pixels from here on
+  pen = sharpPen(simCanvas, width, height);
 
   // Keep the scale (units per pixel) when the picture changes size:
   // a bigger picture shows more, it doesn't stretch.

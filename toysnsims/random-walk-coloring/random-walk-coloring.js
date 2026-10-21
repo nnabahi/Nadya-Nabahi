@@ -309,13 +309,7 @@ function ringAngle(ring, k) {
 function drawRing() {
   const ring = ringShape(), colors = latest.colors;
   const colorOf = highlightCSS(highlight, function (v) { return colors[v] === -1 ? UNCOLORED : colorNames[colors[v]]; });
-  // Size the canvas (sharp on sharp screens) and get its pen.
-  const ratio = window.devicePixelRatio || 1;
-  simCanvas.style.height = ring.h + "px";
-  simCanvas.width = Math.round(ring.w * ratio);
-  simCanvas.height = Math.round(ring.h * ratio);
-  const pen = simCanvas.getContext("2d");
-  pen.setTransform(ratio, 0, 0, ratio, 0, 0);
+  const pen = sharpPen(simCanvas, ring.w, ring.h);
   view.top = 0;   // pointerSpot then gives plain canvas positions
 
   // Each cell: the piece of the band between its two angles. (Cell k is

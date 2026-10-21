@@ -47,15 +47,10 @@ const siteColors = getComputedStyle(document.documentElement);
 const CHART_TEXT = siteColors.getPropertyValue("--color-text-muted").trim();   // numbers and labels
 const CHART_LINE = siteColors.getPropertyValue("--color-accent").trim();       // lines and bars
 
-// Make a chart canvas sharp at its size on screen, clear it, and return
-// its "pen" (what draws on it), set up for small gray text.
+// Get a chart canvas ready (sharpPen, js/sim-page.js) and return its
+// "pen" (what draws on it), set up for small gray text.
 function chartPen(canvas) {
-  const ratio = window.devicePixelRatio || 1;   // 2 on sharp screens
-  canvas.width = Math.round(canvas.clientWidth * ratio);
-  canvas.height = Math.round(canvas.clientHeight * ratio);
-  const pen = canvas.getContext("2d");
-  pen.setTransform(ratio, 0, 0, ratio, 0, 0);   // draw in screen pixels from here on
-  pen.clearRect(0, 0, canvas.clientWidth, canvas.clientHeight);
+  const pen = sharpPen(canvas);
   pen.font = "11px sans-serif";
   pen.fillStyle = CHART_TEXT;
   return pen;

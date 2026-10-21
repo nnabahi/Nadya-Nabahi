@@ -509,18 +509,6 @@ function heightColor(h, highest) {
   return rgb.map(function (part) { return Math.round(255 * (part + m)); });
 }
 
-// Make the canvas "width" by "height" screen pixels, and return its pen,
-// ready to draw in screen pixels.
-function canvasPen(width, height) {
-  const ratio = window.devicePixelRatio || 1;   // 2 on sharp screens
-  simCanvas.style.height = height + "px";
-  simCanvas.width = Math.round(width * ratio);
-  simCanvas.height = Math.round(height * ratio);
-  const pen = simCanvas.getContext("2d");
-  pen.setTransform(ratio, 0, 0, ratio, 0, 0);   // draw in screen pixels from here on
-  return pen;
-}
-
 // The x and y range of the picture, { xmin, xmax, ymin, ymax }: a
 // bounded domain itself, or around the available sites.
 function pictureRange() {
@@ -553,7 +541,7 @@ let lineLayout = null;
 function drawLine() {
   const s = latest, range = pictureRange();
   const width = simCanvas.clientWidth, height = pictureHeight(PICTURE_HEIGHT);
-  const pen = canvasPen(width, height);
+  const pen = sharpPen(simCanvas, width, height);
   const left = 8, right = width - 8, top = 20, ground = height - 30;
   const columns = range.xmax - range.xmin + 1;
   const column = (right - left) / columns;        // the width of one site
@@ -689,7 +677,7 @@ function placePicture(box) {
   view.height = Math.round(view.size * down);
   view.left = Math.round((cssWidth - view.width) / 2);
   view.top = Math.round((height - view.height) / 2);
-  const pen = canvasPen(cssWidth, height);
+  const pen = sharpPen(simCanvas, cssWidth, height);
   pen.translate(0, view.top);
   pen.save();
   pen.beginPath();

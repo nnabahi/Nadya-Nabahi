@@ -12,6 +12,7 @@
      startWorker(fn, helpers)         run a function in a second thread
      runInWorker(fn, helpers, show)   a sim's second thread, with its runs
      keepAlong(kept, more, at)        add numbers a second thread sent to a list
+     sharpPen(canvas, width, height)  a canvas's pen, sharp on sharp screens
      oncePerFrame(draw)               draw at the next screen refresh
      notTooOften(gap, busy, draw)     draw at most every "gap" ms while busy
      showPlaying(on)                  the Play button, while it plays
@@ -106,6 +107,24 @@ function keepAlong(kept, more, at) {
 /* ---------------------------------------------------------------------
    Running: drawing, Play, Speed and Seed
    --------------------------------------------------------------------- */
+
+// Get a canvas ready to draw on, "width" by "height" screen pixels (left
+// out: its size on the page now), and return its pen, which draws in
+// screen pixels. A sharp screen has several pixels per screen pixel
+// (window.devicePixelRatio, often 2), and the canvas gets as many, so
+// the picture stays sharp. A height given is also the canvas's height
+// on the page. (Resizing a canvas also clears it.)
+function sharpPen(canvas, width, height) {
+  const ratio = window.devicePixelRatio || 1;
+  if (width === undefined) width = canvas.clientWidth;
+  if (height === undefined) height = canvas.clientHeight;
+  else canvas.style.height = height + "px";
+  canvas.width = Math.round(width * ratio);
+  canvas.height = Math.round(height * ratio);
+  const pen = canvas.getContext("2d");
+  pen.setTransform(ratio, 0, 0, ratio, 0, 0);
+  return pen;
+}
 
 // A function that draws at the browser's next screen refresh, at most
 // once per refresh however often it is called (for example by every

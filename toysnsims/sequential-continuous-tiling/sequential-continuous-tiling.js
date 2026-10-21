@@ -164,12 +164,10 @@ function usePreset(key) {
 // read, so a half-typed formula keeps the last good picture.
 const PREVIEW_SIZE = 120;   // CSS pixels, as in css/style.css
 function drawPreview() {
-  const ratio = window.devicePixelRatio || 1, size = PREVIEW_SIZE * ratio, margin = 8 * ratio;
+  const size = PREVIEW_SIZE, margin = 8;
   for (const name of ["S", "T"]) {
-    const canvas = byId("picture-" + name);
-    canvas.width = size; canvas.height = size;
-    const p = canvas.getContext("2d");
-    p.strokeStyle = CHART_LINE; p.fillStyle = CHART_LINE; p.lineWidth = 1.5 * ratio;
+    const p = sharpPen(byId("picture-" + name), size, size);
+    p.strokeStyle = CHART_LINE; p.fillStyle = CHART_LINE; p.lineWidth = 1.5;
     if (name === "S") {
       // The edge of S, with the window fitted into the picture.
       const k = (size - 2 * margin) / Math.max(windowBox.xmax - windowBox.xmin, windowBox.ymax - windowBox.ymin);
@@ -183,7 +181,8 @@ function drawPreview() {
     } else {
       // T's polygon, filled, as big as fits, with its center (0, 0) in the middle.
       const k = (size / 2 - margin) / shapeReach;
-      p.setTransform(k, 0, 0, -k, size / 2, size / 2);
+      p.translate(size / 2, size / 2);
+      p.scale(k, -k);
       p.fill(tileShape);
     }
   }

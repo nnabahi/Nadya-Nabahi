@@ -138,10 +138,7 @@ if (embedded) document.body.classList.add("embedded");
 let allowed = null;
 
 
-// Small helpers.
-function byId(id) { return document.getElementById(id); }
-function showMessage(text) { byId("tool-message").textContent = text; }
-
+// Small helpers (byId and showMessage come from js/sim-page.js).
 function cellName(x, y) { return x + "," + y; }
 function colorAt(x, y) { return colorOf[cellName(x, y)] || 0; }
 function width()  { return grid.xmax - grid.xmin + 1; }
@@ -348,14 +345,8 @@ function buildGrid() {
 const linesCanvas = byId("grid-lines");
 
 function drawBackground() {
-  // Make the canvas's pixels match its size on screen. "ratio" is 2 on
-  // high-resolution screens; drawing at that density keeps lines sharp.
-  const ratio = window.devicePixelRatio || 1;
+  const pen = sharpPen(linesCanvas);           // (js/sim-page.js)
   const w = linesCanvas.clientWidth, h = linesCanvas.clientHeight;
-  linesCanvas.width = w * ratio;
-  linesCanvas.height = h * ratio;
-  const pen = linesCanvas.getContext("2d");
-  pen.setTransform(ratio, 0, 0, ratio, 0, 0);   // from now on, draw in screen pixels
 
   // Where the point (x, y) is on screen right now, and back again.
   const scale = UNIT * cy.zoom();               // screen pixels per cell

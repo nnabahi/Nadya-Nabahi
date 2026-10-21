@@ -304,24 +304,12 @@ function drawWalk() {
   else draw3D();
 }
 
-// Make the canvas "width" by "height" screen pixels, and return its pen,
-// ready to draw in screen pixels.
-function canvasPen(width, height) {
-  const ratio = window.devicePixelRatio || 1;   // 2 on sharp screens
-  simCanvas.style.height = height + "px";
-  simCanvas.width = Math.round(width * ratio);
-  simCanvas.height = Math.round(height * ratio);
-  const pen = simCanvas.getContext("2d");
-  pen.setTransform(ratio, 0, 0, ratio, 0, 0);   // draw in screen pixels from here on
-  return pen;
-}
-
 // 1D: position across, time down. "line" says where things go: sx(x)
 // is position x across, sy(t) is step t down.
 function drawLine() {
   const s = latest, n = pathLength - 1;
   const width = simCanvas.clientWidth, height = pictureHeight(PICTURE_HEIGHT);
-  const pen = canvasPen(width, height);
+  const pen = sharpPen(simCanvas, width, height);
   const line = { left: 10, right: width - 10, top: 34, bottom: height - 22, lo: s.lowest - 1, hi: s.highest + 1, n: n };
   line.sx = function (x) { return line.left + (line.right - line.left) * (x - line.lo) / (line.hi - line.lo); };
   line.sy = function (t) { return line.top + (line.bottom - line.top) * t / Math.max(n, 1); };

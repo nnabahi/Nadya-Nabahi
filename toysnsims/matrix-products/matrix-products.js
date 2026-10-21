@@ -271,14 +271,9 @@ let line = { xmin: 0, xmax: 1 };
 let following = { cloud: true, trajectory: true, histogram: true };
 
 function sizeCanvas() {
-  const ratio = window.devicePixelRatio || 1;
   width = simCanvas.clientWidth;
   height = pictureHeight(Math.min(width, MOST_PIXELS_TALL));   // taller in the full screen popup (js/sim-page.js)
-  simCanvas.style.height = height + "px";
-  simCanvas.width = Math.round(width * ratio);
-  simCanvas.height = Math.round(height * ratio);
-  pen = simCanvas.getContext("2d");
-  pen.setTransform(ratio, 0, 0, ratio, 0, 0);    // draw in screen pixels from here on
+  pen = sharpPen(simCanvas, width, height);
 }
 
 // Where a point of the plane is on the screen, and back.

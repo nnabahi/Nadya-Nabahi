@@ -84,20 +84,6 @@ function showPiece() {
    3. DRAWING
    ===================================================================== */
 
-// Get a canvas ready to draw on: as big as its place on the page (and
-// sharp on sharp screens), and empty. Returns its pen and its size in
-// screen pixels.
-function canvasPen(canvas) {
-  const width = canvas.clientWidth, height = canvas.clientHeight;
-  const ratio = window.devicePixelRatio || 1;
-  canvas.width = Math.round(width * ratio);
-  canvas.height = Math.round(height * ratio);
-  const pen = canvas.getContext("2d");
-  pen.setTransform(ratio, 0, 0, ratio, 0, 0);
-  pen.clearRect(0, 0, width, height);
-  return { pen: pen, width: width, height: height };
-}
-
 // Where the point (u, w) of the plane goes on a canvas width x height,
 // for a picture "scale" pixels per side length with the point "middle"
 // of the plane in the middle of the canvas (y goes up the screen).
@@ -145,7 +131,8 @@ function showStep() {
   byId("step-label").textContent = steps.length === 0 ? ""
     : "Piece " + (at + 1) + " of " + steps.length + ": " + steps[at].text;
   const next = nextPoint();
-  const { pen, width, height } = canvasPen(byId("step-picture"));
+  const canvas = byId("step-picture"), pen = sharpPen(canvas);   // (js/sim-page.js)
+  const width = canvas.clientWidth, height = canvas.clientHeight;
   if (steps.length === 0) return;
 
   // Fit every corner, and the middle of the plane, into the picture.
@@ -187,7 +174,8 @@ function showStep() {
 // middle of the plane in the middle. The repeating block sits at every
 // i t1 + j t2; the blocks drawn are those that can reach the picture.
 function drawTiling() {
-  const { pen, width, height } = canvasPen(byId("tiling-picture"));
+  const canvas = byId("tiling-picture"), pen = sharpPen(canvas);
+  const width = canvas.clientWidth, height = canvas.clientHeight;
   if (!block) return;
   const scale = width / ACROSS, place = placer(width, height, scale, [0, 0]);
   const halfW = width / scale / 2 + 4, halfH = height / scale / 2 + 4;   // with room for big polygons
