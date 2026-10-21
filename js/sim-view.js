@@ -819,6 +819,7 @@ function makePlaneView(canvas, redraw, options) {
     movable: true,
     pointers: new Map(),          // the pointers pressed on the picture: id -> {x, y}
   };
+  canvas.classList.add("scrollable");   // the hand cursor; on phones a finger drags (or pinches) the picture, not the page
   const moved = options.onMove || function () {};
   plane.slide = function (dx, dy) { slidePlane(plane, dx, dy); moved(); };
   plane.zoomAt = function (factor, x, y) { zoomPlane(plane, factor, x, y); moved(); };

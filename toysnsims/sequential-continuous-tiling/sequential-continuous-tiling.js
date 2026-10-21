@@ -328,7 +328,6 @@ connectPicture(plane, null, null, function (event) {
   const spot = pointerSpot(plane, event);
   clickAt(pointX(plane, spot.x), pointY(plane, spot.y));
 });
-simCanvas.classList.add("scrollable");   // the hand cursor; on phones a finger drags the picture, not the page
 let pen = null;
 
 // The picture is as wide as the page lets it, with the window's shape
