@@ -246,6 +246,9 @@ function voterWorker() {
 
   self.onmessage = function (event) {
     const m = event.data;
+    // Before the first setup there is nothing to run. (The page sends no
+    // setup while it has no rule g, e.g. if math.js didn't load.)
+    if (m.type !== "setup" && !voter) return;
     if (m.type === "setup") { loop.pause(); setup(m); report(); }
     else if (m.type === "params") { voter.table = m.table; voter.noise = m.noise; lastReported = -1; report(); }
     else if (m.type === "play") loop.play(m.speed);
