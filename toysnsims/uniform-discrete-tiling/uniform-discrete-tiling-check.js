@@ -9,6 +9,8 @@
         with tile weights, as often as its weight says
      2. Counting domino tilings (compared with Kasteleyn's formula)
      3. The arctic circle on an Aztec diamond
+     4. The clusters counted and highlighted right (testRegions,
+        js/check-page.js)
    The invariants (no overlaps, full cover or maximal) are checked every
    1000 moves in every test; a problem shows in red at the top.
    ===================================================================== */
@@ -392,3 +394,9 @@ function drawArctic() {
   byId("arctic-status").textContent = s.moves.toLocaleString() + " moves, " +
     (100 * s.changed / Math.max(s.moves, 1)).toFixed(1) + "% changed the tiling.";
 }
+
+
+/* =====================================================================
+   4. COUNTING CLUSTERS (testRegions, js/check-page.js)
+   ===================================================================== */
+runChecksOnClick(function () { return [testRegions]; });

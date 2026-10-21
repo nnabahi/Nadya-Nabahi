@@ -19,6 +19,9 @@
         bring in 1s about half the time.
      5. Repeats: a blinker on a torus comes back after 2 steps, and the
         fingerprint (stateHash) sees it.
+     6. The clusters (connected pieces of one state), counted for the
+        Statistics and the chart over time and highlighted on a click,
+        match a count made another way (testRegions, js/check-page.js).
 
    Random numbers come from the library seedrandom, with fixed seeds,
    so the tests do the same thing every time.
@@ -149,4 +152,4 @@ function testRepeat() {
          "A blinker (3 live cells in a row) is back after 2 steps, not after 1, and its fingerprint says so.");
 }
 
-runChecksOnClick(function () { return [testTable, testRule30, testLife, testEdges, testRepeat]; });
+runChecksOnClick(function () { return [testTable, testRule30, testLife, testEdges, testRepeat, testRegions]; });

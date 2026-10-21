@@ -84,10 +84,14 @@ function newTrace() {
 // Take a sample at "time" if one is due (or "now" is true). "values"
 // gives each number, or list of numbers, by name, for example
 //   keepSample(trace, time, { agree: 0.5, counts: [10, 20, 5] })
-// A list must have the same length in every sample.
+// A list must have the same length in every sample. "values" can also
+// be a function that returns them, for numbers that take a while to
+// work out (like the regions of a coloring): it is called only when a
+// sample is due.
 function keepSample(trace, time, values, now) {
   const MAX_SAMPLES = 1000;
   if (time < trace.next && !now) return;
+  if (typeof values === "function") values = values();
   trace.times.push(time);
   for (const name in values) {
     if (!trace.lists[name]) trace.lists[name] = [];

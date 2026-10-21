@@ -76,17 +76,20 @@ let colorRGB = [];             // the same as [red, green, blue], 0 .. 255
 
 let run = 0;                   // counts restarts, so leftovers from an older run are ignored
 let latest = null;             // the latest message from the chain (section 2 of ising-potts-chain.js)
+const highlight = newHighlight();   // the clicked cell, whose domain is highlighted (js/sim-highlight.js)
 
 
 /* =====================================================================
    3. RUNNING THE CHAIN
    ---------------------------------------------------------------------
    The chain is pottsWorker() in ising-potts-chain.js, with newPotts,
-   pottsStart, and the run loop and the trace (js/sim-worker.js) copied
+   pottsStart, the run loop and the trace (js/sim-worker.js), and
+   countPieces with the search behind it (js/sim-domains.js) copied
    in. startWorker (js/sim-page.js) runs it in a second thread, so the
    page never freezes.
    ===================================================================== */
-const worker = startWorker(pottsWorker, [newPotts, pottsStart, makeRunLoop, newTrace, keepSample]);
+const worker = startWorker(pottsWorker, [newPotts, pottsStart, makeRunLoop, newTrace, keepSample,
+                                         countPieces, findRegions, spreadRegion]);
 
 worker.onmessage = function (event) {
   const message = event.data;
@@ -148,16 +151,20 @@ const view = makeView(simCanvas, drawSoon, 0, SMALLEST_BORDERED_CELL);
 const disk = makeDiskView(simCanvas, view, showDomainChoice);
 const outsideRGB = hexToRGB(OUTSIDE);
 
+// A clicked cell's domain stands out: every other cell fades
+// (js/sim-highlight.js; the click is in section 5).
 function drawColoring() {
   if (!latest || simCanvas.hidden) return;
   const colors = latest.colors;
+  findHighlight(highlight, domain, colors);
+  byId("highlight-info").textContent = highlightText(highlight, "domain", function (k) { return "color " + (k + 1); });
   if (domainKind === "graph") {
-    drawBall(disk, domain, function (v) { return colorNames[colors[v]]; });
+    drawBall(disk, domain, highlightCSS(highlight, function (v) { return colorNames[colors[v]]; }));
     return;
   }
   const pen = fitPicture(view, domain, MAX_PICTURE_HEIGHT);
-  paintDomain(view, pen, domain, function (v) { return colors[v]; }, function (k) { return colorRGB[k]; },
-              outsideRGB, BORDER, SMALLEST_BORDERED_CELL);
+  paintDomain(view, pen, domain, highlightGroups(highlight, function (v) { return colors[v]; }, q),
+              highlightRGB(function (k) { return colorRGB[k]; }, q), outsideRGB, BORDER, SMALLEST_BORDERED_CELL);
   pen.restore();
 }
 
@@ -172,8 +179,16 @@ window.addEventListener("resize", drawSoon);
    zooms out, showing the torus several times side by side.
    On a hyperbolic tiling or tree, one pointer drags across the plane
    instead, and two fingers slide and zoom the picture.
+   A press that hardly moves is a click instead: it highlights the
+   clicked cell's domain (js/sim-highlight.js), which follows that cell
+   as the chain runs. Clicking the domain again, or outside the cells,
+   shows everything again.
    ===================================================================== */
-connectPicture(view, disk, function () { return domainKind === "graph"; });
+connectPicture(view, disk, function () { return domainKind === "graph"; }, function (event) {
+  if (!latest) return;
+  clickHighlight(highlight, cellAtEvent(view, disk, domain, domainKind === "graph", event), latest.colors);
+  drawSoon();
+}, "pointer");
 
 
 /* =====================================================================
@@ -181,7 +196,8 @@ connectPicture(view, disk, function () { return domainKind === "graph"; });
    ---------------------------------------------------------------------
    The color counts and the agreeing pairs come from the chain. The
    "domains" (connected pieces of one color) are counted here
-   (countPieces, js/sim-domains.js).
+   (countPieces, js/sim-domains.js), and by the chain at each sample
+   of the run, for the chart over time.
    The magnetization says how far the coloring is from all colors
    equally common: for q = 2 (Ising) it is m = (N1 - N2) / n, between
    -1 and 1; for q > 2 it is (q * largest share - 1) / (q - 1), between
@@ -202,25 +218,23 @@ function showStats() {
   byId("stat-agree").textContent = s.agree.toLocaleString() + " (" + (100 * s.agree / Math.max(s.pairs, 1)).toFixed(2) + "%)";
   byId("stat-magnetization-name").textContent = q === 2 ? "Magnetization m = (N₁ − N₂) / n" : "Order (q · largest share − 1) / (q − 1)";
   byId("stat-magnetization").textContent = magnetization(s.counts, n).toFixed(4);
-  const domains = countPieces(domain, s.colors, q).reduce(function (a, b) { return a + b; }, 0);
-  byId("stat-domains").textContent = domains.toLocaleString();
+  const pieces = countPieces(domain, s.colors, q);
+  byId("stat-domains").textContent = pieces.reduce(function (a, b) { return a + b; }, 0).toLocaleString();
 
   let rows = "";
   for (let k = 0; k < q; k++) {
     rows += '<tr><td><span class="swatch-small" style="background:' + colorNames[k] + '"></span>' + (k + 1) +
-      '</td><td>' + s.counts[k].toLocaleString() + '</td><td>' + (100 * s.counts[k] / n).toFixed(1) + '%</td></tr>';
+      '</td><td>' + s.counts[k].toLocaleString() + '</td><td>' + (100 * s.counts[k] / n).toFixed(1) +
+      '%</td><td>' + pieces[k].toLocaleString() + '</td></tr>';
   }
   byId("color-rows").innerHTML = rows;
 
-  // The share of each color over time, and of agreeing pairs.
-  const lines = [];
-  for (let k = 0; k < q; k++) {
-    const values = [];
-    for (let j = 0; j < s.traceTimes.length; j++) values.push(s.traceCounts[j * q + k] / n);
-    lines.push({ color: colorNames[k], values: values });
-  }
-  plotOverTime(byId("shares-chart"), s.traceTimes, lines, "sweep");
+  // The share of each color over time, of agreeing pairs, and the
+  // number of domains of each color (js/sim-charts.js).
+  const lineColor = function (k) { return colorNames[k]; };
+  plotOverTime(byId("shares-chart"), s.traceTimes, colorLines(s.traceCounts, s.traceTimes.length, q, lineColor, 1 / n), "sweep");
   plotOverTime(byId("agree-chart"), s.traceTimes, [{ color: CHART_LINE, values: s.traceAgree }], "sweep");
+  regionsChart(byId("domains-chart"), s.traceTimes, s.tracePieces, q, lineColor, "sweep");
 }
 
 
@@ -256,6 +270,7 @@ const tool = makeCustomTool({
 function useDomain(kind, d) {
   domainKind = kind;
   domain = d;
+  clearHighlight(highlight);
   useTorus(view, Boolean(d.wrap));   // moving and zooming (js/sim-view.js)
   showDomainChoice();
   restart();

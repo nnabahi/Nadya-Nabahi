@@ -47,9 +47,6 @@ const MAX_PICTURE_HEIGHT = 600;   // in screen pixels
 const BORDER = "#1e1e1e";         // the lines between colors
 const OUTSIDE = "#ecebe7";        // around a custom domain (cells not in it)
 const TRACE_POINTS = 4000;        // the most points each chart over time keeps (section 6)
-// With one color highlighted, every other color is mixed with this much
-// white (0 = unchanged, 1 = white), so the highlighted region stands out.
-const FADE = 0.8;
 
 // Hyperbolic plane or tree: the ball's default radius R, its largest
 // R, and the most cells it may have (a ball of a hyperbolic tiling grows
@@ -336,7 +333,7 @@ function shade(c) {
   if (film && film.pair) {                // watching a move: its two colors stand out
     if (film.pair.includes(c)) return colorNames[c];
   } else if (highlighted === -1 || c === highlighted) return colorNames[c];
-  return rgbToHex(hexToRGB(colorNames[c]).map(function (t) { return t + (255 - t) * FADE; }));
+  return fadeHex(colorNames[c]);          // (js/sim-highlight.js, shared with the other sims)
 }
 
 // Highlight color c (-1: none), or turn it off if it is already on.
@@ -363,8 +360,7 @@ function showHighlightInfo() {
 // color under it.
 connectPicture(view, disk, function () { return domainKind === "graph"; }, function (event) {
   if (!colors || film) return;
-  const v = domainKind === "graph" ? ballCellUnder(disk, domain, event)
-                                   : cellUnder(view, domain, pointerSpot(view, event));
+  const v = cellAtEvent(view, disk, domain, domainKind === "graph", event);
   if (v === -1) { if (highlighted !== -1) highlight(-1); }   // outside the cells: show every color
   else highlight(colors[v]);
 });

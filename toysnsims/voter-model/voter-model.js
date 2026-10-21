@@ -86,6 +86,7 @@ let colorRGB = [];             // the same as [red, green, blue], 0 .. 255
 
 let run = 0;                   // counts restarts, so leftovers from an older run are ignored
 let latest = null;             // the latest message from the worker (section 2 of voter-model-chain.js)
+const highlight = newHighlight();   // the clicked cell, whose domain is highlighted (js/sim-highlight.js)
 
 
 /* =====================================================================
@@ -148,11 +149,13 @@ function usePreset(key) {
    4. RUNNING THE OPINIONS
    ---------------------------------------------------------------------
    The opinions are voterWorker() in voter-model-chain.js, with newVoter,
-   voterStart, and the run loop and the trace (js/sim-worker.js) copied
+   voterStart, the run loop and the trace (js/sim-worker.js), and
+   countPieces with the search behind it (js/sim-domains.js) copied
    in. startWorker (js/sim-page.js) runs it in a second thread, so the
    page never freezes.
    ===================================================================== */
-const worker = startWorker(voterWorker, [newVoter, voterStart, makeRunLoop, newTrace, keepSample]);
+const worker = startWorker(voterWorker, [newVoter, voterStart, makeRunLoop, newTrace, keepSample,
+                                         countPieces, findRegions, spreadRegion]);
 
 worker.onmessage = function (event) {
   const message = event.data;
@@ -207,6 +210,8 @@ const player = connectPlay(worker, SPEEDS, DEFAULT_SPEED, "unit of time", "units
    On a hyperbolic tiling or tree, each cell is drawn in its opinion's
    color in the disk, the half-plane or (a tree) spread out in rings
    (drawBall, js/sim-hyperbolic.js).
+   A clicked cell's domain stands out: every other cell fades
+   (js/sim-highlight.js; the click is in section 6).
    ===================================================================== */
 const simCanvas = byId("sim-canvas");
 
@@ -225,13 +230,15 @@ const outsideRGB = hexToRGB(OUTSIDE);
 function drawColoring() {
   if (!latest || simCanvas.hidden) return;
   const colors = latest.colors;
+  findHighlight(highlight, domain, colors);
+  byId("highlight-info").textContent = highlightText(highlight, "domain", function (c) { return "opinion " + (c + 1); });
   if (domainKind === "graph") {
-    drawBall(disk, domain, function (v) { return colorNames[colors[v]]; });
+    drawBall(disk, domain, highlightCSS(highlight, function (v) { return colorNames[colors[v]]; }));
     return;
   }
   const pen = fitPicture(view, domain, MAX_PICTURE_HEIGHT);
-  paintDomain(view, pen, domain, function (v) { return colors[v]; }, function (k) { return colorRGB[k]; },
-              outsideRGB, BORDER, SMALLEST_BORDERED_CELL);
+  paintDomain(view, pen, domain, highlightGroups(highlight, function (v) { return colors[v]; }, q),
+              highlightRGB(function (k) { return colorRGB[k]; }, q), outsideRGB, BORDER, SMALLEST_BORDERED_CELL);
   pen.restore();
 }
 
@@ -246,8 +253,16 @@ window.addEventListener("resize", drawSoon);
    zooms out, showing the torus several times side by side.
    On a hyperbolic tiling or tree, one pointer drags across the plane
    instead, and two fingers slide and zoom the picture.
+   A press that hardly moves is a click instead: it highlights the
+   clicked cell's domain (js/sim-highlight.js), which follows that cell
+   as the opinions change. Clicking the domain again, or outside the
+   cells, shows everything again.
    ===================================================================== */
-connectPicture(view, disk, function () { return domainKind === "graph"; });
+connectPicture(view, disk, function () { return domainKind === "graph"; }, function (event) {
+  if (!latest) return;
+  clickHighlight(highlight, cellAtEvent(view, disk, domain, domainKind === "graph", event), latest.colors);
+  drawSoon();
+}, "pointer");
 
 
 /* =====================================================================
@@ -255,7 +270,8 @@ connectPicture(view, disk, function () { return domainKind === "graph"; });
    ---------------------------------------------------------------------
    The counts and the agreeing pairs come from the worker. The
    "domains" (connected pieces of one opinion) are counted here
-   (countPieces, js/sim-domains.js).
+   (countPieces, js/sim-domains.js), and by the worker at each sample
+   of the run, for the chart over time.
    ===================================================================== */
 function showStats() {
   if (!latest) return;
@@ -265,27 +281,25 @@ function showStats() {
   byId("stat-disagree").textContent = (s.pairs - s.agree).toLocaleString() + " of " + s.pairs.toLocaleString() +
     " (" + (100 * (1 - s.agree / Math.max(s.pairs, 1))).toFixed(2) + "%)";
   byId("stat-alive").textContent = s.counts.filter(function (c) { return c > 0; }).length + " of " + q;
-  const domains = countPieces(domain, s.colors, q).reduce(function (a, b) { return a + b; }, 0);
-  byId("stat-domains").textContent = domains.toLocaleString();
+  const pieces = countPieces(domain, s.colors, q);
+  byId("stat-domains").textContent = pieces.reduce(function (a, b) { return a + b; }, 0).toLocaleString();
   byId("stat-consensus").textContent = s.consensusTime === null ? "not yet" : "at time " + s.consensusTime.toLocaleString();
   showMessage(s.frozen ? "Consensus: one opinion everywhere, and with this rule nothing can change it." : "");
 
   let rows = "";
   for (let c = 0; c < q; c++) {
     rows += '<tr><td><span class="swatch-small" style="background:' + colorNames[c] + '"></span>' + (c + 1) +
-      '</td><td>' + s.counts[c].toLocaleString() + '</td><td>' + (100 * s.counts[c] / n).toFixed(1) + '%</td></tr>';
+      '</td><td>' + s.counts[c].toLocaleString() + '</td><td>' + (100 * s.counts[c] / n).toFixed(1) +
+      '%</td><td>' + pieces[c].toLocaleString() + '</td></tr>';
   }
   byId("color-rows").innerHTML = rows;
 
-  // The share of each opinion over time, and of disagreeing pairs.
-  const lines = [];
-  for (let c = 0; c < q; c++) {
-    const values = [];
-    for (let j = 0; j < s.traceTimes.length; j++) values.push(s.traceCounts[j * q + c] / n);
-    lines.push({ color: colorNames[c], values: values });
-  }
-  plotOverTime(byId("shares-chart"), s.traceTimes, lines, "time");
+  // The share of each opinion over time, of disagreeing pairs, and the
+  // number of domains of each opinion (js/sim-charts.js).
+  const lineColor = function (c) { return colorNames[c]; };
+  plotOverTime(byId("shares-chart"), s.traceTimes, colorLines(s.traceCounts, s.traceTimes.length, q, lineColor, 1 / n), "time");
   plotOverTime(byId("disagree-chart"), s.traceTimes, [{ color: CHART_LINE, values: s.traceDisagree }], "time");
+  regionsChart(byId("domains-chart"), s.traceTimes, s.tracePieces, q, lineColor, "time");
 }
 
 
@@ -321,6 +335,7 @@ const tool = makeCustomTool({
 function useDomain(kind, d) {
   domainKind = kind;
   domain = d;
+  clearHighlight(highlight);
   useTorus(view, Boolean(d.wrap));   // moving and zooming (js/sim-view.js)
   showDomainChoice();
   restart();

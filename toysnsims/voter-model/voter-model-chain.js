@@ -51,8 +51,8 @@
      2. voterWorker(): runs it in a second thread (a "Web Worker") for
         the sim page, voter-model.js, so the page never freezes.
         startWorker (js/sim-page.js) starts it, with newVoter,
-        voterStart and the run loop and trace (js/sim-worker.js) copied
-        in.
+        voterStart, the run loop and trace (js/sim-worker.js) and the
+        domain counting (countPieces, js/sim-domains.js) copied in.
    ===================================================================== */
 
 
@@ -195,11 +195,18 @@ function voterWorker() {
   importScripts("https://cdn.jsdelivr.net/npm/seedrandom@3.0.5/seedrandom.min.js");
 
   let voter = null, run = 0, time = 0, consensusTime = null;
+  let graph = null;          // the domain's cells and neighbors, for counting its domains
   let trace = null;          // the run so far, for the charts over time (keepSample, js/sim-worker.js)
   let lastReported = -1;     // the time of the last state sent to the page
 
+  // A sample for the charts. The domains (connected pieces of one
+  // opinion) of each opinion are counted only when a sample is due
+  // (countPieces, js/sim-domains.js), since that looks at every cell.
   function takeSample() {
-    keepSample(trace, time, { disagree: 1 - voter.agree / Math.max(voter.pairs, 1), counts: voter.counts });
+    keepSample(trace, time, function () {
+      return { disagree: 1 - voter.agree / Math.max(voter.pairs, 1), counts: voter.counts,
+               pieces: countPieces(graph, voter.colors, voter.counts.length) };
+    });
   }
 
   function consensus() { return Math.max(...voter.counts) === voter.colors.length; }
@@ -214,6 +221,7 @@ function voterWorker() {
 
   function setup(m) {
     run = m.run;
+    graph = { n: m.n, first: m.first, nbr: m.nbr };
     const colors = voterStart(m.n, m.x, m.q, m.start, new Math.seedrandom(m.seed + " start"));
     voter = newVoter({ n: m.n, first: m.first, nbr: m.nbr, q: m.q, table: m.table, noise: m.noise,
                        colors: colors, random: new Math.seedrandom(m.seed + " clocks") });
@@ -253,7 +261,7 @@ function voterWorker() {
       type: "state", run: run, time: time, colors: colors, counts: voter.counts.slice(),
       agree: voter.agree, pairs: voter.pairs, consensusTime: consensusTime, frozen: frozen(),
       traceTimes: Float64Array.from(trace.times), traceDisagree: Float64Array.from(trace.lists.disagree),
-      traceCounts: Int32Array.from(trace.lists.counts),
+      traceCounts: Int32Array.from(trace.lists.counts), tracePieces: Int32Array.from(trace.lists.pieces),
     }, [colors.buffer]);   // hand the copy over instead of copying again
   }
 }

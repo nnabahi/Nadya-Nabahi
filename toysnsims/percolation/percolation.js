@@ -110,7 +110,7 @@ let U = null;               // one random number per cell (site) or edge (bond)
 let swept = null;           // the clusters for every p (sweep in percolation-clusters.js)
 let p = DEFAULTS.p;         // the p on the slider
 let result = null;          // the clusters at p (percolate in percolation-clusters.js)
-let selected = -1;          // a clicked cell: its cluster is highlighted (-1: none)
+const highlight = newHighlight();   // a clicked cell: its cluster is highlighted (js/sim-highlight.js)
 
 let playing = false;        // it starts paused; Play raises p
 let speed = DEFAULT_SPEED;
@@ -130,11 +130,11 @@ function newNumbers() {
   computeClusters();
 }
 
-// The clusters at the current p. If p went down far enough that the
-// clicked site closed, nothing stays highlighted.
+// The clusters at the current p. (If p goes down far enough that the
+// clicked cell leaves every cluster, nothing is highlighted until it
+// is in one again: js/sim-highlight.js.)
 function computeClusters() {
   result = percolate(domain, KIND, p, U, edges);
-  if (selected !== -1 && result.root[selected] === -1) selected = -1;
   drawSoon();
 }
 
@@ -189,8 +189,9 @@ function rgbOfRoot(r) {
   let rgb = mode === "open" ? openRGB
     : mode === "largest" ? (r === result.largestRoot ? accentRGB : othersRGB)
     : colorOfName(result.name[r]);
-  // A clicked cluster stands out: every other cluster fades.
-  if (selected !== -1 && r !== result.root[selected]) rgb = rgb.map(function (t) { return 255 - (255 - t) * 0.25; });
+  // A clicked cluster stands out: every other cluster fades (fadeRGB,
+  // js/sim-highlight.js).
+  if (highlight.inside !== null && r !== highlight.color) rgb = fadeRGB(rgb);
   return rgb;
 }
 
@@ -237,6 +238,7 @@ const disk = makeDiskView(simCanvas, view, showDomainChoice);
 
 function drawPicture() {
   if (!domain || !result || simCanvas.hidden) return;
+  findHighlight(highlight, domain, clusterGroups());   // the clicked cell's cluster, now
   if (domainKind === "graph") { drawOnBall(); return; }
   const pen = fitPicture(view, domain, MAX_PICTURE_HEIGHT);
   const asEdges = KIND === "bond" && view.size * view.zoom >= SMALLEST_EDGE_CELL;
@@ -255,6 +257,17 @@ function drawPicture() {
 
 // The group of cell v in the picture: its cluster's root, or -1 (white).
 function groupOf(v) { return inCluster(v) ? result.root[v] : -1; }
+
+// Every cell's group, as one list: the clusters, as a coloring whose
+// regions are exactly the clusters (for the highlight). Two neighbors
+// with the same root are in the same cluster, and a cluster is joined
+// up through its open sites or edges, so a search through neighbors of
+// the same root finds the whole cluster.
+function clusterGroups() {
+  const groups = new Int32Array(domain.n);
+  for (let v = 0; v < domain.n; v++) groups[v] = groupOf(v);
+  return groups;
+}
 
 // Bond percolation, big cells: the dots and the open edges. Each square
 // looks at the squares to its right and above (and, with 8 neighbors,
@@ -417,13 +430,11 @@ window.addEventListener("resize", drawSoon);
    the same.
    ===================================================================== */
 connectPicture(view, disk, function () { return domainKind === "graph"; }, function (event) {
-  clickCell(domainKind === "graph" ? ballCellUnder(disk, domain, event)
-                                   : cellUnder(view, domain, pointerSpot(view, event)));
+  clickCell(cellAtEvent(view, disk, domain, domainKind === "graph", event));
 }, "pointer");
 
 function clickCell(v) {
-  const sameCluster = selected !== -1 && v !== -1 && result.root[v] !== -1 && result.root[v] === result.root[selected];
-  selected = (v === -1 || !inCluster(v) || sameCluster) ? -1 : v;
+  clickHighlight(highlight, v, clusterGroups());
   drawSoon();
 }
 
@@ -453,8 +464,8 @@ function showStats() {
   byId("stat-cross-at").textContent = swept.crossAt === null ? "never" : "p = " + swept.crossAt.toFixed(4);
   byId("stat-cross-at-name").textContent = onGraph ? "First reaches the edge at"
     : domain.wrap ? "First wraps around at" : "First crosses at";
-  byId("stat-selected").textContent = selected === -1 ? "none (click a cluster)"
-    : result.size[result.root[selected]].toLocaleString() + " cells";
+  byId("stat-selected").textContent = highlight.inside === null ? "none (click a cluster)"
+    : highlight.size.toLocaleString() + " cells";
 
   drawCurve(byId("largest-chart"), function (k) { return largestAt(k) / n; }, "largest cluster / cells");
   drawCurve(byId("clusters-chart"), function (k) { return clustersAt(k) / n; }, "clusters / cells");
@@ -581,7 +592,7 @@ function useDomain(kind, d) {
   domain = d;
   edges = edgesOf(d);
   entryEdge = makeEntryEdges(d, edges);
-  selected = -1;
+  clearHighlight(highlight);
   useTorus(view, Boolean(d.wrap));   // moving and zooming (js/sim-view.js)
   showDomainChoice();
   newNumbers();
@@ -678,7 +689,7 @@ connectSpeedSlider("speed", SPEEDS, DEFAULT_SPEED, function (newSpeed) {
 byId("colors").addEventListener("change", drawSoon);
 
 // Seed: the same seed gives the same numbers U every time.
-connectSeed(function () { selected = -1; newNumbers(); });
+connectSeed(function () { clearHighlight(highlight); newNumbers(); });
 
 
 // --- Start ------------------------------------------------------------
