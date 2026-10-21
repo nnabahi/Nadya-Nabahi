@@ -198,13 +198,7 @@ function ballRadius() {
 function showPresets() {
   const row = byId("tile-presets");
   row.innerHTML = "";
-  for (const preset of PRESETS[dim]) {
-    const button = document.createElement("button");
-    button.className = "tool-button";
-    button.textContent = preset.name;
-    button.addEventListener("click", function () { setTile(preset.tile); });
-    row.appendChild(button);
-  }
+  for (const preset of PRESETS[dim]) row.appendChild(toolButton(preset.name, function () { setTile(preset.tile); }));
   byId("disk-label").textContent = dim === 1 ? "Every offset out to" : "Disk, radius";
   byId("ring-label").textContent = dim === 1 ? "Only the offsets from" : "Ring, radius";
 }

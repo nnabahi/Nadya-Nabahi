@@ -136,15 +136,11 @@ function showNeighborhoodPresets() {
   const row = byId("neighborhood-presets");
   row.innerHTML = "";
   for (const preset of NEIGHBORHOODS[dim]) {
-    const button = document.createElement("button");
-    button.className = "tool-button";
-    button.textContent = preset.name;
-    button.addEventListener("click", function () {
+    row.appendChild(toolButton(preset.name, function () {
       setNeighborhood(preset.offsets);
       readRule();
       restart(true);
-    });
-    row.appendChild(button);
+    }));
   }
 }
 

@@ -936,17 +936,13 @@ function showGraphPresets(onPick) {
   const row = byId("graph-presets");
   row.innerHTML = "";
   for (const preset of GRAPH_PRESETS) {
-    const button = document.createElement("button");
-    button.className = "tool-button";
-    button.textContent = preset.name;
-    button.addEventListener("click", function () {
+    row.appendChild(toolButton(preset.name, function () {
       const g = preset.graph;
       document.querySelector('input[name="graph-kind"][value="' + (isTree(g) ? "tree" : "tiling") + '"]').checked = true;
       if (isTree(g)) byId("set-degree").value = g.p;
       else { byId("set-p").value = g.p; byId("set-q").value = g.q; }
       onPick();
-    });
-    row.appendChild(button);
+    }));
   }
 }
 
