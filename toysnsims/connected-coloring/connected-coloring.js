@@ -26,7 +26,8 @@
      2. What the page remembers (the "state")
      3. The automatic start
      4. Running the chain
-     5. Drawing the coloring (and 5b, highlighting one color)
+     5. Drawing the coloring (and 5b, highlighting one color; 5c,
+        watching each move)
      6. Statistics
      7. Custom domains: the graph tool inside this page
      8. Connecting the buttons on the page
@@ -60,6 +61,17 @@ const BALL = { R: 5, most: 20, cells: 20000 };
 // you can follow the moves; the Speed slider goes faster.
 const SPEEDS = [1, 100, Infinity];   // the slider's starting min and max (boxes at its ends change them)
 const DEFAULT_SPEED = 10;
+
+// "Watch each move" (section 5c): its Steps slider, in steps of the
+// random walk per second, and how long it stops on the other parts of
+// a move (picking the colors, the cut, the new colors, accept or
+// reject), in seconds: STOP, or less when the steps are fast.
+const WATCH_SPEEDS = [1, 200, Infinity];
+const DEFAULT_WATCH_SPEED = 50;
+const STOP = 1;
+const TREE = "#1e1e1e";           // the spanning tree's lines
+const WALK = "#ffffff";           // the walk's path (with a TREE-colored edge around it)
+const CUT = "#e0201b";            // the edge that gets cut
 
 
 /* =====================================================================
@@ -191,11 +203,17 @@ const worker = startWorker(chainWorker, [makeRunLoop]);
 worker.onmessage = function (event) {
   const message = event.data;
   if (message.type !== "state" || message.run !== run) return;   // from an older run
+  if (message.film && watching) { startFilm(message); return; }   // shown first (section 5c)
+  useMessage(message);
+};
+
+// Show the coloring and numbers of a message from the chain.
+function useMessage(message) {
   colors = message.colors;
   latest = message;
   keepForChart(message);
   drawSoon();
-};
+}
 
 worker.onerror = function () {
   showMessage("The chain couldn't start. It loads one small library (seedrandom) from the " +
@@ -206,6 +224,7 @@ worker.onerror = function () {
 // domain, N and seed.
 function restart() {
   run++;
+  film = null;                            // a move being watched is dropped (section 5c)
   if (drawnStart) startShape = "yours";
   colors = drawnStart ? drawnStart.slice() : automaticStart(domain, N);
   trace = [];
@@ -274,10 +293,13 @@ function drawColoring() {
 
   // The cells, each in its color, with lines between different colors
   // (the outside counts as a color). With a color highlighted,
-  // the others are faded.
+  // the others are faded. While a move is being watched, the colors
+  // are the film's, and its tree and walk go on top (section 5c).
   const paint = colorNames.map(function (name, c) { return hexToRGB(shade(c)); });
-  paintDomain(view, pen, domain, function (v) { return colors[v]; },
+  const shown = film ? film.shown : colors;
+  paintDomain(view, pen, domain, function (v) { return shown[v]; },
     function (c) { return paint[c]; }, outsideRGB, BORDER, 0);
+  if (film) drawFilm(pen);
 }
 
 // Hyperbolic plane or tree: the ball's cells in their colors, with the
@@ -311,7 +333,9 @@ window.addEventListener("resize", drawSoon);
 // How color c is painted: its own color, or faded if another color is
 // highlighted.
 function shade(c) {
-  if (highlighted === -1 || c === highlighted) return colorNames[c];
+  if (film && film.pair) {                // watching a move: its two colors stand out
+    if (film.pair.includes(c)) return colorNames[c];
+  } else if (highlighted === -1 || c === highlighted) return colorNames[c];
   return rgbToHex(hexToRGB(colorNames[c]).map(function (t) { return t + (255 - t) * FADE; }));
 }
 
@@ -324,6 +348,7 @@ function highlight(c) {
 
 // The line under the picture: how to highlight, or what is highlighted.
 function showHighlightInfo() {
+  if (film) return;                       // the line says what the move is doing (section 5c)
   const line = byId("highlight-info");
   if (highlighted === -1 || !colors) {
     line.textContent = "Click a color in the picture, or its bar under Statistics, to highlight it.";
@@ -337,12 +362,247 @@ function showHighlightInfo() {
 // Dragging, zooming and clicking the picture: a click highlights the
 // color under it.
 connectPicture(view, disk, function () { return domainKind === "graph"; }, function (event) {
-  if (!colors) return;
+  if (!colors || film) return;
   const v = domainKind === "graph" ? ballCellUnder(disk, domain, event)
                                    : cellUnder(view, domain, pointerSpot(view, event));
   if (v === -1) { if (highlighted !== -1) highlight(-1); }   // outside the cells: show every color
   else highlight(colors[v]);
 });
+
+
+/* =====================================================================
+   5c. WATCHING EACH MOVE
+   ---------------------------------------------------------------------
+   With "Watch each move" ticked, every move is shown step by step:
+     1. the two colors picked (the others fade);
+     2. the random spanning tree of their cells, built by Wilson's
+        algorithm: the random walk is the white path, its loops vanish
+        as they close, and when it hits the tree it joins it (black);
+     3. the cut: one random tree edge flashes red and goes, leaving two
+        pieces;
+     4. the coin: the pieces get their new colors;
+     5. accept or reject, with alpha: a rejected move puts the old
+        colors back.
+   The chain (connected-coloring-chain.js, section 5) sends each move's
+   "film" and waits for "next" before making another one, so the moves
+   are the same ones as without watching. The Steps slider sets how
+   many steps of the walk show per second; Pause stops in the middle of
+   a move, and Step shows one whole move. Not on a hyperbolic tiling or
+   tree (yet).
+   ===================================================================== */
+let watching = false;          // is "Watch each move" ticked?
+let watchSpeed = DEFAULT_WATCH_SPEED;   // steps of the walk per second
+let film = null;               // the move being shown, or null
+
+// A new move to show. One still being shown is finished at once.
+function startFilm(message) {
+  if (film) useMessage(film.message);
+  const log = message.film;
+  if (!log.pair) { useMessage(message); worker.postMessage({ type: "next" }); return; }   // nothing to show
+  film = {
+    message: message,
+    pair: log.pair, walks: log.walks, root: log.root, cut: log.cut,
+    stepping: !player.playing,          // from the Step button: show it all, even paused
+    shown: colors.slice(),              // the colors on screen
+    middles: cellMiddles(domain),
+    parent: new Int32Array(domain.n).fill(-1),   // the tree so far: each cell's next cell toward the root
+    inTree: new Uint8Array(domain.n),
+    place: new Int32Array(domain.n).fill(-1),    // where each cell is in "path", or -1
+    path: [],                           // the walk so far, with its loops erased
+    walk: 0, step: 0,                   // which walk, and which step of it
+    stage: "pick", wait: stopTime(), owed: 0, last: performance.now(),
+  };
+  film.inTree[film.root] = 1;
+  showFilmInfo();
+  requestAnimationFrame(playFilm);
+}
+
+// How long a stop is: STOP seconds, shorter when the walk is fast.
+function stopTime() { return Math.max(0.15, Math.min(STOP, 40 / watchSpeed)); }
+
+// The film runs by the clock, at the browser's screen refresh.
+function playFilm(now) {
+  if (!film) return;
+  const seconds = Math.min(0.25, (now - film.last) / 1000);   // (a hidden tab doesn't jump ahead)
+  film.last = now;
+  if (player.playing || film.stepping) runFilm(seconds);
+  drawSoon();
+  if (film) requestAnimationFrame(playFilm);
+}
+
+function runFilm(seconds) {
+  if (film.stage === "walk") {
+    film.owed = Math.min(film.owed + seconds * watchSpeed, 1e7);
+    while (film && film.stage === "walk" && film.owed >= 1) { walkStep(); film.owed--; }
+    return;
+  }
+  film.wait -= seconds;
+  if (film.wait > 0) return;
+  film.wait = stopTime();
+  if (film.stage === "pick") film.stage = "walk";
+  else if (film.stage === "cut") {                // the coin: the new colors
+    film.stage = "recolor";
+    for (const [v, c] of film.message.film.proposal) film.shown[v] = c;
+  } else if (film.stage === "recolor") {          // accepted or rejected
+    film.stage = "verdict";
+    film.shown = film.message.colors.slice();
+  } else {                                        // done: on to the next move
+    const message = film.message;
+    film = null;
+    useMessage(message);
+    worker.postMessage({ type: "next" });
+    return;
+  }
+  showFilmInfo();
+}
+
+// One step of Wilson's algorithm: start the next walk, or take one
+// step of this one, erasing the loop it closes, or join the tree.
+function walkStep() {
+  const walk = film.walks[film.walk], path = film.path, place = film.place;
+  if (path.length === 0) {                        // a new walk starts
+    place[walk[0]] = 0;
+    path.push(walk[0]);
+    film.step = 1;
+  } else {
+    const v = walk[film.step++];
+    if (film.inTree[v]) {                         // it hit the tree: the path joins it
+      path.push(v);
+      for (let k = 0; k + 1 < path.length; k++) {
+        film.parent[path[k]] = path[k + 1];
+        film.inTree[path[k]] = 1;
+        place[path[k]] = -1;
+      }
+      path.length = 0;
+      film.walk++;
+      if (film.walk === film.walks.length) { film.stage = "cut"; film.wait = stopTime(); }
+    } else if (place[v] >= 0) {                   // back on its own path: erase the loop
+      for (let k = place[v] + 1; k < path.length; k++) place[path[k]] = -1;
+      path.length = place[v] + 1;
+    } else {
+      place[v] = path.length;
+      path.push(v);
+    }
+  }
+  showFilmInfo();
+}
+
+// The line under the picture says what is happening.
+function showFilmInfo() {
+  const f = film, [i, j] = f.pair, alpha = f.message.film.alpha;
+  const cells = f.message.film.proposal.length;
+  const name = "colors " + (i + 1) + " and " + (j + 1);
+  let text = "Move " + f.message.proposed.toLocaleString() + ": ";
+  if (f.stage === "pick") text += name + " picked, " + cells + " cells.";
+  else if (f.stage === "walk") {
+    let inTree = 0;
+    for (let v = 0; v < domain.n; v++) inTree += f.inTree[v];
+    text += "a random spanning tree of " + name + " (Wilson's algorithm): walk " +
+      Math.min(f.walk + 1, f.walks.length) + " of " + f.walks.length + ", " + inTree + " of " + cells + " cells in the tree.";
+  } else if (f.stage === "cut") text += "one random edge of the tree is cut, leaving two pieces.";
+  else if (f.stage === "recolor") text += "a fair coin gives the two pieces their colors.";
+  else text += "α = " + niceNumber(alpha) + ", " +
+    (f.message.film.accepted ? "accepted." : "rejected: back to the old colors.");
+  byId("highlight-info").textContent = text;
+}
+
+// The middle of every cell of domain d, in the picture (cellMiddle,
+// js/sim-domains.js), worked out once per domain.
+function cellMiddles(d) {
+  if (d.middles) return d.middles;
+  d.middles = [];
+  for (let v = 0; v < d.n; v++) d.middles.push(cellMiddle(d, v));
+  return d.middles;
+}
+
+// Where to draw cell w's middle when coming from the point "from": on a
+// torus, the copy of it nearest "from" (so a line to a neighbor across
+// the torus's edge doesn't cross the whole picture).
+function nearestMiddle(w, from) {
+  const [u, h] = film.middles[w];
+  if (!domain.wrap) return [u, h];
+  const [across, up] = torusSteps(domain);       // (js/sim-domains.js)
+  let best = [u, h], far = Infinity;
+  for (let a = -1; a <= 1; a++) {
+    for (let b = -1; b <= 1; b++) {
+      const p = [u + a * across[0] + b * up[0], h + a * across[1] + b * up[1]];
+      const d = Math.hypot(p[0] - from[0], p[1] - from[1]);
+      if (d < far) { far = d; best = p; }
+    }
+  }
+  return best;
+}
+
+// The tree (black), the cut edge (red, only while it is cut), and the
+// walk's path (white, with a dot at its head), on every copy that shows.
+function drawFilm(pen) {
+  const f = film, copies = screenCopies(view, domain);   // (js/sim-view.js; sets view.cell)
+  const width = Math.max(1.5, view.cell * 0.18);
+  pen.lineCap = pen.lineJoin = "round";
+  for (const { sx, sy } of copies) {
+    const line = function (path, a, b) {
+      path.moveTo(sx(a[0]), sy(a[1]));
+      path.lineTo(sx(b[0]), sy(b[1]));
+    };
+    const tree = new Path2D(), cut = new Path2D(), walk = new Path2D();
+    for (let v = 0; v < domain.n; v++) {
+      const p = f.parent[v];
+      if (p === -1) continue;
+      const isCut = v === f.cut[0] && p === f.cut[1];
+      if (isCut && f.stage !== "walk" && f.stage !== "cut") continue;   // it's gone
+      line(isCut && f.stage === "cut" ? cut : tree, f.middles[v], nearestMiddle(p, f.middles[v]));
+    }
+    let at = f.middles[f.root];
+    pen.fillStyle = TREE;
+    pen.beginPath();
+    pen.arc(sx(at[0]), sy(at[1]), 1.6 * width, 0, 2 * Math.PI);   // the root
+    pen.fill();
+    if (f.path.length > 0) {
+      at = f.middles[f.path[0]];
+      walk.moveTo(sx(at[0]), sy(at[1]));
+      for (let k = 1; k < f.path.length; k++) {
+        at = nearestMiddle(f.path[k], at);
+        walk.lineTo(sx(at[0]), sy(at[1]));
+      }
+    }
+    pen.strokeStyle = TREE;
+    pen.lineWidth = width;
+    pen.stroke(tree);
+    pen.strokeStyle = CUT;
+    pen.lineWidth = 2 * width;
+    pen.stroke(cut);
+    if (f.path.length > 0) {
+      pen.strokeStyle = TREE;                    // a dark edge, so white shows on any color
+      pen.lineWidth = 2 * width;
+      pen.stroke(walk);
+      pen.strokeStyle = WALK;
+      pen.lineWidth = width;
+      pen.stroke(walk);
+      pen.fillStyle = WALK;
+      pen.beginPath();
+      pen.arc(sx(at[0]), sy(at[1]), 1.4 * width, 0, 2 * Math.PI);   // the walk's head
+      pen.fill();
+      pen.stroke();
+    }
+  }
+}
+
+// The "Watch each move" box and its Steps slider.
+byId("watch").addEventListener("change", function () { setWatching(this.checked); });
+connectSpeedSlider("watch-speed", WATCH_SPEEDS, DEFAULT_WATCH_SPEED, function (speed) {
+  watchSpeed = speed;
+  byId("watch-speed-label").textContent = speed === Infinity ? "at once" : speedText(speed, "step", "steps");
+});
+
+function setWatching(on) {
+  watching = on;
+  byId("watch").checked = on;
+  byId("watch-options").hidden = !on;
+  if (!on && film) { const message = film.message; film = null; useMessage(message); }
+  worker.postMessage({ type: "watch", on: on });
+  showHighlightInfo();
+  drawSoon();
+}
 
 
 /* =====================================================================
@@ -688,6 +948,8 @@ function useDomain(kind, d, start, names) {
   N = start ? names.length : Math.min(Math.max(N, 2), most);
   colorNames = start ? names : [];
   for (let c = colorNames.length; c < N; c++) colorNames.push(defaultColor(c, N));
+  if (kind === "graph" && watching) setWatching(false);   // not on a hyperbolic tiling or tree (section 5c)
+  byId("watch").disabled = kind === "graph";
   useTorus(view, Boolean(domain.wrap));   // moving and zooming; zooming out past the whole picture only on a torus (js/sim-view.js)
   byId("set-colors").max = byId("colors-slider").max = most;
   byId("set-colors").value = byId("colors-slider").value = N;

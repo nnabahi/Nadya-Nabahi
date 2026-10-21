@@ -171,6 +171,19 @@
           <span class="muted" id="speed-label"></span>
         </div>
         <div class="option-row">
+          <label title="Not on a hyperbolic tiling or tree"><input type="checkbox" id="watch"> Watch each move</label>
+        </div>
+        <!-- Shown while "Watch each move" is ticked (section 5c of connected-coloring.js). -->
+        <div id="watch-options" hidden>
+          <div class="option-row">
+            Steps <input type="range" class="wide-range" id="watch-speed" min="0" step="1">
+            <span class="muted" id="watch-speed-label"></span>
+          </div>
+          <p class="muted small">Each move step by step: the two colors, the random spanning
+            tree being built (the white walk; its loops vanish), the cut, the new colors, and
+            accept or reject. Steps is how fast the walk goes.</p>
+        </div>
+        <div class="option-row">
           Seed <input type="text" id="seed" size="8">
           <button class="tool-button" id="new-seed" title="A random new seed">New seed</button>
         </div>
