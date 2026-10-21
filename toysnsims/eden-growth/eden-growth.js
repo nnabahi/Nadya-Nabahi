@@ -389,7 +389,7 @@ function customStart(d) {
 const sim = runInWorker(mountainWorker,
   [newMountain, ballTile, newGraphMountain, makeGraph, tilingShape, motionTimes, motionApply, halfTurn, coshFromStart,
    learnedRules, tilingByGeometry, tilingByRules, tilingRules, testRules, hashTable, ballAround, spreadPlace,
-   newTrace, keepSample, seededUniform, mountainSteps, pickSite, newClocks, holeHistory, bettiOverTime,
+   newTrace, keepSample, seededUniform, mountainSteps, pickSite, newClocks, wrap, holeHistory, bettiOverTime,
    cellWindow, squareWindow, tilingWindow, finiteWindow, convexHull, growingHull, polygonArea, convexity]
   .concat(penroseHelpers()), showMountain);
 

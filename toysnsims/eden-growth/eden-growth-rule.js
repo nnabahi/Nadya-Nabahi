@@ -227,13 +227,6 @@ function newMountain(options) {
     return finite ? z : ((x + 1048576) * 2097152 + (y + 1048576)) * parts + z;
   }
 
-  // Wrap a number into lo..hi, for tori. E.g. lo = 0, hi = 9: 10 -> 0, -1 -> 9.
-  // (As wrap in js/sim-domains.js, which the second thread can't see.)
-  function wrap(v, lo, hi) {
-    const n = hi - lo + 1;
-    return lo + (((v - lo) % n) + n) % n;
-  }
-
   // Is (x, y, z) in the domain? (x, y) has already been wrapped on a torus.
   function inDomain(x, y, z) {
     if (domain.kind === "whole") return true;

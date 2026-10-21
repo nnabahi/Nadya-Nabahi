@@ -162,13 +162,6 @@ function forEachCell(doThis) {
 // current color, or color 1 when the eraser is chosen.
 function paintColor() { return currentColor || 1; }
 
-// Wrap a number into the range lo..hi, for the torus.
-// E.g. with lo = 0, hi = 9: 10 -> 0, -1 -> 9.
-function wrap(v, lo, hi) {
-  const n = hi - lo + 1;
-  return lo + (((v - lo) % n) + n) % n;
-}
-
 
 /* =====================================================================
    3. HOW THINGS LOOK (the style rules)
@@ -440,7 +433,7 @@ function drawBackground() {
   // 6. Torus: copies of the drawing, repeated in every direction as far
   //    as the screen reaches, so panning never runs out. They are only
   //    pictures (the real grid is the one Cytoscape draws on top);
-  //    clicking a copy paints the real cell, because cellAt() wraps every
+  //    clicking a copy paints the real cell, because gridCellAt() wraps every
   //    point back into the grid.
   if (grid.torus) drawTorusCopies(pen, scale, screenX, screenY, left, right, bottom, top);
 }
@@ -587,7 +580,7 @@ function updateEdge(edge) {
 
 // Which cell is under a point of the drawing? null if none.
 // Rounding finds the nearest center, because cell (x, y) is centered at (x, y).
-function cellAt(point) {
+function gridCellAt(point) {
   let x = Math.round(point.x / UNIT);
   let y = Math.round(-point.y / UNIT);
   if (grid.torus) {               // any copy counts as the real cell
@@ -620,7 +613,7 @@ function paintAlong(a, b) {
   const pieces = Math.max(1, Math.ceil(distance / (UNIT / 2)));
   for (let i = 1; i <= pieces; i++) {
     const t = i / pieces;
-    const cell = cellAt({ x: a.x + t * (b.x - a.x), y: a.y + t * (b.y - a.y) });
+    const cell = gridCellAt({ x: a.x + t * (b.x - a.x), y: a.y + t * (b.y - a.y) });
     if (cell) paintBrush(cell.x, cell.y);
   }
 }
@@ -652,7 +645,7 @@ function fillFrom(x, y) {
 // Fill tool, fill).
 cy.on("tapstart", function (event) {
   if (tool === "fill") {
-    const cell = cellAt(event.position);
+    const cell = gridCellAt(event.position);
     if (cell) fillFrom(cell.x, cell.y);      // one Undo step, like a button press
     return;
   }
@@ -663,7 +656,7 @@ cy.on("tapstart", function (event) {
 
   // Starting on a cell that already has the current color erases
   // instead, so a single click toggles a cell on and off.
-  const cell = cellAt(event.position);
+  const cell = gridCellAt(event.position);
   const startsOnSameColor = cell && currentColor !== 0 && colorAt(cell.x, cell.y) === currentColor;
   strokeColor = startsOnSameColor ? 0 : currentColor;
 
