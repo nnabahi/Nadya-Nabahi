@@ -21,6 +21,7 @@
           seriesRange(series, k)     the smallest and largest x (k = 0) or y (k = 1)
      4. The charts the sims share
           plotOverTime(...)          numbers over time, as lines
+          pointsOverTime(times, values)   [time, number] points, from a trace
           colorLines(...)            one line per color, from a trace, for plotOverTime
           regionsChart(...)          the number of regions of each color over time
           histogram(...)             a histogram of some numbers
@@ -474,11 +475,16 @@ function seriesRange(series, k) {
 function plotOverTime(canvas, times, lines, word, top) {
   if (times.length < 2) { chartPen(canvas); return; }
   const series = lines.map(function (line) {
-    return { points: Array.from(line.values, function (v, k) { return [times[k], v]; }), color: line.color, dashed: line.dashed };
+    return { points: pointsOverTime(times, line.values), color: line.color, dashed: line.dashed };
   });
   const [low, high] = seriesRange(series, 1);
   return lineChart(canvas, series, { from: 0, to: times[times.length - 1], word: word },
                    { from: Math.min(0, low), to: top || Math.max(1, high), round: !top });
+}
+
+// The points [times[k], values[k]] of a chart over time.
+function pointsOverTime(times, values) {
+  return Array.from(values, function (v, k) { return [times[k], v]; });
 }
 
 // One line per color for plotOverTime, from a trace that keeps "count"
@@ -656,7 +662,10 @@ function guideLine(points, slope, from) {
    5. ZOOMING IN TIME
    ===================================================================== */
 
-// Zooming a chart in time, like the pictures: on the chart,
+// Zooming a chart in time, like the pictures, and with their code
+// (connectWheel and connectPicture, js/sim-view.js, which the page loads
+// too: the zoom says how it moves, with slide and zoomAt, as a picture's
+// view does). On the chart,
 //   mouse wheel, or pinch   zoom in or out around the pointer
 //   drag                    move along in time
 //   double-click            show the whole run again
@@ -670,60 +679,39 @@ function guideLine(points, slope, from) {
 // zoomed in, it stays on the same stretch of time.
 function chartZoom(canvas, redraw) {
   const zoom = {
+    canvas: canvas, redraw: redraw,
     from: null, to: null,    // the stretch shown; null = the whole run
     first: 0, last: 1,       // the whole run (set by shownTimes)
     left: 0, right: 1,       // where the stretch goes on the canvas
-    pointers: new Map(),     // the mouse or fingers pressed on the chart
+    top: 0, movable: true, pointers: new Map(),   // (for js/sim-view.js)
   };
-  canvas.classList.add("zoomable");
 
   // The time under a spot on the canvas, x pixels from its left side.
   function timeAt(x) {
     const [from, to] = shownTimes(zoom, zoom.first, zoom.last);
     return from + (to - from) * (x - zoom.left) / Math.max(1, zoom.right - zoom.left);
   }
-  // Zoom by "factor" (below 1 zooms in) around the spot x pixels in.
-  function zoomAround(factor, x) {
+  // Zoom by "factor" (2: twice as close) around the spot x pixels in.
+  zoom.zoomAt = function (factor, x) {
     const [from, to] = shownTimes(zoom, zoom.first, zoom.last);
     const t = timeAt(x);
-    const width = Math.max((to - from) * factor, 1e-9);
+    const width = Math.max((to - from) / factor, 1e-9);
     if (width >= zoom.last - zoom.first) { zoom.from = zoom.to = null; }   // all of it
-    else { zoom.from = t - (t - from) * factor; zoom.to = zoom.from + width; }
-    redraw();
-  }
-  function canvasX(event) { return event.clientX - canvas.getBoundingClientRect().left; }
-  function spread() {      // the middle of the pressed pointers, and how far apart they are
-    const p = Array.from(zoom.pointers.values());
-    if (p.length === 1) return { x: p[0], apart: 0 };
-    return { x: (p[0] + p[1]) / 2, apart: Math.abs(p[0] - p[1]) };
-  }
-
-  canvas.addEventListener("wheel", function (event) {
-    event.preventDefault();                        // don't scroll the page
-    zoomAround(Math.exp(event.deltaY * 0.002), canvasX(event));
-  }, { passive: false });
-  canvas.addEventListener("dblclick", function () { zoom.from = zoom.to = null; redraw(); });
-  canvas.addEventListener("pointerdown", function (event) {
-    zoom.pointers.set(event.pointerId, canvasX(event));
-    canvas.setPointerCapture(event.pointerId);     // keep getting moves even off the chart
-  });
-  canvas.addEventListener("pointermove", function (event) {
-    if (!zoom.pointers.has(event.pointerId)) return;
-    const before = spread();
-    zoom.pointers.set(event.pointerId, canvasX(event));
-    const after = spread();
-    if (after.apart > 0 && before.apart > 0) zoomAround(before.apart / after.apart, after.x);   // pinch
-    // Drag: the time under the pointer stays under the pointer.
+    else { zoom.from = t - (t - from) / factor; zoom.to = zoom.from + width; }
+  };
+  // Drag by dx pixels: the time under the pointer stays under it.
+  zoom.slide = function (dx) {
+    if (zoom.from === null) return;    // the whole run: nowhere to move
     const [from, to] = shownTimes(zoom, zoom.first, zoom.last);
-    if (zoom.from === null || after.x === before.x) return;
-    const shift = (before.x - after.x) * (to - from) / Math.max(1, zoom.right - zoom.left);
+    const shift = -dx * (to - from) / Math.max(1, zoom.right - zoom.left);
     zoom.from = from + shift;
     zoom.to = to + shift;
-    redraw();
-  });
-  for (const type of ["pointerup", "pointercancel"]) {
-    canvas.addEventListener(type, function (event) { zoom.pointers.delete(event.pointerId); });
-  }
+  };
+
+  canvas.classList.add("scrollable");
+  connectWheel(zoom);
+  connectPicture(zoom, null, null);
+  canvas.addEventListener("dblclick", function () { zoom.from = zoom.to = null; redraw(); });
   return zoom;
 }
 

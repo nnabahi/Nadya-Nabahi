@@ -121,7 +121,9 @@ function chainWorker() {
   let random = Math.random;
   let proposed = 0;        // moves tried
   let accepted = 0;        // moves accepted
-  let alphas = [];         // move, alpha, move, alpha, ... since the last report (for the chart)
+  let boundaryTrace = null;   // the boundary edges against the moves accepted, for the chart (keepSample, js/sim-worker.js)
+  let alphaTrace = null;      // each move's acceptance probability alpha, against the move number, for the chart
+  let alphaSum = 0;           // the sum of every move's alpha, for their average
   let film = null;         // "watch each move": what this move did, for the page to show (section 5)
 
   // Scratch space, one number per cell, reused by every move.
@@ -141,7 +143,6 @@ function chainWorker() {
     random = new Math.seedrandom(String(message.seed));
     proposed = 0;
     accepted = 0;
-    alphas = [];
 
     inM = new Int32Array(n); inTree = new Int32Array(n);
     member = new Int32Array(n); seen = new Int32Array(n);
@@ -168,6 +169,20 @@ function chainWorker() {
     // The spanning trees of each color, remembered from move to move.
     logTau = new Float64Array(N);
     for (let c = 0; c < N; c++) logTau[c] = logSpanningTrees(cellsOfColor(c));
+
+    // The charts start with the start's boundary edges.
+    boundaryTrace = newTrace(message.most);
+    alphaTrace = newTrace(message.most);
+    alphaSum = 0;
+    keepSample(boundaryTrace, 0, { boundary: boundary });
+  }
+
+  // After each move, samples for the charts: its alpha, against the
+  // move number, and the boundary edges, against the moves accepted.
+  function takeSamples(alpha) {
+    alphaSum += alpha;
+    keepSample(alphaTrace, proposed, { alpha: alpha });
+    keepSample(boundaryTrace, accepted, { boundary: boundary });
   }
 
   // Where the pair of colors a, b is stored in "between".
@@ -227,8 +242,8 @@ function chainWorker() {
     if (film) film.proposal = M.map(function (v) { return [v, newColor[v]]; });
     if (changed === 0) {                       // Y = X: alpha = 1 and nothing moves
       accepted++;
-      alphas.push(proposed, 1);
       if (film) { film.alpha = 1; film.accepted = true; }
+      takeSamples(1);
       return;
     }
 
@@ -244,10 +259,10 @@ function chainWorker() {
     const logAlpha = Math.log(pairsBefore) - Math.log(pairsAfter)
                    + (logTau[i] + logTau[j]) - (logTauI + logTauJ)
                    + Math.log(kBefore) - Math.log(kAfter);
-    alphas.push(proposed, Math.min(1, Math.exp(logAlpha)));   // for the acceptance chart
+    const alpha = Math.min(1, Math.exp(logAlpha));
 
     const accept = logAlpha >= 0 || Math.log(random()) < logAlpha;
-    if (film) { film.alpha = Math.min(1, Math.exp(logAlpha)); film.accepted = accept; }
+    if (film) { film.alpha = alpha; film.accepted = accept; }
     if (accept) {
       logTau[i] = logTauI;
       logTau[j] = logTauJ;
@@ -255,6 +270,7 @@ function chainWorker() {
     } else {
       recolor(M, oldColor);                  // rejected: back to X
     }
+    takeSamples(alpha);
   }
 
   // Give each cell v of "cells" the color target[v], keeping between,
@@ -544,13 +560,14 @@ function chainWorker() {
      -------------------------------------------------------------------
      The worker talks to the page the way every sim's worker does
      (serveRun, js/sim-worker.js). Its own messages:
-       setup  { n, first, nbr, colors, N, seed, watch }   a new run
-                        ("watch": is "watch each move" on?)
+       setup  { n, first, nbr, colors, N, seed, watch, most }   a new run
+                        ("watch": is "watch each move" on? "most": the
+                        most samples each chart keeps)
        watch  { on }    "watch each move" on or off
        next   {}        (watching) the page has shown the last move
-     It reports the colors, and the numbers for the Statistics box,
-     including the acceptance probability alpha of every move since the
-     last report.
+     It reports the colors, the numbers for the Statistics box, and the
+     run so far for the two charts (the boundary edges, and the
+     acceptance probability alpha of the moves, with its average).
 
      Watching each move, each move also sends what it did ("film": the
      two colors, every walk of Wilson's algorithm, the root, the cut
@@ -582,10 +599,13 @@ function chainWorker() {
       accepted: accepted,
       boundary: boundary,
       pairs: pairs,
-      alphas: alphas,
+      boundaryTimes: Float64Array.from(boundaryTrace.times),
+      boundaryValues: Float64Array.from(boundaryTrace.lists.boundary),
+      alphaTimes: Float64Array.from(alphaTrace.times),
+      alphaValues: Float64Array.from(alphaTrace.lists.alpha || []),   // (none before the first move)
+      alphaAverage: alphaSum / Math.max(proposed, 1),
       film: film,
     }, [copy.buffer]);
-    alphas = [];
     film = null;
   }
 

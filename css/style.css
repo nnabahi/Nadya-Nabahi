@@ -897,13 +897,6 @@ a.card:hover {
   cursor: pointer;
 }
 
-/* A chart you can zoom and drag in time (chartZoom in js/sim-charts.js).
-   "touch-action: none" lets fingers pinch the chart instead of the page. */
-.chart.zoomable {
-  cursor: grab;
-  touch-action: none;
-}
-
 /* Taller charts, for the ones with more to show. */
 .chart.tall   { height: 130px; }
 .chart.taller { height: 180px; }
@@ -949,16 +942,17 @@ a.card:hover {
   border-radius: calc(var(--corner-radius) / 2);
 }
 
-/* A sim's picture can be dragged: show the "hand" cursor, and on phones
-   let a finger drag it instead of scrolling the page. (js/sim-view.js
-   adds the classes "scrollable" when it can move, "dragging" while
-   dragged.) */
-#sim-canvas.scrollable {
+/* A sim's picture, or a chart that zooms in time, can be dragged: show
+   the "hand" cursor, and on phones let a finger drag it instead of
+   scrolling the page. (js/sim-view.js adds the classes "scrollable"
+   when it can move, "dragging" while dragged; chartZoom in
+   js/sim-charts.js adds "scrollable".) */
+canvas.scrollable {
   cursor: grab;
   touch-action: none;
 }
 
-#sim-canvas.scrollable.dragging {
+canvas.scrollable.dragging {
   cursor: grabbing;
 }
 

@@ -42,9 +42,9 @@
 const DEFAULTS = { width: 24, height: 24, neighbors: 4, colors: 6, seed: "1" };
 
 const MAX_COLORS = 100;           // the most colors allowed
-const MAX_SIDE = 250;             // the biggest box or torus is 100 x 100
+const MAX_SIDE = 250;             // the biggest box or torus is 250 x 250
 const MAX_PICTURE_HEIGHT = 600;   // in screen pixels
-const TRACE_POINTS = 4000;        // the most points each chart over time keeps (section 6)
+const TRACE_POINTS = 4000;        // the most points each chart over time keeps (the chain keeps them)
 
 // Hyperbolic plane or tree: the ball's default radius R, its largest
 // R, and the most cells it may have (a ball of a hyperbolic tiling grows
@@ -82,13 +82,7 @@ let startShape = "";           // what the start was: "rectangles", "blocks" or 
 
 // The latest coloring and numbers from the chain.
 let colors = null;             // colors[v] = color of cell v
-let latest = null;             // { proposed, accepted, boundary, pairs }
-let trace = [];                // [moves accepted, boundary edges] pairs, for the chart
-let traceEvery = 1;            // the chart keeps one message in this many (section 6)
-let alphaTrace = [];           // [move, alpha] pairs, for the acceptance chart
-let alphaEvery = 1;            // that chart keeps one move in this many
-let alphaSum = 0, alphaCount = 0;   // for the average alpha over the whole run
-let messages = 0;              // messages from the chain in this run
+let latest = null;             // the numbers, and the run so far (section 5 of connected-coloring-chain.js)
 let highlighted = -1;          // the color shown highlighted, or -1 for none (section 5b)
 
 
@@ -185,12 +179,13 @@ function compactStart(d, count) {
 /* =====================================================================
    4. RUNNING THE CHAIN
    ---------------------------------------------------------------------
-   The chain is the function chainWorker() in connected-coloring-chain.js.
+   The chain is the function chainWorker() in connected-coloring-chain.js,
+   with the trace (js/sim-worker.js) copied in for the charts.
    runInWorker (js/sim-page.js) runs it in a second thread, a "Web
    Worker", so the page never freezes. Watching each move, a message
    carries the move's film, shown first (section 5c).
    ===================================================================== */
-const sim = runInWorker(chainWorker, [], function (message) {
+const sim = runInWorker(chainWorker, [newTrace, keepSample], function (message) {
   if (message.film && watching) startFilm(message); else useMessage(message);
 });
 
@@ -198,7 +193,6 @@ const sim = runInWorker(chainWorker, [], function (message) {
 function useMessage(message) {
   colors = message.colors;
   latest = message;
-  keepForChart(message);
   drawSoon();
 }
 
@@ -208,17 +202,11 @@ function restart() {
   film = null;                            // a move being watched is dropped (section 5c)
   if (drawnStart) startShape = "yours";
   colors = drawnStart ? drawnStart.slice() : automaticStart(domain, N);
-  trace = [];
-  traceEvery = 1;
-  messages = 0;
-  alphaTrace = [];
-  alphaEvery = 1;
-  alphaSum = alphaCount = 0;
   traceZoom.from = traceZoom.to = null;   // the charts show the whole new run
   alphaZoom.from = alphaZoom.to = null;
   latest = null;
   sim.setup({ n: domain.n, first: domain.first, nbr: domain.nbr, colors: colors, N: N, seed: byId("seed").value,
-              watch: watching });
+              watch: watching, most: TRACE_POINTS });
   showStartInfo();
   drawSoon();
 }
@@ -648,56 +636,26 @@ byId("sizes-chart").addEventListener("click", function (event) {
   if (place >= 0 && place < N) highlight(order[place]);
 });
 
-// The "boundary edges" chart keeps the whole run. Each message from the
-// chain is one point; when there are TRACE_POINTS of them, every other
-// point is dropped and from then on only one message in twice as many
-// is kept. So the points stay evenly spread over the whole run, however
-// long it gets.
-function keepForChart(message) {
-  messages++;
-  if ((messages - 1) % traceEvery !== 0) return;
-  trace.push([message.accepted, message.boundary]);
-  if (trace.length >= TRACE_POINTS) {
-    trace = trace.filter(function (p, k) { return k % 2 === 0; });
-    traceEvery *= 2;
-  }
-  keepAlphas(message.alphas);
-}
-
-// The acceptance chart keeps its points the same way, but per move:
-// "alphas" is move, alpha, move, alpha, ... for every move since the
-// last message, and the chart keeps one move in alphaEvery.
-function keepAlphas(alphas) {
-  for (let k = 0; k < alphas.length; k += 2) {
-    const move = alphas[k], alpha = alphas[k + 1];
-    alphaSum += alpha;
-    alphaCount++;
-    if ((move - 1) % alphaEvery !== 0) continue;
-    alphaTrace.push([move, alpha]);
-    if (alphaTrace.length >= TRACE_POINTS) {
-      alphaTrace = alphaTrace.filter(function (p, j) { return j % 2 === 0; });
-      alphaEvery *= 2;
-    }
-  }
-}
-
 // The number of boundary edges against the number of moves accepted. It
-// shows the whole run, rescaled to fit as the run goes on; zoom in with
-// the mouse wheel or a pinch, drag to move along, and double-click to
-// see the whole run again (chartZoom, js/sim-charts.js).
+// shows the whole run (the chain keeps evenly spaced samples of it, at
+// most TRACE_POINTS: keepSample, js/sim-worker.js), rescaled to fit as
+// the run goes on; zoom in with the mouse wheel or a pinch, drag to move
+// along, and double-click to see the whole run again (chartZoom,
+// js/sim-charts.js).
 const traceZoom = chartZoom(byId("trace-chart"), drawTrace);
 
 function drawTrace() {
-  if (trace.length < 2) { chartPen(byId("trace-chart")); return; }
-  const [from, to] = shownTimes(traceZoom, trace[0][0], trace[trace.length - 1][0]);
+  const points = latest ? pointsOverTime(latest.boundaryTimes, latest.boundaryValues) : [];
+  if (points.length < 2) { chartPen(byId("trace-chart")); return; }
+  const [from, to] = shownTimes(traceZoom, points[0][0], points[points.length - 1][0]);
 
   // The points in the stretch shown, plus one on each side, so the line
   // runs all the way to both edges. The numbers on the left go from the
   // lowest to the highest of these points.
-  let firstK = 0, lastK = trace.length - 1;
-  while (firstK + 1 < trace.length && trace[firstK + 1][0] <= from) firstK++;
-  while (lastK - 1 >= 0 && trace[lastK - 1][0] >= to) lastK--;
-  const series = [{ points: trace.slice(firstK, lastK + 1) }];
+  let firstK = 0, lastK = points.length - 1;
+  while (firstK + 1 < points.length && points[firstK + 1][0] <= from) firstK++;
+  while (lastK - 1 >= 0 && points[lastK - 1][0] >= to) lastK--;
+  const series = [{ points: points.slice(firstK, lastK + 1) }];
   const [low, high] = seriesRange(series, 1);
   const frame = lineChart(byId("trace-chart"), series, { from: from, to: to, word: "moves" },
                           { from: low, to: high, round: true, whole: true });
@@ -715,12 +673,13 @@ function drawTrace() {
 const alphaZoom = chartZoom(byId("alpha-chart"), drawAlphas);
 
 function drawAlphas() {
-  if (alphaTrace.length < 2) { chartPen(byId("alpha-chart")); return; }
-  const [from, to] = shownTimes(alphaZoom, alphaTrace[0][0], alphaTrace[alphaTrace.length - 1][0]);
-  const average = alphaSum / alphaCount;
+  const points = latest ? pointsOverTime(latest.alphaTimes, latest.alphaValues) : [];
+  if (points.length < 2) { chartPen(byId("alpha-chart")); return; }
+  const [from, to] = shownTimes(alphaZoom, points[0][0], points[points.length - 1][0]);
+  const average = latest.alphaAverage;
   // The dots are see-through, so crowded dots show darker.
   const frame = lineChart(byId("alpha-chart"), [
-    { points: alphaTrace, dots: true, radius: 1, alpha: 0.5 },
+    { points: points, dots: true, radius: 1, alpha: 0.5 },
     { points: [[from, average], [to, average]], color: CHART_TEXT, dashed: true, width: 1 },
   ], { from: from, to: to, word: "moves" }, { from: 0, to: 1 });
   alphaZoom.left = frame.left;

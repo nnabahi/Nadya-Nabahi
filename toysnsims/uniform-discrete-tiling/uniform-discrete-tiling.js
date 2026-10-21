@@ -74,13 +74,12 @@ let domain = null;              // the domain (js/sim-domains.js); its kind is d
 let tiles = [];                 // the tiles: [{ w, h, weight }, ...]
 
 let placements = null;          // the chain's list of tile positions (section 1 of the chain)
-let latest = null;              // the latest packing and numbers from the chain
-let trace = null;               // the run so far, for the charts: { moves: [], shares: [], clusters: {...} } (section 7)
+let latest = null;              // the latest packing, numbers and run so far from the chain
 const highlight = newHighlight();   // the clicked cell, whose cluster is highlighted (js/sim-highlight.js)
 
 // A small helper for this page: is "Average over time" ticked? (checked
-// is in js/sim-page.js. Used below: wrapNumber is in js/sim-domains.js,
-// defaultColor and hexToRGB in js/sim-colors.js.)
+// is in js/sim-page.js. Used below: defaultColor and hexToRGB are in
+// js/sim-colors.js.)
 function showingAverage() { return checked("show") === "average"; }
 
 
@@ -88,18 +87,19 @@ function showingAverage() { return checked("show") === "average"; }
    3. RUNNING THE CHAIN
    ---------------------------------------------------------------------
    The chain is the function tilePacking() in uniform-discrete-tiling-chain.js,
-   with cellAt, wrap, cellCorners and pointInCell (js/sim-domains.js)
-   copied in. runInWorker (js/sim-page.js) runs it in a second thread, a
+   with cellAt, wrap, cellCorners, pointInCell and countPieces with the
+   search behind it (js/sim-domains.js), the trace (js/sim-worker.js)
+   and the colors (section 7 of the chain file) copied in. runInWorker (js/sim-page.js) runs it in a second thread, a
    "Web Worker", so the page never freezes, and hands each report to
    the function below.
    ===================================================================== */
-const sim = runInWorker(tilePacking, [wrap, cellAt, cellCorners, pointInCell], function (message) {
+const sim = runInWorker(tilePacking, [wrap, cellAt, cellCorners, pointInCell, countPieces, findRegions, spreadRegion,
+                                      newTrace, keepSample, colorScheme, cellColors], function (message) {
   if (message.placements) {    // a new run's first report
     placements = message.placements;
     showMessage(message.error);
   }
   latest = message;
-  addToTrace(message);
   drawSoon();
 });
 
@@ -108,7 +108,6 @@ const sim = runInWorker(tilePacking, [wrap, cellAt, cellCorners, pointInCell], f
 function restart() {
   latest = null;
   placements = null;
-  trace = newTilingTrace();
   showMessage("");
   sim.setup({
     domain: domain, tiles: tiles,
@@ -143,53 +142,28 @@ const player = connectPlay(sim, SPEEDS, DEFAULT_SPEED, "move", "moves", restart)
 /* =====================================================================
    4. COLORS
    ---------------------------------------------------------------------
-   The chain sorts every covered cell into a "class": 2*o + parity for a
-   tile of orientation o (an orientation is one tile, possibly turned),
-   where parity is the checkerboard color of the tile's lower-left cell;
-   the last class is "empty". The "Color by" menu says how classes are
-   colored: by tile size, by orientation (direction), or by orientation
-   and checkerboard together (the 4 colors of the arctic circle pictures,
-   for dominoes). The colors are the old site's (defaultColor in
-   js/sim-colors.js).
-   The CLUSTERS (for the chart over time and the highlight) follow the
-   same colors: a cluster is a connected piece of the covered cells of
-   one color (gaps are in no cluster).
+   The chain sorts every covered cell into a "class", and the "Color by"
+   menu says how classes are colored (colorScheme and cellColors, in
+   section 7 of uniform-discrete-tiling-chain.js, which also says what
+   the classes and the CLUSTERS are). The last class is "empty". The
+   colors are the old site's (defaultColor in js/sim-colors.js).
    ===================================================================== */
-const COLOR_BY = ["tile", "direction", "checker"];   // the choices of the "Color by" menu
 
-// The colors of a "Color by" choice: count of them, and which one
-// class c gets (of(c), 0 .. count-1).
-function colorScheme(by) {
-  const orientations = placements.orientW.length;
-  if (by === "tile") return { count: tiles.length, of: function (c) { return placements.orientTile[Math.floor(c / 2)]; } };
-  if (by === "direction") return { count: orientations, of: function (c) { return Math.floor(c / 2); } };
-  return { count: 2 * orientations, of: function (c) { return c; } };
-}
+// The colors of the "Color by" choice picked.
+function shownScheme() { return colorScheme(byId("color-by").value, placements, tiles.length); }
 
+// Each class's color, as [red, green, blue].
 function classColors() {
-  const scheme = colorScheme(byId("color-by").value);
+  const scheme = shownScheme();
   const colors = [];
   for (let c = 0; c < 2 * placements.orientW.length; c++) colors.push(defaultColor(scheme.of(c), scheme.count));
   colors.push(NO_COLOR);   // empty cells (js/sim-colors.js)
   return colors.map(hexToRGB);
 }
 
-// Each cell's color number in a scheme (-1 for an empty cell), for
-// finding the clusters. "owner" is the chain's owner[v], the tile on
-// each cell.
-function cellColors(owner, scheme) {
-  const classes = 2 * placements.orientW.length + 1;
-  const colors = new Int32Array(owner.length);
-  for (let v = 0; v < owner.length; v++) colors[v] = owner[v] < 0 ? -1 : scheme.of(classOf(owner[v], classes));
-  return colors;
-}
-
-// The class of the cell covered by placement p (-1 = empty).
-function classOf(p, classes) {
-  if (p < 0) return classes - 1;
-  const a = placements.anchor[p];
-  return 2 * placements.orient[p] + wrapNumber(domain.x[a] + domain.y[a], 2);
-}
+// The class of the cell covered by placement p (-1 = empty, the last of
+// the "classes" classes).
+function classOf(p, classes) { return p < 0 ? classes - 1 : placements.tileClass[p]; }
 
 
 /* =====================================================================
@@ -230,7 +204,7 @@ function drawPacking() {
   const d = domain, owner = latest.owner;
   const average = showingAverage() && latest.heat;
   const colors = classColors(), classes = colors.length;
-  findHighlight(highlight, d, cellColors(owner, colorScheme(byId("color-by").value)));
+  findHighlight(highlight, d, cellColors(owner, placements, shownScheme()));
   showHighlightInfo();
 
   // 1. Size the canvas and place the picture's box (js/sim-view.js).
@@ -334,7 +308,7 @@ connectPicture(view, null, null, function (event) {
   if (!domain) return;
   const v = cellUnder(view, domain, pointerSpot(view, event));
   if (checked("click") === "highlight") {
-    if (latest && placements) clickHighlight(highlight, v, cellColors(latest.owner, colorScheme(byId("color-by").value)));
+    if (latest && placements) clickHighlight(highlight, v, cellColors(latest.owner, placements, shownScheme()));
     drawSoon();
     return;
   }
@@ -347,13 +321,12 @@ connectPicture(view, null, null, function (event) {
 /* =====================================================================
    7. STATISTICS
    ---------------------------------------------------------------------
-   The chain counts the tiles of each orientation and the empty cells;
-   here they are added up per tile (a tile and its turned copy count
-   together). The chart shows, over the moves, the share of the cells
-   covered by each tile, and the share left empty.
-   The clusters (section 4) are counted here, for every "Color by"
-   choice, each time the chain reports (countPieces, js/sim-domains.js),
-   so the clusters chart shows the whole run whichever is picked.
+   The chain counts the tiles and the cells they cover (a tile and its
+   turned copy together), and the empty cells. It also keeps the run so
+   far for the charts (section 6 of the chain file): over the moves, the
+   share of the cells covered by each tile and the share left empty, and
+   the clusters of every "Color by" choice, so the clusters chart shows
+   the whole run whichever is picked.
    ===================================================================== */
 
 // The line under the picture about the highlight: shown while a cluster
@@ -362,46 +335,6 @@ function showHighlightInfo() {
   byId("highlight-info").textContent = highlightTextIf(highlight, checked("click") === "highlight", "cluster", function (k) {
     return byId("color-by").value === "tile" ? tileName(tiles[k]).replace("&times;", "×") + " tiles" : "color " + (k + 1);
   });
-}
-
-// An empty run so far: for each report, the moves, the shares, and the
-// number of clusters of each color in each "Color by" choice.
-function newTilingTrace() {
-  const clusters = {};
-  for (const by of COLOR_BY) clusters[by] = [];
-  return { moves: [], shares: [], clusters: clusters };
-}
-
-// Cells covered by each tile (by number in the tile list), and empty.
-function coverCounts(stats) {
-  const cells = new Array(tiles.length).fill(0), count = new Array(tiles.length).fill(0);
-  stats.tileCount.forEach(function (k, o) {
-    const t = placements.orientTile[o];
-    count[t] += k;
-    cells[t] += k * placements.orientW[o] * placements.orientH[o];
-  });
-  return { count: count, cells: cells, empty: stats.emptyCount };
-}
-
-// Remember the shares and the clusters after each report (a "state"
-// message from the chain), for the charts. At most about 600 points are
-// kept: when there are more, every other one is dropped.
-function addToTrace(message) {
-  const stats = message.stats, last = trace.moves.length - 1;
-  if (last >= 0 && trace.moves[last] === stats.moves) return;   // nothing new
-  const c = coverCounts(stats);
-  trace.moves.push(stats.moves);
-  trace.shares.push(c.cells.concat([c.empty]).map(function (k) { return k / domain.n; }));
-  for (const by of COLOR_BY) {
-    const scheme = colorScheme(by);
-    trace.clusters[by].push(countPieces(domain, cellColors(message.owner, scheme), scheme.count));
-  }
-  if (trace.moves.length > 600) {
-    const everyOther = function (m, k) { return k % 2 === 0; };
-    trace.moves = trace.moves.filter(everyOther);
-    trace.shares = trace.shares.filter(everyOther);
-    for (const by of COLOR_BY) trace.clusters[by] = trace.clusters[by].filter(everyOther);
-  }
 }
 
 // A tile's name in the table: "2 × 3", or on triangles and hexagons
@@ -424,7 +357,7 @@ function showStats() {
   byId("stat-choices").textContent = s.moves ? (s.choicesTotal / used).toFixed(2) : "";
 
   // One row per tile, and one for the gaps (colorRow, js/sim-page.js).
-  const c = coverCounts(s), names = defaultColors(tiles.length);
+  const c = s.cover, names = defaultColors(tiles.length);
   const cellsAndShare = function (cells) { return cells.toLocaleString() + " (" + (100 * cells / domain.n).toFixed(1) + "%)"; };
   let rows = "";
   tiles.forEach(function (t, k) {
@@ -439,23 +372,19 @@ function showStats() {
 // The number of clusters of each color (in the "Color by" choice picked)
 // over the moves, and a gray line for all of them (js/sim-charts.js).
 function drawClustersChart() {
-  const by = byId("color-by").value, scheme = colorScheme(by);
-  byId("stat-clusters").textContent = trace.clusters[by].length
-    ? trace.clusters[by][trace.clusters[by].length - 1].reduce(function (a, b) { return a + b; }, 0).toLocaleString() : "";
-  regionsChart(byId("clusters-chart"), trace.moves, [].concat(...trace.clusters[by]), scheme.count,
+  const scheme = shownScheme(), clusters = latest.traceClusters[byId("color-by").value];
+  const now = clusters.slice(clusters.length - scheme.count);   // the last sample
+  byId("stat-clusters").textContent = now.reduce(function (a, b) { return a + b; }, 0).toLocaleString();
+  regionsChart(byId("clusters-chart"), latest.traceTimes, clusters, scheme.count,
                function (k) { return defaultColor(k, scheme.count); }, "moves");
 }
 
 // One line per tile (in its color) and a gray one for gaps: the share of
 // the cells, from 0 to 1, against the number of moves.
 function drawCoverChart() {
-  if (trace.moves.length < 2) { chartPen(byId("cover-chart")); return; }
   const lineColors = defaultColors(tiles.length).concat([CHART_TEXT]);
-  const series = lineColors.map(function (color, k) {
-    return { points: trace.moves.map(function (m, i) { return [m, trace.shares[i][k]]; }), color: color };
-  });
-  lineChart(byId("cover-chart"), series, { from: 0, to: Math.max(trace.moves[trace.moves.length - 1], 1), word: "moves" },
-            { from: 0, to: 1 });
+  plotOverTime(byId("cover-chart"), latest.traceTimes, colorLines(latest.traceShares, latest.traceTimes.length,
+               lineColors.length, function (k) { return lineColors[k]; }), "moves", 1);
 }
 
 

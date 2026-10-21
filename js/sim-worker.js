@@ -180,12 +180,13 @@ function serveRun(sim) {
 // The run so far, for the charts over time. A "sample" is the time and
 // a few numbers (or lists of numbers, like the size of each color).
 // One is taken every trace.gap units of time. When there are more than
-// MAX_SAMPLES, every other one is dropped and the gap doubles, so a
-// long run keeps evenly spaced samples from start to end.
+// "most" (1000, unless newTrace is given another number), every other
+// one is dropped and the gap doubles, so a long run keeps evenly spaced
+// samples from start to end.
 //   trace.times         the time of each sample
 //   trace.lists[name]   the numbers of each sample, one after another
-function newTrace() {
-  return { times: [], lists: {}, gap: 1, next: 0 };
+function newTrace(most) {
+  return { times: [], lists: {}, gap: 1, next: 0, most: most || 1000 };
 }
 
 // Take a sample at "time" if one is due (or "now" is true). "values"
@@ -196,7 +197,6 @@ function newTrace() {
 // work out (like the regions of a coloring): it is called only when a
 // sample is due.
 function keepSample(trace, time, values, now) {
-  const MAX_SAMPLES = 1000;
   if (time < trace.next && !now) return;
   if (typeof values === "function") values = values();
   trace.times.push(time);
@@ -208,7 +208,7 @@ function keepSample(trace, time, values, now) {
   }
   trace.next = time + trace.gap;
   const count = trace.times.length;
-  if (count > MAX_SAMPLES) {
+  if (count > trace.most) {
     trace.times = trace.times.filter(function (x, k) { return k % 2 === 0; });
     for (const name in trace.lists) {
       const width = trace.lists[name].length / count;    // numbers per sample

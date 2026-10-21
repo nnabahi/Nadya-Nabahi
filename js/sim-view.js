@@ -76,6 +76,7 @@
      cellUnder, cellAtEvent      the cell under the pointer
    Moving, zooming and clicking either kind of picture:
      connectZoomControls(view, reset)   the wheel and the + / − / Reset buttons
+     connectWheel(view)          ... just the wheel (a chart's time, js/sim-charts.js)
      pressPointer, movePointer, releasePointer   dragging and pinching
      pointerSpot(view, event)    where the pointer is on the picture
      makeClickTracker()          is a press a click or a drag?
@@ -609,7 +610,9 @@ function cellAtEvent(view, disk, d, onGraph, event) {
      view.zoomAt(factor, x, y)   zoom by "factor" (2: twice as close)
                                  around the point (x, y) of the screen
    (in screen pixels as pointerSpot gives them; neither draws). The
-   rest is the same for both, so it is written once, here.
+   rest is the same for both, so it is written once, here. (A chart
+   that zooms in time, chartZoom in js/sim-charts.js, gives the same two
+   and uses it too.)
 
    With one pointer down, the picture follows it; with two fingers, it
    follows the point between them, and zooms as they spread apart or
@@ -623,12 +626,19 @@ function cellAtEvent(view, disk, d, onGraph, event) {
 
 const CLICK_DISTANCE = 5;     // a press that moves less than this (in pixels) is a click, not a drag
 
-// The mouse wheel and the + / − / Reset buttons. The wheel zooms around
-// the pointer, as in Desmos. So does a pinch on a trackpad, which the
-// browser reports as the wheel with the Ctrl key held (and small steps,
-// so it counts for more). + and − zoom around the middle, and reset()
-// goes back to the start, and draws.
+// The mouse wheel and the + / − / Reset buttons. + and − zoom around
+// the middle, and reset() goes back to the start, and draws.
 function connectZoomControls(view, reset) {
+  connectWheel(view);
+  byId("zoom-in").addEventListener("click", function () { zoomMiddle(view, ZOOM_STEP); });
+  byId("zoom-out").addEventListener("click", function () { zoomMiddle(view, 1 / ZOOM_STEP); });
+  byId("zoom-reset").addEventListener("click", reset);
+}
+
+// The mouse wheel zooms around the pointer, as in Desmos. So does a
+// pinch on a trackpad, which the browser reports as the wheel with the
+// Ctrl key held (and small steps, so it counts for more).
+function connectWheel(view) {
   view.canvas.addEventListener("wheel", function (event) {
     if (!view.movable) return;
     event.preventDefault();                              // don't scroll the page
@@ -637,9 +647,6 @@ function connectZoomControls(view, reset) {
     view.zoomAt(Math.exp(-pixels * (event.ctrlKey ? 0.01 : 0.002)), spot.x, spot.y);
     view.redraw();
   }, { passive: false });   // "passive: false" lets preventDefault stop the page scrolling
-  byId("zoom-in").addEventListener("click", function () { zoomMiddle(view, ZOOM_STEP); });
-  byId("zoom-out").addEventListener("click", function () { zoomMiddle(view, 1 / ZOOM_STEP); });
-  byId("zoom-reset").addEventListener("click", reset);
 }
 
 function zoomMiddle(view, factor) {

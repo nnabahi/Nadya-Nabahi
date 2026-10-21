@@ -115,11 +115,12 @@
        direction (the picture of an empty corner, with no cubes).
 
    HOW IT RUNS
-   Everything is inside one function, tilePacking(). The sim page turns
-   it into a "Web Worker" (a second thread, see runInWorker in
-   js/sim-page.js), with cellAt, wrap, cellCorners and pointInCell
-   (js/sim-domains.js) copied in, where it answers messages from the
-   page (section 6). The check page (uniform-discrete-tiling-check.html) calls
+   Everything but the colors (section 7) is inside one function,
+   tilePacking(). The sim page turns it into a "Web Worker" (a second
+   thread, see runInWorker in js/sim-page.js), with cellAt, wrap,
+   cellCorners, pointInCell and countPieces (js/sim-domains.js), the
+   trace (js/sim-worker.js) and the colors copied in, where it answers
+   messages from the page (section 6). The check page (uniform-discrete-tiling-check.html) calls
    tilePacking() directly and uses the functions it hands back.
    The one library used is seedrandom
    (https://github.com/davidbau/seedrandom), for random numbers that
@@ -132,6 +133,7 @@
      4. The starting packing
      5. Checks and statistics
      6. Messages from the page, and the run loop
+     7. The colors (outside tilePacking, shared with the page)
    ===================================================================== */
 
 function tilePacking() {
@@ -175,17 +177,20 @@ function tilePacking() {
   const ROW = Math.sqrt(3) / 2;   // the height of a row of triangles or hexagons
 
   // The tile orientations: orientation o is orientW[o] wide and orientH[o]
-  // tall, and comes from tile number orientTile[o] of the list given.
-  // orientLogWeight[o] is the logarithm of that tile's weight.
+  // tall, and comes from tile number orientTile[o] of the list given
+  // (of tilesGiven tiles). orientLogWeight[o] is the logarithm of that
+  // tile's weight.
   let orientW = [], orientH = [], orientTile = [], orientLogWeight = [];
+  let tilesGiven = 0;
 
   // The placements, numbered 0 .. P-1. Placement p covers the cells
   // plCell[plStart[p]] .. plCell[plStart[p + 1] - 1], has orientation
-  // plOrient[p] and its lower-left cell is plAnchor[p].
+  // plOrient[p] and its lower-left cell is plAnchor[p]; plClass[p] is its
+  // class (2*o + the checkerboard color of that cell, see the heat map).
   // cellPl[cellPlStart[v]] .. cellPl[cellPlStart[v + 1] - 1] are the
   // placements that cover cell v. (Lists cut into pieces like this are the
   // same trick as the neighbor lists in sim-domains.js.)
-  let P = 0, plStart, plCell, plOrient, plAnchor, cellPlStart, cellPl;
+  let P = 0, plStart, plCell, plOrient, plAnchor, plClass, cellPlStart, cellPl;
   let plByAnchor = new Map();   // orientation and lower-left cell -> placement
 
   // The packing.
@@ -236,6 +241,7 @@ function tilePacking() {
     // still a 2x2), otherwise one picture would count as two packings.
     // A tile of weight 0 is left out (see WEIGHTS at the top).
     orientW = []; orientH = []; orientTile = []; orientLogWeight = [];
+    tilesGiven = s.tiles.length;
     const seenSizes = new Set();
     s.tiles.forEach(function (t, k) {
       const weight = (t.weight === undefined) ? 1 : t.weight;
@@ -309,11 +315,21 @@ function tilePacking() {
         anchors.push(v);
       }
     }
+    keepPlacements(starts, cells, orients, anchors);
+  }
+
+  // Keep the placements listed: placement p covers the cells
+  // cells[starts[p]] .. cells[starts[p + 1] - 1], with orientation
+  // orients[p] and lower-left cell anchors[p]. Work out each one's
+  // class, and the placements covering each cell.
+  function keepPlacements(starts, cells, orients, anchors) {
     P = orients.length;
     plStart = Int32Array.from(starts);
     plCell = Int32Array.from(cells);
     plOrient = Int32Array.from(orients);
     plAnchor = Int32Array.from(anchors);
+    plClass = new Int32Array(P);
+    for (let p = 0; p < P; p++) plClass[p] = 2 * plOrient[p] + (((X[plAnchor[p]] + Y[plAnchor[p]]) % 2 + 2) % 2);
 
     // The placements covering each cell.
     const lists = [];
@@ -337,7 +353,7 @@ function tilePacking() {
   //   0  the two cells one above the other (on triangles: a standing
   //      rhombus; on hexagons: side by side in a row)
   //   1, 2  the two other directions (see pairDirection)
-  // Then the same lists as listPlacements.
+  // Then kept the same way as listPlacements's.
   let pairAt = new Map();   // "v,w" (v < w) -> placement
   function listPairs() {
     const starts = [0], cells = [], orients = [], anchors = [];
@@ -354,24 +370,7 @@ function tilePacking() {
         anchors.push(first);
       }
     }
-    P = orients.length;
-    plStart = Int32Array.from(starts);
-    plCell = Int32Array.from(cells);
-    plOrient = Int32Array.from(orients);
-    plAnchor = Int32Array.from(anchors);
-    const lists = [];
-    for (let v = 0; v < n; v++) lists.push([]);
-    for (let p = 0; p < P; p++) {
-      for (let k = plStart[p]; k < plStart[p + 1]; k++) lists[plCell[k]].push(p);
-    }
-    cellPlStart = new Int32Array(n + 1);
-    const all = [];
-    for (let v = 0; v < n; v++) {
-      cellPlStart[v] = all.length;
-      for (const p of lists[v]) all.push(p);
-    }
-    cellPlStart[n] = all.length;
-    cellPl = Int32Array.from(all);
+    keepPlacements(starts, cells, orients, anchors);
   }
 
   // The steps from cell a to its neighbor b, as whole numbers -1, 0 or 1
@@ -426,11 +425,7 @@ function tilePacking() {
       cellClass[v] = newClass;
     }
   }
-  function classOf(p) {
-    if (p < 0) return classes - 1;
-    const a = plAnchor[p];
-    return 2 * plOrient[p] + (((X[a] + Y[a]) % 2 + 2) % 2);
-  }
+  function classOf(p) { return p < 0 ? classes - 1 : plClass[p]; }
 
 
   /* ===================================================================
@@ -1029,12 +1024,23 @@ function tilePacking() {
     startMoves = moves;
   }
 
+  // The numbers for the Statistics box. "cover" has, for each tile of
+  // the list given, how many there are (count) and the cells they cover
+  // (cells), a tile and its turned copy together, and the empty cells.
   function stats() {
     return {
       moves: moves, changed: changed, skipped: skipped,
       regionTotal: regionTotal, choicesTotal: choicesTotal,
-      tileCount: tileCount.slice(), emptyCount: emptyCount, lastDisk: lastDisk,
+      cover: coverCounts(), lastDisk: lastDisk,
     };
+  }
+  function coverCounts() {
+    const count = new Array(tilesGiven).fill(0), cells = new Array(tilesGiven).fill(0);
+    tileCount.forEach(function (k, o) {
+      count[orientTile[o]] += k;
+      cells[orientTile[o]] += k * orientW[o] * orientH[o];
+    });
+    return { count: count, cells: cells, empty: emptyCount };
   }
 
 
@@ -1048,7 +1054,7 @@ function tilePacking() {
     heat: heat, resetHeat: resetHeat, stats: stats,
     owner: function () { return owner; },
     placements: function () {
-      return { count: P, start: plStart, cell: plCell, orient: plOrient, anchor: plAnchor,
+      return { count: P, start: plStart, cell: plCell, orient: plOrient, anchor: plAnchor, tileClass: plClass,
                orientW: orientW, orientH: orientH, orientTile: orientTile };
     },
   };
@@ -1057,6 +1063,30 @@ function tilePacking() {
   let sendHeat = false;      // does the page want the heat map?
   let error = "";            // the setup's message ("" if all is well)
   let newRun = false;        // has the page still to get this run's placements?
+  let trace = null;          // the run so far, for the charts (keepSample, js/sim-worker.js)
+  const COLOR_BY = ["tile", "direction", "checker"];   // the "Color by" choices (section 7)
+
+  // A sample for the charts, after each move: the share of the cells
+  // each tile covers, and the empty cells' share; and the clusters of
+  // each color in every "Color by" choice (section 7), counted only
+  // when a sample is due (countPieces, js/sim-domains.js), so the
+  // clusters chart shows the whole run whichever is picked.
+  function takeSample() {
+    keepSample(trace, moves, function () {
+      const cover = coverCounts();
+      const values = { shares: cover.cells.concat([cover.empty]).map(function (k) { return k / n; }) };
+      const pl = api.placements();
+      for (const by of COLOR_BY) {
+        const scheme = colorScheme(by, pl, tilesGiven);
+        values[by] = countPieces(domain, cellColors(owner, pl, scheme), scheme.count);
+      }
+      return values;
+    });
+  }
+  function oneStep(at) {
+    oneMove(at);
+    takeSample();
+  }
 
   // It talks to the page the way every sim's worker does (serveRun,
   // js/sim-worker.js), one step being one move. Its own messages:
@@ -1073,10 +1103,12 @@ function tilePacking() {
       sendHeat = message.heat;
       error = setup(message);
       newRun = true;
+      trace = newTrace();
+      takeSample();
     },
-    steps: oneMove, report: report,
+    steps: oneStep, report: report,
     messages: {
-      click: function (message) { oneMove({ x: message.x, y: message.y }); },
+      click: function (message) { oneStep({ x: message.x, y: message.y }); },
       settings: function (message) {
         meanRadius = message.meanRadius;
         sizeLimit = message.sizeLimit;
@@ -1087,11 +1119,14 @@ function tilePacking() {
     },
   });
 
-  // Send the packing (who covers each cell) and the numbers to the page,
-  // and in a run's first report its placements and the setup's message.
+  // Send the packing (who covers each cell), the numbers and the run so
+  // far to the page, and in a run's first report its placements and the
+  // setup's message.
   function report(send) {
     const copy = owner.slice();
-    const message = { owner: copy, stats: stats() };
+    const message = { owner: copy, stats: stats(), traceTimes: Float64Array.from(trace.times),
+                      traceShares: Float64Array.from(trace.lists.shares), traceClusters: {} };
+    for (const by of COLOR_BY) message.traceClusters[by] = Int32Array.from(trace.lists[by]);
     const handOver = [copy.buffer];   // handed over instead of copied again
     if (newRun) {
       message.placements = api.placements();
@@ -1101,4 +1136,39 @@ function tilePacking() {
     if (sendHeat) { message.heat = heat(); handOver.push(message.heat.buffer); }
     send(message, handOver);
   }
+}
+
+
+/* =====================================================================
+   7. THE COLORS
+   ---------------------------------------------------------------------
+   Shared by the page (to draw) and the worker (to count the clusters
+   for the chart), so they are outside tilePacking(). Every covered
+   cell is in a "class": the class of the placement p covering it,
+   pl.tileClass[p] = 2*o + parity for a tile of orientation o, where
+   parity is the checkerboard color of the tile's lower-left cell. The
+   "Color by" menu says how classes are colored: by tile ("tile"), by
+   orientation ("direction"), or by orientation and checkerboard
+   together ("checker": the 4 colors of the arctic circle pictures, for
+   dominoes). A CLUSTER is a connected piece of the covered cells of one
+   color (gaps are in no cluster).
+   ===================================================================== */
+
+// The colors of a "Color by" choice, for the placements "pl" (from
+// tilePacking's placements()) of a list of tileCount tiles: how many
+// colors there are, and which one class c gets (of(c), 0 .. count-1).
+function colorScheme(by, pl, tileCount) {
+  const orientations = pl.orientW.length;
+  if (by === "tile") return { count: tileCount, of: function (c) { return pl.orientTile[Math.floor(c / 2)]; } };
+  if (by === "direction") return { count: orientations, of: function (c) { return Math.floor(c / 2); } };
+  return { count: 2 * orientations, of: function (c) { return c; } };
+}
+
+// Each cell's color number in a scheme (-1 for an empty cell), for
+// finding the clusters. owner[v] is the placement covering cell v (-1:
+// none).
+function cellColors(owner, pl, scheme) {
+  const colors = new Int32Array(owner.length);
+  for (let v = 0; v < owner.length; v++) colors[v] = owner[v] < 0 ? -1 : scheme.of(pl.tileClass[owner[v]]);
+  return colors;
 }
