@@ -18,6 +18,9 @@
         neighbors).
      4. Noise eps = 1: every update is a fresh uniform opinion, so the
         opinions become uniform.
+     5. The domains (connected pieces of one opinion), counted for the
+        Statistics and the chart over time and highlighted on a click,
+        match a count made another way (testRegions, js/check-page.js).
 
    Random numbers come from the library seedrandom, with fixed seeds,
    so the tests do the same thing every time. Chi-square p-values come
@@ -151,6 +154,6 @@ runChecksOnClick(function () {
     function () { testWinner("4 x 4 torus, 5 cells start with opinion 1", boxDomain(4, 4, 4, true), [0, 1, 2, 5, 9]); },
     function () { testWinner("4 x 3 box, the 4 corners start with opinion 1", boxDomain(4, 3, 4, false), [0, 3, 8, 11]); },
     function () { testWinner("4 x 3 box, the 2 middle cells start with opinion 1", boxDomain(4, 3, 4, false), [5, 6]); },
-    testFullNoise,
+    testFullNoise, testRegions,
   ];
 });

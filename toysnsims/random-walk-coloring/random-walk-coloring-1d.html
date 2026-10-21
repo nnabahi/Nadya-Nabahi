@@ -75,6 +75,8 @@
         </div>
 
         <!-- Messages, e.g. "every cell is colored". -->
+        <!-- How to highlight a region, or what is highlighted (js/sim-highlight.js). -->
+        <p class="muted small" id="highlight-info"></p>
         <p class="muted" id="sim-message"></p>
       </section>
 
@@ -215,6 +217,10 @@
             <h3 class="option-heading">Interface over time</h3>
             <canvas class="chart" id="interface-chart"></canvas>
           </div>
+          <div class="stat">
+            <h3 class="option-heading">Regions of each color over time (gray: all of them)</h3>
+            <canvas class="chart" id="regions-chart"></canvas>
+          </div>
         </div>
       </section>
 
@@ -307,6 +313,7 @@
   <script src="../../js/sim-charts.js"></script>
   <script src="../../js/sim-colors.js"></script>
   <script src="../../js/sim-domains.js"></script>
+  <script src="../../js/sim-highlight.js"></script>
   <script src="../../js/sim-view.js"></script>
   <script src="../../js/sim-graphs.js"></script>
   <script src="../../js/sim-hyperbolic.js"></script>

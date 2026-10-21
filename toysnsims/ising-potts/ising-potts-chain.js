@@ -54,8 +54,8 @@
      2. pottsWorker(): runs a chain in a second thread (a "Web Worker")
         for the sim page, ising-potts.js, so the page never freezes.
         startWorker (js/sim-page.js) starts it, with newPotts,
-        pottsStart and the run loop and trace (js/sim-worker.js) copied
-        in.
+        pottsStart, the run loop and trace (js/sim-worker.js) and the
+        domain counting (countPieces, js/sim-domains.js) copied in.
      3. The critical points beta_c known exactly: on the square grid,
         the triangular lattice, the honeycomb and (for q = 2) the
         kagome lattice. The check page tests them too.
@@ -215,16 +215,24 @@ function pottsWorker() {
   importScripts("https://cdn.jsdelivr.net/npm/seedrandom@3.0.5/seedrandom.min.js");
 
   let chain = null, dynamics = "heat", run = 0, time = 0;
+  let graph = null;          // the domain's cells and neighbors, for counting its domains
   let trace = null;          // the run so far, for the charts over time (keepSample, js/sim-worker.js)
   let lastReported = -1;     // the time of the last state sent to the page
 
+  // A sample for the charts. The domains (connected pieces of one
+  // color) of each color are counted only when a sample is due
+  // (countPieces, js/sim-domains.js), since that looks at every cell.
   function takeSample() {
-    keepSample(trace, time, { agree: chain.agree / Math.max(chain.pairs, 1), counts: chain.counts });
+    keepSample(trace, time, function () {
+      return { agree: chain.agree / Math.max(chain.pairs, 1), counts: chain.counts,
+               pieces: countPieces(graph, chain.colors, chain.counts.length) };
+    });
   }
 
   function setup(m) {
     run = m.run;
     dynamics = m.dynamics;
+    graph = { n: m.n, first: m.first, nbr: m.nbr };
     // The start has its own random numbers, so changing the dynamics
     // never changes the start.
     const colors = pottsStart(m.n, m.q, m.start, new Math.seedrandom(m.seed + " start"));
@@ -262,7 +270,7 @@ function pottsWorker() {
       type: "state", run: run, time: time, colors: colors,
       counts: chain.counts.slice(), agree: chain.agree, pairs: chain.pairs,
       traceTimes: Float64Array.from(trace.times), traceAgree: Float64Array.from(trace.lists.agree),
-      traceCounts: Int32Array.from(trace.lists.counts),
+      traceCounts: Int32Array.from(trace.lists.counts), tracePieces: Int32Array.from(trace.lists.pieces),
     }, [colors.buffer]);   // hand the copy over instead of copying again
   }
 }

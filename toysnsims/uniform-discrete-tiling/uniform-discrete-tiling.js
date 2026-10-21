@@ -13,6 +13,9 @@
      - Hands everything to the chain (uniform-discrete-tiling-chain.js), which runs
        in a second thread (a "Web Worker"), and draws every packing it
        sends back, with the statistics.
+     - With "A click: highlights its cluster" picked, a click on a cell
+       highlights its cluster: the cells joined to it through tiles of
+       its color (js/sim-highlight.js).
    Small helpers used by every sim page (byId, readWhole, ...) are in
    js/sim-page.js, and the charts' (chartPen, ...) in js/sim-charts.js.
 
@@ -80,7 +83,8 @@ let run = 0;                    // counts restarts, so leftovers from an older r
 
 let placements = null;          // the chain's list of tile positions (section 1 of the chain)
 let latest = null;              // the latest packing and numbers from the chain
-let trace = null;               // the run so far, for the chart: { moves: [], shares: [] }
+let trace = null;               // the run so far, for the charts: { moves: [], shares: [], clusters: {...} } (section 7)
+const highlight = newHighlight();   // the clicked cell, whose cluster is highlighted (js/sim-highlight.js)
 
 // A small helper for this page: is "Average over time" ticked? (checked
 // is in js/sim-page.js. Used below: wrapNumber is in js/sim-domains.js,
@@ -106,7 +110,7 @@ worker.onmessage = function (event) {
     showMessage(message.error);
   } else if (message.type === "state") {
     latest = message;
-    addToTrace(message.stats);
+    addToTrace(message);
     drawSoon();
   }
 };
@@ -122,7 +126,7 @@ function restart() {
   run++;
   latest = null;
   placements = null;
-  trace = { moves: [], shares: [] };
+  trace = newTilingTrace();
   showMessage("");
   worker.postMessage({
     type: "setup", run: run, domain: domain, tiles: tiles,
@@ -174,19 +178,37 @@ const player = connectPlay(worker, SPEEDS, DEFAULT_SPEED, "move", "moves", resta
    and checkerboard together (the 4 colors of the arctic circle pictures,
    for dominoes). The colors are the old site's (defaultColor in
    js/sim-colors.js).
+   The CLUSTERS (for the chart over time and the highlight) follow the
+   same colors: a cluster is a connected piece of the covered cells of
+   one color (gaps are in no cluster).
    ===================================================================== */
-function classColors() {
+const COLOR_BY = ["tile", "direction", "checker"];   // the choices of the "Color by" menu
+
+// The colors of a "Color by" choice: count of them, and which one
+// class c gets (of(c), 0 .. count-1).
+function colorScheme(by) {
   const orientations = placements.orientW.length;
-  const by = byId("color-by").value;
+  if (by === "tile") return { count: tiles.length, of: function (c) { return placements.orientTile[Math.floor(c / 2)]; } };
+  if (by === "direction") return { count: orientations, of: function (c) { return Math.floor(c / 2); } };
+  return { count: 2 * orientations, of: function (c) { return c; } };
+}
+
+function classColors() {
+  const scheme = colorScheme(byId("color-by").value);
   const colors = [];
-  for (let c = 0; c < 2 * orientations; c++) {
-    const o = Math.floor(c / 2);
-    if (by === "tile") colors.push(defaultColor(placements.orientTile[o], tiles.length));
-    else if (by === "direction") colors.push(defaultColor(o, orientations));
-    else colors.push(defaultColor(c, 2 * orientations));
-  }
+  for (let c = 0; c < 2 * placements.orientW.length; c++) colors.push(defaultColor(scheme.of(c), scheme.count));
   colors.push(GAP);
   return colors.map(hexToRGB);
+}
+
+// Each cell's color number in a scheme (-1 for an empty cell), for
+// finding the clusters. "owner" is the chain's owner[v], the tile on
+// each cell.
+function cellColors(owner, scheme) {
+  const classes = 2 * placements.orientW.length + 1;
+  const colors = new Int32Array(owner.length);
+  for (let v = 0; v < owner.length; v++) colors[v] = owner[v] < 0 ? -1 : scheme.of(classOf(owner[v], classes));
+  return colors;
 }
 
 // The class of the cell covered by placement p (-1 = empty).
@@ -215,6 +237,9 @@ function classOf(p, classes) {
    "Average over time" colors each cell by mixing the class colors, each
    weighted by the share of the time the cell spent in that class (the
    chain's heat map), with no lines.
+
+   A highlighted cluster (section 6) stands out in "The packing now":
+   every tile outside it fades (js/sim-highlight.js).
    ===================================================================== */
 const simCanvas = byId("sim-canvas");
 
@@ -232,6 +257,8 @@ function drawPacking() {
   const d = domain, owner = latest.owner;
   const average = showingAverage() && latest.heat;
   const colors = classColors(), classes = colors.length;
+  findHighlight(highlight, d, cellColors(owner, colorScheme(byId("color-by").value)));
+  showHighlightInfo();
 
   // 1. Size the canvas and place the picture's box (js/sim-view.js).
   const pen = fitPicture(view, d, MAX_PICTURE_HEIGHT);
@@ -253,7 +280,7 @@ function drawPacking() {
     const css = function (rgb) { return "rgb(" + rgb.map(Math.round).join(",") + ")"; };
     if (average) paintLattice(view, pen, d, function (v) { return css(averageRGB(v)); });
     else {
-      paintLattice(view, pen, d, function (v) { return css(colors[classOf(owner[v], classes)]); },
+      paintLattice(view, pen, d, highlightCSS(highlight, function (v) { return css(colors[classOf(owner[v], classes)]); }),
                    cellSize(view) >= SMALLEST_BORDERED_CELL ? function (v) { return owner[v]; } : null,
                    BORDER);
     }
@@ -263,10 +290,12 @@ function drawPacking() {
     paintCells(view, pen, d, function (v) { return v; }, averageRGB, outside);
   } else {
     // 2. Each square's group is the tile on it (-1 for an empty cell),
-    //    painted in the tile's class color. "tileOn" is the tile on each
-    //    square that shows, and -2 outside the domain.
-    const tileOn = paintCells(view, pen, d, function (v) { return owner[v]; },
-      function (tile) { return colors[classOf(tile, classes)]; }, outside);
+    //    painted in the tile's class color (faded, outside a highlighted
+    //    cluster: a tile is all in it or all out). "tileOn" is the tile
+    //    on each square that shows, and -2 outside the domain.
+    const tilesInAll = placements.anchor.length;
+    const tileOn = paintCells(view, pen, d, highlightGroups(highlight, function (v) { return owner[v]; }, tilesInAll),
+      highlightRGB(function (tile) { return colors[classOf(tile, classes)]; }, tilesInAll), outside);
 
     // 3. The lines around the tiles: between two squares covered by
     //    different tiles (so two empty cells side by side get no line,
@@ -318,14 +347,24 @@ window.addEventListener("resize", drawSoon);
    js/sim-controls.js, and js/sim-view.js): drag to move, mouse wheel or
    pinch to zoom, and the + / − / Reset buttons.
 
-   A click (a press that hardly moves) makes one move of the chain with
-   its disk centered on the clicked cell: the tiles there are deleted
-   and the region is refilled at random, as if the chain had dropped
-   its disk on that spot.
+   A click (a press that hardly moves) does what is picked under the
+   picture:
+     - it makes one move of the chain with its disk centered on the
+       clicked cell: the tiles there are deleted and the region is
+       refilled at random, as if the chain had dropped its disk on that
+       spot.
+     - or it highlights the clicked cell's cluster (js/sim-highlight.js),
+       which follows that cell as the chain runs. Clicking the cluster
+       again, or outside the cells, shows everything again.
    ===================================================================== */
 connectPicture(view, null, null, function (event) {
   if (!domain) return;
   const v = cellUnder(view, domain, pointerSpot(view, event));
+  if (checked("click") === "highlight") {
+    if (latest && placements) clickHighlight(highlight, v, cellColors(latest.owner, colorScheme(byId("color-by").value)));
+    drawSoon();
+    return;
+  }
   if (v < 0) return;
   const middle = cellMiddle(domain, v);   // (js/sim-domains.js)
   worker.postMessage({ type: "click", x: middle[0], y: middle[1] });
@@ -339,7 +378,26 @@ connectPicture(view, null, null, function (event) {
    here they are added up per tile (a tile and its turned copy count
    together). The chart shows, over the moves, the share of the cells
    covered by each tile, and the share left empty.
+   The clusters (section 4) are counted here, for every "Color by"
+   choice, each time the chain reports (countPieces, js/sim-domains.js),
+   so the clusters chart shows the whole run whichever is picked.
    ===================================================================== */
+
+// The line under the picture about the highlight: shown while a cluster
+// is highlighted, or while a click highlights.
+function showHighlightInfo() {
+  byId("highlight-info").textContent = highlightTextIf(highlight, checked("click") === "highlight", "cluster", function (k) {
+    return byId("color-by").value === "tile" ? tileName(tiles[k]).replace("&times;", "×") + " tiles" : "color " + (k + 1);
+  });
+}
+
+// An empty run so far: for each report, the moves, the shares, and the
+// number of clusters of each color in each "Color by" choice.
+function newTilingTrace() {
+  const clusters = {};
+  for (const by of COLOR_BY) clusters[by] = [];
+  return { moves: [], shares: [], clusters: clusters };
+}
 
 // Cells covered by each tile (by number in the tile list), and empty.
 function coverCounts(stats) {
@@ -352,17 +410,24 @@ function coverCounts(stats) {
   return { count: count, cells: cells, empty: stats.emptyCount };
 }
 
-// Remember the shares after each report, for the chart. At most about
-// 600 points are kept: when there are more, every other one is dropped.
-function addToTrace(stats) {
-  const last = trace.moves.length - 1;
+// Remember the shares and the clusters after each report (a "state"
+// message from the chain), for the charts. At most about 600 points are
+// kept: when there are more, every other one is dropped.
+function addToTrace(message) {
+  const stats = message.stats, last = trace.moves.length - 1;
   if (last >= 0 && trace.moves[last] === stats.moves) return;   // nothing new
   const c = coverCounts(stats);
   trace.moves.push(stats.moves);
   trace.shares.push(c.cells.concat([c.empty]).map(function (k) { return k / domain.n; }));
+  for (const by of COLOR_BY) {
+    const scheme = colorScheme(by);
+    trace.clusters[by].push(countPieces(domain, cellColors(message.owner, scheme), scheme.count));
+  }
   if (trace.moves.length > 600) {
-    trace.moves = trace.moves.filter(function (m, k) { return k % 2 === 0; });
-    trace.shares = trace.shares.filter(function (m, k) { return k % 2 === 0; });
+    const everyOther = function (m, k) { return k % 2 === 0; };
+    trace.moves = trace.moves.filter(everyOther);
+    trace.shares = trace.shares.filter(everyOther);
+    for (const by of COLOR_BY) trace.clusters[by] = trace.clusters[by].filter(everyOther);
   }
 }
 
@@ -396,6 +461,17 @@ function showStats() {
     c.empty.toLocaleString() + " (" + (100 * c.empty / domain.n).toFixed(1) + "%)</td></tr>";
   byId("tile-stats").innerHTML = rows;
   drawCoverChart();
+  drawClustersChart();
+}
+
+// The number of clusters of each color (in the "Color by" choice picked)
+// over the moves, and a gray line for all of them (js/sim-charts.js).
+function drawClustersChart() {
+  const by = byId("color-by").value, scheme = colorScheme(by);
+  byId("stat-clusters").textContent = trace.clusters[by].length
+    ? trace.clusters[by][trace.clusters[by].length - 1].reduce(function (a, b) { return a + b; }, 0).toLocaleString() : "";
+  regionsChart(byId("clusters-chart"), trace.moves, [].concat(...trace.clusters[by]), scheme.count,
+               function (k) { return defaultColor(k, scheme.count); }, "moves");
 }
 
 // One line per tile (in its color) and a gray one for gaps: the share of
@@ -542,6 +618,7 @@ byId("preset").addEventListener("change", function () {
 function useDomain(kind, d) {
   domainKind = kind;
   domain = d;
+  clearHighlight(highlight);
   useTorus(view, Boolean(d.wrap));   // the whole picture again; zooming out past it only on a torus (js/sim-view.js)
   showDomainChoice();
   restart();
@@ -658,6 +735,7 @@ byId("show-disk").addEventListener("change", drawSoon);
 
 // The picture.
 byId("color-by").addEventListener("change", drawSoon);
+for (const radio of document.querySelectorAll('input[name="click"]')) radio.addEventListener("change", drawSoon);
 for (const radio of document.querySelectorAll('input[name="show"]')) {
   radio.addEventListener("change", function () {
     worker.postMessage({ type: "heat", on: showingAverage() });

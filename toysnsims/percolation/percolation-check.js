@@ -7,6 +7,11 @@
      1. The clusters are right: union-find's clusters must be exactly
         the ones a plain search through open neighbors finds (written
         separately below), on boxes, tori, 4 and 8 neighbors.
+        The highlight of a clicked cluster (a search through
+        neighbors with the same root, regionOf in js/sim-domains.js) is
+        exactly that cluster, on the same domains; and the regions of
+        random colorings are counted right (testRegions,
+        js/check-page.js).
      2. Wrapping on a torus: the sim's answer must match a plain search
         that walks each cluster in the unwrapped plane.
      3. The sweep over every p (Newman and Ziff) must agree with the
@@ -198,6 +203,32 @@ function testClusters(kind) {
   }
   addRow(kind + ": clusters match a plain search", !bad,
          bad ? "different clusters on the " + bad : samples + " samples on " + domains.length + " domains, every cluster the same.");
+}
+
+// The highlight (js/sim-highlight.js) finds a clicked cell's cluster by
+// a search through neighbors with the same root (regionOf,
+// js/sim-domains.js): it must be exactly the cells of that cluster.
+function testHighlight(kind) {
+  const random = new Math.seedrandom("highlight " + kind);
+  const domains = testDomains();
+  let samples = 0, bad = "";
+  for (const t of domains) {
+    const edges = edgesOf(t.d);
+    for (let k = 0; k < 30 && !bad; k++) {
+      const U = uniformNumbers(kind === "site" ? t.d.n : edges.count, "h" + k + t.name);
+      const result = percolate(t.d, kind, random(), U, edges);
+      const v = Math.floor(random() * t.d.n);
+      if (result.root[v] === -1) continue;    // a closed site: nothing to highlight
+      const inside = regionOf(t.d, result.root, v);
+      samples++;
+      for (let w = 0; w < t.d.n; w++) {
+        if ((inside[w] === 1) !== (result.root[w] === result.root[v])) { bad = t.name; break; }
+      }
+    }
+  }
+  addRow(kind + ": a clicked cluster is highlighted whole", !bad && samples > 0,
+         bad ? "a different set of cells on the " + bad
+             : samples + " clicks on " + domains.length + " domains: the highlighted cells are exactly the clicked cell's cluster.");
 }
 
 function testWrapping(kind) {
@@ -899,6 +930,7 @@ function testPenroseGrowing() {
 runChecksOnClick(function () {
   return [
     function () { testClusters("site"); }, function () { testClusters("bond"); },
+    function () { testHighlight("site"); }, function () { testHighlight("bond"); }, testRegions,
     function () { testWrapping("site"); }, function () { testWrapping("bond"); },
     function () { testSweep("site"); }, function () { testSweep("bond"); },
     function () { testOpenFraction("site"); }, function () { testOpenFraction("bond"); },

@@ -9,6 +9,8 @@
      CHART_TEXT, CHART_LINE           the colors of the charts
      chartPen(canvas)                 get a chart ready to draw on
      plotOverTime(...)                numbers over time, as lines
+     colorLines(...)                  one line per color, from a trace, for plotOverTime
+     regionsChart(...)                the number of regions of each color over time
      histogram(...)                   a histogram of some numbers
      powerOfTwoBins(sizes)            sizes grouped by powers of 2 ...
      powerOfTwoBars(...)              ... drawn as bars
@@ -78,6 +80,36 @@ function plotOverTime(canvas, times, lines, word) {
     pen.stroke();
   }
   pen.setLineDash([]);
+}
+
+// One line per color for plotOverTime, from a trace that keeps "count"
+// numbers per sample (one per color), one sample after another: line c
+// has the numbers flat[k * count + c] (times "scale", e.g. 1 / cells
+// for shares), drawn in lineColor(c).
+function colorLines(flat, samples, count, lineColor, scale) {
+  const lines = [];
+  for (let c = 0; c < count; c++) {
+    const values = [];
+    for (let k = 0; k < samples; k++) values.push(flat[k * count + c] * (scale || 1));
+    lines.push({ color: lineColor(c), values: values });
+  }
+  return lines;
+}
+
+// The number of regions (connected pieces of one color) over time: one
+// line per color, the regions of that color, drawn in lineColor(c), and
+// a gray one for all the regions together. "pieces" keeps "count"
+// numbers per sample, one sample after another (countPieces,
+// js/sim-domains.js, at each sample of the trace).
+function regionsChart(canvas, times, pieces, count, lineColor, word) {
+  const lines = colorLines(pieces, times.length, count, lineColor);
+  const total = times.map(function (t, k) {
+    let sum = 0;
+    for (let c = 0; c < count; c++) sum += pieces[k * count + c];
+    return sum;
+  });
+  lines.push({ color: CHART_TEXT, values: Array.from(total) });
+  plotOverTime(canvas, times, lines, word);
 }
 
 // A histogram of "values" with 60 bars, labeled with the tallest count

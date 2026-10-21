@@ -61,6 +61,14 @@
           <iframe class="tool-frame" id="tool-frame" title="Graph and domain tool"></iframe>
         </div>
 
+        <!-- What a click on the picture does (section 6 of uniform-discrete-tiling.js). -->
+        <div class="option-row small">
+          A click:
+          <label><input type="radio" name="click" value="disk" checked> drops the disk there</label>
+          <label><input type="radio" name="click" value="highlight"> highlights its cluster</label>
+        </div>
+        <!-- What is highlighted (js/sim-highlight.js). -->
+        <p class="muted small" id="highlight-info"></p>
         <!-- Messages, e.g. if no starting tiling could be built. -->
         <p class="muted" id="sim-message"></p>
       </section>
@@ -200,6 +208,7 @@
               <tr><td>Moves skipped (too many refills)</td><td id="stat-skipped"></td></tr>
               <tr><td>Average region size (cells)</td><td id="stat-region"></td></tr>
               <tr><td>Average number of refills to choose from</td><td id="stat-choices"></td></tr>
+              <tr><td>Clusters (connected pieces of one color, as colored now)</td><td id="stat-clusters"></td></tr>
             </table>
           </div>
           <div class="stat">
@@ -219,6 +228,10 @@
           <div class="stat">
             <h3 class="option-heading">Share of the cells covered by each tile size, over time</h3>
             <canvas class="chart" id="cover-chart"></canvas>
+          </div>
+          <div class="stat">
+            <h3 class="option-heading">Clusters of each color (as colored now) over time (gray: all of them)</h3>
+            <canvas class="chart" id="clusters-chart"></canvas>
           </div>
         </div>
       </section>
@@ -447,6 +460,7 @@
   <script src="../../js/sim-charts.js"></script>
   <script src="../../js/sim-colors.js"></script>
   <script src="../../js/sim-domains.js"></script>
+  <script src="../../js/sim-highlight.js"></script>
   <script src="../../js/sim-view.js"></script>
   <script src="../../js/sim-controls.js"></script>
   <script src="uniform-discrete-tiling-chain.js"></script>
