@@ -632,6 +632,12 @@ a.card:hover {
   font: inherit;
 }
 
+/* The Size row's "× height" (js/sim-controls.js) is spaced like the rest
+   of its row: it is in a box only so that it can hide on the line. */
+#height-part {
+  display: contents;
+}
+
 /* The tool buttons look like the genre buttons (section 4), a bit
    smaller. A button that can't be used right now is faded. */
 .tool-button {
