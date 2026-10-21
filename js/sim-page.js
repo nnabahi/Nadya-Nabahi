@@ -21,8 +21,6 @@
      connectSpeedSlider(id, speeds, ...) a Speed slider with those boxes
      connectPlay(runner, ...)         Play / Pause, Step, Restart and Speed
      connectSeed(onChange)            the Seed box and its New seed button
-     listenToTool(frame, useDrawing)  the drawing tool inside a sim page,
-     showToolStatus(problem, good, buttons)   and the line that checks its drawing
      pictureHeight(normal)            how tall to draw the picture (taller
                                         in the full screen popup)
      load3D(box, height, ready, failed)   the 3D view (js/sim-3d.js), loaded once
@@ -358,41 +356,6 @@ function connectSeed(onChange) {
     byId("seed").value = String(Math.floor(Math.random() * 100000));
     onChange();
   });
-}
-
-
-/* ---------------------------------------------------------------------
-   The drawing tool inside a sim page
-   ---------------------------------------------------------------------
-   Choosing "Custom" on a sim page swaps the picture for the drawing
-   tool, loaded in an <iframe> (a page inside the page) as
-   ../graph-tool/graph-tool.html?embed. The sim checks the drawing live
-   and says above the tool what's wrong, if anything; Done uses it. makeCustomTool
-   (js/sim-controls.js) does all of that with these two.
-   --------------------------------------------------------------------- */
-
-// Listen to the tool in the iframe "frame". It says how tall it is (so
-// the iframe fits it exactly), and every time the drawing changes it
-// sends the drawing, { graph, grid, palette }, which is handed on to
-// useDrawing. (drawnDomain, in js/sim-domains.js, makes a domain of it.)
-function listenToTool(frame, useDrawing) {
-  window.addEventListener("message", function (event) {
-    if (event.source !== frame.contentWindow) return;
-    const message = event.data;
-    if (message.type === "height") frame.style.height = message.height + "px";
-    if (message.type === "graph") useDrawing(message);
-  });
-}
-
-// The line above the tool: what's wrong with the drawing (in red), or a
-// tick and what's good about it (in green). The buttons that use the
-// drawing work only when nothing is wrong: Done, or the buttons with
-// the ids in the list "buttons".
-function showToolStatus(problem, good, buttons) {
-  const status = byId("step-status");
-  status.textContent = problem || "✓ " + good;   // ✓ is a tick mark
-  status.className = "step-status " + (problem ? "problem" : "ok");
-  for (const id of buttons || ["tool-done"]) byId(id).disabled = Boolean(problem);
 }
 
 

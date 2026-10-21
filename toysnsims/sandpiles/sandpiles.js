@@ -31,7 +31,7 @@
      5b. The 3D view
      6. Clicking, dragging and zooming
      7. Statistics
-     8. Custom domains: the graph tool inside this page
+     8. The table
      9. Connecting the buttons on the page
    ===================================================================== */
 
@@ -79,8 +79,7 @@ const DEFAULT_STORM_RATE = 2;
    2. WHAT THE PAGE REMEMBERS (the "state")
    ===================================================================== */
 
-let domainKind = "box";         // "box", "torus", "custom" or "graph": the table in use
-let domain = null;              // the table's graph (js/sim-domains.js), or a ball (makeBall, js/sim-hyperbolic.js)
+let domain = null;              // the table's graph (js/sim-domains.js), or a ball (makeBall, js/sim-hyperbolic.js); its kind is domains.kind (section 8)
 let threshold = null;           // threshold[v]: the grains that make cell v topple, its number of
                                 // neighbors in the whole lattice (4 or 8 on the square grid, p on a
                                 // tiling {p,q} or a tree; on another tiling, see tilingThresholds
@@ -88,8 +87,6 @@ let threshold = null;           // threshold[v]: the grains that make cell v top
 let sameThreshold = 4;          // every cell's threshold, when they are all the same (else null)
 let mostThreshold = 4;          // the biggest threshold
 let sinks = [];                 // the sink cells, made by clicking (none at the start)
-let customDomain = null;        // the last custom domain drawn, if any
-let customNeighbors = 4;        // the graph tool's neighbors for it
 
 // Hyperbolic plane or tree: how many steps each cell of the ball is
 // from the start. (Which graph it is, how it is drawn and how far the
@@ -326,10 +323,10 @@ const view = makeView(simCanvas, drawSoon, PAD, 4);
 // Hyperbolic plane or tree: which graph, how it is drawn, and how far
 // the plane has been moved (js/sim-hyperbolic.js). The view above zooms
 // and slides its pictures too.
-const disk = makeDiskView(simCanvas, view, showDomainChoice);
+const disk = makeDiskView(simCanvas, view, function () { domains.show(); });
 
 function drawPile() {
-  if (!domain || !latest || tool.isOpen) return;
+  if (!domain || !latest || domains.tool.isOpen) return;
   const d = domain, heights = latest.heights, odometer = latest.odometer;
   const showTopples = checked("show") === "topples";
   let mostTopples = 0;
@@ -343,7 +340,7 @@ function drawPile() {
     return showTopples ? colorOfTopples(odometer[v], mostTopples) : colorOfHeight(heights[v], threshold[v]);
   };
   if (show3D) { draw3D(valueOf, showTopples); return; }
-  if (domainKind === "graph") { drawOnGraph(valueOf, rgbOf); return; }
+  if (domains.kind === "graph") { drawOnGraph(valueOf, rgbOf); return; }
 
   // The picture's box: as big as fits the width (and at most
   // MAX_PICTURE_HEIGHT tall), in the middle of the canvas.
@@ -487,8 +484,8 @@ let view3d = null;           // the 3D picture
 // Which picture shows: the view from above, the 3D view, or neither
 // while the graph tool is open.
 function showPictureKind() {
-  simCanvas.hidden = tool.isOpen || show3D;
-  byId("sim-3d").hidden = byId("view3d-buttons").hidden = tool.isOpen || !show3D;
+  simCanvas.hidden = domains.tool.isOpen || show3D;
+  byId("sim-3d").hidden = byId("view3d-buttons").hidden = domains.tool.isOpen || !show3D;
   byId("view3d-help").hidden = !show3D;
   showZoomButtons(view);
   if (show3D && !view3d) start3D();
@@ -511,7 +508,7 @@ function draw3D(valueOf, showTopples) {
   if (!view3d) return;
   const d = domain, x = [], y = [], height = [], width = [], kind = [], cells = [];
   let floor, lines;
-  if (domainKind === "graph") {
+  if (domains.kind === "graph") {
     // Each cell where the disk picture puts it, as big as it looks there
     // (diskStack, js/sim-hyperbolic.js). drawStacks gives every block the
     // same size, so the stacks farthest out fit.
@@ -543,7 +540,7 @@ function draw3D(valueOf, showTopples) {
       x.push(d.x[v]); y.push(d.y[v]); height.push(valueOf(v)); width.push(1); kind.push(threshold[v]);
     }
     // A box or torus stands on one flat box; a custom table on its own cells.
-    floor = domainKind === "custom" ? { x: d.x, y: d.y } : { xmin: d.xmin, xmax: d.xmax, ymin: d.ymin, ymax: d.ymax };
+    floor = domains.kind === "custom" ? { x: d.x, y: d.y } : { xmin: d.xmin, xmax: d.xmax, ymin: d.ymin, ymax: d.ymax };
   }
   const most = height.reduce(function (a, b) { return Math.max(a, b); }, 1);   // (a long list can't be spread into Math.max)
   sim3d.drawStacks(view3d, {
@@ -558,7 +555,7 @@ function draw3D(valueOf, showTopples) {
 // The 3D view's blocks: each in the shape of its cell (cubes on the
 // square grid), except on a tree, whose sites are points: coins.
 function blockShape() {
-  if (domainKind === "graph") return isTree(disk.spec) ? "coins" : "tiles";
+  if (domains.kind === "graph") return isTree(disk.spec) ? "coins" : "tiles";
   return domain.lattice ? "tiles" : "cubes";
 }
 
@@ -620,7 +617,7 @@ function clickCell(v) {
       sim.send({ type: "topple", cell: v });
     }
   } else if (mode === "info") {
-    const name = domainKind === "graph"
+    const name = domains.kind === "graph"
       ? "This cell, " + ballSteps[v] + (ballSteps[v] === 1 ? " step" : " steps") + " from the start"
       : domain.lattice ? "This " + tilingCellName(v)
       : "Cell (" + domain.x[v] + ", " + domain.y[v] + ")";
@@ -641,8 +638,8 @@ function tilingCellName(v) {
   return domain.tiling.corners ? "corner" : cell.name || POLYGON_NAMES[cell.corners.length];
 }
 
-connectPicture(view, disk, function () { return domainKind === "graph"; }, function (event) {
-  clickCell(domainKind === "graph" ? ballCellAt(disk, domain, event)
+connectPicture(view, disk, function () { return domains.kind === "graph"; }, function (event) {
+  clickCell(domains.kind === "graph" ? ballCellAt(disk, domain, event)
                                    : cellUnder(view, domain, pointerSpot(view, event)));
 }, "grab");
 
@@ -777,85 +774,60 @@ function drawAvalancheChart() {
 
 
 /* =====================================================================
-   8. CUSTOM DOMAINS: THE GRAPH TOOL INSIDE THIS PAGE
+   8. THE TABLE
    ---------------------------------------------------------------------
-   Choosing "Custom" swaps the picture for the graph tool, loaded in an
-   <iframe> (a page inside this page): makeCustomTool, in
-   js/sim-controls.js. Any painted region works, even in several
-   pieces: every piece loses grains off its edge. (A region covering a
-   whole torus has no edge; then the sink options appear, as for the
-   torus.) Done uses it.
+   Box / Torus / Custom / Hyperbolic plane or tree, and their options,
+   the Lattice options among them (connectDomains, js/sim-controls.js).
+   A torus is at least MIN_TORUS cells on a side. Custom swaps the
+   picture for the graph tool, where any painted region works, even in
+   several pieces: every piece loses grains off its edge. (A region
+   covering a whole torus has no edge; then the sink options appear,
+   as for the torus.) On a ball of the hyperbolic plane or tree, the
+   grains sent to neighbors outside the ball are lost.
+   A new table has no sink cells (click to make some), and restarts.
    ===================================================================== */
-const tool = makeCustomTool({
-  view: view,
-  isPlaying: function () { return player.playing; },
-  setPlaying: player.setPlaying,
-  check: function (drawing) {
-    const cells = drawing.graph.vertices.length;
-    return cells === 0 ? ["Paint the table first.", ""] : ["", cells + " cells, " + drawing.grid.neighbors + " neighbors."];
+const domains = connectDomains({
+  view: view, player: player, disk: disk,
+  box: function () { return boxFromOptions(checked("domain") === "torus" ? MIN_TORUS : 1, MAX_SIDE, DEFAULTS); },
+  ball: function () { return ballFromOptions(disk, BALL, function (spec) { return ", each toppling at " + spec.p + " grains"; }); },
+  custom: {
+    check: function (drawing) {
+      const cells = drawing.graph.vertices.length;
+      return cells === 0 ? ["Paint the table first.", ""] : ["", cells + " cells, " + drawing.grid.neighbors + " neighbors."];
+    },
+    info: function (d) { return "Your table: " + d.n + " cells, " + d.neighbors + " neighbors" + (d.wrap ? ", on a torus." : "."); },
+    showPicture: showPictureKind,     // the picture from above or in 3D hides while the tool is open
   },
-  done: function (drawing) {
-    customDomain = drawnDomain(drawing.graph, drawing.grid);
-    customNeighbors = drawing.grid.neighbors;
-    useDomain("custom", customDomain, customNeighbors);
+  use: function (d) {
+    domain = d;
+    threshold = thresholdsOf(d);
+    mostThreshold = threshold.reduce(function (a, b) { return Math.max(a, b); }, 0);
+    sameThreshold = threshold.every(function (t) { return t === threshold[0]; }) ? threshold[0] : null;
+    ballSteps = domains.kind === "graph" ? stepsFrom(d, [0]) : null;     // js/sim-domains.js
+    sinks = [];
+    makeHeightColors();
+    showStartChoice();
+    showPictureKind();
+    restart();
   },
-  cancel: function () { showDomainChoice(); drawSoon(); },
-  showPicture: showPictureKind,     // the picture from above or in 3D hides while the tool is open
+  show: function () { byId("lattice-note").hidden = onSquares(); },   // (the Neighbors option says it on squares)
 });
+
+// The grains that make each cell of the table d topple: as many as it
+// has neighbors in the whole lattice. That is the Neighbors option (4
+// or 8) on squares, the tool's on a custom table, p on a tiling {p,q}
+// or a tree of degree p, and on another tiling tilingThresholds
+// (sandpiles-pile.js).
+function thresholdsOf(d) {
+  if (domains.kind === "graph") return new Int32Array(d.n).fill(disk.spec.p);
+  if (d.lattice) return tilingThresholds(d);
+  return new Int32Array(d.n).fill(d.neighbors);
+}
 
 
 /* =====================================================================
    9. CONNECTING THE BUTTONS ON THE PAGE
    ===================================================================== */
-
-// Switch to a new table and restart. "topples" is the grains that make
-// a cell topple: one number for every cell, or a list with each cell's.
-function useDomain(kind, d, topples) {
-  domainKind = kind;
-  domain = d;
-  threshold = typeof topples === "number" ? new Int32Array(d.n).fill(topples) : topples;
-  mostThreshold = threshold.reduce(function (a, b) { return Math.max(a, b); }, 0);
-  sameThreshold = threshold.every(function (t) { return t === threshold[0]; }) ? threshold[0] : null;
-  useTorus(view, Boolean(d.wrap));   // moving and zooming; zooming out past the whole picture only on a torus (js/sim-view.js)
-  sinks = [];                         // no sink cells on a new table (click to make some)
-  makeHeightColors();
-  showDomainChoice();
-  showStartChoice();
-  showPictureKind();
-  restart();
-}
-
-// The box or torus from the boxes on the page. (Choosing one while the
-// graph tool is open closes it.)
-function useBox() {
-  if (tool.isOpen) tool.close();
-  const d = boxFromOptions(checked("domain") === "torus" ? MIN_TORUS : 1, MAX_SIDE, DEFAULTS);
-  useDomain(d.wrap ? "torus" : "box", d, d.lattice ? tilingThresholds(d) : Number(byId("set-neighbors").value));   // (sandpiles-pile.js)
-}
-
-// A ball of a hyperbolic tiling or a tree, from the options on the
-// page (ballFromOptions, js/sim-hyperbolic.js), with the start cell in
-// the middle of the picture. Every cell of the tiling {p,q} (or of the
-// tree of degree p) has p neighbors, so it topples at p grains, and the
-// grains sent to neighbors outside the ball are lost.
-function useGraph() {
-  if (tool.isOpen) tool.close();
-  const ball = ballFromOptions(disk, BALL, function (spec) { return ", each toppling at " + spec.p + " grains"; });
-  if (ball === null) { showDomainChoice(); return; }
-  ballSteps = stepsFrom(ball, [0]);      // js/sim-domains.js
-  useDomain("graph", ball, disk.spec.p);
-}
-
-// Show the options that fit the table in use, and tick its radio button
-// (js/sim-controls.js), with this page's words for a custom table.
-function showDomainChoice() {
-  showDomainOptions(domainKind, customDomain, disk);
-  byId("lattice-note").hidden = onSquares();   // (the Neighbors option says it on squares)
-  if (domainKind === "custom" && customDomain) {
-    byId("custom-info").textContent = "Your table: " + customDomain.n + " cells, " + customNeighbors +
-      " neighbors" + (customDomain.wrap ? ", on a torus." : ".");
-  }
-}
 
 // Show only the number boxes of the chosen start.
 const START_HELP = {
@@ -877,12 +849,8 @@ function showStartChoice() {
   byId("most-row").hidden = kind !== "random";
   byId("full-row").hidden = kind !== "full";
   byId("linear-row").hidden = kind !== "linear";
-  byId("start-help").textContent = (domainKind === "graph" && START_HELP_BALL[kind]) || START_HELP[kind];
+  byId("start-help").textContent = (domains.kind === "graph" && START_HELP_BALL[kind]) || START_HELP[kind];
 }
-
-// Table: Box / Torus / Custom / Hyperbolic plane or tree, and their
-// options, the Lattice options among them (js/sim-controls.js).
-connectDomainChoice({ box: useBox, torus: useBox, custom: tool.open, graph: useGraph });
 
 // Start: the kind, and its numbers. A slider and its number box move
 // together, and the pile restarts (paused) live while you drag, like a
@@ -934,7 +902,6 @@ connectSeed(function () { restart(); });
 
 // --- Start ------------------------------------------------------------
 fillDomainOptions(DEFAULTS, MAX_SIDE, BALL);
-fillLatticeMenu();
 byId("start-kind").value = DEFAULTS.start;
 addRangeBoxes(byId("grains-slider"), 0, GRAINS_SLIDER_MAX);   // min and max boxes (js/sim-page.js)
 byId("set-grains").value = byId("grains-slider").value = DEFAULTS.grains;
@@ -948,4 +915,4 @@ byId("set-slope").value = DEFAULTS.slope;
 byId("seed").value = DEFAULTS.seed;
 showStartChoice();
 showSpeedUnits();
-useBox();
+domains.useTicked();

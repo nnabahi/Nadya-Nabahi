@@ -30,7 +30,7 @@
      5. Drawing the opinions
      6. Moving and zooming
      7. Statistics
-     8. Custom domains: the graph tool inside this page
+     8. The domain
      9. Connecting the buttons on the page
    ===================================================================== */
 
@@ -74,9 +74,7 @@ const DEFAULT_SPEED = 5;
    2. WHAT THE PAGE REMEMBERS (the "state")
    ===================================================================== */
 
-let domainKind = "torus";      // "box", "torus", "custom" or "graph": the domain in use
-let domain = null;             // the domain graph (js/sim-domains.js), or a ball (makeBall, js/sim-hyperbolic.js)
-let customDomain = null;       // the last custom domain drawn, if any
+let domain = null;             // the domain graph (js/sim-domains.js), or a ball (makeBall, js/sim-hyperbolic.js); its kind is domains.kind (section 8)
 let q = DEFAULTS.q;            // number of opinions
 let noise = DEFAULTS.noise;    // eps: the chance of a uniformly random opinion
 let rule = null;               // g as a compiled math.js formula
@@ -135,12 +133,14 @@ function currentTable() {
   return table;
 }
 
-// Fill in a preset's g and sliders.
-function usePreset(key) {
+// Fill in a preset's g and sliders, and read it. Returns whether it
+// reads.
+function fillPreset(key) {
   const p = PRESETS[key];
+  byId("preset").value = key;
   byId("formula-g").value = p.g;
   for (const letter in p.sliders || {}) sliders[letter] = Object.assign({}, p.sliders[letter]);
-  if (readRule()) sendParams();
+  return readRule();
 }
 
 
@@ -159,11 +159,10 @@ const sim = runInWorker(voterWorker, [newVoter, voterStart, newTrace, keepSample
 // A new run from the start (paused), with the current settings and seed.
 // (Without a rule, if math.js didn't load, there is nothing to run.)
 function restart() {
-  if (!rule) return;
   latest = null;
   showMessage("");
   // x: where each cell is from left to right, for the "Stripes" start
-  // (cellSpots, js/sim-domains.js; on a ball, see useGraph).
+  // (cellSpots, js/sim-domains.js; on a ball, see ballWithStripes).
   sim.setup({
     n: domain.n, first: domain.first, nbr: domain.nbr, x: cellSpots(domain).x,
     q: q, table: currentTable(), noise: noise, start: byId("start").value, seed: byId("seed").value,
@@ -205,7 +204,7 @@ const view = makeView(simCanvas, drawSoon, 0, SMALLEST_BORDERED_CELL);
 // Hyperbolic plane or tree: which graph, how it is drawn, and how far
 // the plane has been moved (js/sim-hyperbolic.js). The view above zooms
 // and slides its pictures too.
-const disk = makeDiskView(simCanvas, view, showDomainChoice);
+const disk = makeDiskView(simCanvas, view, function () { domains.show(); });
 const outsideRGB = hexToRGB(OUTSIDE);
 
 function drawColoring() {
@@ -213,7 +212,7 @@ function drawColoring() {
   const colors = latest.colors;
   findHighlight(highlight, domain, colors);
   byId("highlight-info").textContent = highlightText(highlight, "domain", function (c) { return "opinion " + (c + 1); });
-  if (domainKind === "graph") {
+  if (domains.kind === "graph") {
     drawBall(disk, domain, highlightCSS(highlight, function (v) { return colorNames[colors[v]]; }));
     return;
   }
@@ -239,9 +238,9 @@ window.addEventListener("resize", drawSoon);
    as the opinions change. Clicking the domain again, or outside the
    cells, shows everything again.
    ===================================================================== */
-connectPicture(view, disk, function () { return domainKind === "graph"; }, function (event) {
+connectPicture(view, disk, function () { return domains.kind === "graph"; }, function (event) {
   if (!latest) return;
-  clickHighlight(highlight, cellAtEvent(view, disk, domain, domainKind === "graph", event), latest.colors);
+  clickHighlight(highlight, cellAtEvent(view, disk, domain, domains.kind === "graph", event), latest.colors);
   drawSoon();
 }, "pointer");
 
@@ -285,81 +284,59 @@ function showStats() {
 
 
 /* =====================================================================
-   8. CUSTOM DOMAINS: THE GRAPH TOOL INSIDE THIS PAGE
+   8. THE DOMAIN
    ---------------------------------------------------------------------
-   Choosing "Custom" swaps the picture for the graph tool, loaded in an
-   <iframe> (a page inside this page): makeCustomTool, in
-   js/sim-controls.js. Any drawing works, even one in several pieces.
-   Done uses it.
+   Box / Torus / Custom / Hyperbolic plane or tree, and their options,
+   the Lattice options among them (connectDomains, js/sim-controls.js).
+   Custom swaps the picture for the graph tool, where any drawing of at
+   least two cells works, even one in several pieces.
    ===================================================================== */
-const tool = makeCustomTool({
-  view: view,
-  isPlaying: function () { return player.playing; },
-  setPlaying: player.setPlaying,
-  check: function (drawing) {
-    const cells = drawing.graph.vertices.length;
-    return cells < 2 ? ["Paint at least two cells.", ""] : ["", cells + " cells."];
+const domains = connectDomains({
+  view: view, player: player, disk: disk,
+  box: function () { return boxFromOptions(2, MAX_SIDE, DEFAULTS); },
+  ball: ballWithStripes,
+  custom: { check: atLeastTwoCells },
+  use: function (d) {
+    domain = d;
+    clearHighlight(highlight);
+    restart();
   },
-  done: function (drawing) {
-    customDomain = drawnDomain(drawing.graph, drawing.grid);
-    useDomain("custom", customDomain);
-  },
-  cancel: function () { showDomainChoice(); drawSoon(); },
 });
 
-
-/* =====================================================================
-   9. CONNECTING THE BUTTONS ON THE PAGE
-   ===================================================================== */
-
-// Switch to a new domain, and restart.
-function useDomain(kind, d) {
-  domainKind = kind;
-  domain = d;
-  clearHighlight(highlight);
-  useTorus(view, Boolean(d.wrap));   // moving and zooming (js/sim-view.js)
-  showDomainChoice();
-  restart();
-}
-
-// The box or torus from the boxes on the page. (Choosing one while the
-// graph tool is open closes it.)
-function useBox() {
-  if (tool.isOpen) tool.close();
-  const d = boxFromOptions(2, MAX_SIDE, DEFAULTS);
-  useDomain(d.wrap ? "torus" : "box", d);
-}
-
 // A ball of a hyperbolic tiling or a tree, from the options on the page
-// (ballFromOptions, js/sim-hyperbolic.js), with the start cell in the
-// middle of the picture. The "Stripes" start needs a number x for each
-// cell: here it is the direction of the cell's middle from the start,
-// in thousandths of a turn, so the stripes are slices around the start.
-function useGraph() {
-  if (tool.isOpen) tool.close();
+// (ballFromOptions, js/sim-hyperbolic.js), or null. The "Stripes" start
+// needs a number x for each cell: here it is the direction of the
+// cell's middle from the start, in thousandths of a turn, so the
+// stripes are slices around the start.
+function ballWithStripes() {
   const ball = ballFromOptions(disk, BALL);
-  if (ball === null) { showDomainChoice(); return; }
+  if (ball === null) return null;
   ball.x = new Int32Array(ball.n);
   for (let v = 0; v < ball.n; v++) {
     const [mx, my] = motionApply(ballPlace(ball, v), 0, 0);    // the middle of cell v, in the disk
     const turns = Math.atan2(my, mx) / (2 * Math.PI);          // between -1/2 and 1/2
     ball.x[v] = Math.floor(1000 * (turns + 0.5)) % 1000;
   }
-  useDomain("graph", ball);
+  return ball;
 }
 
-// Show the options that fit the domain in use, and tick its radio button.
-function showDomainChoice() {
-  showDomainOptions(domainKind, customDomain, disk);
-}
 
-// q opinions, each drawn in the old site's colors. Restarts.
-function setQ(value) {
+/* =====================================================================
+   9. CONNECTING THE BUTTONS ON THE PAGE
+   ===================================================================== */
+
+// q opinions, each drawn in the old site's colors.
+function makeColors(value) {
   q = Math.min(Math.max(Math.round(value) || 2, 2), MAX_Q);
   byId("q-box").value = byId("q-slider").value = q;
   colorNames = [];
   for (let c = 0; c < q; c++) colorNames.push(defaultColor(c, q));
   colorRGB = colorNames.map(hexToRGB);
+}
+
+// A new q, from its slider or box: restarts.
+function setQ(value) {
+  makeColors(value);
   restart();
 }
 
@@ -378,15 +355,13 @@ byId("noise-box").addEventListener("change", function () { setNoise(this.value);
 byId("start").addEventListener("change", restart);
 
 // The rule: a preset, or g typed by hand (then the menu says "your own").
-byId("preset").addEventListener("change", function () { usePreset(this.value); });
+byId("preset").addEventListener("change", function () {
+  if (fillPreset(this.value)) sendParams();
+});
 byId("formula-g").addEventListener("input", function () {
   byId("preset").value = "custom";
   if (readRule()) sendParams();
 });
-
-// Domain: Box / Torus / Custom / Hyperbolic plane or tree, and their
-// options, the Lattice options among them (js/sim-controls.js).
-connectDomainChoice({ box: useBox, torus: useBox, custom: tool.open, graph: useGraph });
 
 // Seed: the same seed gives the same run every time.
 connectSeed(restart);
@@ -394,13 +369,9 @@ connectSeed(restart);
 
 // --- Start ------------------------------------------------------------
 fillDomainOptions(DEFAULTS, MAX_SIDE, BALL);
-fillLatticeMenu();
 byId("q-box").max = byId("q-slider").max = MAX_Q;
 byId("noise-slider").value = byId("noise-box").value = noise;
 byId("seed").value = DEFAULTS.seed;
-domain = boxDomain(DEFAULTS.width, DEFAULTS.height, DEFAULTS.neighbors, true);
-byId("preset").value = "voter";
-usePreset("voter");
-useTorus(view, true);
-showDomainChoice();
-setQ(DEFAULTS.q);    // sets the colors and starts the first run
+fillPreset("voter");
+makeColors(DEFAULTS.q);
+domains.useTicked();    // the torus ticked on the page, and the first run

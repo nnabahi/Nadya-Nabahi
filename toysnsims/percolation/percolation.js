@@ -33,7 +33,7 @@
      6. Moving, zooming and clicking a cluster
      7. Statistics
      8. Play: raising p
-     9. Custom domains: the graph tool inside this page
+     9. The domain
      10. Connecting the buttons on the page
    ===================================================================== */
 
@@ -104,9 +104,7 @@ const DEFAULT_SPEED = 5;
    2. WHAT THE PAGE REMEMBERS (the "state")
    ===================================================================== */
 
-let domainKind = "box";     // "box", "torus", "custom" or "graph": the domain in use
-let domain = null;          // the domain graph (js/sim-domains.js), or a ball (makeBall, js/sim-hyperbolic.js)
-let customDomain = null;    // the last custom domain drawn, if any
+let domain = null;          // the domain graph (js/sim-domains.js), or a ball (makeBall, js/sim-hyperbolic.js); its kind is domains.kind (section 9)
 let edges = null;           // every edge once (edgesOf in percolation-clusters.js)
 let entryEdge = null;       // entryEdge[e] = the edge of neighbor entry e (domain.nbr[e])
 let U = null;               // one random number per cell (site) or edge (bond)
@@ -233,12 +231,12 @@ const view = makeView(simCanvas, drawSoon, 0, SMALLEST_BORDERED_CELL);
 // Hyperbolic plane or tree: which graph, how it is drawn, and how far
 // the plane has been moved (js/sim-hyperbolic.js). The view above zooms
 // and slides its pictures too.
-const disk = makeDiskView(simCanvas, view, showDomainChoice);
+const disk = makeDiskView(simCanvas, view, function () { domains.show(); });
 
 function drawPicture() {
   if (!domain || !result || simCanvas.hidden) return;
   findHighlight(highlight, domain, clusterGroups());   // the clicked cell's cluster, now
-  if (domainKind === "graph") { drawOnBall(); return; }
+  if (domains.kind === "graph") { drawOnBall(); return; }
   const pen = fitPicture(view, domain, MAX_PICTURE_HEIGHT);
   const asEdges = KIND === "bond" && view.size * view.zoom >= SMALLEST_EDGE_CELL;
   if (asEdges && domain.lattice) {
@@ -428,8 +426,8 @@ window.addEventListener("resize", drawSoon);
    instead, and two fingers slide and zoom the picture; a click works
    the same.
    ===================================================================== */
-connectPicture(view, disk, function () { return domainKind === "graph"; }, function (event) {
-  clickCell(cellAtEvent(view, disk, domain, domainKind === "graph", event));
+connectPicture(view, disk, function () { return domains.kind === "graph"; }, function (event) {
+  clickCell(cellAtEvent(view, disk, domain, domains.kind === "graph", event));
 }, "pointer");
 
 function clickCell(v) {
@@ -446,7 +444,7 @@ function showStats() {
   const n = domain.n;
   const largest = result.largestRoot === -1 ? 0 : result.size[result.largestRoot];
   const total = KIND === "site" ? n : edges.count;
-  const onGraph = domainKind === "graph";
+  const onGraph = domains.kind === "graph";
 
   byId("stat-cells").textContent = n.toLocaleString();
   byId("stat-edges").textContent = edges.count.toLocaleString();
@@ -521,8 +519,8 @@ function drawSizesChart() {
 // (see "All the details"). No exact value is known for the hyperbolic
 // tilings.
 function criticalPoint() {
-  if (domainKind === "custom") return null;
-  if (domainKind === "graph") return isTree(disk.spec) ? 1 / (disk.spec.p - 1) : null;
+  if (domains.kind === "custom") return null;
+  if (domains.kind === "graph") return isTree(disk.spec) ? 1 / (disk.spec.p - 1) : null;
   if (domain.lattice) return tilingCritical() === null ? null : EXACT[tilingCritical()];
   return CRITICAL[byId("set-neighbors").value];
 }
@@ -559,67 +557,35 @@ const player = connectPlay(raising, SPEEDS, DEFAULT_SPEED, "step of 0.001", "ste
 
 
 /* =====================================================================
-   9. CUSTOM DOMAINS: THE GRAPH TOOL INSIDE THIS PAGE
+   9. THE DOMAIN
    ---------------------------------------------------------------------
-   Choosing "Custom" swaps the picture for the graph tool, loaded in an
-   <iframe> (a page inside this page): makeCustomTool, in
-   js/sim-controls.js. Any drawing works, even one in several pieces.
-   Done uses it.
+   Box / Torus / Custom / Hyperbolic plane or tree, and their options,
+   the Lattice options among them (connectDomains, js/sim-controls.js).
+   Custom swaps the picture for the graph tool, where any drawing of at
+   least two cells works, even one in several pieces. A new domain gets
+   its edges, new random numbers and the sweep.
    ===================================================================== */
-const tool = makeCustomTool({
-  view: view,
-  isPlaying: function () { return player.playing; },
-  setPlaying: player.setPlaying,
-  check: function (drawing) {
-    const cells = drawing.graph.vertices.length;
-    return cells < 2 ? ["Paint at least two cells.", ""] : ["", cells + " cells."];
+const domains = connectDomains({
+  view: view, player: player, disk: disk,
+  box: function () { return boxFromOptions(2, MAX_SIDE, DEFAULTS); },
+  ball: function () {
+    const ball = ballFromOptions(disk, BALL);
+    return ball === null ? null : ballForPercolation(ball);
   },
-  done: function (drawing) {
-    customDomain = drawnDomain(drawing.graph, drawing.grid);
-    useDomain("custom", customDomain);
+  custom: { check: atLeastTwoCells },
+  use: function (d) {
+    domain = d;
+    edges = edgesOf(d);
+    entryEdge = makeEntryEdges(d, edges);
+    clearHighlight(highlight);
+    newNumbers();
   },
-  cancel: function () { showDomainChoice(); drawSoon(); },
+  show: showCritical,
 });
 
-
-/* =====================================================================
-   10. CONNECTING THE BUTTONS ON THE PAGE
-   ===================================================================== */
-
-// Switch to a new domain: its edges, new random numbers, the sweep.
-function useDomain(kind, d) {
-  domainKind = kind;
-  domain = d;
-  edges = edgesOf(d);
-  entryEdge = makeEntryEdges(d, edges);
-  clearHighlight(highlight);
-  useTorus(view, Boolean(d.wrap));   // moving and zooming (js/sim-view.js)
-  showDomainChoice();
-  newNumbers();
-}
-
-// The box or torus from the boxes on the page. (Choosing one while the
-// graph tool is open closes it.)
-function useBox() {
-  if (tool.isOpen) tool.close();
-  const d = boxFromOptions(2, MAX_SIDE, DEFAULTS);
-  useDomain(d.wrap ? "torus" : "box", d);
-}
-
-// A ball of a hyperbolic tiling or a tree, from the options on the page
-// (ballFromOptions, js/sim-hyperbolic.js), with the start cell in the
-// middle of the picture.
-function useGraph() {
-  if (tool.isOpen) tool.close();
-  const ball = ballFromOptions(disk, BALL);
-  if (ball === null) { showDomainChoice(); return; }
-  useDomain("graph", ballForPercolation(ball));
-}
-
-// Show the options that fit the domain in use, and tick its radio button.
-function showDomainChoice() {
-  showDomainOptions(domainKind, customDomain, disk);
-  const onGraph = (domainKind === "graph");
+// The critical point's row, for the domain in use.
+function showCritical() {
+  const onGraph = (domains.kind === "graph");
   const pc = criticalPoint();
   byId("critical-row").hidden = (pc === null);
   if (pc !== null) {
@@ -630,6 +596,11 @@ function showDomainChoice() {
   }
 }
 
+
+/* =====================================================================
+   10. CONNECTING THE BUTTONS ON THE PAGE
+   ===================================================================== */
+
 // A new p, from the slider, the box, Play or Step.
 function setP(value) {
   p = Math.min(Math.max(Number(value) || 0, 0), 1);
@@ -638,10 +609,6 @@ function setP(value) {
   computeClusters();
 }
 
-
-// Domain: Box / Torus / Custom / Hyperbolic plane or tree, and their
-// options (js/sim-controls.js).
-connectDomainChoice({ box: useBox, torus: useBox, custom: tool.open, graph: useGraph });
 
 // p: the slider and the box move together, and the picture follows
 // live while you drag, like a Desmos slider.
@@ -658,7 +625,6 @@ connectSeed(function () { clearHighlight(highlight); newNumbers(); });
 
 // --- Start ------------------------------------------------------------
 fillDomainOptions(DEFAULTS, MAX_SIDE, BALL);
-fillLatticeMenu();
 byId("seed").value = DEFAULTS.seed;
 byId("p-slider").value = byId("p-box").value = p;
-useBox();
+domains.useTicked();

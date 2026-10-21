@@ -1160,10 +1160,7 @@ function radiusHeatChart(canvas, times, radii, bins) {
    decides where blocks can go next), so the domain need not be one
    connected piece.
    ===================================================================== */
-const tool = makeCustomTool({
-  view: view,
-  isPlaying: function () { return player.playing; },
-  setPlaying: player.setPlaying,
+const tool = makeCustomTool(view, player, {
   showPicture: showPictureKind,     // the 2D or 3D picture hides while the tool is open
   check: function (drawing) {
     const cells = drawing.graph.vertices.length;
@@ -1175,7 +1172,7 @@ const tool = makeCustomTool({
     showDomainChoice();
     restart(true);
   },
-  cancel: function () { showDomainChoice(); drawSoon(); },
+  cancel: showDomainChoice,
 });
 byId("edit-custom").addEventListener("click", tool.open);
 
@@ -1261,7 +1258,6 @@ connectSeed(function () { restart(true, true); });
 // --- Start ------------------------------------------------------------
 byId("seed").value = DEFAULT_SEED;
 byId("goto-steps").value = 1000;
-fillLatticeMenu();
 showMaxHeight();
 showWeight();
 showGraphPresets(useGraph);

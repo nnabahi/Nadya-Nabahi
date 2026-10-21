@@ -27,7 +27,7 @@
      5. Drawing the packing
      6. Moving and zooming the picture
      7. Statistics
-     8. Custom domains: the graph tool inside this page
+     8. The domain
      9. The tiles
     10. Connecting the buttons on the page
    ===================================================================== */
@@ -74,9 +74,7 @@ const DEFAULT_SPEED = 5;
    ===================================================================== */
 
 let lattice = "square";         // the cells: "square", "triangle" or "hexagon"
-let domainKind = "box";         // "box", "torus", "aztec", "hexagon" or "custom": the domain in use
-let domain = null;              // the domain (js/sim-domains.js)
-let customDomain = null;        // the last custom domain drawn, if any
+let domain = null;              // the domain (js/sim-domains.js); its kind is domains.kind (section 8)
 let tiles = [];                 // the tiles: [{ w, h, weight }, ...]
 
 let placements = null;          // the chain's list of tile positions (section 1 of the chain)
@@ -474,27 +472,93 @@ function drawCoverChart() {
 
 
 /* =====================================================================
-   8. CUSTOM DOMAINS: THE GRAPH TOOL INSIDE THIS PAGE
+   8. THE DOMAIN
    ---------------------------------------------------------------------
-   Choosing "Custom" swaps the picture for the graph tool, loaded in an
-   <iframe> (a page inside this page): makeCustomTool, in
-   js/sim-controls.js. Any region will do (it may be in several
-   pieces); Done uses it.
+   Box / Torus / Aztec diamond / Hexagon / Custom, and their options
+   (connectDomains, js/sim-controls.js). Custom swaps the picture for
+   the graph tool, where any region will do (it may be in several
+   pieces). The Aztec diamond and Custom are on squares only, the
+   Hexagon on triangles only.
    ===================================================================== */
-const tool = makeCustomTool({
-  view: view,
-  isPlaying: function () { return player.playing; },
-  setPlaying: player.setPlaying,
-  check: function (drawing) {
-    const cells = drawing.graph.vertices.length;
-    return cells === 0 ? ["Paint the region first.", ""] : ["", cells + " cells."];
+const domains = connectDomains({
+  view: view, player: player,
+  box: latticeBoxFromOptions,
+  custom: {
+    check: function (drawing) {
+      const cells = drawing.graph.vertices.length;
+      return cells === 0 ? ["Paint the region first.", ""] : ["", cells + " cells."];
+    },
   },
-  done: function (drawing) {
-    customDomain = drawnDomain(drawing.graph, drawing.grid);
-    useDomain("custom", customDomain);
+  kinds: { aztec: function () { useAztec(true); }, hexagon: function () { useHexagon(true); } },
+  use: function (d) {
+    domain = d;
+    clearHighlight(highlight);
+    restart();
   },
-  cancel: function () { showDomainChoice(); drawSoon(); },
+  show: function () {
+    const kind = domains.kind;
+    byId("aztec-choice").hidden = byId("custom-choice").hidden = lattice !== "square";
+    byId("hexagon-choice").hidden = lattice !== "triangle";
+    if (kind === "aztec" || kind === "hexagon") byId("size-row").hidden = true;
+    byId("order-row").hidden = kind !== "aztec";
+    byId("side-row").hidden = kind !== "hexagon";
+  },
 });
+
+// The box or torus the options say, on the lattice in use. Triangles and
+// hexagons use latticeBox (js/sim-domains.js); a torus of them needs an
+// even height, and of triangles an even width too, so an odd one goes
+// up by 1.
+function latticeBoxFromOptions() {
+  if (lattice === "square") return boxFromOptions(1, MAX_SIDE, DEFAULTS);   // (4 neighbors)
+  const torus = checked("domain") === "torus";
+  let width = readWhole("set-width", 1, MAX_SIDE, DEFAULTS.width);
+  let height = readWhole("set-height", 1, MAX_SIDE, DEFAULTS.height);
+  if (torus && height % 2 === 1) byId("set-height").value = ++height;
+  if (torus && lattice === "triangle" && width % 2 === 1) byId("set-width").value = ++width;
+  return latticeBox(lattice, width, height, torus);
+}
+
+// The hexagon of triangles (triangleHexagon, js/sim-domains.js): the
+// lozenge tilings of the arctic circle pictures. Choosing it switches to
+// no gaps, colored by direction; both can be changed afterwards.
+function useHexagon(switchOptions) {
+  const side = readWhole("set-side", 1, MAX_SIDE_HEXAGON, DEFAULTS.side);
+  if (switchOptions) {
+    byId("gaps").checked = false;
+    showGapsInfo();
+    byId("color-by").value = "direction";
+  }
+  domains.use("hexagon", triangleHexagon(side));
+}
+
+// The Aztec diamond (aztecDiamond is in js/sim-domains.js). Choosing it
+// switches to dominoes with no gaps, the tiling of the arctic circle
+// theorem, colored by direction and checkerboard (the 4 colors of the
+// arctic circle pictures); all can be changed afterwards.
+function useAztec(switchTiles) {
+  const order = readWhole("set-order", 1, MAX_ORDER, DEFAULTS.order);
+  if (switchTiles) {
+    usePreset("dominoes");
+    byId("gaps").checked = false;
+    showGapsInfo();
+    byId("color-by").value = "checker";
+  }
+  domains.use("aztec", aztecDiamond(order));
+}
+
+// The Cells menu: squares, triangles or hexagons. Squares go back to the
+// tile preset and a box; triangles start on the hexagon; hexagons on a
+// box. On triangles and hexagons the only tile is a pair of cells.
+function useLattice() {
+  lattice = byId("set-lattice").value;
+  byId("square-tiles").hidden = lattice !== "square";
+  byId("pair-tiles").hidden = lattice === "square";
+  if (lattice === "square") { usePreset(DEFAULT_PRESET); domains.useBox(); return; }
+  tiles = [{ w: 2, h: 1, weight: 1 }];
+  if (lattice === "triangle") useHexagon(true);
+  else { byId("color-by").value = "direction"; domains.useBox(); }
+}
 
 
 /* =====================================================================
@@ -581,93 +645,6 @@ byId("preset").addEventListener("change", function () {
    10. CONNECTING THE BUTTONS ON THE PAGE
    ===================================================================== */
 
-// Switch to a new domain and restart.
-function useDomain(kind, d) {
-  domainKind = kind;
-  domain = d;
-  clearHighlight(highlight);
-  useTorus(view, Boolean(d.wrap));   // the whole picture again; zooming out past it only on a torus (js/sim-view.js)
-  showDomainChoice();
-  restart();
-}
-
-// The box or torus from the boxes on the page. (Choosing one while the
-// graph tool is open closes it.) Triangles and hexagons use latticeBox
-// (js/sim-domains.js); a torus of them needs an even height, and of
-// triangles an even width too, so an odd one goes up by 1.
-function useBox() {
-  if (tool.isOpen) tool.close();
-  if (lattice === "square") {
-    const d = boxFromOptions(1, MAX_SIDE, DEFAULTS);   // (4 neighbors)
-    useDomain(d.wrap ? "torus" : "box", d);
-    return;
-  }
-  const torus = checked("domain") === "torus";
-  let width = readWhole("set-width", 1, MAX_SIDE, DEFAULTS.width);
-  let height = readWhole("set-height", 1, MAX_SIDE, DEFAULTS.height);
-  if (torus && height % 2 === 1) byId("set-height").value = ++height;
-  if (torus && lattice === "triangle" && width % 2 === 1) byId("set-width").value = ++width;
-  useDomain(torus ? "torus" : "box", latticeBox(lattice, width, height, torus));
-}
-
-// The hexagon of triangles (triangleHexagon, js/sim-domains.js): the
-// lozenge tilings of the arctic circle pictures. Choosing it switches to
-// no gaps, colored by direction; both can be changed afterwards.
-function useHexagon(switchOptions) {
-  const side = readWhole("set-side", 1, MAX_SIDE_HEXAGON, DEFAULTS.side);
-  if (switchOptions) {
-    byId("gaps").checked = false;
-    showGapsInfo();
-    byId("color-by").value = "direction";
-  }
-  useDomain("hexagon", triangleHexagon(side));
-}
-
-// The Cells menu: squares, triangles or hexagons. Squares go back to the
-// tile preset and a box; triangles start on the hexagon; hexagons on a
-// box. On triangles and hexagons the only tile is a pair of cells.
-function useLattice() {
-  lattice = byId("set-lattice").value;
-  byId("square-tiles").hidden = lattice !== "square";
-  byId("pair-tiles").hidden = lattice === "square";
-  if (lattice === "square") { usePreset(DEFAULT_PRESET); useBox(); return; }
-  tiles = [{ w: 2, h: 1, weight: 1 }];
-  if (lattice === "triangle") useHexagon(true);
-  else { byId("color-by").value = "direction"; useBox(); }
-}
-
-// The Aztec diamond (aztecDiamond is in js/sim-domains.js). Choosing it
-// switches to dominoes with no gaps, the tiling of the arctic circle
-// theorem, colored by direction and checkerboard (the 4 colors of the
-// arctic circle pictures); all can be changed afterwards.
-function useAztec(switchTiles) {
-  if (tool.isOpen) tool.close();
-  const order = readWhole("set-order", 1, MAX_ORDER, DEFAULTS.order);
-  if (switchTiles) {
-    usePreset("dominoes");
-    byId("gaps").checked = false;
-    showGapsInfo();
-    byId("color-by").value = "checker";
-  }
-  useDomain("aztec", aztecDiamond(order));
-}
-
-// Show the options that fit the domain in use, and tick its radio button.
-function showDomainChoice() {
-  document.querySelector('input[name="domain"][value="' + domainKind + '"]').checked = true;
-  const custom = (domainKind === "custom");
-  byId("aztec-choice").hidden = byId("custom-choice").hidden = lattice !== "square";
-  byId("hexagon-choice").hidden = lattice !== "triangle";
-  byId("size-row").hidden = custom || domainKind === "aztec" || domainKind === "hexagon";
-  byId("order-row").hidden = domainKind !== "aztec";
-  byId("side-row").hidden = domainKind !== "hexagon";
-  byId("custom-row").hidden = !custom;
-  if (custom && customDomain) {
-    byId("custom-info").textContent = "Your region: " + customDomain.n + " cells" +
-      (customDomain.wrap ? ", on a torus." : ".");
-  }
-}
-
 // What "Allow gaps" means, under the box.
 function showGapsInfo() {
   byId("gaps-info").textContent = byId("gaps").checked
@@ -675,10 +652,7 @@ function showGapsInfo() {
     : "No gaps: every cell covered. The start is built without a search, so some domains can't get one.";
 }
 
-// Domain: Box / Torus / Aztec diamond / Custom, and their options
-// (js/sim-controls.js).
-connectDomainChoice({ box: useBox, torus: useBox, aztec: function () { useAztec(true); },
-                      hexagon: function () { useHexagon(true); }, custom: tool.open });
+// The Aztec diamond's order, the hexagon's side, and the Cells menu.
 byId("set-order").addEventListener("change", function () { useAztec(false); });
 byId("set-side").addEventListener("change", function () { useHexagon(false); });
 byId("set-lattice").addEventListener("change", useLattice);
@@ -727,4 +701,4 @@ byId("set-limit").value = DEFAULTS.limit;
 byId("seed").value = DEFAULTS.seed;
 showGapsInfo();
 usePreset(DEFAULT_PRESET);
-useBox();
+domains.useTicked();

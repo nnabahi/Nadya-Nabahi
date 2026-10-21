@@ -19,17 +19,20 @@
 
    Contents:
      1. The Domain options
-          connectDomainChoice(choices)      what each Domain option does
-          showDomainOptions(kind, custom, disk)   show the options of the domain in use
+          connectDomains(page)              connect them: what each one does
           fillDomainOptions(defaults, most, ball) their values at the start
           boxFromOptions(least, most, defaults)   the box or torus they say
         and the Lattice options, on pages that have them:
+          connectLattice(onChange)          fill in and connect them
           onSquares()                       is the lattice the square grid?
           onFiniteTiling()                  is it a tiling that never repeats?
           cornersCanBeCells()               can its corners be the cells?
           readTiling()                      the tiling the Lattice options say
      2. The graph tool inside a sim page
-          makeCustomTool(page)
+          makeCustomTool(view, player, parts)
+          listenToTool(frame, useDrawing)   the drawings it sends
+          showToolStatus(problem, good, buttons)   the line that checks them
+          atLeastTwoCells(drawing)          the usual check of a drawing
      3. Dragging, zooming and clicking the picture
           makeClickTracker()                is a press a click or a drag?
           connectPicture(view, disk, onGraph, onClick, cursor)
@@ -43,11 +46,17 @@
 /* =====================================================================
    1. THE DOMAIN OPTIONS
    ---------------------------------------------------------------------
-   Every page uses the same ids: the radio buttons name="domain", the
-   boxes set-width, set-height and set-neighbors (in the rows size-row
-   and neighbors-row), the row custom-row with custom-info and the
-   button edit-custom, and for the hyperbolic plane or tree the rows in
-   graph-rows (js/sim-hyperbolic.js reads them).
+   The radio buttons name="domain" pick the kind of domain, and every
+   page uses the same ids for the options that go with each:
+     box, torus   the boxes set-width and set-height (in the row
+                  size-row) and, on most pages, the Neighbors menu
+                  set-neighbors (in the row neighbors-row)
+     custom       the row custom-row, with the line custom-info and the
+                  button edit-custom; the graph tool itself is section 2
+     graph        the hyperbolic plane or tree: the rows in graph-rows
+                  (js/sim-hyperbolic.js reads them)
+   A page has only the options it offers, and can have its own kinds
+   too (Uniform Discrete Tiling's Aztec diamond, the 1D ring and line).
 
    THE LATTICE. A page whose sim runs on any tiling (js/sim-tilings.js)
    also has, in the box lattice-rows: the menu set-tiling (the square
@@ -63,50 +72,123 @@
    grid, and on Penrose's first tiling (P1).
    ===================================================================== */
 
-// What each Domain option does: "choices" gives a function for each
-// value of the radio buttons, for example
-//   { box: useBox, torus: useBox, custom: openTool, graph: useGraph }
-// Changing the size or the neighbors calls the box's function again,
-// "Edit custom domain" calls the custom one, and (with a graph) changing
-// the graph or the ball's radius R calls the graph's. The preset
-// buttons of the hyperbolic plane or tree are made here too.
-function connectDomainChoice(choices) {
+// Connect the Domain options. "page" has the page's own parts:
+//   view, player   the picture's view (js/sim-view.js) and its Play /
+//                  Pause (connectPlay, js/sim-page.js)
+//   box()          the box or torus the options say (usually
+//                  boxFromOptions, below)
+//   use(d, extra)  start the sim on the new domain d (domains.kind says
+//                  what kind it is); "extra" is whatever came with it
+//                  (see domains.use)
+// and, on pages that offer them:
+//   disk           the disk view (js/sim-hyperbolic.js)
+//   ball()         the ball the options say (usually ballFromOptions,
+//                  js/sim-hyperbolic.js), or null if they don't say one
+//   custom         the graph tool's parts (makeCustomTool, section 2),
+//                  "check" at least; "done" is left out unless the page
+//                  does more than use the drawing, and info(d) (if
+//                  given) is the line about the custom domain d
+//   kinds          the page's own kinds, as { kind: function }: ticking
+//                  one, or changing the size while it is ticked, calls
+//                  its function, which then calls domains.use
+//   show()         show the page's own options that change with the domain
+//   still          true if the picture never moves or zooms
+// Returns "domains":
+//   domains.kind          the kind in use: "box", "torus", "custom",
+//                         "graph" or one of page.kinds
+//   domains.custom        the last custom domain used (null until one is)
+//   domains.tool          the graph tool (null on a page without Custom)
+//   domains.use(kind, d, extra)   switch to the domain d of that kind:
+//                         close the graph tool, start the sim on d
+//                         (page.use(d, extra)), and show its options
+//   domains.useBox()      switch to the box or torus the options say
+//   domains.useTicked()   switch to the kind ticked on the page, as its
+//                         options say (the page's start does this)
+//   domains.show()        show the options that fit the domain in use
+function connectDomains(page) {
+  const domains = { kind: checked("domain"), custom: null, tool: null };
+  function offers(kind) { return Boolean(radioOf(kind)); }
+  function radioOf(kind) { return document.querySelector('input[name="domain"][value="' + kind + '"]'); }
+  function closeTool() { if (domains.tool && domains.tool.isOpen) domains.tool.close(); }
+
+  domains.use = function (kind, d, extra) {
+    closeTool();
+    domains.kind = kind;
+    if (kind === "custom") domains.custom = d;
+    useTorus(page.view, Boolean(d.wrap), !page.still);   // the whole picture again (js/sim-view.js)
+    page.use(d, extra);
+    domains.show();
+  };
+
+  // (On a Penrose tiling the torus is a box.)
+  domains.useBox = function () {
+    const d = page.box();
+    domains.use(d.wrap ? "torus" : "box", d);
+  };
+
+  // The size options belong to whichever kind is ticked: one of the
+  // page's own, or else a box or torus.
+  domains.useTicked = function () {
+    const kinds = page.kinds || {}, ticked = checked("domain");
+    if (kinds[ticked]) kinds[ticked]();
+    else domains.useBox();
+  };
+
+  // A ball of the hyperbolic plane or tree. If the options don't say
+  // one, the domain in use stays.
+  function useGraph() {
+    closeTool();
+    const ball = page.ball();
+    if (ball === null) domains.show();
+    else domains.use("graph", ball);
+  }
+
+  domains.show = function () {
+    const kind = domains.kind, isCustom = (kind === "custom"), onGraph = (kind === "graph");
+    radioOf(kind).checked = true;
+    byId("size-row").hidden = isCustom || onGraph;
+    if (byId("set-neighbors")) byId("neighbors-row").hidden = isCustom || onGraph || !onSquares();
+    if (byId("set-tiling")) {
+      byId("lattice-rows").hidden = isCustom || onGraph;
+      byId("cells-row").hidden = !cornersCanBeCells();
+      if (offers("torus")) radioOf("torus").parentElement.hidden = onFiniteTiling();
+    }
+    if (offers("custom")) {
+      byId("custom-row").hidden = !isCustom;
+      if (isCustom) byId("custom-info").textContent = page.custom.info ? page.custom.info(domains.custom)
+        : "Your region: " + domains.custom.n + " cells" + (domains.custom.wrap ? ", on a torus." : ".");
+    }
+    if (offers("graph")) {
+      byId("graph-rows").hidden = !onGraph;
+      byId("disk-reset").hidden = !onGraph || page.disk.picture === "spread";   // (with the zoom buttons)
+    }
+    if (page.show) page.show();
+  };
+
   for (const radio of document.querySelectorAll('input[name="domain"]')) {
-    radio.addEventListener("change", function () { choices[radio.value](); });
+    radio.addEventListener("change", function () {
+      if (radio.value === "custom") domains.tool.open();
+      else if (radio.value === "graph") useGraph();
+      else domains.useTicked();
+    });
   }
   for (const id of ["set-width", "set-height", "set-neighbors"]) {
-    if (byId(id)) byId(id).addEventListener("change", choices.box);
+    if (byId(id)) byId(id).addEventListener("change", domains.useTicked);
   }
-  if (byId("set-tiling")) connectLattice(choices.box);
-  byId("edit-custom").addEventListener("click", choices.custom);
-  if (!choices.graph) return;
-  for (const id of ["set-p", "set-q", "set-degree", "set-ball-radius"]) byId(id).addEventListener("change", choices.graph);
-  for (const radio of document.querySelectorAll('input[name="graph-kind"]')) radio.addEventListener("change", choices.graph);
-  showGraphPresets(choices.graph);
-}
-
-// Show the options that fit the domain in use ("box", "torus", "custom"
-// or "graph"), and tick its radio button. "custom" is the last custom
-// domain drawn (or null), described in its row; "disk" is the page's
-// disk view (js/sim-hyperbolic.js): "Back to the start" shows on the
-// hyperbolic plane or tree, except for a tree spread out.
-function showDomainOptions(kind, custom, disk) {
-  document.querySelector('input[name="domain"][value="' + kind + '"]').checked = true;
-  const isCustom = (kind === "custom"), onGraph = (kind === "graph");
-  byId("size-row").hidden = byId("neighbors-row").hidden = isCustom || onGraph;
-  if (byId("set-tiling")) {
-    byId("lattice-rows").hidden = isCustom || onGraph;
-    byId("neighbors-row").hidden = isCustom || onGraph || !onSquares();
-    byId("cells-row").hidden = !cornersCanBeCells();
-    const torus = document.querySelector('input[name="domain"][value="torus"]');
-    if (torus) torus.parentElement.hidden = onFiniteTiling();
+  if (byId("set-tiling")) connectLattice(domains.useBox);
+  if (offers("custom")) {
+    domains.tool = makeCustomTool(page.view, page.player, Object.assign({
+      done: function (drawing) { domains.use("custom", drawnDomain(drawing.graph, drawing.grid)); },
+      cancel: domains.show,
+    }, page.custom));
+    byId("edit-custom").addEventListener("click", domains.tool.open);
   }
-  byId("custom-row").hidden = !isCustom;
-  byId("graph-rows").hidden = !onGraph;
-  byId("disk-reset").hidden = !onGraph || disk.picture === "spread";   // with the zoom buttons
-  if (isCustom && custom) {
-    byId("custom-info").textContent = "Your region: " + custom.n + " cells" + (custom.wrap ? ", on a torus." : ".");
+  if (offers("graph")) {
+    for (const id of ["set-p", "set-q", "set-degree", "set-ball-radius"]) byId(id).addEventListener("change", useGraph);
+    for (const radio of document.querySelectorAll('input[name="graph-kind"]')) radio.addEventListener("change", useGraph);
+    showGraphPresets(useGraph);
   }
+  return domains;
 }
 
 // The options' values at the start: the box's size (defaults.width x
@@ -115,8 +197,11 @@ function showDomainOptions(kind, custom, disk) {
 // "most"), the hyperbolic plane or tree's ball.
 function fillDomainOptions(defaults, most, ball) {
   byId("set-width").value = defaults.width;
-  byId("set-height").value = defaults.height;
-  byId("set-width").max = byId("set-height").max = most;
+  byId("set-width").max = most;
+  if (byId("set-height")) {
+    byId("set-height").value = defaults.height;
+    byId("set-height").max = most;
+  }
   if (byId("set-neighbors")) byId("set-neighbors").value = String(defaults.neighbors);
   if (ball) {
     byId("set-ball-radius").value = ball.R;
@@ -174,26 +259,23 @@ function cornersCanBeCells() {
   return !onSquares() && !tilingInUse.block.tilesOnly;
 }
 
-// The Lattice menu: the tilings of menuTilings() (js/sim-tilings.js),
-// and "Your own code". Starts on the square grid.
-function fillLatticeMenu() {
-  const menu = byId("set-tiling");
+// The Lattice options: the menu has the tilings of menuTilings()
+// (js/sim-tilings.js) and "Your own code", and starts on the square
+// grid. They call onChange (the page's box or torus) when they change.
+// Choosing a tiling in the menu puts its code in the box; typing a code
+// picks the tiling with that code from the menu, if there is one, and
+// otherwise "Your own code". A code that isn't a tiling leaves the
+// domain as it was, and the line under the box says what is wrong.
+function connectLattice(onChange) {
+  const menu = byId("set-tiling"), box = byId("tiling-code");
   addTilingOptions(menu);   // (js/sim-tilings.js)
   menu.appendChild(new Option("Your own code", "own"));
   menu.value = "0";
-  byId("tiling-code").value = TILINGS[0].code;
+  box.value = TILINGS[0].code;
   readTiling();
-}
 
-// The Lattice options call "useBox" (the page's box or torus) when they
-// change. Choosing a tiling in the menu puts its code in the box; typing
-// a code picks the tiling with that code from the menu, if there is one,
-// and otherwise "Your own code". A code that isn't a tiling leaves the
-// domain as it was, and the line under the box says what is wrong.
-function connectLattice(useBox) {
-  const menu = byId("set-tiling"), box = byId("tiling-code");
   const changed = function () {
-    if (readTiling()) useBox();
+    if (readTiling()) onChange();
   };
   menu.addEventListener("change", function () {
     if (menu.value !== "own") box.value = menuTilings()[Number(menu.value)].code;
@@ -238,12 +320,12 @@ function readTiling() {
    ---------------------------------------------------------------------
    Choosing "Custom" swaps the picture for the graph tool, loaded in an
    <iframe> (a page inside this page), from
-   ../graph-tool/graph-tool.html?embed. The tool sends its drawing every time it
-   changes (listenToTool, js/sim-page.js), and the line above it says,
-   live, what is wrong with the drawing, if anything (showToolStatus).
-   Done uses the drawing; Cancel goes back to the domain in use. The
-   sim pauses while the tool is open, and after Cancel it carries on if
-   it was playing.
+   ../graph-tool/graph-tool.html?embed. The tool sends its drawing every
+   time it changes (listenToTool), and the line above it says, live,
+   what is wrong with the drawing, if anything (showToolStatus). Done
+   uses the drawing; Cancel goes back to the domain in use. The sim
+   pauses while the tool is open, and after Cancel it carries on if it
+   was playing.
 
    The page's HTML has the tool's box, id="custom-area" (hidden), with
    the line id="step-status", the buttons id="tool-done" and
@@ -251,76 +333,109 @@ function readTiling() {
    id="tool-frame".
    ===================================================================== */
 
-// "page" has the page's own parts:
-//   view                   the picture's view (js/sim-view.js)
-//   isPlaying(), setPlaying(on)   whether the sim plays, and Play / Pause
-//   check(drawing)         what the line says about a drawing, as
-//                          [problem, good] (one of them ""); Done works
-//                          only when there is no problem
-//   done(drawing)          use the drawing (after Done)
-//   cancel()               show the domain in use again (after Cancel)
+// The graph tool of the picture "view" (js/sim-view.js), on a page with
+// Play / Pause "player" (connectPlay, js/sim-page.js). "parts" are the
+// page's own:
+//   check(drawing)   what the line says about a drawing, as [problem,
+//                    good] (one of them ""); Done works only when there
+//                    is no problem
+//   done(drawing)    use the drawing (after Done)
+//   cancel()         show the domain in use again (after Cancel)
 // and, if needed:
-//   showPicture()          hide or show the picture (tool.isOpen says
-//                          which); without it, the canvas and its zoom
-//                          buttons hide while the tool is open
-//   onOpen()               more to do when the tool opens
-//   buttons                the ids of the buttons that need a good
-//                          drawing (["tool-done"] if left out)
+//   showPicture()    hide or show the picture (tool.isOpen says which);
+//                    without it, the canvas and its zoom buttons hide
+//                    while the tool is open
+//   onOpen()         more to do when the tool opens
+//   buttons          the ids of the buttons that need a good drawing
+//                    (["tool-done"] if left out)
 // A drawing is { graph, grid, palette } (drawnDomain, in
-// js/sim-domains.js, makes a domain of it). Returns the tool:
+// js/sim-domains.js, makes a domain of it). Closing the tool draws the
+// picture again. Returns the tool:
 //   tool.open(), tool.close()   open or close it
 //   tool.isOpen                 is it open?
 //   tool.drawing                the latest drawing (null until it comes)
 //   tool.check()                check the drawing again
 //   tool.frame                  the <iframe>
-function makeCustomTool(page) {
+function makeCustomTool(view, player, parts) {
   const frame = byId("tool-frame");
   const tool = { isOpen: false, drawing: null, frame: frame };
   let wasPlaying = false;     // to carry on after Cancel
 
   function showPicture() {
     byId("custom-area").hidden = !tool.isOpen;
-    if (page.showPicture) { page.showPicture(); return; }
-    page.view.canvas.hidden = tool.isOpen;
-    showZoomButtons(page.view);
+    if (parts.showPicture) { parts.showPicture(); return; }
+    view.canvas.hidden = tool.isOpen;
+    showZoomButtons(view);
   }
 
   tool.open = function () {
-    wasPlaying = page.isPlaying();
-    if (wasPlaying) page.setPlaying(false);
+    wasPlaying = player.playing;
+    if (wasPlaying) player.setPlaying(false);
     tool.isOpen = true;
     showPicture();
     if (!frame.src) frame.src = "../graph-tool/graph-tool.html?embed";   // the first time only
     else frame.contentWindow.postMessage({ type: "unlock" }, "*");   // in case a sim locked it
-    if (page.onOpen) page.onOpen();
+    if (parts.onOpen) parts.onOpen();
     tool.check();
   };
 
   tool.close = function () {
     tool.isOpen = false;
     showPicture();
+    view.redraw();
   };
 
   tool.check = function () {
     if (!tool.isOpen) return;
-    const [problem, good] = tool.drawing ? page.check(tool.drawing) : ["Loading the drawing tool...", ""];
-    showToolStatus(problem, good, page.buttons);
+    const [problem, good] = tool.drawing ? parts.check(tool.drawing) : ["Loading the drawing tool...", ""];
+    showToolStatus(problem, good, parts.buttons);
   };
 
   listenToTool(frame, function (drawing) { tool.drawing = drawing; tool.check(); });
 
   byId("tool-done").addEventListener("click", function () {
     tool.close();
-    page.done(tool.drawing);
+    parts.done(tool.drawing);
   });
   for (const button of document.querySelectorAll("#tool-cancel, .tool-cancel")) {
     button.addEventListener("click", function () {
       tool.close();
-      page.cancel();
-      if (wasPlaying) page.setPlaying(true);
+      parts.cancel();
+      if (wasPlaying) player.setPlaying(true);
     });
   }
   return tool;
+}
+
+// Listen to the tool in the iframe "frame". It says how tall it is (so
+// the iframe fits it exactly), and every time the drawing changes it
+// sends the drawing, { graph, grid, palette }, which is handed on to
+// useDrawing.
+function listenToTool(frame, useDrawing) {
+  window.addEventListener("message", function (event) {
+    if (event.source !== frame.contentWindow) return;
+    const message = event.data;
+    if (message.type === "height") frame.style.height = message.height + "px";
+    if (message.type === "graph") useDrawing(message);
+  });
+}
+
+// The line above the tool: what's wrong with the drawing (in red), or a
+// tick and what's good about it (in green). The buttons that use the
+// drawing work only when nothing is wrong: Done, or the buttons with
+// the ids in the list "buttons".
+function showToolStatus(problem, good, buttons) {
+  const status = byId("step-status");
+  status.textContent = problem || "✓ " + good;   // ✓ is a tick mark
+  status.className = "step-status " + (problem ? "problem" : "ok");
+  for (const id of buttons || ["tool-done"]) byId(id).disabled = Boolean(problem);
+}
+
+// The usual check of a drawing: any region of at least two cells, even
+// in several pieces.
+function atLeastTwoCells(drawing) {
+  const cells = drawing.graph.vertices.length;
+  return cells < 2 ? ["Paint at least two cells.", ""] : ["", cells + " cells."];
 }
 
 

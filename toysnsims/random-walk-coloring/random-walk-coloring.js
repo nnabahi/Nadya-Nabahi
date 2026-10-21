@@ -29,7 +29,7 @@
      5. Drawing the coloring and the walkers
      6. Dragging and zooming: walkers before the start, and the picture
      7. Statistics
-     8. Custom domains: the graph tool inside this page
+     8. The domain
      9. Connecting the buttons on the page
    ===================================================================== */
 
@@ -69,12 +69,7 @@ const DEFAULT_SPEED = 5;
    ===================================================================== */
 
 let model = "discrete";         // "discrete" or "continuous"
-// The domain in use: "line" or "ring" (on the 1D page,
-// random-walk-coloring-1d.html), "box", "torus", "custom" or "graph".
-// It starts as the one ticked on the page.
-let domainKind = document.querySelector('input[name="domain"]:checked').value;
-let domain = null;              // the domain graph (js/sim-domains.js), or a ball (makeBall, js/sim-hyperbolic.js)
-let customDomain = null;        // the last custom domain drawn, if any
+let domain = null;              // the domain graph (js/sim-domains.js), or a ball (makeBall, js/sim-hyperbolic.js); its kind is domains.kind (section 8)
 let N = DEFAULTS.walkers;       // number of walkers
 let starts = [];                // starts[i] = the cell walker i starts on
 let colorNames = [];            // colorNames[i] = how color i is drawn, e.g. "#f2735a"
@@ -123,9 +118,9 @@ function showTime(t) {
    the middle of the ball.
    ===================================================================== */
 function defaultStarts(d, count) {
-  if (domainKind === "graph") return spreadThroughRegion(d, count, 0);
-  if (domainKind === "custom" || d.lattice) return spreadThroughRegion(d, count, topLeftCell(d));
-  if (domainKind === "line" || domainKind === "ring") return lineStarts(d, count);
+  if (domains.kind === "graph") return spreadThroughRegion(d, count, 0);
+  if (domains.kind === "custom" || d.lattice) return spreadThroughRegion(d, count, topLeftCell(d));
+  if (domains.kind === "line" || domains.kind === "ring") return lineStarts(d, count);
   return gridStarts(d, count);
 }
 
@@ -256,7 +251,7 @@ const view = makeView(simCanvas, drawSoon, PAD, SMALLEST_BORDERED_CELL);
 // Hyperbolic plane or tree: which graph, how it is drawn, and how far
 // the plane has been moved (js/sim-hyperbolic.js). The view above zooms
 // and slides its pictures too.
-const disk = makeDiskView(simCanvas, view, showDomainChoice);
+const disk = makeDiskView(simCanvas, view, function () { domains.show(); });
 const outsideRGB = hexToRGB(OUTSIDE), blankRGB = hexToRGB(UNCOLORED);
 
 // A clicked cell's region stands out: every other cell fades
@@ -265,8 +260,8 @@ function drawColoring() {
   if (!domain || !latest || simCanvas.hidden) return;
   findHighlight(highlight, domain, latest.colors);
   byId("highlight-info").textContent = highlightText(highlight, "region", function (c) { return "color " + (c + 1); });
-  if (domainKind === "graph") { drawOnGraph(); return; }
-  if (domainKind === "ring") { drawRing(); return; }
+  if (domains.kind === "graph") { drawOnGraph(); return; }
+  if (domains.kind === "ring") { drawRing(); return; }
   const colors = latest.colors;
   const pen = fitPicture(view, domain, MAX_PICTURE_HEIGHT);
 
@@ -377,8 +372,8 @@ function ringCellUnder(spot) {
 // canvas top), a bit smaller where cells are small.
 function walkerSpots(i) {
   const d = domain, v = latest.positions[i];
-  if (domainKind === "graph") return graphSpots(v);
-  if (domainKind === "ring") return [ringSpot(v)];
+  if (domains.kind === "graph") return graphSpots(v);
+  if (domains.kind === "ring") return [ringSpot(v)];
   if (d.lattice) return tilingSpots(v);
   let columns = [d.x[v] - d.xmin], rows = [d.ymax - d.y[v]];   // its square (column, row)
   if (d.wrap) {
@@ -527,8 +522,8 @@ simCanvas.addEventListener("pointerdown", function (event) {
 
 // The cell under the pointer, on any picture (-1: none).
 function cellUnderPointer(event) {
-  return domainKind === "ring" ? ringCellUnder(pointerSpot(view, event))
-                               : cellAtEvent(view, disk, domain, domainKind === "graph", event);
+  return domains.kind === "ring" ? ringCellUnder(pointerSpot(view, event))
+                               : cellAtEvent(view, disk, domain, domains.kind === "graph", event);
 }
 
 simCanvas.addEventListener("pointermove", function (event) {
@@ -565,7 +560,7 @@ function stopDragging(event) {
 // On a hyperbolic tiling or tree, exactly one pointer pressed drags
 // across the plane.
 function startDrag() {
-  if (domainKind === "graph") startPlaneDrag(disk);
+  if (domains.kind === "graph") startPlaneDrag(disk);
   else disk.dragFrom = null;
 }
 simCanvas.addEventListener("pointerup", stopDragging);
@@ -653,91 +648,54 @@ function drawAreasChart(regions) {
 }
 
 /* =====================================================================
-   8. CUSTOM DOMAINS: THE GRAPH TOOL INSIDE THIS PAGE
+   8. THE DOMAIN
    ---------------------------------------------------------------------
-   Choosing "Custom" swaps the picture for the graph tool, loaded in an
-   <iframe> (a page inside this page): makeCustomTool, in
-   js/sim-controls.js. This page checks the drawing live: the region
-   must be one connected piece (otherwise the cells cut off from every
-   walker could never be colored). Done uses it.
+   Box / Torus / Custom / Hyperbolic plane or tree, and their options,
+   the Lattice options among them (connectDomains, js/sim-controls.js).
+   The 1D page (random-walk-coloring-1d.html) has the Ring and the Line
+   instead, and there the picture stays still: the ring is a circle,
+   and the line is one strip across the picture.
+   Custom swaps the picture for the graph tool. The region must be one
+   connected piece (otherwise the cells cut off from every walker could
+   never be colored).
+   A new domain puts the walkers in the default start, and restarts.
    ===================================================================== */
-const tool = makeCustomTool({
-  view: view,
-  isPlaying: function () { return player.playing; },
-  setPlaying: player.setPlaying,
-  check: function (drawing) {
-    if (drawing.graph.vertices.length === 0) return ["Paint the region first.", ""];
-    const region = drawnDomain(drawing.graph, drawing.grid);
-    const reached = stepsFrom(region, [0]).filter(function (s) { return s !== -1; }).length;
-    return reached < region.n ? ["The region must be one connected piece.", ""]
-      : ["", region.n + " cells in one connected piece."];
+const domains = connectDomains({
+  view: view, player: player, disk: disk,
+  box: function () { return boxFromOptions(2, MAX_SIDE, DEFAULTS); },
+  ball: function () { return ballFromOptions(disk, BALL); },
+  custom: {
+    check: function (drawing) {
+      if (drawing.graph.vertices.length === 0) return ["Paint the region first.", ""];
+      const region = drawnDomain(drawing.graph, drawing.grid);
+      const reached = stepsFrom(region, [0]).filter(function (s) { return s !== -1; }).length;
+      return reached < region.n ? ["The region must be one connected piece.", ""]
+        : ["", region.n + " cells in one connected piece."];
+    },
   },
-  done: function (drawing) {
-    customDomain = drawnDomain(drawing.graph, drawing.grid);
-    useDomain("custom", customDomain);
+  kinds: { line: useLine, ring: useLine },
+  still: Boolean(document.querySelector('input[name="domain"][value="ring"]')),
+  use: function (d) {
+    domain = d;
+    clearHighlight(highlight);
+    setWalkerCount(N);
   },
-  cancel: function () { showDomainChoice(); drawSoon(); },
 });
+
+// 1D: a box one cell tall, its length from the Length box. A ring is a
+// torus one cell tall: the two ends are neighbors, and it is drawn as a
+// circle (drawRing). (boxDomain drops the up and down neighbors, which
+// would be the cell itself.)
+function useLine() {
+  const kind = checked("domain");
+  const length = readWhole("set-width", 2, MAX_SIDE, DEFAULTS.width);
+  domains.use(kind, boxDomain(length, 1, 4, kind === "ring"));
+}
 
 
 /* =====================================================================
    9. CONNECTING THE BUTTONS ON THE PAGE
    ===================================================================== */
-
-// Switch to a new domain, put the walkers in the default start, and
-// restart.
-function useDomain(kind, d) {
-  domainKind = kind;
-  domain = d;
-  clearHighlight(highlight);
-  // Moving and zooming; zooming out past the whole picture only on a
-  // torus (js/sim-view.js). In 1D the picture stays still: the ring is
-  // a circle, and the line is one strip across the picture.
-  if (kind === "ring" || kind === "line") useTorus(view, false, false);
-  else useTorus(view, Boolean(d.wrap));
-  showDomainChoice();
-  setWalkerCount(N);
-}
-
-// The box or torus from the boxes on the page. (Choosing one while the
-// graph tool is open closes it.) On the 1D page, with "Line" or "Ring"
-// ticked, it makes the 1D domain instead, since changing the Length box
-// comes here too.
-function useBox() {
-  if (tool.isOpen) tool.close();
-  const kind = checked("domain");
-  if (kind === "line" || kind === "ring") { useLine(kind); return; }
-  const d = boxFromOptions(2, MAX_SIDE, DEFAULTS);
-  useDomain(d.wrap ? "torus" : "box", d);
-}
-
-// 1D: a box one cell tall, its length from the Size box. A ring is a
-// torus one cell tall: the two ends are neighbors, and it is drawn as a
-// circle (drawRing). (boxDomain drops the
-// up and down neighbors, which would be the cell itself.)
-function useLine(kind) {
-  const length = readWhole("set-width", 2, MAX_SIDE, DEFAULTS.width);
-  useDomain(kind, boxDomain(length, 1, 4, kind === "ring"));
-}
-
-// A ball of a hyperbolic tiling or a tree, from the options on the
-// page (ballFromOptions, js/sim-hyperbolic.js), with the start cell in
-// the middle of the picture.
-function useGraph() {
-  if (tool.isOpen) tool.close();
-  const ball = ballFromOptions(disk, BALL);
-  if (ball === null) { showDomainChoice(); return; }
-  useDomain("graph", ball);
-}
-
-// Show the options that fit the domain in use, and tick its radio button.
-function showDomainChoice() {
-  showDomainOptions(domainKind, customDomain, disk);
-  // In 1D only the length shows: no height and no Neighbors choice.
-  const oneD = (domainKind === "line" || domainKind === "ring");
-  byId("height-part").hidden = oneD;
-  if (oneD) byId("neighbors-row").hidden = true;
-}
 
 // N walkers, in the default start, with their colors. Restarts.
 function setWalkerCount(value) {
@@ -758,11 +716,6 @@ for (const radio of document.querySelectorAll('input[name="model"]')) {
   });
 }
 
-// Domain: Box / Torus / Custom / Hyperbolic plane or tree (or, on the
-// 1D page, Line / Ring), and their options, the Lattice options among
-// them on the 2D page (js/sim-controls.js).
-connectDomainChoice({ line: useBox, ring: useBox, box: useBox, torus: useBox, custom: tool.open, graph: useGraph });
-
 // N: the slider and the number box move together, and the run restarts
 // live while you drag, like a Desmos slider.
 byId("walkers-slider").addEventListener("input", function () { setWalkerCount(Number(this.value)); });
@@ -780,7 +733,6 @@ connectSeed(restart);
 
 // --- Start ------------------------------------------------------------
 fillDomainOptions(DEFAULTS, MAX_SIDE, BALL);
-if (byId("set-tiling")) fillLatticeMenu();   // (the 1D page has no Lattice options)
 byId("set-walkers").max = byId("walkers-slider").max = MAX_WALKERS;
 byId("seed").value = DEFAULTS.seed;
-useBox();   // paused: drag the walkers, then press Play
+domains.useTicked();   // paused: drag the walkers, then press Play

@@ -688,5 +688,4 @@ connectSeed(function () { restart(true); });
 // --- Start ------------------------------------------------------------
 byId("seed").value = DEFAULT_SEED;
 byId("goto-steps").value = 10000;
-fillLatticeMenu();            // the square grid
 setDimension(2);              // 2D by default
