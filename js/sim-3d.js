@@ -63,6 +63,13 @@ const MAX_BLOCKS = { cubes: 250000, coins: 60000 };
 const BLOCK_WIDTH = 0.88;
 const BLOCK_HEIGHT = 0.86;
 
+// On a round floor all blocks share one size, which shrinks as stacks
+// reach smaller cells out toward the edge, but not below this part of
+// the widest cell's width (the cell in the middle): cells smaller than
+// that are too small to see stacks on anyway, so their blocks spill a
+// little over their cell.
+const SMALLEST_SHARED_WIDTH = 0.1;
+
 // How round a coin is: the number of flat sides around it.
 const COIN_SIDES = 24;
 
@@ -219,8 +226,12 @@ function toThree(rgb) {
 //   width       (optional) each cell's width; 1 if left out. Only the
 //               blocks' width changes with it: every block is equally
 //               tall, so a stack's height always shows how many blocks
-//               it has (on the Poincare disk, where cells shrink toward
-//               the edge, the stacks there get thinner, not shorter).
+//               it has. On a round floor (the Poincare disk, where cells
+//               shrink toward the edge) every block instead gets the
+//               same size, the width of the smallest cell with a block
+//               (but at least SMALLEST_SHARED_WIDTH of the widest cell),
+//               and as tall as that is wide: see "One size on a round
+//               floor" below.
 //   floor       the floor: a box { xmin, xmax, ymin, ymax } of cells, a
 //               list of cells { x: [...], y: [...] } (e.g. a drawn
 //               domain), or a round floor { disk: radius } centered at
@@ -245,9 +256,10 @@ function toThree(rgb) {
 //               color [r, g, b]
 //
 // Heights: a block starts out as tall as a cell of width 1 is wide (a
-// cube). Once the tallest stack would be more than half as tall as the
-// floor is wide, every block is squashed so it is exactly that tall
-// (unless fixedSize); "stretch" then makes it taller or flatter.
+// cube; on a round floor, as tall as the shared width). Once the
+// tallest stack would be more than half as tall as the floor is wide,
+// every block is squashed so it is exactly that tall (unless
+// fixedSize); "stretch" then makes it taller or flatter.
 export function drawStacks(view3d, stacks) {
   const n = stacks.x.length, shape = stacks.shape;
   if (view3d.box.clientWidth && view3d.box.clientWidth !== view3d.width) fitToBox(view3d);   // the box changed size
@@ -263,11 +275,27 @@ export function drawStacks(view3d, stacks) {
     blocks += stacks.height[i];
     if (stacks.height[i] === 0) emptyCells++;
   }
-  // One block's height (a cube on a cell of width 1, until the tallest
-  // stack would be more than half as tall as the floor is wide; with
-  // fixedSize, always a cube).
-  const squash = stacks.fixedSize ? 1 : Math.min(1, across / 2 / Math.max(tallest, 1));
-  const block = stacks.stretch * squash;
+  // One size on a round floor: every block as wide as the smallest cell
+  // that has a block (but at least SMALLEST_SHARED_WIDTH of the widest
+  // cell), so the stacks farthest out fit their cells and every stack's
+  // height is counted in the same blocks. Elsewhere "shared" is 1 and
+  // each block is as wide as its own cell.
+  let shared = 1;
+  if (stacks.floor.disk) {
+    let smallest = Infinity, widest = 0;
+    for (let i = 0; i < n; i++) {
+      widest = Math.max(widest, widthOf(i));
+      if (stacks.height[i] > 0) smallest = Math.min(smallest, widthOf(i));
+    }
+    shared = smallest === Infinity ? 1 : Math.max(smallest, SMALLEST_SHARED_WIDTH * widest);
+  }
+  const blockWidth = function (i) { return stacks.floor.disk ? shared : widthOf(i); };
+
+  // One block's height (a cube on a cell of width "shared", until the
+  // tallest stack would be more than half as tall as the floor is wide;
+  // with fixedSize, always a cube).
+  const squash = stacks.fixedSize ? 1 : Math.min(1, across / 2 / Math.max(tallest * shared, 1e-9));
+  const block = stacks.stretch * squash * shared;
 
   // The colors, worked out once per kind of cell and level (not once
   // per block): levelColors(kind)[k] is the color of the (k+1)-th block
@@ -289,7 +317,7 @@ export function drawStacks(view3d, stacks) {
   for (let i = 0; i < n; i++) {
     const h = stacks.height[i];
     if (h === 0) continue;
-    const x = stacks.x[i], z = -stacks.y[i], w = BLOCK_WIDTH * widthOf(i);
+    const x = stacks.x[i], z = -stacks.y[i], w = BLOCK_WIDTH * blockWidth(i);
     const levelColor = levelColors(stacks.kind ? stacks.kind[i] : 0);
     if (oneByOne) {
       for (let k = 0; k < h; k++) placeCopy(blockMesh, copy++, x, k * block, z, w, BLOCK_HEIGHT * block, levelColor[k]);

@@ -531,9 +531,10 @@ function draw3D(valueOf, showTopples) {
   const d = domain, x = [], y = [], height = [], width = [], kind = [];
   let floor, lines;
   if (domainKind === "graph") {
-    // Each cell where the disk picture puts it, as wide as it looks
-    // there (the start cell, in the middle, is 1 wide; on a tree a bit
-    // over half as wide, so the stacks don't touch).
+    // Each cell where the disk picture puts it, with its width as it
+    // looks there (the start cell, in the middle, is 1 wide; on a tree a
+    // bit over half as wide, so the stacks don't touch). drawStacks gives
+    // every block the same size, so the stacks farthest out fit.
     const unit = 1 / (2 * diskShape(disk).middle);
     const thinner = isTree(disk.spec) ? 0.6 : 1;
     for (let v = 0; v < d.n; v++) {

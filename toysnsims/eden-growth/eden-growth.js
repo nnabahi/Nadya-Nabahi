@@ -964,10 +964,11 @@ function keepRules(rules) {
 
 // The 3D view on a graph: the disk is the floor, with the tiling (or
 // the tree) drawn on it in thin lines, and each site's stack of coins
-// stands on its cell, as wide as the cell (on a tree, a bit over half
-// as wide, so the tree's lines show between the stacks). Every coin is
-// equally thick, so a stack's height shows its count however small its
-// cell. Cells too small to see are left out.
+// stands on its cell. Every coin has the same size, which drawStacks
+// picks so the stacks farthest out fit their cells (on a tree, a bit
+// over half their width, so the tree's lines show between the stacks),
+// so a stack's height shows its count. Cells too small to see are left
+// out.
 function draw3DOnDisk() {
   const s = latest;
   const unit = 1 / (2 * diskShape(disk).middle);    // so the first cell, in the middle, is 1 wide
