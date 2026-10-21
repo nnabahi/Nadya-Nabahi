@@ -5,7 +5,8 @@
      Draws a 3D picture that you can turn around with the mouse or your
      fingers. It draws two kinds of picture:
        STACKS: a floor of cells, and on each cell a stack of blocks
-         (cubes or coins) as tall as that cell's height. Eden Growth
+         (cubes, coins, or blocks in the shape of the cell's tile) as
+         tall as that cell's height. Eden Growth
          and Sandpiles use it, on the square grid and on hyperbolic tilings
          and trees (their edges drawn as lines on the floor).
        SURFACES: a colored surface over a grid, like a graph
@@ -30,8 +31,11 @@
    How the blocks are drawn: a picture can have hundreds of thousands
    of blocks, all the same shape. three.js draws all of them in one go
    with an "InstancedMesh": one shape, plus a list saying where each
-   copy goes, how big it is, and its color. Past MAX_BLOCKS blocks,
-   each stack is drawn as one solid column instead, so it stays quick.
+   copy goes, how big it is, and its color. Tile-shaped blocks can all
+   be different (on the Poincare disk no two cells look alike), so they
+   are all put into one shape together instead, made again each time.
+   Past MAX_BLOCKS blocks, each stack is drawn as one solid column
+   instead, so it stays quick.
 
    Contents:
      make3DView(box, height)       a 3D picture inside the element "box"
@@ -53,8 +57,9 @@ import { ConvexGeometry } from "three/addons/geometries/ConvexGeometry.js";
    --------------------------------------------------------------------- */
 
 // Past this many blocks, each stack is drawn as one solid column. A coin
-// has more corners than a cube, so fewer coins are drawn one by one.
-const MAX_BLOCKS = { cubes: 250000, coins: 60000 };
+// has more corners than a cube, so fewer coins are drawn one by one, and
+// tile-shaped blocks take more memory (each has its own corners).
+const MAX_BLOCKS = { cubes: 250000, coins: 60000, tiles: 60000 };
 
 // A block takes up this much of its cell's width, so neighboring stacks
 // don't melt into each other, and this much of its own height, so you
@@ -177,11 +182,7 @@ function blockShape(shape) {
 function useMesh(view3d, name, shape, count) {
   let mesh = view3d.meshes[name];
   if (!mesh || mesh.userData.shape !== shape || mesh.userData.room < count) {
-    if (mesh) {
-      view3d.world.remove(mesh);
-      mesh.geometry.dispose();
-      mesh.dispose();
-    }
+    if (mesh) dropMesh(view3d, mesh);
     const room = Math.max(64, 2 * count);           // room to grow, so this happens rarely
     mesh = new THREE.InstancedMesh(blockShape(shape), new THREE.MeshLambertMaterial(), room);
     mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(3 * room), 3);
@@ -192,6 +193,13 @@ function useMesh(view3d, name, shape, count) {
   }
   mesh.count = count;                              // draw this many copies
   return mesh;
+}
+
+// Take a mesh out of the picture and free its memory.
+function dropMesh(view3d, mesh) {
+  view3d.world.remove(mesh);
+  mesh.geometry.dispose();
+  if (mesh.dispose) mesh.dispose();   // (an InstancedMesh has more to free)
 }
 
 // Put copy number i of a mesh at (x, bottom, z), sized width x tall x
@@ -236,7 +244,12 @@ function toThree(rgb) {
 //               list of cells { x: [...], y: [...] } (e.g. a drawn
 //               domain), or a round floor { disk: radius } centered at
 //               (0, 0), drawn under everything
-//   shape       "cubes" or "coins"
+//   shape       "cubes", "coins" or "tiles" (each block in the shape of
+//               its cell: give "corners")
+//   corners     (for "tiles") each cell's corners on the floor, in
+//               order around it: a list [[x, y], [x, y], ...] per cell.
+//               A block is its cell shrunk toward the middle (x, y), to
+//               the block's width over the cell's
 //   stretch     how tall the stacks look: 1 is normal, 2 twice as tall
 //   fixedSize   (optional) true: every block stays a cube however tall
 //               the stacks get, and the picture fits the floor only, so
@@ -312,30 +325,29 @@ export function drawStacks(view3d, stacks) {
 
   // The blocks: one by one, or one column per stack if there are too many.
   const oneByOne = blocks <= MAX_BLOCKS[shape];
-  const blockMesh = useMesh(view3d, "blocks", shape, oneByOne ? blocks : n - emptyCells);
-  let copy = 0;
+  const blockMaker = makeBlocks(view3d, "blocks", stacks, function (i) {
+    return oneByOne ? stacks.height[i] : Math.min(stacks.height[i], 1);
+  });
   for (let i = 0; i < n; i++) {
     const h = stacks.height[i];
     if (h === 0) continue;
-    const x = stacks.x[i], z = -stacks.y[i], w = BLOCK_WIDTH * blockWidth(i);
+    const w = BLOCK_WIDTH * blockWidth(i);
     const levelColor = levelColors(stacks.kind ? stacks.kind[i] : 0);
     if (oneByOne) {
-      for (let k = 0; k < h; k++) placeCopy(blockMesh, copy++, x, k * block, z, w, BLOCK_HEIGHT * block, levelColor[k]);
+      for (let k = 0; k < h; k++) blockMaker.put(i, k * block, BLOCK_HEIGHT * block, w, levelColor[k]);
     } else {
-      placeCopy(blockMesh, copy++, x, 0, z, w, h * block, levelColor[h - 1]);
+      blockMaker.put(i, 0, h * block, w, levelColor[h - 1]);
     }
   }
-  blockMesh.instanceMatrix.needsUpdate = blockMesh.instanceColor.needsUpdate = true;
+  blockMaker.done();
 
   // The empty cells (available, but no block yet): thin gray tiles.
-  const emptyMesh = useMesh(view3d, "empty", shape, emptyCells);
+  const emptyMaker = makeBlocks(view3d, "empty", stacks, function (i) { return stacks.height[i] === 0 ? 1 : 0; });
   const emptyColor = toThree(stacks.empty);
-  copy = 0;
   for (let i = 0; i < n; i++) {
-    if (stacks.height[i] !== 0) continue;
-    placeCopy(emptyMesh, copy++, stacks.x[i], 0, -stacks.y[i], BLOCK_WIDTH * widthOf(i), 0.05, emptyColor);
+    if (stacks.height[i] === 0) emptyMaker.put(i, 0, 0.05, BLOCK_WIDTH * widthOf(i), emptyColor);
   }
-  emptyMesh.instanceMatrix.needsUpdate = emptyMesh.instanceColor.needsUpdate = true;
+  emptyMaker.done();
 
   // The floor: flat square tiles, a little below the blocks, or one
   // flat round coin for a round floor.
@@ -412,6 +424,137 @@ function floorBox(stacks) {
     ymin = Math.min(ymin, f.y[i]); ymax = Math.max(ymax, f.y[i]);
   }
   return { xmin: xmin, xmax: xmax, ymin: ymin, ymax: ymax };
+}
+
+// Room for the blocks of drawStacks in the mesh view3d.meshes[name]:
+// blocksOn(i) of them on cell i. Returns
+//   put(i, bottom, tall, width, rgb)   one more block on cell i, from
+//                height "bottom" up, "tall" high and "width" wide
+//   done()     tell three.js the blocks changed (after the last put)
+// Cubes and coins are copies of one shape (useMesh); tile-shaped blocks
+// are prisms put together into one shape (useTileMesh).
+function makeBlocks(view3d, name, stacks, blocksOn) {
+  const n = stacks.x.length;
+  if (stacks.shape !== "tiles") {
+    let count = 0;
+    for (let i = 0; i < n; i++) count += blocksOn(i);
+    const mesh = useMesh(view3d, name, stacks.shape, count);
+    let copy = 0;
+    return {
+      put: function (i, bottom, tall, width, rgb) {
+        placeCopy(mesh, copy++, stacks.x[i], bottom, -stacks.y[i], width, tall, rgb);
+      },
+      done: function () { mesh.instanceMatrix.needsUpdate = mesh.instanceColor.needsUpdate = true; },
+    };
+  }
+  let points = 0, triangles = 0;
+  for (let i = 0; i < n; i++) {
+    const p = stacks.corners[i].length;
+    points += blocksOn(i) * 2 * p;
+    triangles += blocksOn(i) * (3 * p - 2);
+  }
+  const mesh = useTileMesh(view3d, name, points, triangles);
+  return {
+    put: function (i, bottom, tall, width, rgb) {
+      const shrink = width / (stacks.width ? stacks.width[i] : 1);
+      addPrism(mesh, stacks.corners[i], stacks.x[i], stacks.y[i], shrink, bottom, tall, rgb);
+    },
+    done: function () {
+      const geometry = mesh.geometry;
+      geometry.setDrawRange(0, 3 * mesh.userData.triangles);
+      geometry.attributes.position.needsUpdate = geometry.attributes.color.needsUpdate = true;
+      geometry.index.needsUpdate = true;
+    },
+  };
+}
+
+// A shape for tile-shaped blocks with room for "points" corners and
+// "triangles" triangles, kept in view3d.meshes[name] like useMesh, and
+// emptied. Each triangle is shaded flat (flatShading), so the prisms'
+// sides can share their corners with the top and still look sharp.
+function useTileMesh(view3d, name, points, triangles) {
+  let mesh = view3d.meshes[name];
+  if (!mesh || mesh.userData.shape !== "tiles" || mesh.userData.room < points || mesh.userData.triangleRoom < triangles) {
+    if (mesh) dropMesh(view3d, mesh);
+    const room = Math.max(256, 2 * points), triangleRoom = Math.max(256, 2 * triangles);
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute("position", new THREE.BufferAttribute(new Float32Array(3 * room), 3));
+    geometry.setAttribute("color", new THREE.BufferAttribute(new Float32Array(3 * room), 3));
+    geometry.setIndex(new THREE.BufferAttribute(new Uint32Array(3 * triangleRoom), 1));
+    mesh = new THREE.Mesh(geometry, new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true, side: THREE.DoubleSide }));
+    mesh.frustumCulled = false;
+    mesh.userData = { shape: "tiles", room: room, triangleRoom: triangleRoom };
+    view3d.world.add(mesh);
+    view3d.meshes[name] = mesh;
+  }
+  mesh.userData.points = mesh.userData.triangles = 0;
+  return mesh;
+}
+
+// Add to a tile mesh one block: the polygon "corners" ([[x, y], ...] on
+// the floor) shrunk by "shrink" toward (mx, my), stood up from height
+// "bottom" to bottom + tall, in color rgb (from toThree). Its corners
+// are p points on the bottom, then p on the top; each side is two
+// triangles, and the top is cut into p - 2 (topTriangles). The bottom
+// is left open: it is never seen, standing on the floor or a block.
+function addPrism(mesh, corners, mx, my, shrink, bottom, tall, rgb) {
+  const u = mesh.userData, p = corners.length, first = u.points;
+  const where = mesh.geometry.attributes.position.array, color = mesh.geometry.attributes.color.array;
+  const index = mesh.geometry.index.array;
+  for (let k = 0; k < p; k++) {
+    const x = mx + shrink * (corners[k][0] - mx), z = -(my + shrink * (corners[k][1] - my));
+    where.set([x, bottom, z], 3 * (first + k));
+    where.set([x, bottom + tall, z], 3 * (first + p + k));
+    color.set(rgb, 3 * (first + k));
+    color.set(rgb, 3 * (first + p + k));
+  }
+  let t = 3 * u.triangles;
+  for (let k = 0; k < p; k++) {
+    const next = (k + 1) % p;
+    index.set([first + k, first + next, first + p + next,  first + k, first + p + next, first + p + k], t);
+    t += 6;
+  }
+  for (const [a, b, c] of topTriangles(corners)) {
+    index.set([first + p + a, first + p + b, first + p + c], t);
+    t += 3;
+  }
+  u.points += 2 * p;
+  u.triangles = t / 3;
+}
+
+// A polygon cut into triangles, as lists [a, b, c] of corner numbers. A
+// convex one is a fan from corner 0. Others (like a Penrose dart) are cut
+// by three.js (ShapeUtils, the "earcut" method), once per shape: their
+// cuts are kept, keyed by the corners' positions around the first one.
+const cutsKept = new Map();
+function topTriangles(corners) {
+  const p = corners.length;
+  if (isConvex(corners)) {
+    const fan = [];
+    for (let k = 1; k < p - 1; k++) fan.push([0, k, k + 1]);
+    return fan;
+  }
+  const [x0, y0] = corners[0];
+  const key = corners.map(function ([x, y]) { return (x - x0).toFixed(3) + "," + (y - y0).toFixed(3); }).join(" ");
+  if (!cutsKept.has(key)) {
+    const outline = corners.map(function ([x, y]) { return new THREE.Vector2(x, y); });
+    cutsKept.set(key, THREE.ShapeUtils.triangulateShape(outline, []));
+  }
+  return cutsKept.get(key);
+}
+
+// Whether a polygon is convex: going around it, it always turns the
+// same way.
+function isConvex(corners) {
+  const p = corners.length;
+  let left = false, right = false;
+  for (let k = 0; k < p; k++) {
+    const [ax, ay] = corners[k], [bx, by] = corners[(k + 1) % p], [cx, cy] = corners[(k + 2) % p];
+    const turn = (bx - ax) * (cy - by) - (by - ay) * (cx - bx);
+    if (turn > 1e-12) left = true;
+    if (turn < -1e-12) right = true;
+  }
+  return !(left && right);
 }
 
 

@@ -528,21 +528,19 @@ function start3D() {
 // that topples there.
 function draw3D(valueOf, showTopples) {
   if (!view3d) return;
-  const d = domain, x = [], y = [], height = [], width = [], kind = [];
+  const d = domain, x = [], y = [], height = [], width = [], kind = [], cells = [];
   let floor, lines;
   if (domainKind === "graph") {
-    // Each cell where the disk picture puts it, with its width as it
-    // looks there (the start cell, in the middle, is 1 wide; on a tree a
-    // bit over half as wide, so the stacks don't touch). drawStacks gives
-    // every block the same size, so the stacks farthest out fit.
-    const unit = 1 / (2 * diskShape(disk).middle);
-    const thinner = isTree(disk.spec) ? 0.6 : 1;
+    // Each cell where the disk picture puts it, as big as it looks there
+    // (diskStack, js/sim-hyperbolic.js). drawStacks gives every block the
+    // same size, so the stacks farthest out fit.
+    const unit = diskFloorUnit(disk);
     for (let v = 0; v < d.n; v++) {
       if (sinks.includes(v)) continue;
-      const [mx, my] = motionApply(seenFrom(disk, ballPlace(d, v)), 0, 0);
-      const w = 1 - mx * mx - my * my;         // how much smaller than the start cell it looks
-      if (w < 0.004) continue;                 // too small to see
-      x.push(mx * unit); y.push(my * unit); height.push(valueOf(v)); width.push(thinner * w); kind.push(threshold[v]);
+      const stack = diskStack(disk, seenFrom(disk, ballPlace(d, v)), unit);
+      if (!stack) continue;                    // too small to see
+      x.push(stack.x); y.push(stack.y); height.push(valueOf(v)); width.push(stack.width); kind.push(threshold[v]);
+      cells.push(stack.corners);
     }
     floor = { disk: unit };
   } else if (d.lattice) {
@@ -550,6 +548,7 @@ function draw3D(valueOf, showTopples) {
       if (sinks.includes(v)) continue;
       const [u, w] = cellMiddle(d, v);
       x.push(u); y.push(w); height.push(valueOf(v)); width.push(2 * cellRadius(d, v)); kind.push(threshold[v]);
+      cells.push(cornersOf(d, v));
     }
     // The floor is the picture's box (one big flat box: drawStacks counts
     // a box of cells from the middle of its first one to the middle of its
@@ -568,11 +567,18 @@ function draw3D(valueOf, showTopples) {
   const most = height.reduce(function (a, b) { return Math.max(a, b); }, 1);   // (a long list can't be spread into Math.max)
   sim3d.drawStacks(view3d, {
     x: x, y: y, height: height, width: width, kind: kind, floor: floor,
-    shape: domainKind === "graph" || d.lattice ? "coins" : "cubes", stretch: 1, fixedSize: true,
+    shape: blockShape(), corners: cells, stretch: 1, fixedSize: true,
     color: function (k, tallestStack, top) { return showTopples ? colorOfTopples(k, most) : colorOfHeight(k, top); },
     empty: colorOfHeight(0, mostThreshold), ground: hexToRGB(OUTSIDE),
     lines: lines, lineColor: hexToRGB(SINK),
   });
+}
+
+// The 3D view's blocks: each in the shape of its cell (cubes on the
+// square grid), except on a tree, whose sites are points: coins.
+function blockShape() {
+  if (domainKind === "graph") return isTree(disk.spec) ? "coins" : "tiles";
+  return domain.lattice ? "tiles" : "cubes";
 }
 
 // The sides of a tiling's cells, as lines on the 3D floor: [x1, y1, x2,
