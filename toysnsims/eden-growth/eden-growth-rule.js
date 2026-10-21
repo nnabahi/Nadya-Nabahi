@@ -95,17 +95,18 @@
    tiling {p,q} or a regular tree. A graph has no offsets, so the tile
    is "every cell within distance r of the site" (the ball of radius r,
    not counting the site). On the line, r = 1 is the tile {-1, +1}; on
-   the square grid it is the 4 neighbors. The 1D and 2D mountains keep
-   their own code (part 1), untouched; newGraphMountain (part 1b) is
-   separate, and the check page shows that on the line and the square
-   grid it gives exactly the same mountain as 1D and 2D, block for
-   block, from the same random numbers. (On the line, its sites are
-   counted from left to right too; on other graphs, in the order they
-   became available.)
+   the square grid it is the 4 neighbors. newGraphMountain (part 1b)
+   finds its sites its own way, and drops blocks with the same steps as
+   the 1D and 2D mountains (mountainSteps, part 1); the check page shows
+   that on the line and the square grid it gives exactly the same
+   mountain as 1D and 2D, block for block, from the same random numbers.
+   (On the line, its sites are counted from left to right too; on other
+   graphs, in the order they became available.)
 
    The file has these parts, with no drawing and no buttons:
      1. newMountain(options): the growth rule itself, on the line, the
-        square grid or any other tiling. The check page
+        square grid or any other tiling, and mountainSteps, its steps,
+        which every mountain shares. The check page
         (eden-growth-check.html) tests it in the browser.
      1b. newGraphMountain(options): the same rule on any graph.
      1c. the holes of a 2D mountain's base (holeHistory, js/sim-shape.js), with the
@@ -114,7 +115,7 @@
      2. mountainWorker(): runs a mountain in a second thread (a "Web
         Worker") for the sim page, eden-growth.js, so the page never
         freezes. runInWorker (js/sim-page.js) starts it, with
-        newMountain, ballTile, newGraphMountain, the hyperbolic tilings
+        newMountain, mountainSteps, ballTile, newGraphMountain, the hyperbolic tilings
         and trees, the trace and random numbers (js/sim-worker.js) and
         the hull and holes (js/sim-shape.js) copied in.
    ===================================================================== */
@@ -164,9 +165,6 @@ function newMountain(options) {
   const dim = options.dim;
   const tiling = options.tiling || null;
   const domain = options.domain;
-  const cap = options.cap || Infinity;     // the capacity M (see the top of this file)
-  const power = options.s || 0;             // the weight s (see the top of this file)
-  const clocks = options.clocks === undefined ? null : newClocks(options.clocks, power);
   const bins = options.shapeBins || 0;
 
   // The cells: on another tiling, cell z of block (x, y) is the cell
@@ -260,22 +258,8 @@ function newMountain(options) {
     siteX.push(x);
     siteY.push(y);
     siteZ.push(z);
-    height.push(0);
     numberOf.set(key, i);
-    if (clocks) clocks.set(i, clockPlace(i), 0, m.time);
-
-    if (dim === 2) {
-      available.push(i);
-    } else {
-      // 1D: insert it where it belongs from left to right. Binary
-      // search: the first place whose site lies to the right of x.
-      let lo = 0, hi = available.length;
-      while (lo < hi) {
-        const mid = (lo + hi) >> 1;
-        if (siteX[available[mid]] < x) lo = mid + 1; else hi = mid;
-      }
-      available.splice(lo, 0, i);
-    }
+    rule.addSite(i);
     return i;
   }
 
@@ -317,44 +301,24 @@ function newMountain(options) {
     full: 0,           // sites with M blocks (with a capacity)
     maxHeight: 0,
     start: -1,         // the start site's number
-    step: step,
-    dropOn: dropOn,
+    // step(u) and dropOn(i): one step (mountainSteps, below)
     heightAt: heightAt,
     placeOf: placeOf,
     polygonOf: polygonOf,
   };
 
-  // One step: drop a block on a random available site. "u" is a uniform
-  // random number in [0, 1) (not used with clocks).
-  function step(u) {
-    dropOn(clocks ? clocks.next(m) : pickSite(available, height, power, u));
-  }
-
-  // One step with the site chosen, not random (a click on the page):
-  // the block goes on available site i.
-  function dropOn(i) {
-    drop(i);
-    m.steps += 1;
-  }
-
-  // Put a block on site i, and if it is new to the base, make its
-  // tile neighbors available.
-  function drop(i) {
-    height[i] += 1;
-    m.blocks += 1;
-    if (height[i] > m.maxHeight) m.maxHeight = height[i];
-    if (height[i] >= cap) {   // full: no longer available
-      available.splice(available.indexOf(i), 1);
-      m.full += 1;
-    }
-    if (clocks) clocks.set(i, clockPlace(i), height[i] < cap ? height[i] : -1, m.time);
-    if (height[i] === 1) {
+  // The steps (mountainSteps, below). A site joining the base makes its
+  // tile available. In 1D the available sites are kept from left to
+  // right (see the top of this file).
+  const rule = mountainSteps(m, options, {
+    clockPlace: clockPlace,
+    orderOf: dim === 2 ? null : function (i) { return siteX[i]; },
+    joinsBase: function (i) {
       bornAt[i] = m.blocks - 1;   // the start's block is block 1, step n's is block n + 1
-      m.baseSize += 1;
       if (bins) addToShape(i);
       for (const [dx, dy, z] of tileOf(siteZ[i])) makeAvailable(siteX[i] + dx, siteY[i] + dy, z);
-    }
-  }
+    },
+  });
 
   // The tile of a cell of kind z (on the grids, z = 0), worked out the
   // first time. On a Penrose tiling's plane, the plane must first hold
@@ -401,7 +365,7 @@ function newMountain(options) {
   m.start = makeAvailable(s[0], dim === 2 ? s[1] : 0, s[2] || 0);
   if (m.start < 0) throw new Error("The start site is outside the domain.");
   const startPlace = placeOf(siteX[m.start], siteY[m.start], siteZ[m.start]);
-  drop(m.start);
+  rule.drop(m.start);
 
   return m;
 }
@@ -429,6 +393,77 @@ function ballTile(tiling, z, r) {
     layer = further;
   }
   return moves;
+}
+
+
+// The steps of the rule, the same on every mountain whatever its sites
+// are (newMountain, newGraphMountain). m is the mountain, with its
+// lists m.height and m.available and its counts; "options" are the
+// mountain's options (cap, s and clocks are read here); and "sites"
+// says how its sites differ:
+//   clockPlace(i)   site i's place, for its alarm clocks
+//   orderOf(i)      on a line, where site i is from left to right, to
+//                   keep the available sites in that order (null: no order)
+//   joinsBase(i)    site i just got its first block: make its tile
+//                   available (and keep anything else up to date)
+// It adds m.step(u) and m.dropOn(i), and returns, for the mountain:
+//   addSite(i)      site number i is new: no blocks yet, and available
+//   drop(i)         put one block on site i (the start's, say)
+//   clocks          the clocks (newClocks, below), or null
+function mountainSteps(m, options, sites) {
+  const cap = options.cap || Infinity;     // the capacity M (see the top of this file)
+  const power = options.s || 0;             // the weight s (see the top of this file)
+  const clocks = options.clocks === undefined ? null : newClocks(options.clocks, power);
+  const height = m.height, available = m.available;
+
+  function addSite(i) {
+    height.push(0);
+    if (clocks) clocks.set(i, sites.clockPlace(i), 0, m.time);
+    if (!sites.orderOf) {
+      available.push(i);
+    } else {
+      // Insert it where it belongs from left to right. Binary search:
+      // the first place whose site lies to its right.
+      const x = sites.orderOf(i);
+      let lo = 0, hi = available.length;
+      while (lo < hi) {
+        const mid = (lo + hi) >> 1;
+        if (sites.orderOf(available[mid]) < x) lo = mid + 1; else hi = mid;
+      }
+      available.splice(lo, 0, i);
+    }
+  }
+
+  // One step: drop a block on a random available site. "u" is a uniform
+  // random number in [0, 1) (not used with clocks).
+  m.step = function (u) {
+    m.dropOn(clocks ? clocks.next(m) : pickSite(available, height, power, u));
+  };
+
+  // One step with the site chosen, not random (a click on the page):
+  // the block goes on available site i.
+  m.dropOn = function (i) {
+    drop(i);
+    m.steps += 1;
+  };
+
+  // Put a block on site i; if it is new to the base, it joins it.
+  function drop(i) {
+    height[i] += 1;
+    m.blocks += 1;
+    if (height[i] > m.maxHeight) m.maxHeight = height[i];
+    if (height[i] >= cap) {   // full: no longer available
+      available.splice(available.indexOf(i), 1);
+      m.full += 1;
+    }
+    if (clocks) clocks.set(i, sites.clockPlace(i), height[i] < cap ? height[i] : -1, m.time);
+    if (height[i] === 1) {
+      m.baseSize += 1;
+      sites.joinsBase(i);
+    }
+  }
+
+  return { addSite: addSite, drop: drop, clocks: clocks };
 }
 
 
@@ -545,9 +580,6 @@ function newClocks(seed, s) {
 function newGraphMountain(options) {
   const graph = options.graph.neighbors ? options.graph : makeGraph(options.graph);
   const radius = options.radius;
-  const cap = options.cap || Infinity;     // the capacity M (see the top of this file)
-  const power = options.s || 0;             // the weight s (see the top of this file)
-  const clocks = options.clocks === undefined ? null : newClocks(options.clocks, power);
 
   // Every site gets a number, 0, 1, 2, ..., in the order it becomes
   // available. For site number i:
@@ -568,25 +600,9 @@ function newGraphMountain(options) {
     if (siteOf.has(node)) return siteOf.get(node);
     const i = siteNode.length;
     siteNode.push(node);
-    height.push(0);
     siteOf.set(node, i);
-    if (clocks) {
-      places.push(clocks.textToNumbers(nameOf(node)));
-      clocks.set(i, places[i], 0, m.time);
-    }
-    if (!graph.order) {
-      available.push(i);
-    } else {
-      // On the line: insert it where it belongs from left to right, as
-      // in 1D (binary search for the first site to its right).
-      const x = graph.order(node);
-      let lo = 0, hi = available.length;
-      while (lo < hi) {
-        const mid = (lo + hi) >> 1;
-        if (graph.order(siteNode[available[mid]]) < x) lo = mid + 1; else hi = mid;
-      }
-      available.splice(lo, 0, i);
-    }
+    if (rule.clocks) places.push(rule.clocks.textToNumbers(nameOf(node)));
+    rule.addSite(i);
     return i;
   }
 
@@ -594,7 +610,6 @@ function newGraphMountain(options) {
     dim: "graph", graph: graph,
     siteNode: siteNode, height: height, available: available,
     steps: 0, time: 0, blocks: 0, baseSize: 0, full: 0, maxHeight: 0, start: -1,
-    step: step, dropOn: dropOn,
   };
 
   // A name for a cell that doesn't depend on the order the cells were
@@ -603,31 +618,17 @@ function newGraphMountain(options) {
     return graph.place(node).map(function (v) { return v.toPrecision(9); }).join(",");
   }
 
-  // One step, random or on a chosen site, exactly as in part 1.
-  function step(u) {
-    dropOn(clocks ? clocks.next(m) : pickSite(available, height, power, u));
-  }
-  function dropOn(i) {
-    drop(i);
-    m.steps += 1;
-  }
-  function drop(i) {
-    height[i] += 1;
-    m.blocks += 1;
-    if (height[i] > m.maxHeight) m.maxHeight = height[i];
-    if (height[i] >= cap) {   // full: no longer available
-      available.splice(available.indexOf(i), 1);
-      m.full += 1;
-    }
-    if (clocks) clocks.set(i, places[i], height[i] < cap ? height[i] : -1, m.time);
-    if (height[i] === 1) {
-      m.baseSize += 1;
-      for (const w of ballAround(graph, siteNode[i], radius)) makeAvailable(w);
-    }
-  }
+  // The steps, exactly as in part 1 (mountainSteps). A site joining the
+  // base makes every cell within distance r available. On the line, the
+  // available sites are kept from left to right, as in 1D.
+  const rule = mountainSteps(m, options, {
+    clockPlace: function (i) { return places[i]; },
+    orderOf: graph.order ? function (i) { return graph.order(siteNode[i]); } : null,
+    joinsBase: function (i) { for (const w of ballAround(graph, siteNode[i], radius)) makeAvailable(w); },
+  });
 
   m.start = makeAvailable(0);
-  drop(m.start);
+  rule.drop(m.start);
   return m;
 }
 
