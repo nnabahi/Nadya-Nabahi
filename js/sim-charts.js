@@ -12,6 +12,7 @@
      2. Axes: the numbers along a chart's sides
           chartFrame(canvas, x, y)   a chart with two numbered axes
           shortLabel(v, step)        a number short enough for an axis
+          multiplesOf(step, from, to)   where the ticks (or grid lines) go
      3. Drawing inside the axes
           drawSeries(frame, series)  lines or dots
           drawBars(frame, bars)      bars, one color or stacked
@@ -20,6 +21,7 @@
           seriesRange(series, k)     the smallest and largest x (k = 0) or y (k = 1)
      4. The charts the sims share
           plotOverTime(...)          numbers over time, as lines
+          pointsOverTime(times, values)   [time, number] points, from a trace
           colorLines(...)            one line per color, from a trace, for plotOverTime
           regionsChart(...)          the number of regions of each color over time
           histogram(...)             a histogram of some numbers
@@ -47,15 +49,10 @@ const siteColors = getComputedStyle(document.documentElement);
 const CHART_TEXT = siteColors.getPropertyValue("--color-text-muted").trim();   // numbers and labels
 const CHART_LINE = siteColors.getPropertyValue("--color-accent").trim();       // lines and bars
 
-// Make a chart canvas sharp at its size on screen, clear it, and return
-// its "pen" (what draws on it), set up for small gray text.
+// Get a chart canvas ready (sharpPen, js/sim-page.js) and return its
+// "pen" (what draws on it), set up for small gray text.
 function chartPen(canvas) {
-  const ratio = window.devicePixelRatio || 1;   // 2 on sharp screens
-  canvas.width = Math.round(canvas.clientWidth * ratio);
-  canvas.height = Math.round(canvas.clientHeight * ratio);
-  const pen = canvas.getContext("2d");
-  pen.setTransform(ratio, 0, 0, ratio, 0, 0);   // draw in screen pixels from here on
-  pen.clearRect(0, 0, canvas.clientWidth, canvas.clientHeight);
+  const pen = sharpPen(canvas);
   pen.font = "11px sans-serif";
   pen.fillStyle = CHART_TEXT;
   return pen;
@@ -188,12 +185,17 @@ function linearTicks(axis, step) {
     axis.from = Math.floor(axis.from / step + 1e-9) * step;
     axis.to = Math.ceil(axis.to / step - 1e-9) * step;
   }
-  const ticks = [];
-  for (let k = Math.ceil(axis.from / step - 1e-9); k * step <= axis.to + 1e-9 * step; k++) {
-    const v = Number((k * step).toPrecision(12));   // 0.30000000000000004 -> 0.3
-    ticks.push({ at: v, text: axis.text(v, step) });
+  return multiplesOf(step, axis.from, axis.to).map(function (v) { return { at: v, text: axis.text(v, step) }; });
+}
+
+// The multiples of "step" from "from" to "to" (also the grid lines of
+// a plane picture, js/sim-view.js).
+function multiplesOf(step, from, to) {
+  const list = [];
+  for (let k = Math.ceil(from / step - 1e-9); k * step <= to + 1e-9 * step; k++) {
+    list.push(Number((k * step).toPrecision(12)));   // 0.30000000000000004 -> 0.3
   }
-  return ticks;
+  return list;
 }
 
 // The choices for a log axis, densest first: 1, 2, 5 in each power of
@@ -473,11 +475,16 @@ function seriesRange(series, k) {
 function plotOverTime(canvas, times, lines, word, top) {
   if (times.length < 2) { chartPen(canvas); return; }
   const series = lines.map(function (line) {
-    return { points: Array.from(line.values, function (v, k) { return [times[k], v]; }), color: line.color, dashed: line.dashed };
+    return { points: pointsOverTime(times, line.values), color: line.color, dashed: line.dashed };
   });
   const [low, high] = seriesRange(series, 1);
   return lineChart(canvas, series, { from: 0, to: times[times.length - 1], word: word },
                    { from: Math.min(0, low), to: top || Math.max(1, high), round: !top });
+}
+
+// The points [times[k], values[k]] of a chart over time.
+function pointsOverTime(times, values) {
+  return Array.from(values, function (v, k) { return [times[k], v]; });
 }
 
 // One line per color for plotOverTime, from a trace that keeps "count"
@@ -655,7 +662,10 @@ function guideLine(points, slope, from) {
    5. ZOOMING IN TIME
    ===================================================================== */
 
-// Zooming a chart in time, like the pictures: on the chart,
+// Zooming a chart in time, like the pictures, and with their code
+// (connectWheel and connectPicture, js/sim-view.js, which the page loads
+// too: the zoom says how it moves, with slide and zoomAt, as a picture's
+// view does). On the chart,
 //   mouse wheel, or pinch   zoom in or out around the pointer
 //   drag                    move along in time
 //   double-click            show the whole run again
@@ -669,60 +679,39 @@ function guideLine(points, slope, from) {
 // zoomed in, it stays on the same stretch of time.
 function chartZoom(canvas, redraw) {
   const zoom = {
+    canvas: canvas, redraw: redraw,
     from: null, to: null,    // the stretch shown; null = the whole run
     first: 0, last: 1,       // the whole run (set by shownTimes)
     left: 0, right: 1,       // where the stretch goes on the canvas
-    pointers: new Map(),     // the mouse or fingers pressed on the chart
+    top: 0, movable: true, pointers: new Map(),   // (for js/sim-view.js)
   };
-  canvas.classList.add("zoomable");
 
   // The time under a spot on the canvas, x pixels from its left side.
   function timeAt(x) {
     const [from, to] = shownTimes(zoom, zoom.first, zoom.last);
     return from + (to - from) * (x - zoom.left) / Math.max(1, zoom.right - zoom.left);
   }
-  // Zoom by "factor" (below 1 zooms in) around the spot x pixels in.
-  function zoomAround(factor, x) {
+  // Zoom by "factor" (2: twice as close) around the spot x pixels in.
+  zoom.zoomAt = function (factor, x) {
     const [from, to] = shownTimes(zoom, zoom.first, zoom.last);
     const t = timeAt(x);
-    const width = Math.max((to - from) * factor, 1e-9);
+    const width = Math.max((to - from) / factor, 1e-9);
     if (width >= zoom.last - zoom.first) { zoom.from = zoom.to = null; }   // all of it
-    else { zoom.from = t - (t - from) * factor; zoom.to = zoom.from + width; }
-    redraw();
-  }
-  function canvasX(event) { return event.clientX - canvas.getBoundingClientRect().left; }
-  function spread() {      // the middle of the pressed pointers, and how far apart they are
-    const p = Array.from(zoom.pointers.values());
-    if (p.length === 1) return { x: p[0], apart: 0 };
-    return { x: (p[0] + p[1]) / 2, apart: Math.abs(p[0] - p[1]) };
-  }
-
-  canvas.addEventListener("wheel", function (event) {
-    event.preventDefault();                        // don't scroll the page
-    zoomAround(Math.exp(event.deltaY * 0.002), canvasX(event));
-  }, { passive: false });
-  canvas.addEventListener("dblclick", function () { zoom.from = zoom.to = null; redraw(); });
-  canvas.addEventListener("pointerdown", function (event) {
-    zoom.pointers.set(event.pointerId, canvasX(event));
-    canvas.setPointerCapture(event.pointerId);     // keep getting moves even off the chart
-  });
-  canvas.addEventListener("pointermove", function (event) {
-    if (!zoom.pointers.has(event.pointerId)) return;
-    const before = spread();
-    zoom.pointers.set(event.pointerId, canvasX(event));
-    const after = spread();
-    if (after.apart > 0 && before.apart > 0) zoomAround(before.apart / after.apart, after.x);   // pinch
-    // Drag: the time under the pointer stays under the pointer.
+    else { zoom.from = t - (t - from) / factor; zoom.to = zoom.from + width; }
+  };
+  // Drag by dx pixels: the time under the pointer stays under it.
+  zoom.slide = function (dx) {
+    if (zoom.from === null) return;    // the whole run: nowhere to move
     const [from, to] = shownTimes(zoom, zoom.first, zoom.last);
-    if (zoom.from === null || after.x === before.x) return;
-    const shift = (before.x - after.x) * (to - from) / Math.max(1, zoom.right - zoom.left);
+    const shift = -dx * (to - from) / Math.max(1, zoom.right - zoom.left);
     zoom.from = from + shift;
     zoom.to = to + shift;
-    redraw();
-  });
-  for (const type of ["pointerup", "pointercancel"]) {
-    canvas.addEventListener(type, function (event) { zoom.pointers.delete(event.pointerId); });
-  }
+  };
+
+  canvas.classList.add("scrollable");
+  connectWheel(zoom);
+  connectPicture(zoom);
+  canvas.addEventListener("dblclick", function () { zoom.from = zoom.to = null; redraw(); });
   return zoom;
 }
 

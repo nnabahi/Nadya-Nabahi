@@ -27,7 +27,7 @@
      4. Drawing the coloring
      5. Moving and zooming
      6. Statistics
-     7. Custom domains: the graph tool inside this page
+     7. The domain
      8. Connecting the buttons on the page
    ===================================================================== */
 
@@ -45,9 +45,6 @@ const MAX_BETA = 3;               // the beta slider goes from 0 to this
 const MAX_FIELD = 1;              // the h slider goes from -MAX_FIELD to MAX_FIELD
 const MAX_SIDE = 400;             // the biggest box or torus
 const MAX_PICTURE_HEIGHT = 600;   // in screen pixels
-const BORDER = "#1e1e1e";         // the lines between colors
-const OUTSIDE = "#ecebe7";        // around a custom domain (cells not in it)
-const SMALLEST_BORDERED_CELL = 4; // cells smaller than this (in pixels) get no border lines
 
 // Hyperbolic plane or tree: the ball's default radius R, its largest
 // R, and the most cells it may have (a ball of a hyperbolic tiling grows
@@ -65,16 +62,12 @@ const DEFAULT_SPEED = 5;
    2. WHAT THE PAGE REMEMBERS (the "state")
    ===================================================================== */
 
-let domainKind = "torus";      // "box", "torus", "custom" or "graph": the domain in use
-let domain = null;             // the domain graph (js/sim-domains.js), or a ball (makeBall, js/sim-hyperbolic.js)
-let customDomain = null;       // the last custom domain drawn, if any
+let domain = null;             // the domain graph (js/sim-domains.js), or a ball (makeBall, js/sim-hyperbolic.js); its kind is domains.kind (section 7)
 let q = DEFAULTS.q;            // number of colors
 let beta = DEFAULTS.beta;      // inverse temperature
 let h = DEFAULTS.h;            // the field (pushes cells toward color 1)
 let colorNames = [];           // colorNames[k] = how color k is drawn, e.g. "#f2735a"
-let colorRGB = [];             // the same as [red, green, blue], 0 .. 255
 
-let run = 0;                   // counts restarts, so leftovers from an older run are ignored
 let latest = null;             // the latest message from the chain (section 2 of ising-potts-chain.js)
 const highlight = newHighlight();   // the clicked cell, whose domain is highlighted (js/sim-highlight.js)
 
@@ -83,47 +76,32 @@ const highlight = newHighlight();   // the clicked cell, whose domain is highlig
    3. RUNNING THE CHAIN
    ---------------------------------------------------------------------
    The chain is pottsWorker() in ising-potts-chain.js, with newPotts,
-   pottsStart, the run loop and the trace (js/sim-worker.js), and
-   countPieces with the search behind it (js/sim-domains.js) copied
-   in. startWorker (js/sim-page.js) runs it in a second thread, so the
-   page never freezes.
+   pottsStart, the trace (js/sim-worker.js), and countPieces with the
+   search behind it (js/sim-domains.js) copied in. runInWorker
+   (js/sim-page.js) runs it in a second thread, so the page never
+   freezes.
    ===================================================================== */
-const worker = startWorker(pottsWorker, [newPotts, pottsStart, makeRunLoop, newTrace, keepSample,
-                                         countPieces, findRegions, spreadRegion]);
+const sim = runInWorker(pottsWorker, [newPotts, pottsStart, newTrace, keepSample, countPieces, findRegions, spreadRegion],
+                        function (message) { latest = message; drawSoon(); });
 
-worker.onmessage = function (event) {
-  const message = event.data;
-  if (message.type !== "state" || message.run !== run) return;   // from an older run
-  latest = message;
-  drawSoon();
-};
-
-worker.onerror = function () {
-  showMessage("The chain couldn't start. It loads one small library (seedrandom) from the " +
-              "internet, so check the connection and reload the page.");
-};
-
-// Start again from the start, with the current settings and seed.
+// A new run from the start (paused), with the current settings and seed.
 function restart() {
-  run++;
   latest = null;
   showMessage("");
-  worker.postMessage({
-    type: "setup", run: run, n: domain.n, first: domain.first, nbr: domain.nbr,
-    q: q, beta: beta, h: h, dynamics: checked("dynamics"), start: byId("start").value,
-    seed: byId("seed").value,
+  sim.setup({
+    n: domain.n, first: domain.first, nbr: domain.nbr, q: q, beta: beta, h: h,
+    dynamics: checked("dynamics"), start: byId("start").value, seed: byId("seed").value,
   });
-  player.carryOn();
 }
 
 // New beta, h or dynamics: the chain carries on with them.
 function sendParams() {
-  worker.postMessage({ type: "params", beta: beta, h: h, dynamics: checked("dynamics") });
+  sim.send({ type: "params", beta: beta, h: h, dynamics: checked("dynamics") });
 }
 
 // Play / Pause, Step, Restart and the Speed slider (connectPlay,
 // js/sim-page.js). player.playing is true while the sim plays.
-const player = connectPlay(worker, SPEEDS, DEFAULT_SPEED, "sweep", "sweeps", restart);
+const player = connectPlay(sim, SPEEDS, DEFAULT_SPEED, "sweep", "sweeps", restart);
 
 
 /* =====================================================================
@@ -132,7 +110,7 @@ const player = connectPlay(worker, SPEEDS, DEFAULT_SPEED, "sweep", "sweeps", res
    One square per cell in its color (one polygon, on another tiling),
    and a dark line where two colors meet when the cells are big enough
    to see. The view (js/sim-view.js) says where the picture goes and
-   which cells show, and paints them (paintDomain).
+   which cells show, and paintColoring (js/sim-highlight.js) paints them.
    On a hyperbolic tiling or tree, each cell is drawn in its color in
    the disk, the half-plane or (a tree) spread out in rings (drawBall,
    js/sim-hyperbolic.js).
@@ -148,8 +126,7 @@ const view = makeView(simCanvas, drawSoon, 0, SMALLEST_BORDERED_CELL);
 // Hyperbolic plane or tree: which graph, how it is drawn, and how far
 // the plane has been moved (js/sim-hyperbolic.js). The view above zooms
 // and slides its pictures too.
-const disk = makeDiskView(simCanvas, view, showDomainChoice);
-const outsideRGB = hexToRGB(OUTSIDE);
+const disk = makeDiskView(simCanvas, view, function () { domains.show(); });
 
 // A clicked cell's domain stands out: every other cell fades
 // (js/sim-highlight.js; the click is in section 5).
@@ -158,13 +135,12 @@ function drawColoring() {
   const colors = latest.colors;
   findHighlight(highlight, domain, colors);
   byId("highlight-info").textContent = highlightText(highlight, "domain", function (k) { return "color " + (k + 1); });
-  if (domainKind === "graph") {
-    drawBall(disk, domain, highlightCSS(highlight, function (v) { return colorNames[colors[v]]; }));
+  if (domains.kind === "graph") {
+    drawBall(disk, domain, coloringCSS(highlight, colors, colorNames));
     return;
   }
   const pen = fitPicture(view, domain, MAX_PICTURE_HEIGHT);
-  paintDomain(view, pen, domain, highlightGroups(highlight, function (v) { return colors[v]; }, q),
-              highlightRGB(function (k) { return colorRGB[k]; }, q), outsideRGB, BORDER, SMALLEST_BORDERED_CELL);
+  paintColoring(view, pen, domain, colors, colorNames, highlight);
   pen.restore();
 }
 
@@ -175,7 +151,7 @@ window.addEventListener("resize", drawSoon);
    5. MOVING AND ZOOMING
    ---------------------------------------------------------------------
    Drag to move, mouse wheel or pinch to zoom, and the + / − / Reset
-   buttons (connectPicture, js/sim-controls.js). On a torus it also
+   buttons (connectPicture, js/sim-view.js). On a torus it also
    zooms out, showing the torus several times side by side.
    On a hyperbolic tiling or tree, one pointer drags across the plane
    instead, and two fingers slide and zoom the picture.
@@ -184,11 +160,14 @@ window.addEventListener("resize", drawSoon);
    as the chain runs. Clicking the domain again, or outside the cells,
    shows everything again.
    ===================================================================== */
-connectPicture(view, disk, function () { return domainKind === "graph"; }, function (event) {
-  if (!latest) return;
-  clickHighlight(highlight, cellAtEvent(view, disk, domain, domainKind === "graph", event), latest.colors);
-  drawSoon();
-}, "pointer");
+connectPicture(view, {
+  disk: disk, onGraph: function () { return domains.kind === "graph"; },
+  onClick: function (event) {
+    if (!latest) return;
+    clickHighlight(highlight, cellAtEvent(view, disk, domain, domains.kind === "graph", event), latest.colors);
+    drawSoon();
+  },
+});
 
 
 /* =====================================================================
@@ -221,13 +200,7 @@ function showStats() {
   const pieces = countPieces(domain, s.colors, q);
   byId("stat-domains").textContent = pieces.reduce(function (a, b) { return a + b; }, 0).toLocaleString();
 
-  let rows = "";
-  for (let k = 0; k < q; k++) {
-    rows += '<tr><td><span class="swatch-small" style="background:' + colorNames[k] + '"></span>' + (k + 1) +
-      '</td><td>' + s.counts[k].toLocaleString() + '</td><td>' + (100 * s.counts[k] / n).toFixed(1) +
-      '%</td><td>' + pieces[k].toLocaleString() + '</td></tr>';
-  }
-  byId("color-rows").innerHTML = rows;
+  byId("color-rows").innerHTML = colorShareRows(colorNames, 1, s.counts, n, pieces);   // (js/sim-page.js)
 
   // The share of each color over time, of agreeing pairs, and the
   // number of domains of each color (js/sim-charts.js).
@@ -239,26 +212,24 @@ function showStats() {
 
 
 /* =====================================================================
-   7. CUSTOM DOMAINS: THE GRAPH TOOL INSIDE THIS PAGE
+   7. THE DOMAIN
    ---------------------------------------------------------------------
-   Choosing "Custom" swaps the picture for the graph tool, loaded in an
-   <iframe> (a page inside this page): makeCustomTool, in
-   js/sim-controls.js. Any drawing works, even one in several pieces.
-   Done uses it.
+   Box / Torus / Custom / Hyperbolic plane or tree, and their options,
+   the Lattice options among them (connectDomains, js/sim-controls.js).
+   Custom swaps the picture for the graph tool, where any drawing of at
+   least two cells works, even one in several pieces.
    ===================================================================== */
-const tool = makeCustomTool({
-  view: view,
-  isPlaying: function () { return player.playing; },
-  setPlaying: player.setPlaying,
-  check: function (drawing) {
-    const cells = drawing.graph.vertices.length;
-    return cells < 2 ? ["Paint at least two cells.", ""] : ["", cells + " cells."];
+const domains = connectDomains({
+  view: view, player: player, disk: disk,
+  box: function () { return boxFromOptions(2, MAX_SIDE, DEFAULTS); },
+  ball: function () { return ballFromOptions(disk, BALL); },
+  custom: { check: atLeastTwoCells },
+  use: function (d) {
+    domain = d;
+    clearHighlight(highlight);
+    restart();
   },
-  done: function (drawing) {
-    customDomain = drawnDomain(drawing.graph, drawing.grid);
-    useDomain("custom", customDomain);
-  },
-  cancel: function () { showDomainChoice(); drawSoon(); },
+  show: showCritical,
 });
 
 
@@ -266,46 +237,12 @@ const tool = makeCustomTool({
    8. CONNECTING THE BUTTONS ON THE PAGE
    ===================================================================== */
 
-// Switch to a new domain, and restart.
-function useDomain(kind, d) {
-  domainKind = kind;
-  domain = d;
-  clearHighlight(highlight);
-  useTorus(view, Boolean(d.wrap));   // moving and zooming (js/sim-view.js)
-  showDomainChoice();
-  restart();
-}
-
-// The box or torus from the boxes on the page. (Choosing one while the
-// graph tool is open closes it.)
-function useBox() {
-  if (tool.isOpen) tool.close();
-  const d = boxFromOptions(2, MAX_SIDE, DEFAULTS);
-  useDomain(d.wrap ? "torus" : "box", d);
-}
-
-// A ball of a hyperbolic tiling or a tree, from the options on the page
-// (ballFromOptions, js/sim-hyperbolic.js), with the start cell in the
-// middle of the picture.
-function useGraph() {
-  if (tool.isOpen) tool.close();
-  const ball = ballFromOptions(disk, BALL);
-  if (ball === null) { showDomainChoice(); return; }
-  useDomain("graph", ball);
-}
-
-// Show the options that fit the domain in use, and tick its radio button.
-function showDomainChoice() {
-  showDomainOptions(domainKind, customDomain, disk);
-  showCritical();
-}
-
 // The critical point beta_c of the box or torus in use, as in
 // EXACT_BETA, or null if it isn't known: on the square grid with 4
 // neighbors, and on the lattices of TILING_CRITICAL (both in section 3
 // of ising-potts-chain.js).
 function criticalBeta() {
-  if (domainKind === "custom" || domainKind === "graph") return null;
+  if (domains.kind === "custom" || domains.kind === "graph") return null;
   if (!domain.lattice) return byId("set-neighbors").value === "4" ? EXACT_BETA.square(q) : null;
   const known = TILING_CRITICAL[domain.tiling.code];
   const lattice = known && known[domain.tiling.corners ? "corners" : "tiles"];
@@ -320,47 +257,41 @@ function showCritical() {
   byId("critical-v").textContent = critical[2] ? ", where " + critical[2] : "";
 }
 
-// q colors, each drawn in the old site's colors. Restarts.
-function setQ(value) {
-  q = Math.min(Math.max(Math.round(value) || 2, 2), MAX_Q);
-  byId("q-box").value = byId("q-slider").value = q;
-  colorNames = [];
-  for (let k = 0; k < q; k++) colorNames.push(defaultColor(k, q));
-  colorRGB = colorNames.map(hexToRGB);
+// q, beta and h: each slider and its box move together
+// (connectSliderAndBox, js/sim-page.js), and the chain follows beta and
+// h live while you drag, like a Desmos slider.
+const showQ = connectSliderAndBox("q-slider", "q-box", setQ);
+const showBeta = connectSliderAndBox("beta-slider", "beta-box", setBeta);
+const showField = connectSliderAndBox("h-slider", "h-box", setField);
+
+// q colors, each drawn in the old site's colors.
+function makeColors(value) {
+  q = showQ(value);
+  colorNames = defaultColors(q);
   byId("ising-note").textContent = q === 2 ? "q = 2 is the Ising model." : "";
+}
+
+// A new q, from its slider or box: restarts.
+function setQ(value) {
+  makeColors(value);
   showCritical();
   restart();
 }
 
-// beta and h: the slider and the box move together, and the chain
-// follows live while you drag, like a Desmos slider.
+// New beta or h: the chain carries on with it.
 function setBeta(value) {
-  beta = Math.min(Math.max(Number(value) || 0, 0), MAX_BETA);
-  byId("beta-slider").value = beta;
-  byId("beta-box").value = Number(beta.toFixed(4));
+  beta = showBeta(value);
   sendParams();
   drawSoon();
 }
 function setField(value) {
-  h = Math.min(Math.max(Number(value) || 0, -MAX_FIELD), MAX_FIELD);
-  byId("h-slider").value = h;
-  byId("h-box").value = Number(h.toFixed(3));
+  h = showField(value);
   sendParams();
 }
 
-byId("q-slider").addEventListener("input", function () { setQ(this.value); });
-byId("q-box").addEventListener("change", function () { setQ(this.value); });
-byId("beta-slider").addEventListener("input", function () { setBeta(this.value); });
-byId("beta-box").addEventListener("change", function () { setBeta(this.value); });
 byId("beta-critical").addEventListener("click", function () { setBeta(criticalBeta()[1]); });
-byId("h-slider").addEventListener("input", function () { setField(this.value); });
-byId("h-box").addEventListener("change", function () { setField(this.value); });
 for (const radio of document.querySelectorAll('input[name="dynamics"]')) radio.addEventListener("change", sendParams);
 byId("start").addEventListener("change", restart);
-
-// Domain: Box / Torus / Custom / Hyperbolic plane or tree, and their
-// options, the Lattice options among them (js/sim-controls.js).
-connectDomainChoice({ box: useBox, torus: useBox, custom: tool.open, graph: useGraph });
 
 // Seed: the same seed gives the same run every time.
 connectSeed(restart);
@@ -368,16 +299,12 @@ connectSeed(restart);
 
 // --- Start ------------------------------------------------------------
 fillDomainOptions(DEFAULTS, MAX_SIDE, BALL);
-fillLatticeMenu();
 byId("q-box").max = byId("q-slider").max = MAX_Q;
 byId("beta-box").max = byId("beta-slider").max = MAX_BETA;
 byId("h-box").min = byId("h-slider").min = -MAX_FIELD;
 byId("h-box").max = byId("h-slider").max = MAX_FIELD;
-byId("beta-slider").value = byId("beta-box").value = beta;
-byId("h-slider").value = byId("h-box").value = h;
+showBeta(beta);
+showField(h);
 byId("seed").value = DEFAULTS.seed;
-domain = boxDomain(DEFAULTS.width, DEFAULTS.height, DEFAULTS.neighbors, true);
-useTorus(view, true);
-showDomainChoice();
-setQ(DEFAULTS.q);    // sets the colors and starts the first run
-player.setPlaying(false);   // paused: press Play
+makeColors(DEFAULTS.q);
+domains.useTicked();    // the torus ticked on the page, and the first run

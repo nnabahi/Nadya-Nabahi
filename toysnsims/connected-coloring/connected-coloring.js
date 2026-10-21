@@ -29,7 +29,7 @@
      5. Drawing the coloring (and 5b, highlighting one color; 5c,
         watching each move)
      6. Statistics
-     7. Custom domains: the graph tool inside this page
+     7. The domain
      8. Connecting the buttons on the page
    ===================================================================== */
 
@@ -42,11 +42,9 @@
 const DEFAULTS = { width: 24, height: 24, neighbors: 4, colors: 6, seed: "1" };
 
 const MAX_COLORS = 100;           // the most colors allowed
-const MAX_SIDE = 250;             // the biggest box or torus is 100 x 100
+const MAX_SIDE = 250;             // the biggest box or torus is 250 x 250
 const MAX_PICTURE_HEIGHT = 600;   // in screen pixels
-const BORDER = "#1e1e1e";         // the lines between colors
-const OUTSIDE = "#ecebe7";        // around a custom domain (cells not in it)
-const TRACE_POINTS = 4000;        // the most points each chart over time keeps (section 6)
+const TRACE_POINTS = 4000;        // the most points each chart over time keeps (the chain keeps them)
 
 // Hyperbolic plane or tree: the ball's default radius R, its largest
 // R, and the most cells it may have (a ball of a hyperbolic tiling grows
@@ -75,25 +73,16 @@ const CUT = "#e0201b";            // the edge that gets cut
    2. WHAT THE PAGE REMEMBERS (the "state")
    ===================================================================== */
 
-let domainKind = "box";        // "box", "torus", "custom" or "graph": the domain in use
-let domain = null;             // the domain graph (js/sim-domains.js), or a ball (makeBall, js/sim-hyperbolic.js)
-let customDomain = null;       // the last custom domain drawn, if any
+let domain = null;             // the domain graph (js/sim-domains.js), or a ball (makeBall, js/sim-hyperbolic.js); its kind is domains.kind (section 7)
 let N = DEFAULTS.colors;       // number of colors
 let colorNames = [];           // colorNames[c] = how color c is drawn, e.g. "#c74440"
 let drawnStart = null;         // your own starting coloring, or null for the automatic one
 let startShape = "";           // what the start was: "rectangles", "blocks" or "yours"
 
-let run = 0;                   // counts restarts, so leftovers from an older run are ignored
 
 // The latest coloring and numbers from the chain.
 let colors = null;             // colors[v] = color of cell v
-let latest = null;             // { proposed, accepted, boundary, pairs }
-let trace = [];                // [moves accepted, boundary edges] pairs, for the chart
-let traceEvery = 1;            // the chart keeps one message in this many (section 6)
-let alphaTrace = [];           // [move, alpha] pairs, for the acceptance chart
-let alphaEvery = 1;            // that chart keeps one move in this many
-let alphaSum = 0, alphaCount = 0;   // for the average alpha over the whole run
-let messages = 0;              // messages from the chain in this run
+let latest = null;             // the numbers, and the run so far (section 5 of connected-coloring-chain.js)
 let highlighted = -1;          // the color shown highlighted, or -1 for none (section 5b)
 
 
@@ -115,7 +104,7 @@ let highlighted = -1;          // the color shown highlighted, or -1 for none (s
    which has no rows and columns.
    ===================================================================== */
 function automaticStart(d, count) {
-  if (domainKind === "graph") { startShape = "blocks"; return compactStart(d, count); }
+  if (domains.kind === "graph") { startShape = "blocks"; return compactStart(d, count); }
   const rectangles = rectangleStart(d, count);
   startShape = rectangles ? "rectangles" : "blocks";
   return rectangles || compactStart(d, count);
@@ -191,61 +180,40 @@ function compactStart(d, count) {
    4. RUNNING THE CHAIN
    ---------------------------------------------------------------------
    The chain is the function chainWorker() in connected-coloring-chain.js,
-   with the run loop (js/sim-worker.js) copied in. startWorker
-   (js/sim-page.js) runs it in a second thread, a "Web Worker", so the
-   page never freezes.
+   with the trace (js/sim-worker.js) copied in for the charts.
+   runInWorker (js/sim-page.js) runs it in a second thread, a "Web
+   Worker", so the page never freezes. Watching each move, a message
+   carries the move's film, shown first (section 5c).
    ===================================================================== */
-const worker = startWorker(chainWorker, [makeRunLoop]);
-
-worker.onmessage = function (event) {
-  const message = event.data;
-  if (message.type !== "state" || message.run !== run) return;   // from an older run
-  if (message.film && watching) { startFilm(message); return; }   // shown first (section 5c)
-  useMessage(message);
-};
+const sim = runInWorker(chainWorker, [newTrace, keepSample], function (message) {
+  if (message.film && watching) startFilm(message); else useMessage(message);
+});
 
 // Show the coloring and numbers of a message from the chain.
 function useMessage(message) {
   colors = message.colors;
   latest = message;
-  keepForChart(message);
   drawSoon();
 }
 
-worker.onerror = function () {
-  showMessage("The chain couldn't start. It loads one small library (seedrandom) from the " +
-              "internet, so check the connection and reload the page.");
-};
-
-// Start the chain again from the start coloring, with the current
-// domain, N and seed.
+// Start the chain again (paused) from the start coloring, with the
+// current domain, N and seed.
 function restart() {
-  run++;
   film = null;                            // a move being watched is dropped (section 5c)
   if (drawnStart) startShape = "yours";
   colors = drawnStart ? drawnStart.slice() : automaticStart(domain, N);
-  trace = [];
-  traceEvery = 1;
-  messages = 0;
-  alphaTrace = [];
-  alphaEvery = 1;
-  alphaSum = alphaCount = 0;
   traceZoom.from = traceZoom.to = null;   // the charts show the whole new run
   alphaZoom.from = alphaZoom.to = null;
   latest = null;
-  worker.postMessage({
-    type: "setup", run: run,
-    n: domain.n, first: domain.first, nbr: domain.nbr,
-    colors: colors, N: N, seed: byId("seed").value,
-  });
-  player.carryOn();
+  sim.setup({ n: domain.n, first: domain.first, nbr: domain.nbr, colors: colors, N: N, seed: byId("seed").value,
+              watch: watching, most: TRACE_POINTS });
   showStartInfo();
   drawSoon();
 }
 
 // Play / Pause, Step, Restart and the Speed slider (connectPlay,
 // js/sim-page.js). player.playing is true while the sim plays.
-const player = connectPlay(worker, SPEEDS, DEFAULT_SPEED, "move", "moves", restart);
+const player = connectPlay(sim, SPEEDS, DEFAULT_SPEED, "move", "moves", restart);
 
 
 /* =====================================================================
@@ -280,12 +248,12 @@ const view = makeView(simCanvas, drawSoon);   // where the picture goes, and how
 // Hyperbolic plane or tree: which graph, how it is drawn, and how far
 // the plane has been moved (js/sim-hyperbolic.js). The view above zooms
 // and slides its pictures too.
-const disk = makeDiskView(simCanvas, view, showDomainChoice);
-const outsideRGB = hexToRGB(OUTSIDE);
+const disk = makeDiskView(simCanvas, view, function () { domains.show(); });
+const outsideRGB = hexToRGB(OUTSIDE_CELLS);
 
 function drawColoring() {
   if (!domain || !colors || simCanvas.hidden) return;
-  if (domainKind === "graph") { drawOnGraph(); return; }
+  if (domains.kind === "graph") { drawOnGraph(); return; }
   const pen = fitPicture(view, domain, MAX_PICTURE_HEIGHT);
 
   // The cells, each in its color, with lines between different colors
@@ -295,7 +263,7 @@ function drawColoring() {
   const paint = colorNames.map(function (name, c) { return hexToRGB(shade(c)); });
   const shown = film ? film.shown : colors;
   paintDomain(view, pen, domain, function (v) { return shown[v]; },
-    function (c) { return paint[c]; }, outsideRGB, BORDER, 0);
+    function (c) { return paint[c]; }, outsideRGB, CELL_LINES, 0);
   if (film) drawFilm(pen);
 }
 
@@ -306,7 +274,7 @@ function drawColoring() {
 function drawOnGraph() {
   const paint = colorNames.map(function (name, c) { return shade(c); });
   const pen = drawBall(disk, domain, function (v) { return paint[colors[v]]; });
-  if (disk.picture !== "spread") drawBallBorders(disk, pen, domain, function (v) { return colors[v]; }, BORDER);
+  if (disk.picture !== "spread") drawBallBorders(disk, pen, domain, function (v) { return colors[v]; }, CELL_LINES);
 }
 
 window.addEventListener("resize", drawSoon);
@@ -322,7 +290,7 @@ window.addEventListener("resize", drawSoon);
    color again. The highlight stays on while the chain runs.
 
    A press that barely moves is a click; one that moves further drags
-   the picture, as before (connectPicture, js/sim-controls.js). On a
+   the picture, as before (connectPicture, js/sim-view.js). On a
    hyperbolic tiling or tree, one pointer drags across the plane, and
    two fingers slide and zoom the picture.
    ===================================================================== */
@@ -352,17 +320,20 @@ function showHighlightInfo() {
     return;
   }
   line.textContent = "Highlighted: color " + (highlighted + 1) + ", " + colorSizes()[highlighted] + " cells. " +
-    (domainKind === "graph" ? "Click it again to show every color."
+    (domains.kind === "graph" ? "Click it again to show every color."
                             : "Click it again, or outside the cells, to show every color.");
 }
 
 // Dragging, zooming and clicking the picture: a click highlights the
 // color under it.
-connectPicture(view, disk, function () { return domainKind === "graph"; }, function (event) {
-  if (!colors || film) return;
-  const v = cellAtEvent(view, disk, domain, domainKind === "graph", event);
-  if (v === -1) { if (highlighted !== -1) highlight(-1); }   // outside the cells: show every color
-  else highlight(colors[v]);
+connectPicture(view, {
+  disk: disk, onGraph: function () { return domains.kind === "graph"; },
+  onClick: function (event) {
+    if (!colors || film) return;
+    const v = cellAtEvent(view, disk, domain, domains.kind === "graph", event);
+    if (v === -1) { if (highlighted !== -1) highlight(-1); }   // outside the cells: show every color
+    else highlight(colors[v]);
+  },
 });
 
 
@@ -383,8 +354,8 @@ connectPicture(view, disk, function () { return domainKind === "graph"; }, funct
    "film" and waits for "next" before making another one, so the moves
    are the same ones as without watching. The Steps slider sets how
    many steps of the walk show per second; Pause stops in the middle of
-   a move, and Step shows one whole move. Not on a hyperbolic tiling or
-   tree (yet).
+   a move, and Step shows one whole move (the rest of the move being
+   shown, if any). Not on a hyperbolic tiling or tree (yet).
    ===================================================================== */
 let watching = false;          // is "Watch each move" ticked?
 let watchSpeed = DEFAULT_WATCH_SPEED;   // steps of the walk per second
@@ -394,7 +365,7 @@ let film = null;               // the move being shown, or null
 function startFilm(message) {
   if (film) useMessage(film.message);
   const log = message.film;
-  if (!log.pair) { useMessage(message); worker.postMessage({ type: "next" }); return; }   // nothing to show
+  if (!log.pair) { useMessage(message); sim.send({ type: "next" }); return; }   // nothing to show
   film = {
     message: message,
     pair: log.pair, walks: log.walks, root: log.root, cut: log.cut,
@@ -412,6 +383,11 @@ function startFilm(message) {
   showFilmInfo();
   requestAnimationFrame(playFilm);
 }
+
+// Step, while a move is being shown (paused in the middle of it), shows
+// the rest of that move. (The chain makes no new move until this one
+// has been shown.)
+byId("step").addEventListener("click", function () { if (film) film.stepping = true; });
 
 // How long a stop is: STOP seconds, shorter when the walk is fast.
 function stopTime() { return Math.max(0.15, Math.min(STOP, 40 / watchSpeed)); }
@@ -446,7 +422,7 @@ function runFilm(seconds) {
     const message = film.message;
     film = null;
     useMessage(message);
-    worker.postMessage({ type: "next" });
+    sim.send({ type: "next" });
     return;
   }
   showFilmInfo();
@@ -595,7 +571,7 @@ function setWatching(on) {
   byId("watch").checked = on;
   byId("watch-options").hidden = !on;
   if (!on && film) { const message = film.message; film = null; useMessage(message); }
-  worker.postMessage({ type: "watch", on: on });
+  sim.send({ type: "watch", on: on });
   showHighlightInfo();
   drawSoon();
 }
@@ -663,56 +639,26 @@ byId("sizes-chart").addEventListener("click", function (event) {
   if (place >= 0 && place < N) highlight(order[place]);
 });
 
-// The "boundary edges" chart keeps the whole run. Each message from the
-// chain is one point; when there are TRACE_POINTS of them, every other
-// point is dropped and from then on only one message in twice as many
-// is kept. So the points stay evenly spread over the whole run, however
-// long it gets.
-function keepForChart(message) {
-  messages++;
-  if ((messages - 1) % traceEvery !== 0) return;
-  trace.push([message.accepted, message.boundary]);
-  if (trace.length >= TRACE_POINTS) {
-    trace = trace.filter(function (p, k) { return k % 2 === 0; });
-    traceEvery *= 2;
-  }
-  keepAlphas(message.alphas);
-}
-
-// The acceptance chart keeps its points the same way, but per move:
-// "alphas" is move, alpha, move, alpha, ... for every move since the
-// last message, and the chart keeps one move in alphaEvery.
-function keepAlphas(alphas) {
-  for (let k = 0; k < alphas.length; k += 2) {
-    const move = alphas[k], alpha = alphas[k + 1];
-    alphaSum += alpha;
-    alphaCount++;
-    if ((move - 1) % alphaEvery !== 0) continue;
-    alphaTrace.push([move, alpha]);
-    if (alphaTrace.length >= TRACE_POINTS) {
-      alphaTrace = alphaTrace.filter(function (p, j) { return j % 2 === 0; });
-      alphaEvery *= 2;
-    }
-  }
-}
-
 // The number of boundary edges against the number of moves accepted. It
-// shows the whole run, rescaled to fit as the run goes on; zoom in with
-// the mouse wheel or a pinch, drag to move along, and double-click to
-// see the whole run again (chartZoom, js/sim-charts.js).
+// shows the whole run (the chain keeps evenly spaced samples of it, at
+// most TRACE_POINTS: keepSample, js/sim-worker.js), rescaled to fit as
+// the run goes on; zoom in with the mouse wheel or a pinch, drag to move
+// along, and double-click to see the whole run again (chartZoom,
+// js/sim-charts.js).
 const traceZoom = chartZoom(byId("trace-chart"), drawTrace);
 
 function drawTrace() {
-  if (trace.length < 2) { chartPen(byId("trace-chart")); return; }
-  const [from, to] = shownTimes(traceZoom, trace[0][0], trace[trace.length - 1][0]);
+  const points = latest ? pointsOverTime(latest.boundaryTimes, latest.boundaryValues) : [];
+  if (points.length < 2) { chartPen(byId("trace-chart")); return; }
+  const [from, to] = shownTimes(traceZoom, points[0][0], points[points.length - 1][0]);
 
   // The points in the stretch shown, plus one on each side, so the line
   // runs all the way to both edges. The numbers on the left go from the
   // lowest to the highest of these points.
-  let firstK = 0, lastK = trace.length - 1;
-  while (firstK + 1 < trace.length && trace[firstK + 1][0] <= from) firstK++;
-  while (lastK - 1 >= 0 && trace[lastK - 1][0] >= to) lastK--;
-  const series = [{ points: trace.slice(firstK, lastK + 1) }];
+  let firstK = 0, lastK = points.length - 1;
+  while (firstK + 1 < points.length && points[firstK + 1][0] <= from) firstK++;
+  while (lastK - 1 >= 0 && points[lastK - 1][0] >= to) lastK--;
+  const series = [{ points: points.slice(firstK, lastK + 1) }];
   const [low, high] = seriesRange(series, 1);
   const frame = lineChart(byId("trace-chart"), series, { from: from, to: to, word: "moves" },
                           { from: low, to: high, round: true, whole: true });
@@ -730,12 +676,13 @@ function drawTrace() {
 const alphaZoom = chartZoom(byId("alpha-chart"), drawAlphas);
 
 function drawAlphas() {
-  if (alphaTrace.length < 2) { chartPen(byId("alpha-chart")); return; }
-  const [from, to] = shownTimes(alphaZoom, alphaTrace[0][0], alphaTrace[alphaTrace.length - 1][0]);
-  const average = alphaSum / alphaCount;
+  const points = latest ? pointsOverTime(latest.alphaTimes, latest.alphaValues) : [];
+  if (points.length < 2) { chartPen(byId("alpha-chart")); return; }
+  const [from, to] = shownTimes(alphaZoom, points[0][0], points[points.length - 1][0]);
+  const average = latest.alphaAverage;
   // The dots are see-through, so crowded dots show darker.
   const frame = lineChart(byId("alpha-chart"), [
-    { points: alphaTrace, dots: true, radius: 1, alpha: 0.5 },
+    { points: points, dots: true, radius: 1, alpha: 0.5 },
     { points: [[from, average], [to, average]], color: CHART_TEXT, dashed: true, width: 1 },
   ], { from: from, to: to, word: "moves" }, { from: 0, to: 1 });
   alphaZoom.left = frame.left;
@@ -750,11 +697,12 @@ function drawAlphas() {
 
 
 /* =====================================================================
-   7. CUSTOM DOMAINS: THE GRAPH TOOL INSIDE THIS PAGE
+   7. THE DOMAIN
    ---------------------------------------------------------------------
-   Choosing "Custom" swaps the picture for the graph tool, loaded in an
-   <iframe> (a page inside this page): makeCustomTool, in
-   js/sim-controls.js. This page checks the drawing live. Two steps:
+   Box / Torus / Custom / Hyperbolic plane or tree, and their options,
+   the Lattice options among them (connectDomains, js/sim-controls.js).
+   Custom swaps the picture for the graph tool, which this page checks
+   live, in two steps:
      1. Draw the region. It must be one connected piece. Then either
         "Use automatic start" (N compact blocks, as for a box), or
         "Draw my own start".
@@ -764,21 +712,55 @@ function drawAlphas() {
         become the N colors.
    ===================================================================== */
 let toolStep = 1;          // the tool's step, 1 or 2
+let region = null;         // the region drawn in step 1
+
+const domains = connectDomains({
+  view: view, player: player, disk: disk,
+  box: function () { return boxFromOptions(2, MAX_SIDE, DEFAULTS); },
+  ball: function () { return ballFromOptions(disk, BALL); },
+  custom: {
+    check: checkDrawing,
+    onOpen: function () { showStep(1); },
+    // Step 2 -> "Done": start from your coloring, in the tool's colors.
+    done: function (drawing) {
+      const start = drawnColoring();
+      const names = start.used.map(function (c) { return drawing.palette[c]; });
+      domains.use("custom", region, { colorOf: start.colorOf, names: names });
+    },
+  },
+  // A new domain d, and your own coloring of it ("start") or none.
+  use: function (d, start) {
+    domain = d;
+    if (domains.kind === "graph" && watching) setWatching(false);   // not on a hyperbolic tiling or tree (section 5c)
+    byId("watch").disabled = domains.kind === "graph";
+    startFrom(start);
+  },
+});
+
+// Each step's buttons, beside the tool's Cancel: step 1's "Use
+// automatic start" and "Draw my own start" (which, like Done, work only
+// with a good drawing), and step 2's "Back to the region" and Done.
+const stepButtons = {
+  1: [toolButton("Use automatic start", useAutomaticStart), toolButton("Draw my own start", drawOwnStart)],
+  2: [toolButton("Back to the region", backToRegion), domains.tool.doneButton],
+};
+domains.tool.doneButton.before(...stepButtons[1], stepButtons[2][0]);
+domains.tool.goodButtons.push(...stepButtons[1]);
 
 // Show step 1 or 2: its title, its help, and its buttons. (Check the
-// drawing again afterwards, with tool.check().)
+// drawing again afterwards, with domains.tool.check().)
 function showStep(step) {
   toolStep = step;
-  byId("step-title").textContent = step === 1
+  domains.tool.title.textContent = step === 1
     ? "Step 1 of 2: draw the region"
     : "Step 2 of 2: color the region";
-  byId("step-help").textContent = step === 1
+  domains.tool.help.textContent = step === 1
     ? "Paint the cells the coloring lives on (any color counts). The region must be one " +
       "connected piece. Then pick an automatic start, or draw your own."
     : "The rule: every cell needs a color, and each color must be one connected piece. " +
       "Cells outside the region are grayed out. The colors you use become the N colors.";
-  for (const button of document.querySelectorAll("[data-step]")) {
-    button.hidden = Number(button.dataset.step) !== step;
+  for (const s of [1, 2]) {
+    for (const button of stepButtons[s]) button.hidden = s !== step;
   }
 }
 
@@ -800,7 +782,7 @@ function checkDrawing(drawing) {
   }
   if (start.used.length < 2) return ["Use at least 2 colors.", ""];
   if (start.used.length > MAX_COLORS) return ["At most " + MAX_COLORS + " colors, please.", ""];
-  const pieces = countPieces(customDomain, start.colorOf, start.used.length);
+  const pieces = countPieces(region, start.colorOf, start.used.length);
   const broken = [];
   pieces.forEach(function (count, c) {
     if (count > 1) broken.push("color " + start.used[c] + " is in " + count + " pieces");
@@ -809,36 +791,17 @@ function checkDrawing(drawing) {
   return ["", start.used.length + " colors, each one connected piece."];
 }
 
-// Step 2 -> "Done": start from your coloring, in the tool's colors. It
-// carries on running only if it was running before the tool opened.
-// Cancel: back to whatever was running before.
-const tool = makeCustomTool({
-  view: view,
-  isPlaying: function () { return player.playing; },
-  setPlaying: player.setPlaying,
-  onOpen: function () { showStep(1); },
-  buttons: ["use-auto", "draw-own", "tool-done"],
-  check: checkDrawing,
-  done: function (drawing) {
-    const start = drawnColoring();
-    const names = start.used.map(function (c) { return drawing.palette[c]; });
-    useDomain("custom", customDomain, start.colorOf, names);
-    tool.carryOn();
-  },
-  cancel: function () { showDomainChoice(); drawSoon(); },
-});
-
-// Your drawn coloring of customDomain, read from the tool. The tool
+// Your drawn coloring of the region, read from the tool. The tool
 // numbers colors by palette square (1, 2, ...); the chain wants
 // 0 .. N-1, so the colors used are renumbered in order.
 //   used[c] = the tool's number of color c;  colorOf[v] = c (or -1)
 function drawnColoring() {
   const toolColor = new Map();
-  for (const v of tool.drawing.graph.vertices) toolColor.set(v.id, v.color);
+  for (const v of domains.tool.drawing.graph.vertices) toolColor.set(v.id, v.color);
   const used = [...new Set(toolColor.values())].sort(function (a, b) { return a - b; });
-  const colorOf = new Int32Array(customDomain.n);
+  const colorOf = new Int32Array(region.n);
   let uncolored = 0;
-  customDomain.ids.forEach(function (id, v) {
+  region.ids.forEach(function (id, v) {
     if (toolColor.has(id)) colorOf[v] = used.indexOf(toolColor.get(id));
     else { colorOf[v] = -1; uncolored++; }
   });
@@ -846,103 +809,61 @@ function drawnColoring() {
 }
 
 // Step 1 -> "Use automatic start": the region, with the automatic start.
-// (It carries on running only if it was running before the tool opened.)
-byId("use-auto").addEventListener("click", function () {
-  customDomain = drawnDomain(tool.drawing.graph, tool.drawing.grid);
-  tool.close();
-  useDomain("custom", customDomain, null, null);
-  tool.carryOn();
-});
+function useAutomaticStart() {
+  region = drawnDomain(domains.tool.drawing.graph, domains.tool.drawing.grid);
+  domains.use("custom", region);
+}
 
 // Step 1 -> "Draw my own start": lock the region and go to step 2.
-byId("draw-own").addEventListener("click", function () {
-  customDomain = drawnDomain(tool.drawing.graph, tool.drawing.grid);
-  tool.frame.contentWindow.postMessage({ type: "lock" }, "*");
+function drawOwnStart() {
+  region = drawnDomain(domains.tool.drawing.graph, domains.tool.drawing.grid);
+  domains.tool.frame.contentWindow.postMessage({ type: "lock" }, "*");
   showStep(2);
-  tool.check();
-});
+  domains.tool.check();
+}
 
 // Step 2 -> "Back to the region".
-byId("tool-back").addEventListener("click", function () {
-  tool.frame.contentWindow.postMessage({ type: "unlock" }, "*");
+function backToRegion() {
+  domains.tool.frame.contentWindow.postMessage({ type: "unlock" }, "*");
   showStep(1);
-  tool.check();
-});
+  domains.tool.check();
+}
 
 
 /* =====================================================================
    8. CONNECTING THE BUTTONS ON THE PAGE
    ===================================================================== */
 
-// Switch to a new domain and restart. "start" is your own coloring
-// (with "names", its colors) or null for the automatic start.
-function useDomain(kind, d, start, names) {
-  domainKind = kind;
-  domain = d;
-  drawnStart = start;
-  highlighted = -1;                       // a new domain starts with every color shown
-  const most = Math.min(MAX_COLORS, domain.n);
-  N = start ? names.length : Math.min(Math.max(N, 2), most);
-  colorNames = start ? names : [];
-  for (let c = colorNames.length; c < N; c++) colorNames.push(defaultColor(c, N));
-  if (kind === "graph" && watching) setWatching(false);   // not on a hyperbolic tiling or tree (section 5c)
-  byId("watch").disabled = kind === "graph";
-  useTorus(view, Boolean(domain.wrap));   // moving and zooming; zooming out past the whole picture only on a torus (js/sim-view.js)
-  byId("set-colors").max = byId("colors-slider").max = most;
-  byId("set-colors").value = byId("colors-slider").value = N;
-  showDomainChoice();
+// Start from your own coloring "start" ({ colorOf, names }), or,
+// without one, from the automatic start with N colors (from 2 to the
+// most the domain allows), and restart.
+function startFrom(start) {
+  drawnStart = start ? start.colorOf : null;
+  highlighted = -1;                       // a new start shows every color
+  byId("set-colors").max = byId("colors-slider").max = Math.min(MAX_COLORS, domain.n);
+  N = showN(start ? start.names.length : N);
+  colorNames = start ? start.names : defaultColors(N);
   restart();
-}
-
-// The box or torus from the boxes on the page. (Choosing one while the
-// graph tool is open closes it, and carries on running if it was
-// running before the tool opened.)
-function useBox() {
-  const toolWasOpen = tool.isOpen;
-  if (toolWasOpen) tool.close();
-  const d = boxFromOptions(2, MAX_SIDE, DEFAULTS);
-  useDomain(d.wrap ? "torus" : "box", d, null, null);
-  if (toolWasOpen) tool.carryOn();
-}
-
-// A ball of a hyperbolic tiling or a tree, from the options on the
-// page (ballFromOptions, js/sim-hyperbolic.js), with the start cell in
-// the middle of the picture.
-function useGraph() {
-  const toolWasOpen = tool.isOpen;
-  if (toolWasOpen) tool.close();
-  const ball = ballFromOptions(disk, BALL);
-  if (ball === null) { showDomainChoice(); return; }
-  useDomain("graph", ball, null, null);
-  if (toolWasOpen) tool.carryOn();
-}
-
-// Show the options that fit the domain in use, and tick its radio button.
-function showDomainChoice() {
-  showDomainOptions(domainKind, customDomain, disk);
 }
 
 function showStartInfo() {
   byId("start-info").textContent =
     startShape === "yours" ? "Starting from your own coloring. Changing N switches to the automatic start." :
     startShape === "rectangles" ? "Starting from a grid of " + N + " rectangles." :
-    domainKind === "graph" ? "Starting from " + N + " compact blocks around spread-out cells." :
+    domains.kind === "graph" ? "Starting from " + N + " compact blocks around spread-out cells." :
     "Starting from " + N + " compact blocks (this region can't be cut into a grid of rectangles " +
     "with each color in one piece).";
 }
 
-// Domain: Box / Torus / Custom / Hyperbolic plane or tree, and their
-// options, the Lattice options among them (js/sim-controls.js).
-connectDomainChoice({ box: useBox, torus: useBox, custom: tool.open, graph: useGraph });
-
-// N: the slider and the number box move together, and the chain restarts
-// live while you drag, like a Desmos slider.
+// N: the slider and the number box move together (connectSliderAndBox,
+// js/sim-page.js), and the chain restarts live while you drag, like a
+// Desmos slider. (startFrom shows N, kept to the colors the domain can
+// have.)
+const showN = connectSliderAndBox("colors-slider", "set-colors", setColorCount);
 function setColorCount(value) {
-  N = Math.round(value) || 2;                  // useDomain keeps it from 2 to the most allowed
-  useDomain(domainKind, domain, null, null);   // a new N always uses the automatic start
+  N = value;
+  startFrom(null);     // a new N always uses the automatic start
 }
-byId("colors-slider").addEventListener("input", function () { setColorCount(Number(this.value)); });
-byId("set-colors").addEventListener("change", function () { setColorCount(Number(this.value)); });
 
 
 // Seed: the same seed gives the same run every time.
@@ -951,7 +872,5 @@ connectSeed(restart);
 
 // --- Start ------------------------------------------------------------
 fillDomainOptions(DEFAULTS, MAX_SIDE, BALL);
-fillLatticeMenu();
 byId("seed").value = DEFAULTS.seed;
-useBox();
-player.setPlaying(false);   // paused: press Play to start
+domains.useTicked();

@@ -10,15 +10,8 @@
 </head>
 <body>
 
-  <header class="topbar">
-    <nav>
-      <a href="../../about.html">About Me</a>
-      <a href="../../writing.html">Writing</a>
-      <a href="../../index.html">Home</a>
-      <a href="../../resume-and-publications.html">Resume &amp; Publications</a>
-      <a href="../../toysnsims.html" class="active">Toys n' Sims</a>
-    </nav>
-  </header>
+  <header class="topbar" data-active="toysnsims.html"></header>
+  <script src="../../js/site.js"></script>
 
   <main class="page">
     <p><a href="../../toysnsims.html">&larr; All sims</a></p>
@@ -43,11 +36,6 @@
                scrolling box with a tall empty box inside; how far it is
                scrolled says which rows show. -->
           <div class="history-bar" id="history-bar" hidden><div id="history-length"></div></div>
-          <div class="zoom-buttons" id="zoom-buttons" hidden>
-            <button class="tool-button" id="zoom-in" title="Zoom in">+</button>
-            <button class="tool-button" id="zoom-out" title="Zoom out">&minus;</button>
-            <button class="tool-button" id="zoom-reset" title="Show the whole picture once again">Reset</button>
-          </div>
         </div>
         <p class="muted small" id="history-label" hidden></p>
         <!-- What a click on the picture does (section 7 of cellular-automata.js). -->
@@ -137,19 +125,9 @@
             <option value="drawn" id="drawn-option" hidden>Your drawing</option>
           </select>
         </div>
-        <div class="option-row">
-          <button class="tool-button" id="play">Play</button>
-          <button class="tool-button" id="step" title="One step">Step</button>
-          <button class="tool-button" id="restart" title="Back to the start, same seed">Restart</button>
-        </div>
-        <div class="option-row">
-          Speed <input type="range" class="wide-range" id="speed" min="0" step="1">
-          <span class="muted" id="speed-label"></span>
-        </div>
-        <div class="option-row">
-          Seed <input type="text" id="seed" size="8">
-          <button class="tool-button" id="new-seed" title="A random new seed">New seed</button>
-        </div>
+        <div class="option-row play-row" data-step="One step" data-restart="Back to the start, same seed"></div>
+        <div class="option-row speed-row"></div>
+        <div class="option-row seed-row"></div>
         <p class="muted small">Changing the rule, the states, the neighborhood, the edges or
           the seed makes the run again with the change, up to the same step. Restart goes
           back to step 0.</p>

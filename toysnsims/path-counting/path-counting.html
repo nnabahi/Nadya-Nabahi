@@ -22,15 +22,8 @@
 </head>
 <body>
 
-  <header class="topbar">
-    <nav>
-      <a href="../../about.html">About Me</a>
-      <a href="../../writing.html">Writing</a>
-      <a href="../../index.html">Home</a>
-      <a href="../../resume-and-publications.html">Resume &amp; Publications</a>
-      <a href="../../toysnsims.html" class="active">Toys n' Sims</a>
-    </nav>
-  </header>
+  <header class="topbar" data-active="toysnsims.html"></header>
+  <script src="../../js/site.js"></script>
 
   <main class="page">
     <p><a href="../../toysnsims.html">&larr; All sims</a></p>
@@ -48,20 +41,10 @@
 
         <!-- The picture. From above, the zoom buttons sit in its top right
              corner; the full screen button (added by js/sim-page.js) in its
-             top left corner. -->
+             top left corner. In 3D, js/sim-page.js puts the 3D view in
+             its place, with a Reset view button in that corner. -->
         <div class="sim-picture">
           <canvas id="sim-canvas"></canvas>
-          <div class="zoom-buttons" id="zoom-buttons" hidden>
-            <button class="tool-button" id="zoom-in" title="Zoom in">+</button>
-            <button class="tool-button" id="zoom-out" title="Zoom out">&minus;</button>
-            <button class="tool-button" id="zoom-reset" title="Show the whole picture once again">Reset</button>
-          </div>
-          <!-- The 3D view: js/sim-3d.js puts its picture in here, with a
-               button to look from the start again. -->
-          <div class="sim-3d" id="sim-3d" hidden></div>
-          <div class="zoom-buttons" id="view3d-buttons" hidden>
-            <button class="tool-button" id="view3d-reset" title="Look from the starting angle again">Reset view</button>
-          </div>
         </div>
 
         <!-- In gray under the picture: a weight other than 0 or 1 means f
@@ -115,10 +98,7 @@
           Grid size N <input type="range" class="wide-range" id="size" min="10" max="250" step="1" value="60">
           <span class="muted" id="size-label"></span>
         </div>
-        <div class="option-row">
-          Seed <input type="text" id="seed" size="8" value="1">
-          <button class="tool-button" id="new-seed" title="Draw every random() again">New randomness</button>
-        </div>
+        <div class="option-row seed-row" data-new="New randomness" data-new-title="Draw every random() again"></div>
 
         <h3 class="option-heading">The line <span class="tex">x \cos t + y \sin t = c</span></h3>
         <div class="option-row">
@@ -164,12 +144,8 @@
           <label><input type="checkbox" id="show-edges"> Show the open edges</label>
         </div>
         <div id="view3d-options" hidden>
-          <div class="option-row">
-            Heights <input type="range" id="stretch" min="-4" max="4" step="1" value="0">
-            <span class="muted" id="stretch-label"></span>
-          </div>
-          <p class="muted small">Drag to turn it around, use the mouse wheel or a pinch to
-            zoom, and right-drag (or two fingers) to slide it.</p>
+          <div class="option-row stretch-row"></div>
+          <p class="muted small help-3d"></p>
         </div>
       </section>
 

@@ -15,10 +15,10 @@
        runs in a second thread (a "Web Worker"), and draws every
        mountain it sends back, with the statistics.
    Small helpers used by every sim page (byId, readWhole, ...) are in
-   js/sim-page.js, the charts in js/sim-charts.js, moving, zooming and
-   painting the 2D picture in js/sim-view.js (shared with the coloring
-   sims), the hull and holes in js/sim-shape.js (shared with Random
-   Walk), the graph tool and clicking the picture in js/sim-controls.js,
+   js/sim-page.js, the charts in js/sim-charts.js, moving, zooming,
+   clicking and painting the 2D picture in js/sim-view.js (shared with
+   the coloring sims), the hull and holes in js/sim-shape.js (shared
+   with Random Walk), the graph tool in js/sim-controls.js,
    the hyperbolic pictures in js/sim-hyperbolic.js, the tilings in
    js/sim-tilings.js, and the 3D view in js/sim-3d.js.
 
@@ -126,7 +126,6 @@ let tilingBoxNow = null, tilingBoxFor = "", mirror = null;
 let tile = [];               // the offsets, e.g. [[-1], [1]] or [[1, 0], ...]
 let domainKind = "whole";    // "whole", "box", "torus" or "custom"; on a graph "whole" or "ball"
 let customDomain = null;     // the last custom domain drawn (js/sim-domains.js), if any
-let run = 0;                 // counts restarts, so leftovers from an older run are ignored
 let show3D = false;          // 2D and graphs: the 3D view instead of the view from above (section 6c)
 let blockShape = "tiles";    // the 3D view's blocks: "tiles" (each the shape of its cell) or "coins"
 let stretch = 1;             // the 3D view's Heights: 2^(slider / 2), the slider from -4 (flatter) to 4 (taller)
@@ -199,13 +198,7 @@ function ballRadius() {
 function showPresets() {
   const row = byId("tile-presets");
   row.innerHTML = "";
-  for (const preset of PRESETS[dim]) {
-    const button = document.createElement("button");
-    button.className = "tool-button";
-    button.textContent = preset.name;
-    button.addEventListener("click", function () { setTile(preset.tile); });
-    row.appendChild(button);
-  }
+  for (const preset of PRESETS[dim]) row.appendChild(toolButton(preset.name, function () { setTile(preset.tile); }));
   byId("disk-label").textContent = dim === 1 ? "Every offset out to" : "Disk, radius";
   byId("ring-label").textContent = dim === 1 ? "Only the offsets from" : "Ring, radius";
 }
@@ -382,22 +375,21 @@ function customStart(d) {
    ---------------------------------------------------------------------
    The growth rule is mountainWorker() in eden-growth-rule.js,
    with newMountain(), ballTile(), newGraphMountain(), the hyperbolic
-   tilings and trees, the run loop and the trace (js/sim-worker.js),
-   the hull and holes (js/sim-shape.js) and what grows a Penrose
-   tiling's plane (js/sim-penrose.js) copied in.
-   startWorker (js/sim-page.js) runs it in a second thread, so the page
-   never freezes.
+   tilings and trees, the trace (js/sim-worker.js), the hull and holes
+   (js/sim-shape.js) and what grows a Penrose tiling's plane
+   (js/sim-penrose.js) copied in. runInWorker (js/sim-page.js) runs it
+   in a second thread, so the page never freezes.
    ===================================================================== */
-const worker = startWorker(mountainWorker,
+const sim = runInWorker(mountainWorker,
   [newMountain, ballTile, newGraphMountain, makeGraph, tilingShape, motionTimes, motionApply, halfTurn, coshFromStart,
    learnedRules, tilingByGeometry, tilingByRules, tilingRules, testRules, hashTable, ballAround, spreadPlace,
-   makeRunLoop, newTrace, keepSample, seededUniform, pickSite, newClocks, holeHistory, bettiOverTime,
+   newTrace, keepSample, seededUniform, mountainSteps, pickSite, newClocks, wrap, holeHistory, bettiOverTime,
    cellWindow, squareWindow, tilingWindow, finiteWindow, convexHull, growingHull, polygonArea, convexity]
-  .concat(penroseHelpers()));
+  .concat(penroseHelpers()), showMountain);
 
-worker.onmessage = function (event) {
-  const message = event.data;
-  if (message.type !== "state" || message.run !== run) return;   // from an older run
+// A report from the worker: keep what is new, and draw it. When the run
+// can't go on, it has paused by itself, and Play and Step are off.
+function showMountain(message) {
   message.setup = sentSetup;                                      // how it was grown (section 2)
   if (message.planeCells) addPlaneCells(sentSetup.tiling, message.planeCells);   // on a Penrose tiling's whole plane
   if (message.places) keepPlaces(message);                        // on a graph (section 6d)
@@ -408,28 +400,16 @@ worker.onmessage = function (event) {
   }
   latest = message;
   showMessage(message.problem);
-  if (message.atMax) {    // the run loop has paused by itself, and Play and Step can't go on
-    if (player.playing) player.setPlaying(false);
-    showMessage("That's the most steps this page goes to.");
-  }
-  if (message.allFull) {  // with a capacity: every site is full, so the run is over
-    if (player.playing) player.setPlaying(false);
-    showMessage("Every site is full (it has capacity M), so no more blocks can land.");
-  }
-  if (message.atEdge) {   // on a Penrose tiling's whole plane: the run is over
-    if (player.playing) player.setPlaying(false);
+  if (message.atMax) showMessage("That's the most steps this page goes to.");
+  if (message.allFull) showMessage("Every site is full (it has capacity M), so no more blocks can land.");
+  if (message.atEdge) {   // on a Penrose tiling's whole plane
     showMessage("The mountain has reached the edge of the part of this tiling the page builds (" + PENROSE_PLANE_MOST +
                 " side lengths from the middle each way), so it stops here.");
   }
-  byId("play").disabled = byId("step").disabled = Boolean(message.atMax || message.allFull || message.atEdge);
   drawSoon();
-};
+}
 
-worker.onerror = function () {
-  showMessage("The sim couldn't start. Try reloading the page.");
-};
-
-// A new mountain with the current tile, domain and seed. With
+// A new mountain (paused) with the current tile, domain and seed. With
 // keepStep, it grows at once to the step it was at (so a change to the
 // tile or the domain shows the same moment of the run); without, it
 // starts again from one block. Blocks you clicked (section 6b) are kept,
@@ -437,9 +417,8 @@ worker.onerror = function () {
 function restart(keepStep, forget) {
   if (domainKind === "custom" && !customDomain) return;
   const where = domainSettings();
-  run++;
   const message = {
-    type: "setup", run: run, dim: dim, domain: where.domain, cap: maxHeight(), s: Number(byId("weight-s").value), seed: byId("seed").value,
+    dim: dim, domain: where.domain, cap: maxHeight(), s: Number(byId("weight-s").value), seed: byId("seed").value,
     steps: (keepStep && latest && latest.steps) ? latest.steps : 0,
     forgetClicks: !keepStep || Boolean(forget),
   };
@@ -464,13 +443,12 @@ function restart(keepStep, forget) {
   }
   sentSetup = { domain: where.domain, tiling: drawnOn,
                 box: onTiling() && domainKind !== "whole" ? boxOfTiling().domain : null, wrap: torusRange() };
-  worker.postMessage(message);
-  player.carryOn();
+  sim.setup(message);
 }
 
 // Play / Pause, Step, Restart and the Speed slider (connectPlay,
 // js/sim-page.js). player.playing is true while the sim plays.
-const player = connectPlay(worker, SPEEDS, DEFAULT_SPEED, "block", "blocks", function () { restart(false); });
+const player = connectPlay(sim, SPEEDS, DEFAULT_SPEED, "block", "blocks", function () { restart(false); });
 
 
 /* =====================================================================
@@ -500,40 +478,17 @@ const view = makeView(simCanvas, drawSoon);      // where the picture goes, and 
 // how it is drawn ("Drawn in") shows the right options and buttons.
 const disk = makeDiskView(simCanvas, view, showPictureKind);
 // After the window changes size, or the picture opens or closes as a
-// full screen popup (js/sim-page.js): draw again at the new size, in 3D too.
-window.addEventListener("resize", function () {
-  if (view3d) sim3d.setHeight(view3d, pictureHeight(PICTURE_HEIGHT));
-  drawSoon();
-});
+// full screen popup (js/sim-page.js): draw again at the new size.
+window.addEventListener("resize", drawSoon);
 
 // The color of height h (h = 1, 2, ...) when the tallest stack is
-// "highest" blocks tall. Height 1 is always the darkest color (dark
-// blue), and the colors run up to red at the tallest height, so the
-// scale stretches upward as the mountain grows. (Going down the
-// mountain, the hue goes from 0 (red) to 225 (blue), and the color
-// gets darker on the way.) The same colors are used in every view: a site seen from above
-// has the color of the top block of its stack. Returns [red, green,
-// blue], each 0..255.
+// "highest" blocks tall, as [red, green, blue] (heatColor, js/sim-colors.js).
+// Height 1 is always the darkest color (dark blue), and the colors run
+// up to red at the tallest height, so the scale stretches upward as the
+// mountain grows. The same colors are used in every view: a site seen
+// from above has the color of the top block of its stack.
 function heightColor(h, highest) {
-  // t is 1 at height 1 (the bottom: dark blue) and 0 at the tallest (red).
-  const t = highest <= 1 ? 1 : (highest - h) / (highest - 1);
-  const hue = 225 * t, saturation = 0.7, value = 0.9 - 0.55 * t;
-  // The usual HSV -> RGB recipe.
-  const c = value * saturation, k = hue / 60, x = c * (1 - Math.abs((k % 2) - 1)), m = value - c;
-  const rgb = k < 1 ? [c, x, 0] : k < 2 ? [x, c, 0] : k < 3 ? [0, c, x] : k < 4 ? [0, x, c] : k < 5 ? [x, 0, c] : [c, 0, x];
-  return rgb.map(function (part) { return Math.round(255 * (part + m)); });
-}
-
-// Make the canvas "width" by "height" screen pixels, and return its pen,
-// ready to draw in screen pixels.
-function canvasPen(width, height) {
-  const ratio = window.devicePixelRatio || 1;   // 2 on sharp screens
-  simCanvas.style.height = height + "px";
-  simCanvas.width = Math.round(width * ratio);
-  simCanvas.height = Math.round(height * ratio);
-  const pen = simCanvas.getContext("2d");
-  pen.setTransform(ratio, 0, 0, ratio, 0, 0);   // draw in screen pixels from here on
-  return pen;
+  return heatColor(highest <= 1 ? 0 : (h - 1) / (highest - 1));
 }
 
 // The x and y range of the picture, { xmin, xmax, ymin, ymax }: a
@@ -568,7 +523,7 @@ let lineLayout = null;
 function drawLine() {
   const s = latest, range = pictureRange();
   const width = simCanvas.clientWidth, height = pictureHeight(PICTURE_HEIGHT);
-  const pen = canvasPen(width, height);
+  const pen = sharpPen(simCanvas, width, height);
   const left = 8, right = width - 8, top = 20, ground = height - 30;
   const columns = range.xmax - range.xmin + 1;
   const column = (right - left) / columns;        // the width of one site
@@ -639,7 +594,7 @@ function drawGrid() {
 
   // Paint the squares, only inside the picture's box (paintCells draws
   // from the top of the box), then a thin frame around the box.
-  const pen = placePicture(pictureBox(gridSites));
+  const pen = fitPicture(view, gridSites, PICTURE_HEIGHT, true);
   const empty = hexToRGB(EMPTY), highest = Math.max(s.maxHeight, 1);
   paintCells(view, pen, gridSites, function (i) { return s.height[i]; },
              function (h) { return h === 0 ? empty : heightColor(h, highest); }, hexToRGB(OUTSIDE));
@@ -659,7 +614,7 @@ const HOLE_GROUP = -1;     // the holes' cells' group, for their color
 function drawTiling() {
   const s = latest;
   shownSites = shownCells(s, byId("show-holes").checked);
-  const pen = placePicture(pictureBox(shownSites));
+  const pen = fitPicture(view, shownSites, PICTURE_HEIGHT, true);
   const empty = hexToRGB(EMPTY), hole = hexToRGB(HOLE), highest = Math.max(s.maxHeight, 1);
   paintDomain(view, pen, shownSites,
     function (v) { return v < s.height.length ? s.height[v] : HOLE_GROUP; },
@@ -689,30 +644,6 @@ function shownCells(s, withHoles) {
   return shown;
 }
 
-// Place the 2D picture of a box { left, right, bottom, top } (in side
-// lengths): as big as fits in the canvas (which always has the same
-// size), in the middle of it. The view remembers where, in screen
-// pixels: "left", "top", "width" and "height" of the box, and "size",
-// the size of a cell (a side length) when the whole picture fits (zoom
-// 1). Returns the pen, drawing from the top of the box and cut off at
-// the box; pen.restore() lifts the cut-off.
-function placePicture(box) {
-  const across = box.right - box.left, down = box.top - box.bottom;
-  const cssWidth = simCanvas.clientWidth, height = pictureHeight(PICTURE_HEIGHT);
-  view.size = Math.min(cssWidth / across, height / down);
-  view.width = Math.round(view.size * across);
-  view.height = Math.round(view.size * down);
-  view.left = Math.round((cssWidth - view.width) / 2);
-  view.top = Math.round((height - view.height) / 2);
-  const pen = canvasPen(cssWidth, height);
-  pen.translate(0, view.top);
-  pen.save();
-  pen.beginPath();
-  pen.rect(view.left, 0, view.width, view.height);
-  pen.clip();
-  return pen;
-}
-
 // A thin frame around the picture's box.
 function framePicture(pen) {
   pen.strokeStyle = EMPTY;
@@ -730,7 +661,7 @@ function framePicture(pen) {
      mouse wheel, or pinch        zoom in or out, around the pointer
      the + / − / Reset buttons    zoom in, zoom out, show it all again
    The code for all of it is shared with the other sims
-   (connectPicture, js/sim-controls.js, and js/sim-view.js).
+   (connectPicture, js/sim-view.js, and js/sim-view.js).
    On a graph the pictures zoom the same way. In the disk and the
    half-plane, though, dragging with the mouse (or one finger) moves you
    across the plane instead (section 6d); two fingers still slide and
@@ -745,7 +676,7 @@ function framePicture(pen) {
    when you change the tile or the domain or go back with "Go to step";
    Restart and a new seed forget them.
    ===================================================================== */
-connectPicture(view, disk, function () { return dim === "graph"; }, clickAt);
+connectPicture(view, { disk: disk, onGraph: function () { return dim === "graph"; }, onClick: clickAt });
 
 function clickAt(event) {
   if (!haveMountain() || tool.isOpen) return;
@@ -754,7 +685,7 @@ function clickAt(event) {
     showMessage("That site is full: it already has capacity M.");
   } else if (site >= 0) {
     if (player.playing) player.setPlaying(false);
-    worker.postMessage({ type: "click", site: site });
+    sim.send({ type: "click", site: site });
   } else {
     showMessage("A block can only land on an available site: one with blocks, or a gray one next to them.");
   }
@@ -833,16 +764,18 @@ function tilingSiteUnder(event) {
    whole mountain stays in the picture; the Heights slider makes it
    taller or flatter.
    ===================================================================== */
-let sim3d = null;            // the 3D code, once loaded (js/sim-3d.js)
-let view3d = null;           // the 3D picture
+const three = make3D(simCanvas, PICTURE_HEIGHT, {   // js/sim-page.js
+  ready: drawSoon,
+  failed: function () { show3D = false; showPictureKind(); },
+});
 
 // Which picture shows: the view from above, the 3D view (not in 1D),
 // or neither while the graph tool is open.
 function showPictureKind() {
   const in3D = (dim !== 1 && show3D);
   simCanvas.hidden = tool.isOpen || in3D;
-  byId("sim-3d").hidden = byId("view3d-buttons").hidden = tool.isOpen || !in3D;
-  byId("disk-reset").hidden = dim !== "graph" || disk.picture === "spread";   // with the zoom buttons
+  three.show(!tool.isOpen && in3D);
+  showDiskButtons(disk, dim === "graph" && disk.picture !== "spread");
   byId("picture-row").hidden = in3D || dim !== "graph";
   byId("view-rows").hidden = (dim === 1);
   byId("stretch-row").hidden = byId("view3d-help").hidden = !in3D;
@@ -851,24 +784,14 @@ function showPictureKind() {
   byId("blocks-row").hidden = !in3D || (dim === "graph" && isTree(disk.spec));
   showHolesRow();
   showZoomButtons(view);
-  if (in3D && !view3d) start3D();
   drawSoon();
 }
 
-// Load the 3D code (the first time only) and make the 3D picture.
-function start3D() {
-  load3D(byId("sim-3d"), pictureHeight(PICTURE_HEIGHT), function (code, picture) {
-    sim3d = code;
-    view3d = picture;
-    drawSoon();
-  }, function () { show3D = false; showPictureKind(); });
-}
-
 function draw3D() {
-  if (!view3d) return;
+  if (!three.view) return;
   if (dim === "graph") { draw3DOnDisk(); return; }   // section 6d
   if (latest.setup.tiling) { draw3DOnTiling(); return; }
-  sim3d.drawStacks(view3d, {
+  three.code.drawStacks(three.view, {
     x: latest.x, y: latest.y, height: latest.height,
     floor: pictureRange(),   // as from above: a box, or a drawn domain's own cells
     shape: blockShape === "tiles" ? "cubes" : "coins", stretch: stretch,   // (a square's tile-shaped block is a cube)
@@ -897,7 +820,7 @@ function draw3DOnTiling() {
   // first one to the middle of its last, so half a side length comes off
   // each end.
   const box = pictureBox(d);
-  sim3d.drawStacks(view3d, {
+  three.code.drawStacks(three.view, {
     x: x, y: y, height: latest.height, width: width,
     floor: { xmin: box.left + 0.5, xmax: box.right - 0.5, ymin: box.bottom + 0.5, ymax: box.top - 0.5 },
     shape: blockShape, corners: cells, stretch: stretch,
@@ -914,7 +837,6 @@ for (const radio of document.querySelectorAll('input[name="blocks"]')) {
   radio.addEventListener("change", function () { blockShape = radio.value; drawSoon(); });
 }
 connectStretch(function (value) { stretch = value; drawSoon(); });
-byId("view3d-reset").addEventListener("click", function () { if (view3d) sim3d.resetCamera(view3d); });
 
 
 /* =====================================================================
@@ -998,7 +920,7 @@ function draw3DOnDisk() {
     if (!stack) continue;
     x.push(stack.x); y.push(stack.y); height.push(s.height[i]); width.push(stack.width); cells.push(stack.corners);
   }
-  sim3d.drawStacks(view3d, {
+  three.code.drawStacks(three.view, {
     x: x, y: y, height: height, width: width, floor: { disk: unit },
     shape: isTree(disk.spec) ? "coins" : blockShape, corners: cells, stretch: stretch,
     color: heightColor, empty: hexToRGB(EMPTY), ground: hexToRGB(OUTSIDE),
@@ -1187,10 +1109,10 @@ function radiusHeatChart(canvas, times, radii, bins) {
    decides where blocks can go next), so the domain need not be one
    connected piece.
    ===================================================================== */
-const tool = makeCustomTool({
-  view: view,
-  isPlaying: function () { return player.playing; },
-  setPlaying: player.setPlaying,
+const tool = makeCustomTool(view, player, {
+  title: "Draw the domain",
+  help: "Paint the cells the mountain may grow on (any color counts). The first block goes on (0, 0) " +
+        "if you painted it, otherwise on the painted cell nearest the middle. Then press Done.",
   showPicture: showPictureKind,     // the 2D or 3D picture hides while the tool is open
   check: function (drawing) {
     const cells = drawing.graph.vertices.length;
@@ -1202,7 +1124,7 @@ const tool = makeCustomTool({
     showDomainChoice();
     restart(true);
   },
-  cancel: function () { showDomainChoice(); drawSoon(); },
+  cancel: showDomainChoice,
 });
 byId("edit-custom").addEventListener("click", tool.open);
 
@@ -1278,7 +1200,7 @@ for (const radio of document.querySelectorAll("input[name=against]")) radio.addE
 
 // Go to step.
 byId("goto").addEventListener("click", function () {
-  worker.postMessage({ type: "goto", steps: readWhole("goto-steps", 0, 10000000, 0) });
+  sim.send({ type: "goto", steps: readWhole("goto-steps", 0, 10000000, 0) });
 });
 
 // Seed: the same seed gives the same mountain every time.
@@ -1288,9 +1210,7 @@ connectSeed(function () { restart(true, true); });
 // --- Start ------------------------------------------------------------
 byId("seed").value = DEFAULT_SEED;
 byId("goto-steps").value = 1000;
-fillLatticeMenu();
 showMaxHeight();
 showWeight();
 showGraphPresets(useGraph);
 setDimension(2);   // 2D by default: with M = 1 it is the Eden model
-player.setPlaying(false);   // paused: press Play

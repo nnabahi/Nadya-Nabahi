@@ -957,7 +957,7 @@ function penroseFromCode(code, corners) {
    9. THE WHOLE PLANE (Random Walk, Eden Growth)
    ---------------------------------------------------------------------
    A walk or a mountain on the whole plane runs in a second thread (a
-   "Web Worker", startWorker in js/sim-page.js). That thread keeps its
+   "Web Worker", runInWorker in js/sim-page.js). That thread keeps its
    own patch, "the plane", and grows it as the walk or the mountain
    reaches farther out (penroseReach): each time to twice its size,
    from 10 side lengths from the middle each way to 20, 40, 80 and
@@ -1032,7 +1032,7 @@ function addPlaneCells(mirror, sent) {
 }
 
 // What the second thread needs of this file to grow a plane, for
-// startWorker (js/sim-page.js): the functions of sections 1 to 6 and
+// runInWorker (js/sim-page.js): the functions of sections 1 to 6 and
 // of this one, and the constants they use.
 function penroseHelpers() {
   return [zPlus, zMinus, zTurn, zTurnBack, zOverPhi, zTimesPhi, zTowards, zUnit, zKey, zName, zX, zY, zToNumbers,

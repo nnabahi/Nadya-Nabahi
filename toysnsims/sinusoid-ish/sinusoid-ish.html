@@ -10,15 +10,8 @@
 </head>
 <body>
 
-  <header class="topbar">
-    <nav>
-      <a href="../../about.html">About Me</a>
-      <a href="../../writing.html">Writing</a>
-      <a href="../../index.html">Home</a>
-      <a href="../../resume-and-publications.html">Resume &amp; Publications</a>
-      <a href="../../toysnsims.html" class="active">Toys n' Sims</a>
-    </nav>
-  </header>
+  <header class="topbar" data-active="toysnsims.html"></header>
+  <script src="../../js/site.js"></script>
 
   <main class="page">
     <p><a href="../../toysnsims.html">&larr; All sims</a></p>
@@ -35,11 +28,6 @@
         <h2>Simulation</h2>
         <div class="sim-picture">
           <canvas id="sim-canvas" title="Drag to move; scroll or pinch to zoom; scroll over an axis to scale just that axis"></canvas>
-          <div class="zoom-buttons">
-            <button class="tool-button" id="zoom-in" title="Zoom in">+</button>
-            <button class="tool-button" id="zoom-out" title="Zoom out">&minus;</button>
-            <button class="tool-button" id="zoom-reset" title="Back to x from -10 to 10, same unit in both directions">Reset</button>
-          </div>
         </div>
         <p class="muted small" id="legend"></p>
         <p class="muted" id="sim-message"></p>
@@ -82,10 +70,7 @@
         <div class="option-row">
           Roots on each side N = <input type="number" id="set-n" min="10" max="20000" step="10">
         </div>
-        <div class="option-row">
-          Seed <input type="text" id="seed" size="8">
-          <button class="tool-button" id="new-seed" title="A random new seed">New sample</button>
-        </div>
+        <div class="option-row seed-row" data-new="New sample"></div>
         <p class="muted small">Each root keeps its own random number, so moving a slider bends
           the curve instead of jumping to a new one. The same seed always gives the same roots.</p>
 
@@ -112,15 +97,8 @@
         <div class="option-row">
           Lobes counted: both roots in [&minus;A, A], A = <input type="number" id="set-a" min="1" step="1">
         </div>
-        <div class="option-row">
-          <button class="tool-button" id="play">Play</button>
-          <button class="tool-button" id="step" title="One more sample">Step</button>
-          <button class="tool-button" id="restart" title="Start the histograms over">Restart</button>
-        </div>
-        <div class="option-row">
-          Speed <input type="range" class="wide-range" id="speed" min="0" step="1">
-          <span class="muted" id="speed-label"></span>
-        </div>
+        <div class="option-row play-row" data-step="One more sample" data-restart="Start the histograms over"></div>
+        <div class="option-row speed-row"></div>
         <div class="option-row">
           Areas and peaks as
           <select id="hist-mode">
@@ -328,7 +306,9 @@
        (sinusoid-ish-roots.js, the same file the check page tests), then
        this page. -->
   <script src="../../js/sim-page.js"></script>
+  <script src="../../js/sim-worker.js"></script>
   <script src="../../js/sim-charts.js"></script>
+  <script src="../../js/sim-view.js"></script>
   <script src="../../js/formulas.js"></script>
   <script src="sinusoid-ish-roots.js"></script>
   <script src="sinusoid-ish.js"></script>

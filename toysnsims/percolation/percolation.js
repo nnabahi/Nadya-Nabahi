@@ -19,7 +19,8 @@
        number U, from the seed. At the p on the slider, the ones with
        U < p are open (percolation-clusters.js finds the clusters).
      - Draws the clusters, each in its own color, and the statistics.
-     - Play raises p slowly, so you watch the clusters grow and join.
+     - Play raises p slowly, in steps of 0.001, so you watch the
+       clusters grow and join.
    All of this is quick (well under a second even for the biggest
    domain), so it runs in the page itself, with no second thread.
 
@@ -31,8 +32,9 @@
      5. Drawing
      6. Moving, zooming and clicking a cluster
      7. Statistics
-     8. Custom domains: the graph tool inside this page
-     9. Connecting the buttons on the page
+     8. Play: raising p
+     9. The domain
+     10. Connecting the buttons on the page
    ===================================================================== */
 
 
@@ -50,12 +52,9 @@ const DEFAULTS = KIND === "site"
 
 const MAX_SIDE = KIND === "site" ? 400 : 300;   // the biggest box or torus
 const MAX_PICTURE_HEIGHT = 600;   // in screen pixels
-const BORDER = "#1e1e1e";         // lines between clusters
 const CLOSED = "#ffffff";         // closed cells (site), or cells with no open edge (bond)
 const OPEN = "#5d6370";           // open cells in the "open or closed" colors
 const OTHERS = "#c9ccd3";         // the other clusters in the "largest cluster" colors
-const OUTSIDE = "#ecebe7";        // around a custom domain (cells not in it)
-const SMALLEST_BORDERED_CELL = 4; // cells smaller than this (in pixels) get no border lines
 const SMALLEST_EDGE_CELL = 6;     // bond: cells at least this big are drawn as dots and edges
 
 // Hyperbolic plane or tree: the ball's default radius R, its largest
@@ -91,19 +90,18 @@ const TILING_CRITICAL = KIND === "site" ? {
   "6/m30/r(h1)": { tiles: "2 sin(π/18)", corners: "1 − 2 sin(π/18)" },
 };
 
-// Play raises p by this much per second (the Speed slider).
-const SPEEDS = [0.001, 0.1];   // the slider's starting min and max (boxes at its ends change them)
-const DEFAULT_SPEED = 0.005;
-const STEP = 0.01;                // how much one press of Step raises p
+// Play and Step raise p by P_STEP (the p slider's own step), Play this
+// many times per second (the Speed slider).
+const P_STEP = 0.001;
+const SPEEDS = [1, 100];   // the slider's starting min and max (boxes at its ends change them)
+const DEFAULT_SPEED = 5;
 
 
 /* =====================================================================
    2. WHAT THE PAGE REMEMBERS (the "state")
    ===================================================================== */
 
-let domainKind = "box";     // "box", "torus", "custom" or "graph": the domain in use
-let domain = null;          // the domain graph (js/sim-domains.js), or a ball (makeBall, js/sim-hyperbolic.js)
-let customDomain = null;    // the last custom domain drawn, if any
+let domain = null;          // the domain graph (js/sim-domains.js), or a ball (makeBall, js/sim-hyperbolic.js); its kind is domains.kind (section 9)
 let edges = null;           // every edge once (edgesOf in percolation-clusters.js)
 let entryEdge = null;       // entryEdge[e] = the edge of neighbor entry e (domain.nbr[e])
 let U = null;               // one random number per cell (site) or edge (bond)
@@ -111,10 +109,6 @@ let swept = null;           // the clusters for every p (sweep in percolation-cl
 let p = DEFAULTS.p;         // the p on the slider
 let result = null;          // the clusters at p (percolate in percolation-clusters.js)
 const highlight = newHighlight();   // a clicked cell: its cluster is highlighted (js/sim-highlight.js)
-
-let playing = false;        // it starts paused; Play raises p
-let speed = DEFAULT_SPEED;
-let lastFrame = 0;          // when Play last moved p (milliseconds)
 
 
 /* =====================================================================
@@ -182,7 +176,7 @@ function colorOfName(k) {
 // How the cluster with root r is colored (r = -1: a closed cell), as
 // [red, green, blue], with the Colors menu.
 const closedRGB = hexToRGB(CLOSED), openRGB = hexToRGB(OPEN), othersRGB = hexToRGB(OTHERS);
-const accentRGB = hexToRGB(CHART_LINE), outsideRGB = hexToRGB(OUTSIDE);
+const accentRGB = hexToRGB(CHART_LINE), outsideRGB = hexToRGB(OUTSIDE_CELLS);
 function rgbOfRoot(r) {
   if (r === -1 || (KIND === "bond" && result.name[r] === -1)) return closedRGB;
   const mode = byId("colors").value;
@@ -234,12 +228,12 @@ const view = makeView(simCanvas, drawSoon, 0, SMALLEST_BORDERED_CELL);
 // Hyperbolic plane or tree: which graph, how it is drawn, and how far
 // the plane has been moved (js/sim-hyperbolic.js). The view above zooms
 // and slides its pictures too.
-const disk = makeDiskView(simCanvas, view, showDomainChoice);
+const disk = makeDiskView(simCanvas, view, function () { domains.show(); });
 
 function drawPicture() {
   if (!domain || !result || simCanvas.hidden) return;
   findHighlight(highlight, domain, clusterGroups());   // the clicked cell's cluster, now
-  if (domainKind === "graph") { drawOnBall(); return; }
+  if (domains.kind === "graph") { drawOnBall(); return; }
   const pen = fitPicture(view, domain, MAX_PICTURE_HEIGHT);
   const asEdges = KIND === "bond" && view.size * view.zoom >= SMALLEST_EDGE_CELL;
   if (asEdges && domain.lattice) {
@@ -250,7 +244,7 @@ function drawPicture() {
     // Squares or polygons (paintDomain, js/sim-view.js). Each cell's
     // group is its cluster's root (-1 for white), so in site percolation
     // the lines go between clusters.
-    paintDomain(view, pen, domain, groupOf, rgbOfRoot, outsideRGB, KIND === "site" ? BORDER : null, SMALLEST_BORDERED_CELL);
+    paintDomain(view, pen, domain, groupOf, rgbOfRoot, outsideRGB, KIND === "site" ? CELL_LINES : null, SMALLEST_BORDERED_CELL);
   }
   pen.restore();
 }
@@ -287,7 +281,7 @@ function drawEdges(pen) {
     for (let i = 0; i < cols; i++) {
       const v = cells[k * cols + i];
       if (v === -1) {               // not in the domain
-        pen.fillStyle = OUTSIDE;
+        pen.fillStyle = OUTSIDE_CELLS;
         pen.fillRect(squareLeft(view, view.firstI + i), squareTop(view, view.firstK + k), size + 1, size + 1);
         continue;
       }
@@ -408,7 +402,7 @@ function drawOnBall() {
   if (start !== null) {
     pen.beginPath();
     pen.arc(start.x, start.y, Math.max(4, Math.min(12, 0.5 * start.size)), 0, 2 * Math.PI);
-    pen.strokeStyle = BORDER;
+    pen.strokeStyle = CELL_LINES;
     pen.lineWidth = 2;
     pen.stroke();
   }
@@ -421,7 +415,7 @@ window.addEventListener("resize", drawSoon);
    6. MOVING, ZOOMING AND CLICKING A CLUSTER
    ---------------------------------------------------------------------
    Drag to move, mouse wheel or pinch to zoom, and the + / − / Reset
-   buttons (connectPicture, js/sim-controls.js). A press that hardly
+   buttons (connectPicture, js/sim-view.js). A press that hardly
    moves is a click instead: clicking a cell in a cluster highlights
    that cluster (the others fade), and it stays highlighted as p changes
    and it grows. Clicking it again, or a white cell, clears it.
@@ -429,9 +423,10 @@ window.addEventListener("resize", drawSoon);
    instead, and two fingers slide and zoom the picture; a click works
    the same.
    ===================================================================== */
-connectPicture(view, disk, function () { return domainKind === "graph"; }, function (event) {
-  clickCell(cellAtEvent(view, disk, domain, domainKind === "graph", event));
-}, "pointer");
+connectPicture(view, {
+  disk: disk, onGraph: function () { return domains.kind === "graph"; },
+  onClick: function (event) { clickCell(cellAtEvent(view, disk, domain, domains.kind === "graph", event)); },
+});
 
 function clickCell(v) {
   clickHighlight(highlight, v, clusterGroups());
@@ -447,7 +442,7 @@ function showStats() {
   const n = domain.n;
   const largest = result.largestRoot === -1 ? 0 : result.size[result.largestRoot];
   const total = KIND === "site" ? n : edges.count;
-  const onGraph = domainKind === "graph";
+  const onGraph = domains.kind === "graph";
 
   byId("stat-cells").textContent = n.toLocaleString();
   byId("stat-edges").textContent = edges.count.toLocaleString();
@@ -522,8 +517,8 @@ function drawSizesChart() {
 // (see "All the details"). No exact value is known for the hyperbolic
 // tilings.
 function criticalPoint() {
-  if (domainKind === "custom") return null;
-  if (domainKind === "graph") return isTree(disk.spec) ? 1 / (disk.spec.p - 1) : null;
+  if (domains.kind === "custom") return null;
+  if (domains.kind === "graph") return isTree(disk.spec) ? 1 / (disk.spec.p - 1) : null;
   if (domain.lattice) return tilingCritical() === null ? null : EXACT[tilingCritical()];
   return CRITICAL[byId("set-neighbors").value];
 }
@@ -537,67 +532,62 @@ function tilingCritical() {
 
 
 /* =====================================================================
-   8. CUSTOM DOMAINS: THE GRAPH TOOL INSIDE THIS PAGE
+   8. PLAY: RAISING p
    ---------------------------------------------------------------------
-   Choosing "Custom" swaps the picture for the graph tool, loaded in an
-   <iframe> (a page inside this page): makeCustomTool, in
-   js/sim-controls.js. Any drawing works, even one in several pieces.
-   Done uses it.
+   Play and Step raise p by P_STEP (rounded to a multiple of it), on the
+   run loop every sim uses (makeRunLoop, js/sim-worker.js), up to p = 1.
+   A step only moves p; the clusters are found once for each batch of
+   steps (setP, section 10).
    ===================================================================== */
-const tool = makeCustomTool({
-  view: view,
-  isPlaying: function () { return playing; },
-  setPlaying: setPlaying,
-  check: function (drawing) {
-    const cells = drawing.graph.vertices.length;
-    return cells < 2 ? ["Paint at least two cells.", ""] : ["", cells + " cells."];
-  },
-  done: function (drawing) {
-    customDomain = drawnDomain(drawing.graph, drawing.grid);
-    useDomain("custom", customDomain);
-  },
-  cancel: function () { showDomainChoice(); drawSoon(); },
-});
+const raising = makeRunLoop(function () { p = Math.min(1, Math.round((p + P_STEP) / P_STEP) * P_STEP); },
+                            function () { setP(p); },
+                            function () { return p >= 1; });
+
+// Restart: back to p = 0, paused.
+function restart() {
+  player.setPlaying(false);
+  setP(0);
+}
+
+// Play / Pause, Step, Restart and the Speed slider (connectPlay,
+// js/sim-page.js).
+const player = connectPlay(raising, SPEEDS, DEFAULT_SPEED, "step of 0.001", "steps of 0.001", restart);
 
 
 /* =====================================================================
-   9. CONNECTING THE BUTTONS ON THE PAGE
+   9. THE DOMAIN
+   ---------------------------------------------------------------------
+   Box / Torus / Custom / Hyperbolic plane or tree, and their options,
+   the Lattice options among them (connectDomains, js/sim-controls.js).
+   Custom swaps the picture for the graph tool, where any drawing of at
+   least two cells works, even one in several pieces. A new domain gets
+   its edges, new random numbers and the sweep.
    ===================================================================== */
+const domains = connectDomains({
+  view: view, player: player, disk: disk,
+  box: function () { return boxFromOptions(2, MAX_SIDE, DEFAULTS); },
+  ball: function () {
+    const ball = ballFromOptions(disk, BALL);
+    return ball === null ? null : ballForPercolation(ball);
+  },
+  custom: {
+    check: atLeastTwoCells,
+    help: KIND === "site" ? "Paint the cells that can be open (any color counts). Then press Done."
+      : "Paint the cells (any color counts). Every pair of neighboring cells gets an edge, open or closed. Then press Done.",
+  },
+  use: function (d) {
+    domain = d;
+    edges = edgesOf(d);
+    entryEdge = makeEntryEdges(d, edges);
+    clearHighlight(highlight);
+    newNumbers();
+  },
+  show: showCritical,
+});
 
-// Switch to a new domain: its edges, new random numbers, the sweep.
-function useDomain(kind, d) {
-  domainKind = kind;
-  domain = d;
-  edges = edgesOf(d);
-  entryEdge = makeEntryEdges(d, edges);
-  clearHighlight(highlight);
-  useTorus(view, Boolean(d.wrap));   // moving and zooming (js/sim-view.js)
-  showDomainChoice();
-  newNumbers();
-}
-
-// The box or torus from the boxes on the page. (Choosing one while the
-// graph tool is open closes it.)
-function useBox() {
-  if (tool.isOpen) tool.close();
-  const d = boxFromOptions(2, MAX_SIDE, DEFAULTS);
-  useDomain(d.wrap ? "torus" : "box", d);
-}
-
-// A ball of a hyperbolic tiling or a tree, from the options on the page
-// (ballFromOptions, js/sim-hyperbolic.js), with the start cell in the
-// middle of the picture.
-function useGraph() {
-  if (tool.isOpen) tool.close();
-  const ball = ballFromOptions(disk, BALL);
-  if (ball === null) { showDomainChoice(); return; }
-  useDomain("graph", ballForPercolation(ball));
-}
-
-// Show the options that fit the domain in use, and tick its radio button.
-function showDomainChoice() {
-  showDomainOptions(domainKind, customDomain, disk);
-  const onGraph = (domainKind === "graph");
+// The critical point's row, for the domain in use.
+function showCritical() {
+  const onGraph = (domains.kind === "graph");
   const pc = criticalPoint();
   byId("critical-row").hidden = (pc === null);
   if (pc !== null) {
@@ -608,60 +598,24 @@ function showDomainChoice() {
   }
 }
 
+
+/* =====================================================================
+   10. CONNECTING THE BUTTONS ON THE PAGE
+   ===================================================================== */
+
+// p: the slider and the box move together (connectSliderAndBox,
+// js/sim-page.js), and the picture follows live while you drag, like a
+// Desmos slider.
+const showP = connectSliderAndBox("p-slider", "p-box", setP);
+
 // A new p, from the slider, the box, Play or Step.
 function setP(value) {
-  p = Math.min(Math.max(Number(value) || 0, 0), 1);
-  byId("p-slider").value = p;
-  byId("p-box").value = Number(p.toFixed(4));
+  p = showP(value);
   computeClusters();
+  player.showDone();    // at p = 1, Play and Step are grayed out
 }
 
-// Play raises p a little at every screen refresh, at the chosen speed,
-// until p = 1. (Play at p = 1 starts again from p = 0.)
-function setPlaying(on) {
-  playing = on;
-  showPlaying(on);
-  if (on) {
-    if (p >= 1) setP(0);
-    lastFrame = performance.now();
-    requestAnimationFrame(playFrame);
-  }
-}
-function playFrame(now) {
-  if (!playing) return;
-  const next = p + speed * (now - lastFrame) / 1000;
-  lastFrame = now;
-  setP(next);
-  if (p >= 1) setPlaying(false);
-  else requestAnimationFrame(playFrame);
-}
-
-// Domain: Box / Torus / Custom / Hyperbolic plane or tree, and their
-// options (js/sim-controls.js).
-connectDomainChoice({ box: useBox, torus: useBox, custom: tool.open, graph: useGraph });
-
-// p: the slider and the box move together, and the picture follows
-// live while you drag, like a Desmos slider.
-byId("p-slider").addEventListener("input", function () { setP(this.value); });
-byId("p-box").addEventListener("change", function () { setP(this.value); });
 byId("p-critical").addEventListener("click", function () { setP(criticalPoint()); });
-
-// Play / Pause, Step, p back to 0.
-byId("play").addEventListener("click", function () { setPlaying(!playing); });
-byId("step").addEventListener("click", function () {
-  if (playing) setPlaying(false);
-  setP(Math.round((p + STEP) * 1000) / 1000);
-});
-byId("p-zero").addEventListener("click", function () {
-  if (playing) setPlaying(false);
-  setP(0);
-});
-
-// Speed.
-connectSpeedSlider("speed", SPEEDS, DEFAULT_SPEED, function (newSpeed) {
-  speed = newSpeed;
-  byId("speed-label").textContent = "p rises " + speed + " per second";
-});
 
 // Colors.
 byId("colors").addEventListener("change", drawSoon);
@@ -672,8 +626,6 @@ connectSeed(function () { clearHighlight(highlight); newNumbers(); });
 
 // --- Start ------------------------------------------------------------
 fillDomainOptions(DEFAULTS, MAX_SIDE, BALL);
-fillLatticeMenu();
 byId("seed").value = DEFAULTS.seed;
-byId("p-slider").value = byId("p-box").value = p;
-useBox();
-setPlaying(false);   // paused: press Play to raise p
+showP(p);
+domains.useTicked();

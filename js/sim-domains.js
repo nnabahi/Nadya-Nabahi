@@ -17,6 +17,9 @@
      xmin .. ymax, cellAt   the smallest box around the cells, and which
                 cell sits at each place in it (-1 = none), for drawing
      ids[v]     for a drawn domain, the graph tool's name "x,y" of cell v
+     neighbors  for a box or torus of squares, or a drawn domain: 4 or
+                8, the neighbors of a cell of the square grid it is cut
+                from (the cells on its edge have fewer)
      lattice    "triangle" or "hexagon" for the domains of section 2
                 below, "tiling" for a tiling's (then also tiling, part,
                 index, sides, onLeft and onRight: see tilingBox); left
@@ -114,7 +117,9 @@ function boxDomain(width, height, neighbors, torus) {
     }
   }
   const wrapRange = torus ? { xmin: 0, xmax: width - 1, ymin: 0, ymax: height - 1 } : null;
-  return makeDomain(xs, ys, edges, wrapRange, null);
+  const d = makeDomain(xs, ys, edges, wrapRange, null);
+  d.neighbors = neighbors;
+  return d;
 }
 
 // The Aztec diamond of order N: the cells (x, y), x and y from -N to N-1,
@@ -139,7 +144,7 @@ function aztecDiamond(N) {
 
 // A domain drawn in the graph tool. "graph" is the tool's getGraph():
 // { vertices: [{id, x, y, color}, ...], edges: [[id, id], ...] }, and
-// "toolGrid" its grid settings (for the torus).
+// "toolGrid" its grid settings (for the torus and the neighbors).
 function drawnDomain(graph, toolGrid) {
   const index = new Map();
   graph.vertices.forEach(function (v, k) { index.set(v.id, k); });
@@ -147,9 +152,11 @@ function drawnDomain(graph, toolGrid) {
   const wrapRange = toolGrid.torus
     ? { xmin: toolGrid.xmin, xmax: toolGrid.xmax, ymin: toolGrid.ymin, ymax: toolGrid.ymax }
     : null;
-  return makeDomain(graph.vertices.map(function (v) { return v.x; }),
-                    graph.vertices.map(function (v) { return v.y; }),
-                    edges, wrapRange, graph.vertices.map(function (v) { return v.id; }));
+  const d = makeDomain(graph.vertices.map(function (v) { return v.x; }),
+                       graph.vertices.map(function (v) { return v.y; }),
+                       edges, wrapRange, graph.vertices.map(function (v) { return v.id; }));
+  d.neighbors = toolGrid.neighbors;
+  return d;
 }
 
 // Build the domain object described at the top of this file, from the

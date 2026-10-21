@@ -31,7 +31,7 @@
      5b. The 3D view
      6. Clicking, dragging and zooming
      7. Statistics
-     8. Custom domains: the graph tool inside this page
+     8. The table
      9. Connecting the buttons on the page
    ===================================================================== */
 
@@ -52,7 +52,6 @@ const MAX_GRAINS = 1000000;       // the most grains in the center pile
 const GRAINS_SLIDER_MAX = 5000;   // the slider's starting max (its max box and the n box can go higher)
 const MAX_HEIGHT_SETTING = 50;    // "Random: up to" and "Full: height" go up to this
 const MAX_PICTURE_HEIGHT = 600;   // in screen pixels
-const OUTSIDE = "#ecebe7";        // around a custom domain (cells not on the table)
 const SINK = "#555555";           // the sink cell
 const THIN_LINES = "rgba(0, 0, 0, 0.15)";   // the lines between big cells
 const NUMBER_MIN_CELL = 16;       // cells at least this big (in pixels) show their number
@@ -79,8 +78,7 @@ const DEFAULT_STORM_RATE = 2;
    2. WHAT THE PAGE REMEMBERS (the "state")
    ===================================================================== */
 
-let domainKind = "box";         // "box", "torus", "custom" or "graph": the table in use
-let domain = null;              // the table's graph (js/sim-domains.js), or a ball (makeBall, js/sim-hyperbolic.js)
+let domain = null;              // the table's graph (js/sim-domains.js), or a ball (makeBall, js/sim-hyperbolic.js); its kind is domains.kind (section 8)
 let threshold = null;           // threshold[v]: the grains that make cell v topple, its number of
                                 // neighbors in the whole lattice (4 or 8 on the square grid, p on a
                                 // tiling {p,q} or a tree; on another tiling, see tilingThresholds
@@ -88,19 +86,13 @@ let threshold = null;           // threshold[v]: the grains that make cell v top
 let sameThreshold = 4;          // every cell's threshold, when they are all the same (else null)
 let mostThreshold = 4;          // the biggest threshold
 let sinks = [];                 // the sink cells, made by clicking (none at the start)
-let customDomain = null;        // the last custom domain drawn, if any
-let customNeighbors = 4;        // the graph tool's neighbors for it
 
 // Hyperbolic plane or tree: how many steps each cell of the ball is
 // from the start. (Which graph it is, how it is drawn and how far the
 // plane has been moved are in "disk", section 5.)
 let ballSteps = null;
 
-let playing = false;            // it starts paused; Play sets it going
-let speed = DEFAULT_SPEED;
 let stormRate = DEFAULT_STORM_RATE;
-let run = 0;                    // counts restarts, so leftovers from an older run are ignored
-let playId = 0;                 // counts presses of Play and Pause (see section 4)
 let show3D = false;             // the 3D view instead of the view from above (section 5b)
 
 // The latest message from the pile: the heights, the topples at every
@@ -218,33 +210,22 @@ function textColorOn(rgb) {
    4. RUNNING THE PILE
    ---------------------------------------------------------------------
    The pile is the function pileWorker() in sandpiles-pile.js.
-   startWorker (js/sim-page.js) runs it in a second thread, a "Web
+   runInWorker (js/sim-page.js) runs it in a second thread, a "Web
    Worker", so the page never freezes, with the toppling rule copied in.
    ===================================================================== */
-const worker = startWorker(pileWorker, [newPile, startHeights, middleCell, centerCell]);
-
-worker.onmessage = function (event) {
-  const message = event.data;
-  if (message.type !== "state" || message.run !== run) return;   // from an older run
+const sim = runInWorker(pileWorker, [newPile, startHeights, middleCell, centerCell], function (message) {
   latest = message;
-  // It stopped by itself (the pile is stable). Only a report sent after
-  // the page's last Play counts, not one that was already on its way.
-  if (playing && !message.playing && message.playId === playId) setPlaying(false);
   drawSoon();
-};
+});
 
-worker.onerror = function () {
-  showMessage("The sandpile couldn't start. It loads one small library (seedrandom) from the " +
-              "internet, so check the connection and reload the page.");
-};
-
-// The start, from the boxes on the page.
+// The start, from the boxes on the page. (The ones with a slider always
+// hold a good number: section 9.)
 function startSettings() {
   return {
     kind: byId("start-kind").value,
-    grains: readWhole("set-grains", 0, MAX_GRAINS, DEFAULTS.grains),
-    most: readWhole("set-most", 0, MAX_HEIGHT_SETTING, DEFAULTS.most),
-    height: readWhole("set-full", 0, MAX_HEIGHT_SETTING, DEFAULTS.full),
+    grains: Number(byId("set-grains").value),
+    most: Number(byId("set-most").value),
+    height: Number(byId("set-full").value),
     value: readWhole("set-value", -1000, 1000, DEFAULTS.value),
     slope: readWhole("set-slope", -1000, 1000, DEFAULTS.slope),
   };
@@ -253,15 +234,12 @@ function startSettings() {
 // Start again from the start, with the current table, sink cells,
 // settings and seed. It pauses: press Play to watch it topple.
 function restart() {
-  run++;
   latest = null;
-  if (playing) setPlaying(false);
   showMessage("");
   lastNote = "";
-  worker.postMessage({
-    type: "setup", run: run,
+  sim.setup({
     domain: pileTable(domain), threshold: threshold, sinks: sinks,
-    start: startSettings(), seed: byId("seed").value,
+    start: startSettings(), seed: byId("seed").value, settings: runSettings(),
   });
 }
 
@@ -282,24 +260,24 @@ function pileTable(d) {
   return table;
 }
 
-// Tell the pile the settings of the Run and Storm boxes.
-function sendSettings() {
-  worker.postMessage({
-    type: "settings",
+// The settings of the Run and Storm boxes (the speed goes with Play).
+function runSettings() {
+  return {
     rounds: checked("order") === "rounds",
-    speed: speed,
     storm: byId("storm").checked,
     stormRate: stormRate,
     stormWait: byId("storm-wait").checked,
     stayOn: byId("stay-on").checked,
-  });
+  };
 }
+function sendSettings() { sim.send({ type: "settings", settings: runSettings() }); }
 
-function setPlaying(on) {
-  playing = on;
-  playId++;
-  worker.postMessage({ type: on ? "play" : "pause", id: playId });
-  showPlaying(on);
+// Play / Pause, Step, Restart and the Speed slider (connectPlay,
+// js/sim-page.js), in topples or rounds.
+const player = connectPlay(sim, SPEEDS, DEFAULT_SPEED, "topple", "topples", restart);
+function showSpeedUnits() {
+  const what = checked("order") === "rounds" ? "round" : "topple";
+  player.setUnits(what, what + "s");
 }
 
 
@@ -345,10 +323,10 @@ const view = makeView(simCanvas, drawSoon, PAD, 4);
 // Hyperbolic plane or tree: which graph, how it is drawn, and how far
 // the plane has been moved (js/sim-hyperbolic.js). The view above zooms
 // and slides its pictures too.
-const disk = makeDiskView(simCanvas, view, showDomainChoice);
+const disk = makeDiskView(simCanvas, view, function () { domains.show(); });
 
 function drawPile() {
-  if (!domain || !latest || tool.isOpen) return;
+  if (!domain || !latest || domains.tool.isOpen) return;
   const d = domain, heights = latest.heights, odometer = latest.odometer;
   const showTopples = checked("show") === "topples";
   let mostTopples = 0;
@@ -362,7 +340,7 @@ function drawPile() {
     return showTopples ? colorOfTopples(odometer[v], mostTopples) : colorOfHeight(heights[v], threshold[v]);
   };
   if (show3D) { draw3D(valueOf, showTopples); return; }
-  if (domainKind === "graph") { drawOnGraph(valueOf, rgbOf); return; }
+  if (domains.kind === "graph") { drawOnGraph(valueOf, rgbOf); return; }
 
   // The picture's box: as big as fits the width (and at most
   // MAX_PICTURE_HEIGHT tall), in the middle of the canvas.
@@ -379,7 +357,7 @@ function drawPile() {
 function drawSquarePile(screen, valueOf, rgbOf) {
   const sinkColor = hexToRGB(SINK);
   const cellOf = paintCells(view, screen, domain, function (v) { return v; },
-    function (v) { return sinks.includes(v) ? sinkColor : rgbOf(v); }, hexToRGB(OUTSIDE));
+    function (v) { return sinks.includes(v) ? sinkColor : rgbOf(v); }, hexToRGB(OUTSIDE_CELLS));
   const cols = view.cols, rows = view.rows, size = view.cell;     // (paintCells works these out)
   if (size < NUMBER_MIN_CELL) return;
 
@@ -415,7 +393,7 @@ function drawSquarePile(screen, valueOf, rgbOf) {
 function drawTilingPile(screen, valueOf, rgbOf) {
   const sinkColor = hexToRGB(SINK);
   paintDomain(view, screen, domain, function (v) { return v; },
-    function (v) { return sinks.includes(v) ? sinkColor : rgbOf(v); }, hexToRGB(OUTSIDE),
+    function (v) { return sinks.includes(v) ? sinkColor : rgbOf(v); }, hexToRGB(OUTSIDE_CELLS),
     THIN_LINES, NUMBER_MIN_CELL / 2);
   for (const { sx, sy } of screenCopies(view, domain)) {
     for (let v = 0; v < domain.n; v++) {
@@ -475,11 +453,8 @@ function drawOnGraph(valueOf, rgbOf) {
 }
 
 // After the window changes size, or the picture opens or closes as a
-// full screen popup (js/sim-page.js): draw again at the new size, in 3D too.
-window.addEventListener("resize", function () {
-  if (view3d) sim3d.setHeight(view3d, pictureHeight(BALL_HEIGHT));
-  drawSoon();
-});
+// full screen popup (js/sim-page.js): draw again at the new size.
+window.addEventListener("resize", drawSoon);
 
 
 /* =====================================================================
@@ -500,37 +475,29 @@ window.addEventListener("resize", function () {
    get, and the picture fits the table only: a tall stack, like the
    64 grains of the center pile, shoots straight up out of the picture.
    ===================================================================== */
-let sim3d = null;            // the 3D code, once loaded (js/sim-3d.js)
-let view3d = null;           // the 3D picture
+const three = make3D(simCanvas, BALL_HEIGHT, {   // js/sim-page.js
+  ready: drawSoon,
+  failed: function () { show3D = false; showPictureKind(); },
+});
 
 // Which picture shows: the view from above, the 3D view, or neither
 // while the graph tool is open.
 function showPictureKind() {
-  simCanvas.hidden = tool.isOpen || show3D;
-  byId("sim-3d").hidden = byId("view3d-buttons").hidden = tool.isOpen || !show3D;
+  simCanvas.hidden = domains.tool.isOpen || show3D;
+  three.show(!domains.tool.isOpen && show3D);
   byId("view3d-help").hidden = !show3D;
   showZoomButtons(view);
-  if (show3D && !view3d) start3D();
   drawSoon();
-}
-
-// Load the 3D code (the first time only) and make the 3D picture.
-function start3D() {
-  load3D(byId("sim-3d"), pictureHeight(BALL_HEIGHT), function (code, picture) {
-    sim3d = code;
-    view3d = picture;
-    drawSoon();
-  }, function () { show3D = false; showPictureKind(); });
 }
 
 // The stacks: valueOf(v) blocks on cell v (sink cells left out). Each
 // stack's kind is its threshold, so its blocks get the colors of a cell
 // that topples there.
 function draw3D(valueOf, showTopples) {
-  if (!view3d) return;
+  if (!three.view) return;
   const d = domain, x = [], y = [], height = [], width = [], kind = [], cells = [];
   let floor, lines;
-  if (domainKind === "graph") {
+  if (domains.kind === "graph") {
     // Each cell where the disk picture puts it, as big as it looks there
     // (diskStack, js/sim-hyperbolic.js). drawStacks gives every block the
     // same size, so the stacks farthest out fit.
@@ -562,14 +529,14 @@ function draw3D(valueOf, showTopples) {
       x.push(d.x[v]); y.push(d.y[v]); height.push(valueOf(v)); width.push(1); kind.push(threshold[v]);
     }
     // A box or torus stands on one flat box; a custom table on its own cells.
-    floor = domainKind === "custom" ? { x: d.x, y: d.y } : { xmin: d.xmin, xmax: d.xmax, ymin: d.ymin, ymax: d.ymax };
+    floor = domains.kind === "custom" ? { x: d.x, y: d.y } : { xmin: d.xmin, xmax: d.xmax, ymin: d.ymin, ymax: d.ymax };
   }
   const most = height.reduce(function (a, b) { return Math.max(a, b); }, 1);   // (a long list can't be spread into Math.max)
-  sim3d.drawStacks(view3d, {
+  three.code.drawStacks(three.view, {
     x: x, y: y, height: height, width: width, kind: kind, floor: floor,
     shape: blockShape(), corners: cells, stretch: 1, fixedSize: true,
     color: function (k, tallestStack, top) { return showTopples ? colorOfTopples(k, most) : colorOfHeight(k, top); },
-    empty: colorOfHeight(0, mostThreshold), ground: hexToRGB(OUTSIDE),
+    empty: colorOfHeight(0, mostThreshold), ground: hexToRGB(OUTSIDE_CELLS),
     lines: lines, lineColor: hexToRGB(SINK),
   });
 }
@@ -577,7 +544,7 @@ function draw3D(valueOf, showTopples) {
 // The 3D view's blocks: each in the shape of its cell (cubes on the
 // square grid), except on a tree, whose sites are points: coins.
 function blockShape() {
-  if (domainKind === "graph") return isTree(disk.spec) ? "coins" : "tiles";
+  if (domains.kind === "graph") return isTree(disk.spec) ? "coins" : "tiles";
   return domain.lattice ? "tiles" : "cubes";
 }
 
@@ -599,11 +566,10 @@ function tilingLines(d) {
   return lines;
 }
 
-// The View option, and the button to look from the start again.
+// The View option.
 for (const radio of document.querySelectorAll('input[name="view"]')) {
   radio.addEventListener("change", function () { show3D = (radio.value === "3d"); showPictureKind(); });
 }
-byId("view3d-reset").addEventListener("click", function () { if (view3d) sim3d.resetCamera(view3d); });
 
 
 /* =====================================================================
@@ -616,8 +582,7 @@ byId("view3d-reset").addEventListener("click", function () { if (view3d) sim3d.r
    The picture can also be moved and zoomed, as in the coloring sims
    (and like a graph in Desmos): drag to move, mouse wheel or pinch to
    zoom, and the + / − / Reset buttons. A press that hardly moves counts
-   as a click, a longer one as a drag (connectPicture,
-   js/sim-controls.js).
+   as a click, a longer one as a drag (connectPicture, js/sim-view.js).
    On a hyperbolic tiling or tree, one pointer drags across the plane
    instead, and two fingers slide and zoom the picture.
    ===================================================================== */
@@ -629,17 +594,17 @@ function clickCell(v) {
     // Make it a sink cell, or a normal cell again. The pile keeps its
     // grains (the worker's changeSinks, sandpiles-pile.js).
     sinks = sinks.includes(v) ? sinks.filter(function (s) { return s !== v; }) : sinks.concat([v]);
-    worker.postMessage({ type: "sinks", sinks: sinks });
+    sim.send({ type: "sinks", sinks: sinks });
   } else if (sinks.includes(v)) {
     showMessage("This is a sink cell: it eats every grain it gets.");
   } else if (mode === "topple") {
     if (latest.heights[v] < threshold[v]) {
       showMessage("This cell has " + latest.heights[v] + " grains; it needs " + threshold[v] + " to topple.");
     } else {
-      worker.postMessage({ type: "topple", cell: v });
+      sim.send({ type: "topple", cell: v });
     }
   } else if (mode === "info") {
-    const name = domainKind === "graph"
+    const name = domains.kind === "graph"
       ? "This cell, " + ballSteps[v] + (ballSteps[v] === 1 ? " step" : " steps") + " from the start"
       : domain.lattice ? "This " + tilingCellName(v)
       : "Cell (" + domain.x[v] + ", " + domain.y[v] + ")";
@@ -647,7 +612,7 @@ function clickCell(v) {
                 latest.odometer[v].toLocaleString() + " times so far" +
                 (domain.lattice ? "; it topples at " + threshold[v] + " grains." : "."));
   } else {
-    worker.postMessage({ type: "add", cell: v, grains: mode === "add" ? 1 : -1 });
+    sim.send({ type: "add", cell: v, grains: mode === "add" ? 1 : -1 });
   }
 }
 
@@ -660,10 +625,10 @@ function tilingCellName(v) {
   return domain.tiling.corners ? "corner" : cell.name || POLYGON_NAMES[cell.corners.length];
 }
 
-connectPicture(view, disk, function () { return domainKind === "graph"; }, function (event) {
-  clickCell(domainKind === "graph" ? ballCellAt(disk, domain, event)
-                                   : cellUnder(view, domain, pointerSpot(view, event)));
-}, "grab");
+connectPicture(view, {
+  disk: disk, onGraph: function () { return domains.kind === "graph"; },
+  onClick: function (event) { clickCell(cellAtEvent(view, disk, domain, domains.kind === "graph", event)); },
+});
 
 
 /* =====================================================================
@@ -705,9 +670,10 @@ function showStats() {
   if (note !== lastNote && (note !== "" || byId("sim-message").textContent === lastNote)) showMessage(note);
   lastNote = note;
 
-  const stayOn = byId("stay-on").checked;
-  byId("play").disabled = s.stable && !byId("storm").checked && !stayOn && !playing;   // nothing can happen
-  byId("step").disabled = s.stable && !byId("storm").checked;
+  // (Play and Step are grayed out when nothing can happen: connectPlay.
+  // Step also can't do anything on a stable pile with no storm, even
+  // when Play keeps going so that clicks topple at once.)
+  if (s.stable && !byId("storm").checked) byId("step").disabled = true;
   byId("jump").disabled = s.stable;
   byId("undo").disabled = !s.canUndo;
   byId("add-identity").disabled = !s.hasSink;
@@ -796,85 +762,62 @@ function drawAvalancheChart() {
 
 
 /* =====================================================================
-   8. CUSTOM DOMAINS: THE GRAPH TOOL INSIDE THIS PAGE
+   8. THE TABLE
    ---------------------------------------------------------------------
-   Choosing "Custom" swaps the picture for the graph tool, loaded in an
-   <iframe> (a page inside this page): makeCustomTool, in
-   js/sim-controls.js. Any painted region works, even in several
-   pieces: every piece loses grains off its edge. (A region covering a
-   whole torus has no edge; then the sink options appear, as for the
-   torus.) Done uses it.
+   Box / Torus / Custom / Hyperbolic plane or tree, and their options,
+   the Lattice options among them (connectDomains, js/sim-controls.js).
+   A torus is at least MIN_TORUS cells on a side. Custom swaps the
+   picture for the graph tool, where any painted region works, even in
+   several pieces: every piece loses grains off its edge. (A region
+   covering a whole torus has no edge; then the sink options appear,
+   as for the torus.) On a ball of the hyperbolic plane or tree, the
+   grains sent to neighbors outside the ball are lost.
+   A new table has no sink cells (click to make some), and restarts.
    ===================================================================== */
-const tool = makeCustomTool({
-  view: view,
-  isPlaying: function () { return playing; },
-  setPlaying: setPlaying,
-  check: function (drawing) {
-    const cells = drawing.graph.vertices.length;
-    return cells === 0 ? ["Paint the table first.", ""] : ["", cells + " cells, " + drawing.grid.neighbors + " neighbors."];
+const domains = connectDomains({
+  view: view, player: player, disk: disk,
+  box: function () { return boxFromOptions(checked("domain") === "torus" ? MIN_TORUS : 1, MAX_SIDE, DEFAULTS); },
+  ball: function () { return ballFromOptions(disk, BALL, function (spec) { return ", each toppling at " + spec.p + " grains"; }); },
+  custom: {
+    title: "Draw the table",
+    help: "Paint the cells of the table (any color counts). Grains that fall off its edge are lost. Pick 4 or 8 " +
+          "neighbors in the tool; that is also how many grains a cell needs to topple.",
+    check: function (drawing) {
+      const cells = drawing.graph.vertices.length;
+      return cells === 0 ? ["Paint the table first.", ""] : ["", cells + " cells, " + drawing.grid.neighbors + " neighbors."];
+    },
+    info: function (d) { return "Your table: " + d.n + " cells, " + d.neighbors + " neighbors" + (d.wrap ? ", on a torus." : "."); },
+    showPicture: showPictureKind,     // the picture from above or in 3D hides while the tool is open
   },
-  done: function (drawing) {
-    customDomain = drawnDomain(drawing.graph, drawing.grid);
-    customNeighbors = drawing.grid.neighbors;
-    useDomain("custom", customDomain, customNeighbors);
+  use: function (d) {
+    domain = d;
+    threshold = thresholdsOf(d);
+    mostThreshold = threshold.reduce(function (a, b) { return Math.max(a, b); }, 0);
+    sameThreshold = threshold.every(function (t) { return t === threshold[0]; }) ? threshold[0] : null;
+    ballSteps = domains.kind === "graph" ? stepsFrom(d, [0]) : null;     // js/sim-domains.js
+    sinks = [];
+    makeHeightColors();
+    showStartChoice();
+    showPictureKind();
+    restart();
   },
-  cancel: function () { showDomainChoice(); drawSoon(); },
-  showPicture: showPictureKind,     // the picture from above or in 3D hides while the tool is open
 });
+
+// The grains that make each cell of the table d topple: as many as it
+// has neighbors in the whole lattice. That is the Neighbors option (4
+// or 8) on squares, the tool's on a custom table, p on a tiling {p,q}
+// or a tree of degree p, and on another tiling tilingThresholds
+// (sandpiles-pile.js).
+function thresholdsOf(d) {
+  if (domains.kind === "graph") return new Int32Array(d.n).fill(disk.spec.p);
+  if (d.lattice) return tilingThresholds(d);
+  return new Int32Array(d.n).fill(d.neighbors);
+}
 
 
 /* =====================================================================
    9. CONNECTING THE BUTTONS ON THE PAGE
    ===================================================================== */
-
-// Switch to a new table and restart. "topples" is the grains that make
-// a cell topple: one number for every cell, or a list with each cell's.
-function useDomain(kind, d, topples) {
-  domainKind = kind;
-  domain = d;
-  threshold = typeof topples === "number" ? new Int32Array(d.n).fill(topples) : topples;
-  mostThreshold = threshold.reduce(function (a, b) { return Math.max(a, b); }, 0);
-  sameThreshold = threshold.every(function (t) { return t === threshold[0]; }) ? threshold[0] : null;
-  useTorus(view, Boolean(d.wrap));   // moving and zooming; zooming out past the whole picture only on a torus (js/sim-view.js)
-  sinks = [];                         // no sink cells on a new table (click to make some)
-  makeHeightColors();
-  showDomainChoice();
-  showStartChoice();
-  showPictureKind();
-  restart();
-}
-
-// The box or torus from the boxes on the page. (Choosing one while the
-// graph tool is open closes it.)
-function useBox() {
-  if (tool.isOpen) tool.close();
-  const d = boxFromOptions(checked("domain") === "torus" ? MIN_TORUS : 1, MAX_SIDE, DEFAULTS);
-  useDomain(d.wrap ? "torus" : "box", d, d.lattice ? tilingThresholds(d) : Number(byId("set-neighbors").value));   // (sandpiles-pile.js)
-}
-
-// A ball of a hyperbolic tiling or a tree, from the options on the
-// page (ballFromOptions, js/sim-hyperbolic.js), with the start cell in
-// the middle of the picture. Every cell of the tiling {p,q} (or of the
-// tree of degree p) has p neighbors, so it topples at p grains, and the
-// grains sent to neighbors outside the ball are lost.
-function useGraph() {
-  if (tool.isOpen) tool.close();
-  const ball = ballFromOptions(disk, BALL, function (spec) { return ", each toppling at " + spec.p + " grains"; });
-  if (ball === null) { showDomainChoice(); return; }
-  ballSteps = stepsFrom(ball, [0]);      // js/sim-domains.js
-  useDomain("graph", ball, disk.spec.p);
-}
-
-// Show the options that fit the table in use, and tick its radio button
-// (js/sim-controls.js), with this page's words for a custom table.
-function showDomainChoice() {
-  showDomainOptions(domainKind, customDomain, disk);
-  byId("lattice-note").hidden = onSquares();   // (the Neighbors option says it on squares)
-  if (domainKind === "custom" && customDomain) {
-    byId("custom-info").textContent = "Your table: " + customDomain.n + " cells, " + customNeighbors +
-      " neighbors" + (customDomain.wrap ? ", on a torus." : ".");
-  }
-}
 
 // Show only the number boxes of the chosen start.
 const START_HELP = {
@@ -896,56 +839,34 @@ function showStartChoice() {
   byId("most-row").hidden = kind !== "random";
   byId("full-row").hidden = kind !== "full";
   byId("linear-row").hidden = kind !== "linear";
-  byId("start-help").textContent = (domainKind === "graph" && START_HELP_BALL[kind]) || START_HELP[kind];
+  byId("start-help").textContent = (domains.kind === "graph" && START_HELP_BALL[kind]) || START_HELP[kind];
 }
 
-// Table: Box / Torus / Custom / Hyperbolic plane or tree, and their
-// options, the Lattice options among them (js/sim-controls.js).
-connectDomainChoice({ box: useBox, torus: useBox, custom: tool.open, graph: useGraph });
-
-// Start: the kind, and its numbers. A slider and its number box move
-// together, and the pile restarts (paused) live while you drag, like a
-// Desmos slider.
+// Start: the kind, and its numbers (restart reads them from their
+// boxes). A slider and its number box move together (connectSliderAndBox,
+// js/sim-page.js), and the pile restarts (paused) live while you drag,
+// like a Desmos slider.
 byId("start-kind").addEventListener("change", function () { showStartChoice(); restart(); });
-function pairSliderAndBox(sliderId, boxId) {
-  byId(sliderId).addEventListener("input", function () { byId(boxId).value = this.value; restart(); });
-  byId(boxId).addEventListener("change", function () { byId(sliderId).value = this.value; restart(); });
-}
-pairSliderAndBox("grains-slider", "set-grains");
-pairSliderAndBox("most-slider", "set-most");
-pairSliderAndBox("full-slider", "set-full");
+const showGrains = connectSliderAndBox("grains-slider", "set-grains", function (n) { showGrains(n); restart(); });
+const showMost = connectSliderAndBox("most-slider", "set-most", function (n) { showMost(n); restart(); });
+const showFull = connectSliderAndBox("full-slider", "set-full", function (n) { showFull(n); restart(); });
 byId("set-value").addEventListener("change", function () { restart(); });
 byId("set-slope").addEventListener("change", function () { restart(); });
 
 // Add the identity of this table to the pile (then it topples as usual).
-byId("add-identity").addEventListener("click", function () { worker.postMessage({ type: "identity" }); });
+byId("add-identity").addEventListener("click", function () { sim.send({ type: "identity" }); });
 
-// Play / Pause, Step, Undo, Jump, Restart.
-byId("play").addEventListener("click", function () { setPlaying(!playing); });
-byId("step").addEventListener("click", function () {
-  if (playing) setPlaying(false);
-  worker.postMessage({ type: "step" });
-});
+// Undo and Jump (Play, Step and Restart: connectPlay, section 4).
 byId("undo").addEventListener("click", function () {
-  if (playing) setPlaying(false);
-  worker.postMessage({ type: "undo" });
+  if (player.playing) player.setPlaying(false);
+  sim.send({ type: "undo" });
 });
-byId("jump").addEventListener("click", function () { worker.postMessage({ type: "jump" }); });
-byId("restart").addEventListener("click", function () { restart(); });
+byId("jump").addEventListener("click", function () { sim.send({ type: "jump" }); });
 
-// One at a time or rounds; speed; the storm.
+// One at a time or rounds; the storm.
 for (const radio of document.querySelectorAll('input[name="order"]')) {
-  radio.addEventListener("change", function () { sendSettings(); showSpeed(); });
+  radio.addEventListener("change", function () { sendSettings(); showSpeedUnits(); });
 }
-function showSpeed() {
-  const what = checked("order") === "rounds" ? "round" : "topple";
-  byId("speed-label").textContent = speedText(speed, what, what + "s");
-}
-connectSpeedSlider("speed", SPEEDS, DEFAULT_SPEED, function (newSpeed) {
-  speed = newSpeed;
-  showSpeed();
-  sendSettings();
-});
 connectSpeedSlider("storm-rate", STORM_RATES, DEFAULT_STORM_RATE, function (newRate) {
   stormRate = newRate;
   byId("storm-label").textContent = speedText(stormRate, "grain", "grains");
@@ -968,19 +889,17 @@ connectSeed(function () { restart(); });
 
 // --- Start ------------------------------------------------------------
 fillDomainOptions(DEFAULTS, MAX_SIDE, BALL);
-fillLatticeMenu();
 byId("start-kind").value = DEFAULTS.start;
 addRangeBoxes(byId("grains-slider"), 0, GRAINS_SLIDER_MAX);   // min and max boxes (js/sim-page.js)
-byId("set-grains").value = byId("grains-slider").value = DEFAULTS.grains;
 byId("set-grains").max = MAX_GRAINS;
-byId("set-most").value = byId("most-slider").value = DEFAULTS.most;
-byId("set-full").value = byId("full-slider").value = DEFAULTS.full;
 byId("set-most").max = byId("most-slider").max = MAX_HEIGHT_SETTING;
 byId("set-full").max = byId("full-slider").max = MAX_HEIGHT_SETTING;
+showGrains(DEFAULTS.grains);
+showMost(DEFAULTS.most);
+showFull(DEFAULTS.full);
 byId("set-value").value = DEFAULTS.value;
 byId("set-slope").value = DEFAULTS.slope;
 byId("seed").value = DEFAULTS.seed;
 showStartChoice();
-sendSettings();
-useBox();
-setPlaying(false);   // paused: press Play to watch it topple
+showSpeedUnits();
+domains.useTicked();

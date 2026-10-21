@@ -83,14 +83,15 @@
    The whole chain is one function, chainWorker(). The sim page
    (connected-coloring.js) turns that function into a "Web Worker": a
    second thread that runs the chain without freezing the page. The page
-   and the worker talk by sending each other messages (section 5).
+   and the worker talk by sending each other messages (section 5), as
+   every sim's do.
 
    The file is split into numbered sections, all inside chainWorker():
      1. The state of the chain
      2. One move of the chain
      3. Wilson's algorithm, and cutting the tree
      4. Counting spanning trees (log of a determinant)
-     5. Messages from the page, and the run loop
+     5. Messages from the page
    ===================================================================== */
 
 function chainWorker() {
@@ -120,9 +121,10 @@ function chainWorker() {
   let random = Math.random;
   let proposed = 0;        // moves tried
   let accepted = 0;        // moves accepted
-  let alphas = [];         // move, alpha, move, alpha, ... since the last report (for the chart)
+  let boundaryTrace = null;   // the boundary edges against the moves accepted, for the chart (keepSample, js/sim-worker.js)
+  let alphaTrace = null;      // each move's acceptance probability alpha, against the move number, for the chart
+  let alphaSum = 0;           // the sum of every move's alpha, for their average
   let film = null;         // "watch each move": what this move did, for the page to show (section 5)
-  let run = 0;             // which run this is (the page numbers them)
 
   // Scratch space, one number per cell, reused by every move.
   // A "stamp" array marks cells by writing the current stamp number into
@@ -139,10 +141,8 @@ function chainWorker() {
     N = message.N;
     color = Int32Array.from(message.colors);
     random = new Math.seedrandom(String(message.seed));
-    run = message.run;
     proposed = 0;
     accepted = 0;
-    alphas = [];
 
     inM = new Int32Array(n); inTree = new Int32Array(n);
     member = new Int32Array(n); seen = new Int32Array(n);
@@ -169,6 +169,20 @@ function chainWorker() {
     // The spanning trees of each color, remembered from move to move.
     logTau = new Float64Array(N);
     for (let c = 0; c < N; c++) logTau[c] = logSpanningTrees(cellsOfColor(c));
+
+    // The charts start with the start's boundary edges.
+    boundaryTrace = newTrace(message.most);
+    alphaTrace = newTrace(message.most);
+    alphaSum = 0;
+    keepSample(boundaryTrace, 0, { boundary: boundary });
+  }
+
+  // After each move, samples for the charts: its alpha, against the
+  // move number, and the boundary edges, against the moves accepted.
+  function takeSamples(alpha) {
+    alphaSum += alpha;
+    keepSample(alphaTrace, proposed, { alpha: alpha });
+    keepSample(boundaryTrace, accepted, { boundary: boundary });
   }
 
   // Where the pair of colors a, b is stored in "between".
@@ -228,8 +242,8 @@ function chainWorker() {
     if (film) film.proposal = M.map(function (v) { return [v, newColor[v]]; });
     if (changed === 0) {                       // Y = X: alpha = 1 and nothing moves
       accepted++;
-      alphas.push(proposed, 1);
       if (film) { film.alpha = 1; film.accepted = true; }
+      takeSamples(1);
       return;
     }
 
@@ -245,10 +259,10 @@ function chainWorker() {
     const logAlpha = Math.log(pairsBefore) - Math.log(pairsAfter)
                    + (logTau[i] + logTau[j]) - (logTauI + logTauJ)
                    + Math.log(kBefore) - Math.log(kAfter);
-    alphas.push(proposed, Math.min(1, Math.exp(logAlpha)));   // for the acceptance chart
+    const alpha = Math.min(1, Math.exp(logAlpha));
 
     const accept = logAlpha >= 0 || Math.log(random()) < logAlpha;
-    if (film) { film.alpha = Math.min(1, Math.exp(logAlpha)); film.accepted = accept; }
+    if (film) { film.alpha = alpha; film.accepted = accept; }
     if (accept) {
       logTau[i] = logTauI;
       logTau[j] = logTauJ;
@@ -256,6 +270,7 @@ function chainWorker() {
     } else {
       recolor(M, oldColor);                  // rejected: back to X
     }
+    takeSamples(alpha);
   }
 
   // Give each cell v of "cells" the color target[v], keeping between,
@@ -541,93 +556,70 @@ function chainWorker() {
 
 
   /* ===================================================================
-     5. MESSAGES FROM THE PAGE, AND THE RUN LOOP
+     5. MESSAGES FROM THE PAGE
      -------------------------------------------------------------------
-     The page sends:
-       { type: "setup", run, n, first, nbr, colors, N, seed }   a new run
-       { type: "play", speed }    run "speed" moves per second
-                                  (Infinity = as fast as possible)
-       { type: "pause" }
-       { type: "step" }           one move
-       { type: "watch", on }      "watch each move" on or off
-       { type: "next" }           (watching) the page has shown the last move
-     The worker answers with "state" messages: the colors, and the
-     numbers for the Statistics box, including the acceptance
-     probability alpha of every move since the last message. Each one
-     carries its run number, so the page can ignore leftovers from an
-     older run. Play, Pause and Speed are the run loop makeRunLoop
-     (js/sim-worker.js).
+     The worker talks to the page the way every sim's worker does
+     (serveRun, js/sim-worker.js). Its own messages:
+       setup  { n, first, nbr, colors, N, seed, watch, most }   a new run
+                        ("watch": is "watch each move" on? "most": the
+                        most samples each chart keeps)
+       watch  { on }    "watch each move" on or off
+       next   {}        (watching) the page has shown the last move
+     It reports the colors, the numbers for the Statistics box, and the
+     run so far for the two charts (the boundary edges, and the
+     acceptance probability alpha of the moves, with its average).
 
-     Watching each move, the worker makes one move at a time and sends
-     what it did along with it ("film": the two colors, every walk of
-     Wilson's algorithm, the root, the cut edge, the proposed colors,
-     alpha, and accepted or not). It doesn't make the next move until
-     the page has shown this one and sends "next". The moves are the
-     same as without watching: the same seed gives the same run.
+     Watching each move, each move also sends what it did ("film": the
+     two colors, every walk of Wilson's algorithm, the root, the cut
+     edge, the proposed colors, alpha, and accepted or not), and the
+     next move waits until the page has shown this one and sends
+     "next". The moves are the same as without watching: the same seed
+     gives the same run.
      =================================================================== */
-  const loop = makeRunLoop(oneMove, report);
-  let lastReported = -1;   // the move count last sent to the page
   let watching = false;    // "watch each move" is on
-  let playing = false;     // the page wants the chain to play
-  let speed = 1;           // the page's last speed, for when watching stops
   let showing = false;     // watching: the page is still showing the last move
+  let lastReported = -1;   // the move count last sent to the page
 
-  // Watching: make one move and send it, with its film.
-  function filmMove() {
-    film = {};
+  // One step: one move, or, watching, one move with its film once the
+  // page has shown the last one (until then it waits: false).
+  function oneStep() {
+    if (watching && showing) return false;
+    film = watching ? {} : null;
     oneMove();
-    report();
-    film = null;
-    showing = true;
+    showing = watching;
   }
 
-  self.onmessage = function (event) {
-    const message = event.data;
-    if (message.type === "setup") {
-      loop.pause();
-      setup(message);
-      lastReported = -1;
-      showing = false;
-      report();
-    } else if (message.type === "play") {
-      playing = true;
-      speed = message.speed;
-      if (!watching) loop.play(speed);
-      else if (!showing) filmMove();
-    } else if (message.type === "pause") {
-      playing = false;
-      loop.pause();
-    } else if (message.type === "step") {
-      if (watching) { filmMove(); return; }
-      oneMove();
-      report();
-    } else if (message.type === "watch") {
-      watching = message.on;
-      showing = false;
-      if (watching) { loop.pause(); if (playing) filmMove(); }
-      else if (playing) loop.play(speed);
-    } else if (message.type === "next") {
-      showing = false;
-      if (watching && playing) filmMove();
-    }
-  };
-
-  // Send the colors and the numbers to the page.
-  function report() {
+  function report(send) {
     if (proposed === lastReported) return;   // nothing new to show
     lastReported = proposed;
     const copy = color.slice();
-    self.postMessage({
-      type: "state",
-      run: run,
+    send({
       colors: copy,
       proposed: proposed,
       accepted: accepted,
       boundary: boundary,
       pairs: pairs,
-      alphas: alphas,
+      boundaryTimes: Float64Array.from(boundaryTrace.times),
+      boundaryValues: Float64Array.from(boundaryTrace.lists.boundary),
+      alphaTimes: Float64Array.from(alphaTrace.times),
+      alphaValues: Float64Array.from(alphaTrace.lists.alpha || []),   // (none before the first move)
+      alphaAverage: alphaSum / Math.max(proposed, 1),
       film: film,
-    }, [copy.buffer]);   // hand the copy over instead of copying it again
-    alphas = [];
+    }, [copy.buffer]);
+    film = null;
   }
+
+  serveRun({
+    setup: function (message) {
+      setup(message);
+      watching = message.watch;
+      showing = false;
+      lastReported = -1;
+    },
+    steps: oneStep, report: report,
+    messages: {
+      watch: function (message) { watching = message.on; showing = false; },
+      next: function () { showing = false; },
+    },
+  });
 }

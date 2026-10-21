@@ -29,7 +29,7 @@
      5. Drawing the coloring and the walkers
      6. Dragging and zooming: walkers before the start, and the picture
      7. Statistics
-     8. Custom domains: the graph tool inside this page
+     8. The domain
      9. Connecting the buttons on the page
    ===================================================================== */
 
@@ -44,18 +44,12 @@ const DEFAULTS = { width: 64, height: 64, neighbors: 4, walkers: 2, seed: "1" };
 const MAX_WALKERS = 30;           // the most walkers allowed
 const MAX_SIDE = 300;             // the biggest box or torus is 300 x 300
 const MAX_PICTURE_HEIGHT = 600;   // in screen pixels
-const BORDER = "#1e1e1e";         // the lines between colors
-const UNCOLORED = "#ffffff";      // cells no walker has reached yet
-const OUTSIDE = "#ecebe7";        // around a custom domain (cells not in it)
-const SMALLEST_BORDERED_CELL = 4; // cells smaller than this (in pixels) get no border lines
 const PAD = 8;                    // room above and below the picture, so walkers at the edge show
 
 // Hyperbolic plane or tree: the ball's default radius R, its largest
 // R, and the most cells it may have (a ball of a hyperbolic tiling grows
-// exponentially with R), and the color of an uncolored cell in the
-// spread-out picture (white dots wouldn't show there).
+// exponentially with R).
 const BALL = { R: 5, most: 20, cells: 20000 };
-const UNCOLORED_DOT = "#c9c6bf";
 
 // The speeds on the Speed slider, in steps per second (one step = one
 // unit of time, in both models). Infinity means "as fast as the
@@ -69,19 +63,12 @@ const DEFAULT_SPEED = 5;
    ===================================================================== */
 
 let model = "discrete";         // "discrete" or "continuous"
-// The domain in use: "line" or "ring" (on the 1D page,
-// random-walk-coloring-1d.html), "box", "torus", "custom" or "graph".
-// It starts as the one ticked on the page.
-let domainKind = document.querySelector('input[name="domain"]:checked').value;
-let domain = null;              // the domain graph (js/sim-domains.js), or a ball (makeBall, js/sim-hyperbolic.js)
-let customDomain = null;        // the last custom domain drawn, if any
+let domain = null;              // the domain graph (js/sim-domains.js), or a ball (makeBall, js/sim-hyperbolic.js); its kind is domains.kind (section 8)
 let N = DEFAULTS.walkers;       // number of walkers
 let starts = [];                // starts[i] = the cell walker i starts on
 let colorNames = [];            // colorNames[i] = how color i is drawn, e.g. "#f2735a"
-let colorRGB = [];              // the same colors as [red, green, blue], 0..255
 let showWalkers = true;         // the "Show walkers" box
 
-let run = 0;                    // counts restarts, so leftovers from an older run are ignored
 
 // The latest message from the walkers: the colors, where the walkers
 // are, and the numbers (see section 5 of random-walk-coloring-walk.js).
@@ -124,9 +111,9 @@ function showTime(t) {
    the middle of the ball.
    ===================================================================== */
 function defaultStarts(d, count) {
-  if (domainKind === "graph") return spreadThroughRegion(d, count, 0);
-  if (domainKind === "custom" || d.lattice) return spreadThroughRegion(d, count, topLeftCell(d));
-  if (domainKind === "line" || domainKind === "ring") return lineStarts(d, count);
+  if (domains.kind === "graph") return spreadThroughRegion(d, count, 0);
+  if (domains.kind === "custom" || d.lattice) return spreadThroughRegion(d, count, topLeftCell(d));
+  if (domains.kind === "line" || domains.kind === "ring") return lineStarts(d, count);
   return gridStarts(d, count);
 }
 
@@ -198,43 +185,28 @@ function spreadThroughRegion(d, count, firstCell) {
    4. RUNNING THE WALKERS
    ---------------------------------------------------------------------
    The walkers are the function walkWorker() in
-   random-walk-coloring-walk.js, with the run loop and the trace
-   (js/sim-worker.js), and countPieces with the search behind it
-   (js/sim-domains.js), copied in. startWorker (js/sim-page.js) runs it in
-   a second thread, a "Web Worker", so the page never freezes.
+   random-walk-coloring-walk.js, with the trace (js/sim-worker.js),
+   and countPieces with the search behind it (js/sim-domains.js),
+   copied in. runInWorker (js/sim-page.js) runs it in a second thread,
+   a "Web Worker", so the page never freezes.
    ===================================================================== */
-const worker = startWorker(walkWorker, [makeRunLoop, newTrace, keepSample, countPieces, findRegions, spreadRegion]);
+const sim = runInWorker(walkWorker, [newTrace, keepSample, countPieces, findRegions, spreadRegion],
+                        function (message) { latest = message; drawSoon(); });
 
-worker.onmessage = function (event) {
-  const message = event.data;
-  if (message.type !== "state" || message.run !== run) return;   // from an older run
-  latest = message;
-  if (message.done && player.playing) player.setPlaying(false);
-  drawSoon();
-};
-
-worker.onerror = function () {
-  showMessage("The walkers couldn't start. They load one small library (seedrandom) from the " +
-              "internet, so check the connection and reload the page.");
-};
-
-// Start again from the starting cells, with the current domain, model
-// and seed.
+// A new run (paused) from the starting cells, with the current domain,
+// model and seed.
 function restart() {
-  run++;
   latest = null;
   showMessage("");
-  worker.postMessage({
-    type: "setup", run: run,
+  sim.setup({
     n: domain.n, first: domain.first, nbr: domain.nbr,
     starts: Int32Array.from(starts), model: model, seed: byId("seed").value,
   });
-  player.carryOn();
 }
 
 // Play / Pause, Step, Restart and the Speed slider (connectPlay,
 // js/sim-page.js). player.playing is true while the sim plays.
-const player = connectPlay(worker, SPEEDS, DEFAULT_SPEED, "step", "steps", restart);
+const player = connectPlay(sim, SPEEDS, DEFAULT_SPEED, "step", "steps", restart);
 
 
 /* =====================================================================
@@ -272,8 +244,7 @@ const view = makeView(simCanvas, drawSoon, PAD, SMALLEST_BORDERED_CELL);
 // Hyperbolic plane or tree: which graph, how it is drawn, and how far
 // the plane has been moved (js/sim-hyperbolic.js). The view above zooms
 // and slides its pictures too.
-const disk = makeDiskView(simCanvas, view, showDomainChoice);
-const outsideRGB = hexToRGB(OUTSIDE), blankRGB = hexToRGB(UNCOLORED);
+const disk = makeDiskView(simCanvas, view, function () { domains.show(); });
 
 // A clicked cell's region stands out: every other cell fades
 // (js/sim-highlight.js; the click is in section 6).
@@ -281,17 +252,15 @@ function drawColoring() {
   if (!domain || !latest || simCanvas.hidden) return;
   findHighlight(highlight, domain, latest.colors);
   byId("highlight-info").textContent = highlightText(highlight, "region", function (c) { return "color " + (c + 1); });
-  if (domainKind === "graph") { drawOnGraph(); return; }
-  if (domainKind === "ring") { drawRing(); return; }
+  if (domains.kind === "graph") { drawOnGraph(); return; }
+  if (domains.kind === "ring") { drawRing(); return; }
   const colors = latest.colors;
   const pen = fitPicture(view, domain, MAX_PICTURE_HEIGHT);
 
-  // The cells, each in its color (-1: not reached yet), with lines
+  // The cells, each in its color (white: not reached yet), with lines
   // between different colors when cells are big enough to see
-  // (the outside counts as a color of its own).
-  paintDomain(view, pen, domain, highlightGroups(highlight, function (v) { return colors[v]; }, N),
-    highlightRGB(function (c) { return c === -1 ? blankRGB : colorRGB[c]; }, N), outsideRGB, BORDER, SMALLEST_BORDERED_CELL);
-
+  // (paintColoring, js/sim-highlight.js).
+  paintColoring(view, pen, domain, colors, colorNames, highlight);
   pen.restore();                       // no longer cut off at the picture's box, so
   if (showWalkers) drawWalkers(pen);   // walkers on the edge show whole
 }
@@ -300,9 +269,7 @@ function drawColoring() {
 // rest of the tiling (or tree) in thin gray (drawBall,
 // js/sim-hyperbolic.js), and the walkers on top.
 function drawOnGraph() {
-  const colors = latest.colors;
-  const blank = disk.picture === "spread" ? UNCOLORED_DOT : UNCOLORED;
-  const pen = drawBall(disk, domain, highlightCSS(highlight, function (v) { return colors[v] === -1 ? blank : colorNames[colors[v]]; }));
+  const pen = drawBall(disk, domain, coloringCSS(highlight, latest.colors, colorNames));
   if (showWalkers) drawWalkers(pen);
 }
 
@@ -324,14 +291,8 @@ function ringAngle(ring, k) {
 
 function drawRing() {
   const ring = ringShape(), colors = latest.colors;
-  const colorOf = highlightCSS(highlight, function (v) { return colors[v] === -1 ? UNCOLORED : colorNames[colors[v]]; });
-  // Size the canvas (sharp on sharp screens) and get its pen.
-  const ratio = window.devicePixelRatio || 1;
-  simCanvas.style.height = ring.h + "px";
-  simCanvas.width = Math.round(ring.w * ratio);
-  simCanvas.height = Math.round(ring.h * ratio);
-  const pen = simCanvas.getContext("2d");
-  pen.setTransform(ratio, 0, 0, ratio, 0, 0);
+  const colorOf = coloringCSS(highlight, colors, colorNames);
+  const pen = sharpPen(simCanvas, ring.w, ring.h);
   view.top = 0;   // pointerSpot then gives plain canvas positions
 
   // Each cell: the piece of the band between its two angles. (Cell k is
@@ -352,7 +313,7 @@ function drawRing() {
   }
 
   // Lines between different colors, across the band, and the band's two edges.
-  pen.strokeStyle = BORDER;
+  pen.strokeStyle = CELL_LINES;
   pen.lineWidth = 1;
   for (let v = 0; v < domain.n; v++) {
     const k = domain.x[v] - domain.xmin;
@@ -399,8 +360,8 @@ function ringCellUnder(spot) {
 // canvas top), a bit smaller where cells are small.
 function walkerSpots(i) {
   const d = domain, v = latest.positions[i];
-  if (domainKind === "graph") return graphSpots(v);
-  if (domainKind === "ring") return [ringSpot(v)];
+  if (domains.kind === "graph") return graphSpots(v);
+  if (domains.kind === "ring") return [ringSpot(v)];
   if (d.lattice) return tilingSpots(v);
   let columns = [d.x[v] - d.xmin], rows = [d.ymax - d.y[v]];   // its square (column, row)
   if (d.wrap) {
@@ -470,10 +431,10 @@ function drawWalkers(pen) {
       pen.beginPath();
       pen.arc(spot.x, spot.y, r + 1.5, 0, 2 * Math.PI);
       pen.lineWidth = 1;
-      pen.strokeStyle = BORDER;
+      pen.strokeStyle = CELL_LINES;
       pen.stroke();
       if (r >= 9) {
-        pen.fillStyle = BORDER;
+        pen.fillStyle = CELL_LINES;
         pen.fillText(String(i + 1), spot.x, spot.y + 1);
       }
     }
@@ -502,13 +463,10 @@ window.addEventListener("resize", drawSoon);
    highlights the clicked cell's region (js/sim-highlight.js), which
    follows that cell as the walkers color more cells. Clicking the
    region again, or outside the cells, shows everything again.
-   "Pointer" events cover the mouse, a pen and fingers alike.
+   connectPicture (js/sim-view.js) does all of this, with the walkers
+   as the things a press can pick up.
    ===================================================================== */
 let dragWalker = -1;          // the walker being dragged, or -1
-let walkerPointer = -1;       // the pointer dragging it
-const clicks = makeClickTracker();   // is a press a click? (js/sim-controls.js)
-// (On phones, a finger on the picture drags instead of scrolling the
-// page: "touch-action: none" in css/style.css.)
 
 // The walker under the pointer (the one drawn on top), or -1. Only
 // before the run has started, while paused.
@@ -522,76 +480,35 @@ function walkerUnder(spot) {
   return -1;
 }
 
-// The "hand" cursor: open, or closed while something is dragged.
-// (Everything here can be dragged: a walker, or the picture.)
-function showCursor() {
-  simCanvas.style.cursor = (dragWalker >= 0 || view.pointers.size > 0) ? "grabbing" : "grab";
-}
-
-// A press on a walker drags the walker. Anywhere else, the pointer
-// moves the picture (pressPointer and the rest are in js/sim-view.js).
-// On a hyperbolic tiling or tree, one pointer drags across the plane
-// instead (startPlaneDrag and dragPlane, js/sim-hyperbolic.js), and two
-// fingers slide and zoom the picture.
-simCanvas.addEventListener("pointerdown", function (event) {
-  clicks.press(event);
-  if (dragWalker < 0 && view.pointers.size === 0) {
-    dragWalker = walkerUnder(pointerSpot(view, event));   // a walker, if there's one under the pointer
-    if (dragWalker >= 0) {
-      walkerPointer = event.pointerId;
-      simCanvas.setPointerCapture(event.pointerId);   // keep getting moves even off the canvas
-    }
-  }
-  if (dragWalker < 0) pressPointer(view, event);
-  startDrag();
-  showCursor();
-});
-
 // The cell under the pointer, on any picture (-1: none).
 function cellUnderPointer(event) {
-  return domainKind === "ring" ? ringCellUnder(pointerSpot(view, event))
-                               : cellAtEvent(view, disk, domain, domainKind === "graph", event);
+  return domains.kind === "ring" ? ringCellUnder(pointerSpot(view, event))
+                               : cellAtEvent(view, disk, domain, domains.kind === "graph", event);
 }
 
-simCanvas.addEventListener("pointermove", function (event) {
-  clicks.move(event);
-  if (dragWalker >= 0 && event.pointerId === walkerPointer) {
-    const cell = cellUnderPointer(event);
-    if (cell !== -1 && cell !== starts[dragWalker]) {
-      starts[dragWalker] = cell;
-      restart();
-    }
-  } else if (disk.dragFrom && view.pointers.has(event.pointerId)) {
-    view.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });   // where a second finger starts from
-    dragPlane(disk, event.clientX, event.clientY);
-    drawSoon();
-  } else {
-    movePointer(view, event);
-  }
-  showCursor();
-});
-
-function stopDragging(event) {
-  const isClick = clicks.release(event) && event.type === "pointerup";
-  const onWalker = dragWalker >= 0;
-  if (event.pointerId === walkerPointer) { dragWalker = -1; walkerPointer = -1; }
-  releasePointer(view, event);
-  startDrag();
-  showCursor();
-  if (isClick && !onWalker && latest) {
+connectPicture(view, {
+  disk: disk, onGraph: function () { return domains.kind === "graph"; },
+  onClick: function (event) {
+    if (!latest) return;
     clickHighlight(highlight, cellUnderPointer(event), latest.colors);
     drawSoon();
-  }
-}
-
-// On a hyperbolic tiling or tree, exactly one pointer pressed drags
-// across the plane.
-function startDrag() {
-  if (domainKind === "graph") startPlaneDrag(disk);
-  else disk.dragFrom = null;
-}
-simCanvas.addEventListener("pointerup", stopDragging);
-simCanvas.addEventListener("pointercancel", stopDragging);
+  },
+  grab: {
+    press: function (event) {
+      dragWalker = walkerUnder(pointerSpot(view, event));   // a walker, if there's one under the pointer
+      return dragWalker >= 0;
+    },
+    // It snaps to the cell under the pointer.
+    move: function (event) {
+      const cell = cellUnderPointer(event);
+      if (cell !== -1 && cell !== starts[dragWalker]) {
+        starts[dragWalker] = cell;
+        restart();
+      }
+    },
+    release: function () { dragWalker = -1; },
+  },
+});
 
 
 /* =====================================================================
@@ -622,7 +539,6 @@ function showStats() {
   byId("stat-cover").textContent = s.coverTime === null ? "not yet" : showTime(s.coverTime);
 
   if (s.done) showMessage("Every cell is colored. Cover time: " + showTime(s.coverTime) + ".");
-  byId("play").disabled = byId("step").disabled = s.done;
   byId("start-info").textContent = started()
     ? "The run has started. Press Restart to go back to the start and move the walkers again."
     : "Drag a walker to choose where it starts. Changing N or the domain puts the walkers " +
@@ -636,7 +552,7 @@ function showStats() {
   drawAreasChart(regions);
   // Perimeter against area, only on the 2D page (on a line or ring
   // every region's perimeter is 0, 1 or 2).
-  if (byId("perimeter-chart")) perimeterChart(byId("perimeter-chart"), regions, colorNames, BORDER);
+  if (byId("perimeter-chart")) perimeterChart(byId("perimeter-chart"), regions, colorNames, CELL_LINES);
 }
 
 // One row per color: cells, number of regions, largest region.
@@ -649,10 +565,9 @@ function showColorRows(regions) {
   });
   let rows = "";
   for (let c = 0; c < N; c++) {
-    rows += '<tr><td><span class="swatch-small" style="background:' + colorNames[c] + '"></span>' +
-      (c + 1) + '</td><td>' + latest.sizes[c] + '</td><td>' + count[c] + '</td><td>' + largest[c] + '</td></tr>';
+    rows += colorRow(colorNames[c], c + 1, [latest.sizes[c].toLocaleString(), count[c].toLocaleString(), largest[c].toLocaleString()]);
   }
-  byId("color-rows").innerHTML = rows;
+  byId("color-rows").innerHTML = rows;   // (colorRow, js/sim-page.js)
 }
 
 // The number of cells of each color, over time. The walkers send these
@@ -675,100 +590,67 @@ function drawAreasChart(regions) {
 }
 
 /* =====================================================================
-   8. CUSTOM DOMAINS: THE GRAPH TOOL INSIDE THIS PAGE
+   8. THE DOMAIN
    ---------------------------------------------------------------------
-   Choosing "Custom" swaps the picture for the graph tool, loaded in an
-   <iframe> (a page inside this page): makeCustomTool, in
-   js/sim-controls.js. This page checks the drawing live: the region
-   must be one connected piece (otherwise the cells cut off from every
-   walker could never be colored). Done uses it.
+   Box / Torus / Custom / Hyperbolic plane or tree, and their options,
+   the Lattice options among them (connectDomains, js/sim-controls.js).
+   The 1D page (random-walk-coloring-1d.html) has the Ring and the Line
+   instead, and there the picture stays still: the ring is a circle,
+   and the line is one strip across the picture.
+   Custom swaps the picture for the graph tool. The region must be one
+   connected piece (otherwise the cells cut off from every walker could
+   never be colored).
+   A new domain puts the walkers in the default start, and restarts.
    ===================================================================== */
-const tool = makeCustomTool({
-  view: view,
-  isPlaying: function () { return player.playing; },
-  setPlaying: player.setPlaying,
-  check: function (drawing) {
-    if (drawing.graph.vertices.length === 0) return ["Paint the region first.", ""];
-    const region = drawnDomain(drawing.graph, drawing.grid);
-    const reached = stepsFrom(region, [0]).filter(function (s) { return s !== -1; }).length;
-    return reached < region.n ? ["The region must be one connected piece.", ""]
-      : ["", region.n + " cells in one connected piece."];
+const domains = connectDomains({
+  view: view, player: player, disk: disk,
+  box: function () { return boxFromOptions(2, MAX_SIDE, DEFAULTS); },
+  ball: function () { return ballFromOptions(disk, BALL); },
+  custom: {
+    help: "Paint the cells the walkers live on (any color counts). The region must be one connected piece. " +
+          "Then press Done, and drag the walkers to where they should start.",
+    check: function (drawing) {
+      if (drawing.graph.vertices.length === 0) return ["Paint the region first.", ""];
+      const region = drawnDomain(drawing.graph, drawing.grid);
+      const reached = stepsFrom(region, [0]).filter(function (s) { return s !== -1; }).length;
+      return reached < region.n ? ["The region must be one connected piece.", ""]
+        : ["", region.n + " cells in one connected piece."];
+    },
   },
-  done: function (drawing) {
-    customDomain = drawnDomain(drawing.graph, drawing.grid);
-    useDomain("custom", customDomain);
+  kinds: { line: useLine, ring: useLine },
+  still: Boolean(document.querySelector('input[name="domain"][value="ring"]')),
+  use: function (d) {
+    domain = d;
+    clearHighlight(highlight);
+    setWalkerCount(N);
   },
-  cancel: function () { showDomainChoice(); drawSoon(); },
 });
+
+// 1D: a box one cell tall, its length from the Length box. A ring is a
+// torus one cell tall: the two ends are neighbors, and it is drawn as a
+// circle (drawRing). (boxDomain drops the up and down neighbors, which
+// would be the cell itself.)
+function useLine() {
+  const kind = checked("domain");
+  const length = readWhole("set-width", 2, MAX_SIDE, DEFAULTS.width);
+  domains.use(kind, boxDomain(length, 1, 4, kind === "ring"));
+}
 
 
 /* =====================================================================
    9. CONNECTING THE BUTTONS ON THE PAGE
    ===================================================================== */
 
-// Switch to a new domain, put the walkers in the default start, and
-// restart.
-function useDomain(kind, d) {
-  domainKind = kind;
-  domain = d;
-  clearHighlight(highlight);
-  // Moving and zooming; zooming out past the whole picture only on a
-  // torus (js/sim-view.js). In 1D the picture stays still: the ring is
-  // a circle, and the line is one strip across the picture.
-  if (kind === "ring" || kind === "line") useTorus(view, false, false);
-  else useTorus(view, Boolean(d.wrap));
-  showDomainChoice();
-  setWalkerCount(N);
-}
-
-// The box or torus from the boxes on the page. (Choosing one while the
-// graph tool is open closes it.) On the 1D page, with "Line" or "Ring"
-// ticked, it makes the 1D domain instead, since changing the Length box
-// comes here too.
-function useBox() {
-  if (tool.isOpen) tool.close();
-  const kind = checked("domain");
-  if (kind === "line" || kind === "ring") { useLine(kind); return; }
-  const d = boxFromOptions(2, MAX_SIDE, DEFAULTS);
-  useDomain(d.wrap ? "torus" : "box", d);
-}
-
-// 1D: a box one cell tall, its length from the Size box. A ring is a
-// torus one cell tall: the two ends are neighbors, and it is drawn as a
-// circle (drawRing). (boxDomain drops the
-// up and down neighbors, which would be the cell itself.)
-function useLine(kind) {
-  const length = readWhole("set-width", 2, MAX_SIDE, DEFAULTS.width);
-  useDomain(kind, boxDomain(length, 1, 4, kind === "ring"));
-}
-
-// A ball of a hyperbolic tiling or a tree, from the options on the
-// page (ballFromOptions, js/sim-hyperbolic.js), with the start cell in
-// the middle of the picture.
-function useGraph() {
-  if (tool.isOpen) tool.close();
-  const ball = ballFromOptions(disk, BALL);
-  if (ball === null) { showDomainChoice(); return; }
-  useDomain("graph", ball);
-}
-
-// Show the options that fit the domain in use, and tick its radio button.
-function showDomainChoice() {
-  showDomainOptions(domainKind, customDomain, disk);
-  // In 1D only the length shows: no height and no Neighbors choice.
-  const oneD = (domainKind === "line" || domainKind === "ring");
-  byId("height-part").hidden = oneD;
-  if (oneD) byId("neighbors-row").hidden = true;
-}
+// N: the slider and the number box move together (connectSliderAndBox,
+// js/sim-page.js), and the run restarts live while you drag, like a
+// Desmos slider.
+const showN = connectSliderAndBox("walkers-slider", "set-walkers", setWalkerCount);
 
 // N walkers, in the default start, with their colors. Restarts.
 function setWalkerCount(value) {
-  N = Math.min(Math.max(Math.round(value) || 1, 1), MAX_WALKERS);
-  byId("set-walkers").value = byId("walkers-slider").value = N;
+  N = showN(value);
   starts = defaultStarts(domain, N);
-  colorNames = [];
-  for (let c = 0; c < N; c++) colorNames.push(defaultColor(c, N));
-  colorRGB = colorNames.map(hexToRGB);
+  colorNames = defaultColors(N);
   restart();
 }
 
@@ -780,15 +662,6 @@ for (const radio of document.querySelectorAll('input[name="model"]')) {
   });
 }
 
-// Domain: Box / Torus / Custom / Hyperbolic plane or tree (or, on the
-// 1D page, Line / Ring), and their options, the Lattice options among
-// them on the 2D page (js/sim-controls.js).
-connectDomainChoice({ line: useBox, ring: useBox, box: useBox, torus: useBox, custom: tool.open, graph: useGraph });
-
-// N: the slider and the number box move together, and the run restarts
-// live while you drag, like a Desmos slider.
-byId("walkers-slider").addEventListener("input", function () { setWalkerCount(Number(this.value)); });
-byId("set-walkers").addEventListener("change", function () { setWalkerCount(Number(this.value)); });
 byId("default-start").addEventListener("click", function () { setWalkerCount(N); });
 byId("show-walkers").addEventListener("change", function () {
   showWalkers = this.checked;
@@ -802,8 +675,6 @@ connectSeed(restart);
 
 // --- Start ------------------------------------------------------------
 fillDomainOptions(DEFAULTS, MAX_SIDE, BALL);
-if (byId("set-tiling")) fillLatticeMenu();   // (the 1D page has no Lattice options)
 byId("set-walkers").max = byId("walkers-slider").max = MAX_WALKERS;
 byId("seed").value = DEFAULTS.seed;
-useBox();
-player.setPlaying(false);   // paused: drag the walkers, then press Play
+domains.useTicked();   // paused: drag the walkers, then press Play

@@ -10,15 +10,8 @@
 </head>
 <body>
 
-  <header class="topbar">
-    <nav>
-      <a href="../../about.html">About Me</a>
-      <a href="../../writing.html">Writing</a>
-      <a href="../../index.html">Home</a>
-      <a href="../../resume-and-publications.html">Resume &amp; Publications</a>
-      <a href="../../toysnsims.html" class="active">Toys n' Sims</a>
-    </nav>
-  </header>
+  <header class="topbar" data-active="toysnsims.html"></header>
+  <script src="../../js/site.js"></script>
 
   <main class="page">
     <p><a href="../../toysnsims.html">&larr; All sims</a></p>
@@ -38,11 +31,6 @@
              height to match the window's shape). -->
         <div class="sim-picture">
           <canvas id="sim-canvas"></canvas>
-          <div class="zoom-buttons">
-            <button class="tool-button" id="zoom-in" title="Zoom in">+</button>
-            <button class="tool-button" id="zoom-out" title="Zoom out">&minus;</button>
-            <button class="tool-button" id="zoom-reset" title="Show all of S once again">Reset</button>
-          </div>
         </div>
         <p class="muted small" id="hover-info">Point at a tile to see its numbers. Click an empty spot to add a tile there.</p>
         <!-- Messages, e.g. a formula that can't be read. -->
@@ -103,19 +91,9 @@
           Attempts n = <input type="number" id="set-attempts" min="0" step="1" style="width: 7em">
           <input type="range" class="wide-range" id="attempts-slider" min="0" max="6" step="0.01">
         </div>
-        <div class="option-row">
-          <button class="tool-button" id="play">Play</button>
-          <button class="tool-button" id="step" title="One more attempt">Step</button>
-          <button class="tool-button" id="restart" title="Back to no tiles, same seed">Restart</button>
-        </div>
-        <div class="option-row">
-          Speed <input type="range" class="wide-range" id="speed" min="0" step="1">
-          <span class="muted" id="speed-label"></span>
-        </div>
-        <div class="option-row">
-          Seed <input type="text" id="seed" size="8">
-          <button class="tool-button" id="new-seed" title="A random new seed">New seed</button>
-        </div>
+        <div class="option-row play-row" data-step="One more attempt" data-restart="Back to no tiles, same seed"></div>
+        <div class="option-row speed-row"></div>
+        <div class="option-row seed-row"></div>
         <p class="muted small">The same seed always gives the same packing. Every attempt has
           its own random numbers, so dragging n only adds or removes tiles at the end, and a
           small change to a formula or slider moves the picture a little.</p>
@@ -323,7 +301,9 @@
        charts, the old site's colors, and reading formulas with sliders.
        Then the packing (it runs in a second thread), then this page. -->
   <script src="../../js/sim-page.js"></script>
+  <script src="../../js/sim-worker.js"></script>
   <script src="../../js/sim-charts.js"></script>
+  <script src="../../js/sim-view.js"></script>
   <script src="../../js/sim-colors.js"></script>
   <script src="../../js/formulas.js"></script>
   <script src="sequential-continuous-tiling-growth.js"></script>

@@ -22,6 +22,7 @@ and, on the check pages, [jStat](https://jstat.github.io) (statistics).
 | `resume-and-publications.html` | Resume & Publications |
 | `toysnsims.html` | Toys n' Sims: a list of all simulations |
 | `css/style.css` | The single stylesheet for every page |
+| `js/site.js` | The top bar's links, written once for every page, and `fillBlocks`, which fills a page's placeholders with shared pieces of HTML |
 | `js/writing.js` | Sorts the posts on `writing.html` newest first, turns their Markdown into formatted text with math, and adds the giscus comment box to an open post |
 | `js/genre-filter.js` | Sorts the cards on `toysnsims.html` A to Z (the graph tool pinned first), builds the genre buttons and hides/shows cards |
 | `help/gomjau-hogg.html` | Help page: how to write a tiling as a GomJau-Hogg code (linked from the Lattice code box), with `gomjau-hogg.js` for its "Try a code" box |
@@ -63,18 +64,18 @@ a link back to the sim.
 
 | File | What it holds |
 | --- | --- |
-| `js/sim-page.js` | Small helpers every sim page uses: the second thread, Play and the Speed and Seed boxes, the drawing tool's messages, the full screen button, the About tabs, typesetting the formulas |
+| `js/sim-page.js` | Small helpers every sim page uses: the second thread; the Play, Speed and Seed rows (written once, into each page's placeholders) and graying out Play and Step when a run can't go on; the 3D view, with its Reset view button, Heights row and help line; the full screen button, the About tabs, typesetting the formulas |
 | `js/sim-worker.js` | What the second threads share: Play, Pause and Speed (the run loop), the run so far for the charts over time, and random numbers tied to a seed and a place or step (for coupled sliders) |
 | `js/sim-charts.js` | The small charts: lines over time, histograms, power-of-2 bars, perimeter against area, hole lifetimes, log-log lines, zooming a chart in time |
 | `js/sim-colors.js` | The old site's colors, color conversions, and the blue-to-red colors of heights |
 | `js/sim-domains.js` | Domains: box, torus, Aztec diamond, a region drawn in the graph tool, boxes and tori of triangles or hexagons, a hexagon of triangles, boxes and tori of any tiling's cells (a Penrose tiling's box centered on it; with each cell's middle and how far its sides are, and where the cells are in whole numbers, for starts), a growing set of a tiling's cells to draw, and counting connected pieces (with their areas and perimeters) |
-| `js/sim-view.js` | The picture of a domain of square (or polygon) cells: where it goes, painting the cells (paintDomain picks squares or a tiling's polygons, pixel by pixel when they are tiny), moving and zooming it |
+| `js/sim-view.js` | The picture of a domain of square (or polygon) cells: where it goes, painting the cells (paintDomain picks squares or a tiling's polygons, pixel by pixel when they are tiny), moving and zooming it (dragging, pinching, clicking), and its zoom buttons |
 | `js/sim-tilings.js` | Tilings by regular polygons read from their GomJau-Hogg codes, exactly (in whole numbers and square roots): the repeating block, its kinds of corner, the corners as cells, any tiling ready for the sims from its code, and the tilings in the Lattice menus |
 | `js/sim-penrose.js` | Penrose's kites and darts (P2) and rhombs (P3), built exactly by splitting Robinson triangles: a patch around the point of five-fold symmetry that grows to fit a box and keeps its cells' numbers, the corners as cells, and the kinds of corner (for the check page) |
 | `js/sim-shape.js` | The shape of a set of cells (squares, or any tiling's cells): its convex hull (with area and perimeter), its holes over time and its outer boundary (Eden Growth, Random Walk) |
 | `js/sim-graphs.js` | Graphs beyond the square grid, built cell by cell as a sim asks: the line, the grid, hyperbolic tilings {p,q} and regular trees |
 | `js/sim-hyperbolic.js` | Pictures of a hyperbolic tiling or tree (the disk, the half-plane, a tree spread out), dragging across the plane, and the ball a sim runs on |
-| `js/sim-controls.js` | The controls the sims on cells repeat: the Domain options (and the Lattice options), the graph tool inside the page, dragging, zooming and clicking the picture, and the clickable grid of offsets (a tile or a neighborhood) |
+| `js/sim-controls.js` | The controls the sims on cells repeat: the Domain options (written once, into each page's placeholder) and the Lattice options, the graph tool inside the page (its box and its messages), and the clickable grid of offsets (a tile or a neighborhood) |
 | `js/sim-3d.js` | The 3D view (stacks of cubes or coins, colored by height and, if a sim asks, by the kind of cell; or a colored surface with balls on it; turned with the mouse), loaded only when a sim switches to 3D |
 | `js/formulas.js` | Typed formulas and their sliders, like Desmos, with piecewise {condition: a, b} (the graph tool and the sims that take formulas) |
 | `js/check-page.js` | The check pages' results table, "Run the checks" button and shared tests (chi-square, z-score, counting holes plainly, and the holes of a tiling's cells by Euler's formula and from the polygons) |
@@ -83,7 +84,7 @@ a link back to the sim.
 
 - **Change colors or fonts:** edit section 1 at the top of `css/style.css`.
 - **Add a page:** copy an existing page, then add its link to the top bar
-  on *every* page (the top bar is copied into each file).
+  in `js/site.js` (every page's top bar comes from there).
 - **Add a sim:**
   1. Copy the page of the sim closest to the new one (like
      `toysnsims/random-walk-coloring/random-walk-coloring.html`) into a new

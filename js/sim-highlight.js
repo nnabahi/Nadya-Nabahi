@@ -19,15 +19,19 @@
      const highlight = newHighlight();       once
      clickHighlight(highlight, v, colors)    on a click on cell v (-1: outside)
      findHighlight(highlight, d, colors)     before each drawing
+     highlightText(highlight, word, name)    the line under the picture
+     highlightTextIf(highlight, on, word, name)   ... where a click can also do something else
      isFaded(highlight, v)                   is cell v faded?
-   and, to paint with it (js/sim-view.js),
+   and, to paint the coloring with it,
+     paintColoring(view, pen, d, colors, names, highlight)   on the cells, after fitPicture
+     coloringCSS(highlight, colors, names)   cell by cell, e.g. for drawBall
+   or a picture with more colors than the coloring's,
      highlightGroups(highlight, groupOf, count)   for paintDomain / paintCells
      highlightRGB(rgbOf, count)                   ... with these colors
      highlightCSS(highlight, colorOf)             for drawBall, paintLattice
-     highlightText(highlight, word, name)         the line under the picture
-     highlightTextIf(highlight, on, word, name)   ... where a click can also do something else
    "colors" is the sim's coloring, one color number per cell (-1 for a
-   cell with no color, which is in no region).
+   cell with no color, which is in no region), and names[c] how color c
+   is drawn ("#rrggbb"; a cell with no color is drawn in NO_COLOR, js/sim-colors.js).
 
    Load this file after js/sim-colors.js and js/sim-domains.js.
    ===================================================================== */
@@ -104,6 +108,23 @@ function highlightCSS(h, colorOf) {
     if (!faded.has(color)) faded.set(color, fadeHex(color));
     return faded.get(color);
   };
+}
+
+// Paint the coloring "colors" on the cells of domain d, after
+// fitPicture (paintDomain, js/sim-view.js): color c in names[c], with
+// every cell outside the highlighted region faded, and lines between
+// different colors once the cells are big enough to see them.
+function paintColoring(view, pen, d, colors, names, h) {
+  const rgb = names.map(hexToRGB), noColor = hexToRGB(NO_COLOR), outside = hexToRGB(OUTSIDE_CELLS);
+  paintDomain(view, pen, d, highlightGroups(h, function (v) { return colors[v]; }, names.length),
+    highlightRGB(function (c) { return c === -1 ? noColor : rgb[c]; }, names.length),
+    outside, CELL_LINES, SMALLEST_BORDERED_CELL);
+}
+
+// The same colors cell by cell, as CSS colors: coloringCSS(...)(v) is
+// how cell v is drawn (for drawBall, js/sim-hyperbolic.js, say).
+function coloringCSS(h, colors, names) {
+  return highlightCSS(h, function (v) { return colors[v] === -1 ? NO_COLOR : names[colors[v]]; });
 }
 
 // The line under the picture: how to highlight, or what is highlighted.

@@ -218,7 +218,7 @@ const view = makeView(simCanvas, drawSoon);
 function drawPicture() {
   if (!heights) return;                    // nothing worked out yet
   if (show3D) { draw3D(); return; }
-  const pen = fitPicture(view, domain, pictureHeight(PICTURE_HEIGHT));
+  const pen = fitPicture(view, domain, PICTURE_HEIGHT);
   const heatmap = byId("show-heatmap").checked;
   paintCells(view, pen, domain,
     function (v) { return isNaN(heights[v]) ? -1 : Math.round(255 * heights[v]); },
@@ -292,14 +292,16 @@ function vectorLines() {
 }
 
 // Click a point to move the line through it (the picture still drags
-// and zooms as in the other sims: connectPicture, js/sim-controls.js).
-connectPicture(view, null, null, function (event) {
-  const v = cellUnder(view, domain, pointerSpot(view, event));
-  if (v < 0) return;
-  lineNumber = line.number(v % (N + 1), Math.floor(v / (N + 1)));
-  byId("line-c").value = lineNumber;
-  reshape();
-}, "pointer");
+// and zooms as in the other sims: connectPicture, js/sim-view.js).
+connectPicture(view, {
+  onClick: function (event) {
+    const v = cellUnder(view, domain, pointerSpot(view, event));
+    if (v < 0) return;
+    lineNumber = line.number(v % (N + 1), Math.floor(v / (N + 1)));
+    byId("line-c").value = lineNumber;
+    reshape();
+  },
+});
 
 
 /* =====================================================================
@@ -312,40 +314,32 @@ connectPicture(view, null, null, function (event) {
    internet the first time 3D is switched on.
    ===================================================================== */
 let show3D = false;          // the View option
-let sim3d = null;            // the 3D code, once loaded (js/sim-3d.js)
-let view3d = null;           // the 3D picture
 let stretch = 1;             // the Heights slider: 2 = twice as tall
+const three = make3D(simCanvas, PICTURE_HEIGHT, {   // js/sim-page.js
+  ready: function () { lookAlongDirection(); drawSoon(); },
+  failed: function () { show3D = false; showPictureKind(); },
+  reset: lookAlongDirection,
+});
 
 // Show the picture from above, or the 3D one, and their options.
 function showPictureKind() {
   simCanvas.hidden = show3D;
-  byId("sim-3d").hidden = byId("view3d-buttons").hidden = !show3D;
+  three.show(show3D);
   byId("view3d-options").hidden = !show3D;
   byId("flat-options").hidden = show3D;
   showZoomButtons(view);
-  if (show3D && !view3d) start3D();
   drawSoon();
-}
-
-// Load the 3D code (the first time only) and make the 3D picture.
-function start3D() {
-  load3D(byId("sim-3d"), pictureHeight(PICTURE_HEIGHT), function (code, picture) {
-    sim3d = code;
-    view3d = picture;
-    lookAlongDirection();
-    drawSoon();
-  }, function () { show3D = false; showPictureKind(); });
 }
 
 // Look from behind (0, 0) along the direction vector, as in your
 // Desmos picture: each line at right angles to it runs across the
 // picture, so its bell curve is seen from the side.
 function lookAlongDirection() {
-  if (view3d) sim3d.resetCamera(view3d, [line.cos, line.sin]);
+  if (three.view) three.code.resetCamera(three.view, [line.cos, line.sin]);
 }
 
 function draw3D() {
-  if (!view3d) return;
+  if (!three.view) return;
   const showLine = byId("show-line").checked;
   const balls = { x: [], y: [], height: [] };
   for (const point of showLine ? points : []) {
@@ -358,7 +352,7 @@ function draw3D() {
   const floorLines = (showLine ? lineEnds(N, line, lineNumber * line.step) : [])
     .concat(byId("show-vector").checked ? vectorLines() : []);
   const red = hexToRGB(LINE_COLOR);
-  sim3d.drawSurface(view3d, {
+  three.code.drawSurface(three.view, {
     size: N + 1, height: heights, show: byId("show-heatmap").checked, color: heatColor,
     balls: balls, ballColor: red, ground: hexToRGB(GROUND),
     lines: floorLines, lineColor: red, stretch: stretch,
@@ -367,10 +361,7 @@ function draw3D() {
 
 // After the window changes size, or the picture opens or closes as a
 // full screen popup (js/sim-page.js): draw again at the new size.
-window.addEventListener("resize", function () {
-  if (view3d) sim3d.setHeight(view3d, pictureHeight(PICTURE_HEIGHT));
-  drawSoon();
-});
+window.addEventListener("resize", drawSoon);
 
 
 /* =====================================================================
@@ -459,10 +450,10 @@ for (const radio of document.querySelectorAll('input[name="view"]')) {
 }
 byId("show-edges").addEventListener("change", drawSoon);
 connectStretch(function (value) { stretch = value; drawSoon(); });
-byId("view3d-reset").addEventListener("click", lookAlongDirection);
 
 // Start: your periodic rule on the 61 x 61 grid, at 45 degrees (the
 // line x + y = 60).
+byId("seed").value = "1";
 useSize();
 lineNumber = N;
 byId("line-c").value = lineNumber;

@@ -1,17 +1,24 @@
 /* =====================================================================
    sim-colors.js  —  the colors the sims share
    ---------------------------------------------------------------------
-   The old site's colors, and turning a color from one way of writing
-   it into another.
+   The old site's colors, the colors every picture of cells shares, and
+   turning a color from one way of writing it into another.
 
    Contents:
+     CELL_LINES, OUTSIDE_CELLS, NO_COLOR   the colors of every picture of cells
      defaultColor(c, count)   the old site's colors
+     defaultColors(count)     ... all "count" of them, as a list
      hsvToHex, hexToHSV       a color as hue, saturation and brightness,
                               and back
      hexToRGB, rgbToHex       a color "#rrggbb" as three numbers, and back
      heatColor(t)             blue (t = 0) to red (t = 1), for heights
    ===================================================================== */
 
+
+// Every picture of cells is drawn with these:
+const CELL_LINES = "#1e1e1e";      // the lines between cells of different colors
+const OUTSIDE_CELLS = "#ecebe7";   // where there are no cells: around a drawn domain, or a hyperbolic ball
+const NO_COLOR = "#ffffff";        // a cell with no color (-1): not reached yet, or a gap
 
 // How color c (of "count" colors) is drawn: the old site's colors.
 // Hues are spread evenly from red (0 degrees) round to magenta (300; going
@@ -22,6 +29,13 @@ function defaultColor(c, count) {
   const hue = c / Math.max(count, 1) * 300;
   const saturation = count <= 1 ? 0.85 : 0.55 + 0.30 * c / (count - 1);
   return hsvToHex(hue, saturation, 0.95);
+}
+
+// All "count" of them, as a list: color c is defaultColor(c, count).
+function defaultColors(count) {
+  const colors = [];
+  for (let c = 0; c < count; c++) colors.push(defaultColor(c, count));
+  return colors;
 }
 
 // Hue (0 .. 360), saturation and brightness (0 .. 1) -> "#rrggbb".
@@ -62,9 +76,10 @@ function rgbToHex(rgb) {
 }
 
 // A height t from 0 (low: dark blue) to 1 (high: red), as [red, green,
-// blue], each 0 .. 255. The colors run smoothly in between, the same way
-// as Eden Growth's heights: the hue goes from 225 (blue) to 0
-// (red), and the color gets brighter on the way up.
+// blue], each 0 .. 255 (Eden Growth's heights, Random Walk's ages, Lattice
+// Path Counting's heat map). The colors run smoothly in between: the hue
+// goes from 225 (blue) to 0 (red), and the color gets brighter on the
+// way up.
 function heatColor(t) {
   const down = 1 - Math.min(Math.max(t, 0), 1);   // 1 at the bottom, 0 at the top
   return hexToRGB(hsvToHex(225 * down, 0.7, 0.9 - 0.55 * down));

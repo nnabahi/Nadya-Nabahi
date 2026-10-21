@@ -56,7 +56,7 @@
         (sandpiles-check.html) tests it in the browser.
      2. pileWorker(): runs a pile in a second thread (a "Web Worker")
         for the sim page, sandpiles.js, so the page never freezes.
-        startWorker (js/sim-page.js) starts it, with newPile,
+        runInWorker (js/sim-page.js) starts it, with newPile,
         startHeights, middleCell and centerCell copied in.
    ===================================================================== */
 
@@ -511,37 +511,38 @@ function centerCell(d, sinks) {
    ---------------------------------------------------------------------
    pileWorker() is the whole program of the "Web Worker": it keeps one
    pile, topples it, drops the storm's grains, and sends the heights back
-   to the page (sandpiles.js), which draws them. The page talks to it
-   with messages:
-     setup   a new pile: the domain, the sink cells, the start and the seed
-     play / pause, step, undo, jump (to the end)
-     settings   one-at-a-time or rounds, the speed, the storm, "stay on"
-     add     add (or remove) grains on one cell, for clicks
-     topple  topple one cell once, for clicks
-     sinks   new sink cells (the pile keeps its grains)
+   to the page (sandpiles.js), which draws them. It talks to the page
+   the way every sim's worker does (serveRun, js/sim-worker.js), with
+   two kinds of step: a topple (or a round), at the Speed slider's
+   speed, and a grain of the storm, at the storm's. Step makes a topple,
+   or if the pile is stable, a grain of the storm. Its own messages:
+     setup      a new pile: the domain, the sink cells, the start, the
+                seed and the settings
+     settings   one-at-a-time or rounds, the storm, "stay on"
+     undo, jump (to the end)
+     add        add (or remove) grains on one cell, for clicks
+     topple     topple one cell once, for clicks
+     sinks      new sink cells (the pile keeps its grains)
      identity   add the identity to the pile
-   Several "setup" messages in a row (a slider being dragged) are
-   squashed into the last one, so the picture keeps up with the slider.
+   The run is done (and pauses by itself) when the pile is stable, with
+   no storm, and not told to stay on.
    ===================================================================== */
 function pileWorker() {
   // seedrandom adds Math.seedrandom(seed). The version number is fixed
   // so an update can never change the sim by surprise.
   importScripts("https://cdn.jsdelivr.net/npm/seedrandom@3.0.5/seedrandom.min.js");
 
-  const TICK_BUDGET = 30;    // ms of work between two pictures sent to the page
-  const RECURRENT_GAP = 500; // while playing, check "recurrent?" at most every 500 ms
+  // While the storm plays, the pile is stable again and again: check
+  // "recurrent?" at most every 500 ms.
+  const RECURRENT_GAP = 500;
 
   let pile = null;
-  let run = 0;               // which run this is (the page numbers them)
   let toppleRandom = null;   // random numbers for the toppling order
   let stormRandom = null;    // random numbers for where the storm's grains land
-  let pendingSetup = null;   // the latest setup message not yet used
 
   // Settings from the page.
   let rounds = false;        // false: one topple at a time; true: all unstable cells at once
-  let speed = 10;            // topples (or rounds) per second; Infinity = as fast as possible
   let storm = false;         // drop grains on random cells?
-  let stormRate = 2;         // grains per second
   let stormWait = true;      // wait until the pile is stable before the next grain
   let stayOn = false;        // keep playing when the pile is stable (so clicks topple at once)
 
@@ -549,11 +550,6 @@ function pileWorker() {
   // toppling (clicks, the storm, the identity, sinks). While it wasn't,
   // the start "Identity", once stable, is the identity.
   let touched = false;
-
-  // The run loop.
-  let playing = false, timer = null, lastTick = 0;
-  let playId = 0;            // the page's number for its last Play or Pause (sent back in reports)
-  let owedMoves = 0, owedGrains = 0;
 
   // Avalanches: with the storm waiting, the topples caused by each grain.
   // avalancheFrom = the topple count when the last grain landed (null
@@ -578,7 +574,7 @@ function pileWorker() {
 
   function setup(message) {
     last = message;
-    run = message.run;
+    useSettings(message.settings);
     const seed = String(message.seed);
     pile = newPile({ domain: message.domain, threshold: message.threshold, sinks: message.sinks });
     toppleRandom = new Math.seedrandom(seed + " topple");
@@ -596,10 +592,18 @@ function pileWorker() {
     avalancheCount = 0;
     timeline = [];
     timelineWidth = 1;
-    owedMoves = 0;
-    owedGrains = 0;
     recurrentStale = true;
-    report(true);
+  }
+
+  // The settings of the page's Run and Storm boxes. The storm's rate is
+  // the speed of the run loop's second kind of step (0: no storm).
+  function useSettings(settings) {
+    rounds = settings.rounds;
+    storm = settings.storm;
+    stormWait = settings.stormWait;
+    stayOn = settings.stayOn;
+    loop.speeds[1] = storm ? settings.stormRate : 0;
+    if (!storm) avalancheFrom = null;
   }
 
   // Note the end of an avalanche, if one was going on and the pile is
@@ -651,54 +655,50 @@ function pileWorker() {
     return true;
   }
 
-  // Do what is due (at most TICK_BUDGET ms of work), send the picture to
-  // the page, and come back a moment later.
-  function tick() {
-    const now = performance.now();
-    const until = now + TICK_BUDGET;
-    const seconds = (now - lastTick) / 1000;
-    lastTick = now;
-    if (speed !== Infinity) owedMoves = Math.min(owedMoves + speed * seconds, Math.max(speed, 1));
-    if (storm && stormRate !== Infinity) owedGrains = Math.min(owedGrains + stormRate * seconds, Math.max(stormRate, 1));
+  // Nothing more can happen: no storm, not told to stay on, and stable.
+  function isDone() { return !storm && !stayOn && pile.isStable(); }
 
-    let changed = false;       // (staying on, a stable pile has nothing new to send)
-    while (performance.now() < until) {
-      let did = false;
-      if (storm && (stormRate === Infinity || owedGrains >= 1)) {
-        if (dropOnce()) { owedGrains = Math.max(owedGrains - 1, 0); did = true; }
-      }
-      if (speed === Infinity || owedMoves >= 1) {
-        if (toppleOnce()) { owedMoves = Math.max(owedMoves - 1, 0); did = true; }
-      }
-      if (!did) break;
-      changed = true;
-    }
-
-    // Nothing more can happen: stable, no storm, and not told to stay on.
-    if (pile.isStable() && !storm && !stayOn) stop();
-    if (changed || !playing) report(false);
-    if (playing) timer = setTimeout(tick, 10);
+  // A change to the pile by anything but toppling and the storm (clicks,
+  // the identity, sinks).
+  function touch() {
+    avalancheFrom = null;
+    recurrentStale = touched = true;
   }
 
-  function stop() {
-    playing = false;
-    clearTimeout(timer);
-  }
+  const loop = serveRun({
+    setup: setup,
+    steps: [toppleOnce, dropOnce],
+    isDone: isDone,
+    report: report,
+    messages: {
+      settings: function (message) { useSettings(message.settings); },
+      undo: function () {
+        pile.undo();
+        avalancheFrom = null;
+        recurrentStale = true;
+      },
+      jump: function () {
+        pile.stabilize();
+        endAvalanche();
+        recurrentStale = true;
+      },
+      add: function (message) { pile.addGrains(message.cell, message.grains); touch(); },
+      topple: function (message) { pile.toppleCell(message.cell); touch(); },
+      identity: function () { if (pile.hasSink) pile.addHeights(pile.identity()); touch(); },
+      sinks: function (message) { changeSinks(message.sinks); },
+    },
+  });
 
   // Send the heights and the numbers to the page.
-  function report(always) {
+  function report(send) {
     const now = performance.now();
-    if (pile.isStable() && pile.hasSink && recurrentStale && (always || !playing || now - recurrentChecked > RECURRENT_GAP)) {
+    if (pile.isStable() && pile.hasSink && recurrentStale && (!loop.playing || !storm || now - recurrentChecked > RECURRENT_GAP)) {
       recurrent = pile.isRecurrent();
       recurrentChecked = now;
       recurrentStale = false;
     }
     const heightCopy = pile.height.slice(), odometerCopy = pile.odometer.slice();
-    self.postMessage({
-      type: "state",
-      run: run,
-      playing: playing,
-      playId: playId,
+    send({
       heights: heightCopy,
       odometer: odometerCopy,
       grains: pile.grains(),
@@ -733,71 +733,7 @@ function pileWorker() {
     pile.startGrains = old.startGrains;
     pile.added = old.added;
     pile.lost = old.lost + old.grains() - pile.grains();
-    avalancheFrom = null;
-    recurrentStale = touched = true;
+    touch();
   }
-
-  self.onmessage = function (event) {
-    const message = event.data;
-    if (message.type === "setup") {
-      // Squash a burst of setups into the last one.
-      if (pendingSetup === null) {
-        setTimeout(function () {
-          const latest = pendingSetup;
-          pendingSetup = null;
-          setup(latest);
-        }, 0);
-      }
-      pendingSetup = message;
-      return;
-    }
-    if (message.type === "settings") {
-      rounds = message.rounds;
-      speed = message.speed;
-      storm = message.storm;
-      stormRate = message.stormRate;
-      stormWait = message.stormWait;
-      stayOn = message.stayOn;
-      if (!storm) avalancheFrom = null;
-      return;
-    }
-    if (message.type === "play" || message.type === "pause") playId = message.id;
-    if (!pile) return;   // the first setup hasn't been made yet
-    if (message.type === "play") {
-      if (!playing) {
-        playing = true;
-        owedMoves = 1;   // the first topple comes at once
-        owedGrains = pile.isStable() ? 1 : 0;
-        lastTick = performance.now();
-        timer = setTimeout(tick, 0);
-      }
-    } else if (message.type === "pause") {
-      stop();
-      report(true);
-    } else if (message.type === "step") {
-      // One topple; or, if the pile is stable and the storm is on, one grain.
-      if (!toppleOnce() && storm) dropOnce();
-      report(true);
-    } else if (message.type === "undo") {
-      pile.undo();
-      avalancheFrom = null;
-      recurrentStale = true;
-      report(true);
-    } else if (message.type === "jump") {
-      pile.stabilize();
-      endAvalanche();
-      recurrentStale = true;
-      report(true);
-    } else if (message.type === "add" || message.type === "topple" || message.type === "identity") {
-      if (message.type === "add") pile.addGrains(message.cell, message.grains);
-      else if (message.type === "topple") pile.toppleCell(message.cell);
-      else if (pile.hasSink) pile.addHeights(pile.identity());
-      avalancheFrom = null;
-      recurrentStale = touched = true;
-      report(true);
-    } else if (message.type === "sinks") {
-      changeSinks(message.sinks);
-      report(true);
-    }
-  };
 }
+

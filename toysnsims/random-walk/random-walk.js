@@ -62,7 +62,6 @@ const DEFAULT_SPEED = 10;
    ===================================================================== */
 
 let dim = 2;                 // 1, 2 or 3
-let run = 0;                 // counts restarts, so leftovers from an older run are ignored
 
 // The latest message from the walk (see part 3 of random-walk-rule.js):
 // the numbers and the charts' samples.
@@ -174,22 +173,20 @@ function showWeights() {
    4. RUNNING THE WALK
    ---------------------------------------------------------------------
    The walk is walkWorker() in random-walk-rule.js, with newWalk(), its
-   shape, the run loop, the trace and the random numbers
-   (js/sim-worker.js), the hull, holes and outer boundary
-   (js/sim-shape.js), blockStart and cellNeighbors (js/sim-domains.js)
-   and what grows a Penrose tiling's plane (js/sim-penrose.js) copied
-   in.
-   startWorker (js/sim-page.js) runs it in a second thread, so the page
-   never freezes.
+   shape, the trace and the random numbers (js/sim-worker.js), the
+   hull, holes and outer boundary (js/sim-shape.js), blockStart and
+   cellNeighbors (js/sim-domains.js) and what grows a Penrose tiling's
+   plane (js/sim-penrose.js) copied in.
+   runInWorker (js/sim-page.js) runs it in a second thread, so the page
+   never freezes, and hands each report to showWalk.
    ===================================================================== */
-const worker = startWorker(walkWorker,
-  [newWalk, cutsOf, walkHull, hullCandidates3D, makeRunLoop, newTrace, keepSample, seededUniform, blockStart, cellNeighbors,
+const sim = runInWorker(walkWorker,
+  [newWalk, cutsOf, walkHull, hullCandidates3D, newTrace, keepSample, seededUniform, blockStart, cellNeighbors,
    convexHull, growingHull, polygonArea, polygonPerimeter, holeHistory, bettiOverTime, frontierLength,
-   cellWindow, squareWindow, tilingWindow, finiteWindow].concat(penroseHelpers()));
+   cellWindow, squareWindow, tilingWindow, finiteWindow].concat(penroseHelpers()),
+  showWalk);
 
-worker.onmessage = function (event) {
-  const message = event.data;
-  if (message.type !== "state" || message.run !== run) return;   // from an older run
+function showWalk(message) {
   if (message.problem) {
     latest = null;
     showMessage(message.problem);
@@ -203,7 +200,7 @@ worker.onmessage = function (event) {
               message.atEdge ? "The walk has reached the edge of the part of this tiling the page builds (" +
                                PENROSE_PLANE_MOST + " side lengths from the middle each way), so it stops here." : "");
   drawSoon();
-};
+}
 
 // Add the sites (and in 1D the positions) new in this message to the
 // page's lists. A message starting from site 0 is a fresh walk (on the
@@ -244,23 +241,21 @@ function biggerGrid(x, y, upTo) {
   return bigger;
 }
 
-// Send the walk to the worker. keepStep: walk to the step we are at
+// Start the walk again, paused. keepStep: walk to the step we are at
 // (so changing a weight keeps the step).
 function restart(keepStep) {
-  run++;
   const tiling = tilingNow(), finite = Boolean(tiling && tiling.finite);
   if (finite) mirror = penroseMirror(mirror, tiling);
   runTiling = finite ? mirror : tiling;
-  worker.postMessage({
-    type: "setup", run: run, dim: dim, weights: weights(), tiling: tiling, seed: byId("seed").value,
+  sim.setup({
+    dim: dim, weights: weights(), tiling: tiling, seed: byId("seed").value,
     steps: (keepStep && haveWalk()) ? latest.steps : 0, cellsKnown: finite ? mirror.cells.length : 0,
   });
-  player.carryOn();
 }
 
 // Play / Pause, Step, Restart and the Speed slider (connectPlay,
-// js/sim-page.js). player.playing is true while the sim plays.
-const player = connectPlay(worker, SPEEDS, DEFAULT_SPEED, "step", "steps", function () { restart(false); });
+// js/sim-page.js).
+connectPlay(sim, SPEEDS, DEFAULT_SPEED, "step", "steps", function () { restart(false); });
 
 
 /* =====================================================================
@@ -275,7 +270,8 @@ const player = connectPlay(worker, SPEEDS, DEFAULT_SPEED, "step", "steps", funct
          early, red just now), the convex hull through their middles,
          the holes (with "Shade the holes"), the origin (its cell
          outlined) and the walker (a black dot). It can be moved and
-         zoomed (js/sim-view.js).
+         zoomed (js/sim-view.js). The canvas keeps one height as the
+         walk spreads, as Eden Growth's does, so the page doesn't jump.
      3D: a cube for every visited site, colored the same way, the
          walker as a ball, and the hull as a see-through solid.
    ===================================================================== */
@@ -286,11 +282,8 @@ const simCanvas = byId("sim-canvas");
 const drawSoon = oncePerFrame(function () { drawWalk(); showStats(); });
 
 const view = makeView(simCanvas, drawSoon);      // where the picture goes, and the 2D picture's zoom (js/sim-view.js)
-connectPicture(view, null, function () { return false; });   // drag and pinch the 2D picture (js/sim-controls.js)
-window.addEventListener("resize", function () {
-  if (view3d) sim3d.setHeight(view3d, pictureHeight(PICTURE_HEIGHT));
-  drawSoon();
-});
+connectPicture(view);   // drag and pinch the 2D picture (js/sim-view.js)
+window.addEventListener("resize", drawSoon);
 
 // The colors of "when first visited", 0 (the start) to 1 (now):
 // heatColor (js/sim-colors.js) in 64 steps, worked out once.
@@ -309,24 +302,12 @@ function drawWalk() {
   else draw3D();
 }
 
-// Make the canvas "width" by "height" screen pixels, and return its pen,
-// ready to draw in screen pixels.
-function canvasPen(width, height) {
-  const ratio = window.devicePixelRatio || 1;   // 2 on sharp screens
-  simCanvas.style.height = height + "px";
-  simCanvas.width = Math.round(width * ratio);
-  simCanvas.height = Math.round(height * ratio);
-  const pen = simCanvas.getContext("2d");
-  pen.setTransform(ratio, 0, 0, ratio, 0, 0);   // draw in screen pixels from here on
-  return pen;
-}
-
 // 1D: position across, time down. "line" says where things go: sx(x)
 // is position x across, sy(t) is step t down.
 function drawLine() {
   const s = latest, n = pathLength - 1;
   const width = simCanvas.clientWidth, height = pictureHeight(PICTURE_HEIGHT);
-  const pen = canvasPen(width, height);
+  const pen = sharpPen(simCanvas, width, height);
   const line = { left: 10, right: width - 10, top: 34, bottom: height - 22, lo: s.lowest - 1, hi: s.highest + 1, n: n };
   line.sx = function (x) { return line.left + (line.right - line.left) * (x - line.lo) / (line.hi - line.lo); };
   line.sy = function (t) { return line.top + (line.bottom - line.top) * t / Math.max(n, 1); };
@@ -422,7 +403,7 @@ function drawDot(pen, x, y, r) {
 // on top.
 function drawGrid() {
   const s = latest, shown = shownBox();
-  const pen = fitPicture(view, shown, pictureHeight(PICTURE_HEIGHT));
+  const pen = fitPicture(view, shown, PICTURE_HEIGHT, true);
   paintCells(view, pen, shown, ageGroup, function (k) { return AGE_COLORS[k]; }, hexToRGB(BACKGROUND));
   if (byId("show-holes").checked && s.holes) shadeSquares(view, pen, shown, s.holes.cells, HOLE);
   // Where the middle of site (x, y) is on the canvas.
@@ -458,7 +439,7 @@ function gridSite(x, y) {
 // the walker on top, as on the square grid.
 function drawTiling() {
   const s = latest, shown = shownTiling(s);
-  const pen = fitPicture(view, shown, pictureHeight(PICTURE_HEIGHT));
+  const pen = fitPicture(view, shown, PICTURE_HEIGHT, true);
   paintDomain(view, pen, shown,
     function (v) { return v < sites ? ageGroup(v) : HOLE_GROUP; },
     function (k) { return k === HOLE_GROUP ? hexToRGB(HOLE) : AGE_COLORS[k]; },
@@ -504,34 +485,26 @@ function drawOrigin(pen, corners) {
   drawPolyline(pen, corners, true);
 }
 
-// 3D: loaded the first time it is needed (load3D, js/sim-page.js).
-let sim3d = null, view3d = null;
-function start3D() {
-  load3D(byId("sim-3d"), pictureHeight(PICTURE_HEIGHT), function (code, picture) {
-    sim3d = code;
-    view3d = picture;
-    drawSoon();
-  }, function () {});
-}
+// 3D: loaded the first time it is needed (make3D, js/sim-page.js).
+const three = make3D(simCanvas, PICTURE_HEIGHT, { ready: drawSoon });
 
 function draw3D() {
-  if (!view3d) return;
-  hull3D = sim3d.drawCells(view3d, {
+  if (!three.view) return;
+  hull3D = three.code.drawCells(three.view, {
     x: siteX.subarray(0, sites), y: siteY.subarray(0, sites), z: siteZ.subarray(0, sites),
     color: function (i) { return AGE_COLORS[ageGroup(i)]; },
     at: [latest.x, latest.y, latest.z], atColor: hexToRGB(WALKER),
     hull: byId("show-hull").checked ? latest.hullPoints : null, hullColor: hexToRGB(HULL),
   });
 }
-byId("view3d-reset").addEventListener("click", function () { if (view3d) sim3d.resetCamera(view3d); });
 
 // Which picture shows: the flat one (1D, 2D) or the 3D one.
 function showPictureKind() {
   simCanvas.hidden = (dim === 3);
-  byId("sim-3d").hidden = byId("view3d-buttons").hidden = byId("view3d-help").hidden = (dim !== 3);
+  three.show(dim === 3);
+  byId("view3d-help").hidden = (dim !== 3);
   byId("holes-row").hidden = (dim !== 2);
   useTorus(view, false, dim === 2);       // only the 2D picture moves and zooms
-  if (dim === 3 && !view3d) start3D();
 }
 
 
@@ -617,7 +590,7 @@ function showTable(s) {
       s.frontierValues[k].toLocaleString() + " (at step " + s.frontierSteps[k].toLocaleString() + ")";
   }
   if (dim === 3) {
-    const shown = view3d && byId("show-hull").checked;   // the 3D hull is measured when it is drawn
+    const shown = three.view && byId("show-hull").checked;   // the 3D hull is measured when it is drawn
     byId("stat-surface").textContent = shown ? niceNumber(hull3D.area) : "—";
     byId("stat-volume").textContent = shown ? niceNumber(hull3D.volume) : "—";
   }
@@ -695,7 +668,7 @@ for (const radio of document.querySelectorAll("input[name=against]")) radio.addE
 
 // Go to step.
 byId("goto").addEventListener("click", function () {
-  worker.postMessage({ type: "goto", steps: readWhole("goto-steps", 0, 2000000, 0) });
+  sim.send({ type: "goto", steps: readWhole("goto-steps", 0, 2000000, 0) });
 });
 
 // Seed: the same seed gives the same walk every time.
@@ -705,6 +678,4 @@ connectSeed(function () { restart(true); });
 // --- Start ------------------------------------------------------------
 byId("seed").value = DEFAULT_SEED;
 byId("goto-steps").value = 10000;
-fillLatticeMenu();            // the square grid
 setDimension(2);              // 2D by default
-player.setPlaying(false);     // paused: press Play

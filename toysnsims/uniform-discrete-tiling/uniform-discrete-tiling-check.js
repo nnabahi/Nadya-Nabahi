@@ -358,19 +358,15 @@ for (const radio of document.querySelectorAll("input[name=arctic-show]")) {
 }
 
 function drawArctic() {
-  const canvas = byId("arctic-canvas");
-  const ratio = window.devicePixelRatio || 1;
-  canvas.width = Math.round(canvas.clientWidth * ratio);
-  canvas.height = canvas.width;
-  const pen = canvas.getContext("2d");
+  const canvas = byId("arctic-canvas"), width = canvas.clientWidth;
+  const pen = sharpPen(canvas, width, width);   // a square (js/sim-page.js)
   const N = arctic.order, d = arctic.domain;
-  const size = canvas.width / (2 * N);
+  const size = width / (2 * N);
   const showAverage = checked("arctic-show") === "average";
   const heat = showAverage ? arctic.chain.heat() : null;
   const owner = arctic.chain.owner();
   const pl = arctic.chain.placements();
   const classes = 2 * pl.orientW.length + 1;
-  pen.clearRect(0, 0, canvas.width, canvas.height);
   for (let v = 0; v < d.n; v++) {
     let rgb = [0, 0, 0];
     if (showAverage) {

@@ -42,6 +42,7 @@
    picture, and how far the plane has been moved. Then it calls
      diskShape, diskGraph, isTree         the graph's first cell, the graph itself, is it a tree?
      backToStart                          put the start back in the middle
+     showDiskButtons                      show or hide "Back to the start" and "Slide"
      diskPen, drawDiskFrame, drawOnDisk   the disk or the half-plane
      drawUnder                            the whole tiling (or tree), in gray
      drawBallBorders                      lines between colors on a tiling
@@ -96,7 +97,6 @@ const ZOOM_CELLS = 60;
 
 // A sim's ball (section 7), drawn by drawBall:
 const BALL_HEIGHT = 480;           // the picture's height, in screen pixels
-const BALL_OUTSIDE = "#ecebe7";    // the plane around the ball
 const BALL_WHITE_DOT = "#d8d5ce";  // white cells, as dots in the spread-out tree (white dots wouldn't show)
 
 
@@ -106,15 +106,13 @@ const BALL_WHITE_DOT = "#d8d5ce";  // white cells, as dots in the spread-out tre
 
 // Everything one picture of a graph needs. "canvas" is the canvas it is
 // drawn on, and "view" the page's view of it (makeView, js/sim-view.js),
-// which zooms and slides the picture. Also connects the page's buttons
-// for these pictures:
-//   "Drawn in"           (radio buttons name="picture") picks the
-//                        picture; a new one starts unzoomed, and
-//                        onPicture() (the page's) shows the options
-//                        that fit it
-//   "Back to the start"  (id "disk-reset") puts the start back in the
-//                        middle
-//   "Slide"              (id "disk-slide") switches what dragging does
+// which zooms and slides the picture. Also connects the page's "Drawn
+// in" radio buttons (name="picture"), which pick the picture (a new one
+// starts unzoomed, and onPicture(), the page's, shows the options that
+// fit it), and adds two buttons after the zoom buttons, hidden until
+// the page shows them (showDiskButtons):
+//   "Back to the start"  puts the start back in the middle
+//   "Slide"              switches what dragging does
 function makeDiskView(canvas, view, onPicture) {
   const dv = {
     canvas: canvas,
@@ -135,13 +133,20 @@ function makeDiskView(canvas, view, onPicture) {
       resetView(view);
     });
   }
-  byId("disk-reset").addEventListener("click", function () { backToStart(dv); view.redraw(); });
-  const slide = byId("disk-slide");
-  slide.addEventListener("click", function () {
+  const slide = toolButton("Slide", function () {
     dv.slide = !dv.slide;
     slide.classList.toggle("selected", dv.slide);   // looks pressed while on
-  });
+  }, "Drag to slide the whole picture, instead of moving around the plane");
+  dv.buttons = [toolButton("Back to the start", function () { backToStart(dv); view.redraw(); },
+                           "Put the start back in the middle"), slide];
+  view.zoomButtons.append(...dv.buttons);
+  showDiskButtons(dv, false);
   return dv;
+}
+
+// Show "Back to the start" and "Slide" (on), or hide them.
+function showDiskButtons(dv, on) {
+  for (const button of dv.buttons) button.hidden = !on;
 }
 
 // Whether a graph is a tree.
@@ -244,12 +249,7 @@ function onScreen(dv, x, y) {
 // ZOOM_CELLS-th of the canvas's shorter side.
 function diskPen(dv, height) {
   const canvas = dv.canvas, width = canvas.clientWidth, view = dv.view;
-  const ratio = window.devicePixelRatio || 1;   // 2 on sharp screens
-  canvas.style.height = height + "px";
-  canvas.width = Math.round(width * ratio);
-  canvas.height = Math.round(height * ratio);
-  const pen = canvas.getContext("2d");
-  pen.setTransform(ratio, 0, 0, ratio, 0, 0);   // draw in screen pixels from here on
+  const pen = sharpPen(canvas, width, height);   // (js/sim-page.js)
   view.left = 0;
   view.top = 0;
   view.width = width;
@@ -854,7 +854,7 @@ function drawBall(dv, ball, colorOf) {
       function (v) { const c = colorOf(v); return c === "#ffffff" ? BALL_WHITE_DOT : c; });
   }
   const pen = diskPen(dv, height);
-  drawDiskFrame(dv, pen, height, BALL_OUTSIDE, UNDER_COLOR);
+  drawDiskFrame(dv, pen, height, OUTSIDE_CELLS, UNDER_COLOR);   // (js/sim-colors.js)
   drawOnDisk(dv, pen, diskGraph(dv), ball.n, function (v) { return ballPlace(ball, v); }, colorOf);
   return pen;
 }
@@ -936,17 +936,13 @@ function showGraphPresets(onPick) {
   const row = byId("graph-presets");
   row.innerHTML = "";
   for (const preset of GRAPH_PRESETS) {
-    const button = document.createElement("button");
-    button.className = "tool-button";
-    button.textContent = preset.name;
-    button.addEventListener("click", function () {
+    row.appendChild(toolButton(preset.name, function () {
       const g = preset.graph;
       document.querySelector('input[name="graph-kind"][value="' + (isTree(g) ? "tree" : "tiling") + '"]').checked = true;
       if (isTree(g)) byId("set-degree").value = g.p;
       else { byId("set-p").value = g.p; byId("set-q").value = g.q; }
       onPick();
-    });
-    row.appendChild(button);
+    }));
   }
 }
 

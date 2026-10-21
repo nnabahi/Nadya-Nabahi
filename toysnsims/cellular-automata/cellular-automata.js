@@ -70,12 +70,11 @@ const NEIGHBORHOODS = {
 };
 
 // The colors of the states: 0 white and 1 black (as in Wolfram's
-// pictures), then the old site's colors (defaultColor, js/sim-colors.js).
+// pictures), then the old site's colors (defaultColors, js/sim-colors.js).
 // EMPTY is where the 1D picture has no row yet. In the charts, state 0
 // is drawn in CHART_ZERO instead of white, so its line shows.
 const EMPTY = "#e4e2dc";
 const CHART_ZERO = "#b8b5ad";
-const BORDER = "#1e1e1e";          // around the dots of the perimeter chart
 
 // The speeds on the Speed slider, in steps per second. Infinity means
 // "as fast as the computer can". The default is slow, so you can watch.
@@ -97,7 +96,6 @@ let colorNames = [];         // colorNames[s] = how state s is drawn, e.g. "#fff
 let colorRGB = [];           // the same as [red, green, blue], 0 .. 255
 let domain = null;           // the picture as a domain of cells (js/sim-domains.js), for drawing and the clusters
 
-let run = 0;                 // counts restarts, so leftovers from an older run are ignored
 let latest = null;           // the latest message from the worker (part 2 of cellular-automata-rule.js)
 let look = null;             // 1D: the last step shown when scrolled back, or null for the newest
 const highlight = newHighlight();   // the clicked cell, whose cluster is highlighted (js/sim-highlight.js)
@@ -138,15 +136,11 @@ function showNeighborhoodPresets() {
   const row = byId("neighborhood-presets");
   row.innerHTML = "";
   for (const preset of NEIGHBORHOODS[dim]) {
-    const button = document.createElement("button");
-    button.className = "tool-button";
-    button.textContent = preset.name;
-    button.addEventListener("click", function () {
+    row.appendChild(toolButton(preset.name, function () {
       setNeighborhood(preset.offsets);
       readRule();
       restart(true);
-    });
-    row.appendChild(button);
+    }));
   }
 }
 
@@ -251,27 +245,14 @@ function randomRule() {
    5. RUNNING THE AUTOMATON
    ---------------------------------------------------------------------
    The rule is automatonWorker() in cellular-automata-rule.js, with
-   newAutomaton, automatonStart, stateHash, the run loop and the trace
+   newAutomaton, automatonStart, stateHash, the trace
    (js/sim-worker.js), and countPieces with the search behind it
-   (js/sim-domains.js) copied in. startWorker (js/sim-page.js)
+   (js/sim-domains.js) copied in. runInWorker (js/sim-page.js)
    runs it in a second thread, so the page never freezes.
    ===================================================================== */
-const worker = startWorker(automatonWorker, [newAutomaton, automatonStart, stateHash, makeRunLoop, newTrace, keepSample,
-                                             countPieces, findRegions, spreadRegion]);
-
-worker.onmessage = function (event) {
-  const message = event.data;
-  if (message.type !== "state" || message.run !== run) return;   // from an older run
-  latest = message;
-  showHistory();
-  if (message.done && player.playing) player.setPlaying(false);
-  drawSoon();
-};
-
-worker.onerror = function () {
-  showMessage("The sim couldn't start. It loads one small library (seedrandom) from the " +
-              "internet, so check the connection and reload the page.");
-};
+const sim = runInWorker(automatonWorker, [newAutomaton, automatonStart, stateHash, newTrace, keepSample,
+                                          countPieces, findRegions, spreadRegion],
+                        function (message) { latest = message; showHistory(); drawSoon(); });
 
 // The size of the tape or grid, and in 1D the rows shown.
 function sizes() {
@@ -283,25 +264,23 @@ function sizes() {
            height: readWhole("grid-height", 3, MAX_SIDE, DEFAULTS.height), rows: 0 };
 }
 
-// Start the run again with the current settings and seed. With
-// "keepStep", it is made again up to the step it was at, so a changed
-// rule shows the same moment of the run; without, from step 0.
+// Start the run again (paused) with the current settings and seed.
+// With "keepStep", it is made again up to the step it was at, so a
+// changed rule shows the same moment of the run; without, from step 0.
 function restart(keepStep) {
   if (!table) return;        // the settings can't run (readRule said why)
   const toStep = keepStep && latest ? latest.time : 0;
   if (!keepStep) look = null;
   const size = sizes();
-  run++;
   latest = null;
   showMessage("");
-  worker.postMessage({
-    type: "setup", run: run, dim: dim, width: size.width, height: size.height, rows: size.rows,
+  sim.setup({
+    dim: dim, width: size.width, height: size.height, rows: size.rows,
     b: b, offsets: neighborhood, table: table, edge: checked("edge"),
     edgeState: readWhole("edge-state", 0, b - 1, 0), start: byId("start").value, drawn: drawn,
     seed: byId("seed").value, mode: checked("mode"), toStep: toStep, look: look,
     links: { 4: tapeLinks(size, 4), 8: tapeLinks(size, 8) },
   });
-  player.carryOn();
 }
 
 // The tape (1D) or grid (2D) as it is now, as a domain with 4 or 8
@@ -315,7 +294,7 @@ function tapeLinks(size, links) {
 
 // Play / Pause, Step, Restart and the Speed slider (connectPlay,
 // js/sim-page.js). player.playing is true while the sim plays.
-const player = connectPlay(worker, SPEEDS, DEFAULT_SPEED, "step", "steps", function () { restart(false); });
+const player = connectPlay(sim, SPEEDS, DEFAULT_SPEED, "step", "steps", function () { restart(false); });
 
 
 /* =====================================================================
@@ -414,7 +393,7 @@ historyBar.addEventListener("scroll", function () {
 function lookAt(last) {
   const h = historyRows();
   look = last === null || last >= h.newest ? null : Math.max(last, h.oldest + h.rows - 1);
-  worker.postMessage({ type: "look", last: look });
+  sim.send({ type: "look", last: look });
 }
 
 // The mouse wheel over the picture scrolls through the history too,
@@ -467,9 +446,7 @@ function newPicture() {
 
 // The colors of b states.
 function setColors() {
-  colorNames = ["#ffffff", "#000000"];
-  for (let s = 2; s < b; s++) colorNames.push(defaultColor(s - 2, b - 2));
-  colorNames.length = b;
+  colorNames = ["#ffffff", "#000000"].concat(defaultColors(b - 2));
   colorRGB = colorNames.map(hexToRGB);
 }
 
@@ -478,7 +455,7 @@ function setColors() {
    7. MOVING, ZOOMING AND CLICKING THE PICTURE
    ---------------------------------------------------------------------
    Drag to move, mouse wheel or pinch to zoom, and the + / − / Reset
-   buttons (connectPicture, js/sim-controls.js). What a click on a cell
+   buttons (connectPicture, js/sim-view.js). What a click on a cell
    does is picked under the picture:
      - it changes the cell's state to the next one (b - 1 goes back to
        0), and the run starts again from there, as "Your drawing". In 1D
@@ -489,7 +466,7 @@ function setColors() {
        (in 1D, the same spot of the picture). Clicking the cluster
        again, or outside the cells, shows everything again.
    ===================================================================== */
-connectPicture(view, null, function () { return false; }, clickCell, "pointer");
+connectPicture(view, { onClick: clickCell });
 
 function clickCell(event) {
   if (!latest) return;
@@ -570,13 +547,7 @@ function showStats() {
   // One row per state: cells (now), share, clusters (in the picture).
   const clusters = new Array(b).fill(0);
   for (const c of regions.color) clusters[c]++;
-  let rows = "";
-  for (let c = 0; c < b; c++) {
-    rows += '<tr><td><span class="swatch-small" style="background:' + colorNames[c] + '; border: 1px solid ' + CHART_ZERO + '"></span>' + c +
-      '</td><td>' + s.counts[c].toLocaleString() + '</td><td>' + (100 * s.counts[c] / cells).toFixed(1) +
-      '%</td><td>' + clusters[c].toLocaleString() + '</td></tr>';
-  }
-  byId("state-rows").innerHTML = rows;
+  byId("state-rows").innerHTML = colorShareRows(colorNames, 0, s.counts, cells, clusters);   // (js/sim-page.js)
 
   // The share of each state over time, and the interface.
   const onTape = dim === 1 ? " on the tape" : "";
@@ -594,7 +565,7 @@ function showStats() {
   // The clusters' areas (powerOfTwoBars, js/sim-charts.js), and
   // perimeter against area (perimeterChart).
   powerOfTwoBars(byId("areas-chart"), powerOfTwoBins(regions.areas), "clusters");
-  perimeterChart(byId("perimeter-chart"), regions, colorNames, BORDER);
+  perimeterChart(byId("perimeter-chart"), regions, colorNames, CELL_LINES);
 }
 
 
@@ -622,11 +593,14 @@ function usePreset(which) {
   restart(false);
 }
 
+// b: the slider and the box move together (connectSliderAndBox,
+// js/sim-page.js).
+const showB = connectSliderAndBox("b-slider", "b-box", changeB);
+
 // b states: the box and the slider, the colors, and the largest fixed
 // edge state. Doesn't restart: the caller does.
 function setB(value) {
-  b = Math.min(Math.max(Math.round(value) || 2, 2), MAX_B);
-  byId("b-box").value = byId("b-slider").value = b;
+  b = showB(value);
   byId("edge-state").max = b - 1;
   setColors();
 }
@@ -644,8 +618,6 @@ function changeB(value) {
   readRule();
   restart(true);
 }
-byId("b-slider").addEventListener("input", function () { changeB(this.value); });
-byId("b-box").addEventListener("change", function () { changeB(this.value); });
 
 // The rule number: every change made while typing (once it reads), the
 // slider, and the Random rule button.
@@ -701,4 +673,3 @@ byId("grid-width").value = DEFAULTS.width;
 byId("grid-height").value = DEFAULTS.height;
 byId("seed").value = DEFAULTS.seed;
 usePreset("rule30");          // starts the first run
-player.setPlaying(false);     // paused: press Play

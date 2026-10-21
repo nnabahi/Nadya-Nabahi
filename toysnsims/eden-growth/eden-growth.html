@@ -22,15 +22,8 @@
 </head>
 <body>
 
-  <header class="topbar">
-    <nav>
-      <a href="../../about.html">About Me</a>
-      <a href="../../writing.html">Writing</a>
-      <a href="../../index.html">Home</a>
-      <a href="../../resume-and-publications.html">Resume &amp; Publications</a>
-      <a href="../../toysnsims.html" class="active">Toys n' Sims</a>
-    </nav>
-  </header>
+  <header class="topbar" data-active="toysnsims.html"></header>
+  <script src="../../js/site.js"></script>
 
   <main class="page">
     <p><a href="../../toysnsims.html">&larr; All sims</a></p>
@@ -48,43 +41,11 @@
 
         <!-- The picture. eden-growth.js sets its height. In 2D and on
              a graph, the zoom buttons sit in its top right corner; the full
-             screen button (added by js/sim-page.js) in its top left corner. -->
+             screen button (added by js/sim-page.js) in its top left corner.
+             In 3D, js/sim-page.js puts the 3D view in its place,
+             with a Reset view button in that corner. -->
         <div class="sim-picture">
           <canvas id="sim-canvas"></canvas>
-          <div class="zoom-buttons" id="zoom-buttons" hidden>
-            <button class="tool-button" id="zoom-in" title="Zoom in">+</button>
-            <button class="tool-button" id="zoom-out" title="Zoom out">&minus;</button>
-            <button class="tool-button" id="zoom-reset" title="Show the whole picture once again">Reset</button>
-            <!-- On a graph's disk or half-plane: put the start back in the middle. -->
-            <button class="tool-button" id="disk-reset" title="Put the start back in the middle" hidden>Back to the start</button>
-            <!-- ... and "Slide": dragging there slides the whole picture instead (js/sim-hyperbolic.js).
-                 It shows and hides with "Back to the start" (section 8 of css/style.css). -->
-            <button class="tool-button" id="disk-slide" title="Drag to slide the whole picture, instead of moving around the plane">Slide</button>
-          </div>
-          <!-- The 3D view (2D mountains and graphs): js/sim-3d.js puts its
-               picture in here, with a button to look from the start again. -->
-          <div class="sim-3d" id="sim-3d" hidden></div>
-          <div class="zoom-buttons" id="view3d-buttons" hidden>
-            <button class="tool-button" id="view3d-reset" title="Look from the starting angle again">Reset view</button>
-          </div>
-        </div>
-
-        <!-- Shown instead of the picture while you draw a custom domain:
-             the graph tool itself, in an <iframe> (a page inside this
-             page). -->
-        <div id="custom-area" hidden>
-          <div class="step-bar">
-            <p class="step-title">Draw the domain</p>
-            <p class="muted step-help">Paint the cells the mountain may grow on (any
-              color counts). The first block goes on (0, 0) if you painted it, otherwise
-              on the painted cell nearest the middle. Then press Done.</p>
-            <p class="step-status" id="step-status"></p>
-            <div class="option-row">
-              <button class="tool-button" id="tool-done">Done</button>
-              <button class="tool-button" id="tool-cancel">Cancel</button>
-            </div>
-          </div>
-          <iframe class="tool-frame" id="tool-frame" title="Graph and domain tool"></iframe>
         </div>
 
         <!-- Messages, e.g. a problem with the domain. -->
@@ -165,12 +126,8 @@
             <label><input type="radio" name="blocks" value="tiles" checked> tile-shaped</label>
             <label><input type="radio" name="blocks" value="coins"> coins</label>
           </div>
-          <div class="option-row" id="stretch-row" hidden>
-            Heights <input type="range" id="stretch" min="-4" max="4" step="1" value="0">
-            <span class="muted" id="stretch-label"></span>
-          </div>
-          <p class="muted small" id="view3d-help" hidden>Drag to turn it around, use the
-            mouse wheel or a pinch to zoom, and right-drag (or two fingers) to slide it.</p>
+          <div class="option-row stretch-row" id="stretch-row" hidden></div>
+          <p class="muted small help-3d" id="view3d-help" hidden></p>
         </div>
 
         <h3 class="option-heading">Tile T</h3>
@@ -242,23 +199,13 @@
         </div>
 
         <h3 class="option-heading">Run</h3>
-        <div class="option-row">
-          <button class="tool-button" id="play">Play</button>
-          <button class="tool-button" id="step" title="Drop one block">Step</button>
-          <button class="tool-button" id="restart" title="Back to one block, same seed">Restart</button>
-        </div>
-        <div class="option-row">
-          Speed <input type="range" class="wide-range" id="speed" min="0" step="1">
-          <span class="muted" id="speed-label"></span>
-        </div>
+        <div class="option-row play-row" data-step="Drop one block" data-restart="Back to one block, same seed"></div>
+        <div class="option-row speed-row"></div>
         <div class="option-row">
           Go to step <input type="number" id="goto-steps" min="0" step="1" style="width: 8em">
           <button class="tool-button" id="goto">Go</button>
         </div>
-        <div class="option-row">
-          Seed <input type="text" id="seed" size="8">
-          <button class="tool-button" id="new-seed" title="A random new seed">New seed</button>
-        </div>
+        <div class="option-row seed-row"></div>
         <p class="muted small">The same seed always gives the same mountain. Changing the
           tile, the domain, the capacity or the weight keeps the seed and the step you are at, so the mountain
           changes as little as it can.</p>
