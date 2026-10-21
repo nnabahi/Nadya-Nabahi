@@ -18,7 +18,7 @@
        which run in a second thread (a "Web Worker"), and draws every
        coloring they send back, with the statistics.
    Small helpers used by every sim page (byId, readWhole, ...) are in
-   js/sim-page.js, the charts' (chartPen, ...) in js/sim-charts.js, and
+   js/sim-page.js, the charts (stackedSizeBars, ...) in js/sim-charts.js, and
    moving and zooming the picture in js/sim-view.js.
 
    The file is split into numbered sections:
@@ -87,6 +87,7 @@ let run = 0;                    // counts restarts, so leftovers from an older r
 // are, and the numbers (see section 5 of random-walk-coloring-walk.js).
 // It also carries the run so far ("trace..."), for the plots over time.
 let latest = null;
+const highlight = newHighlight();   // the clicked cell, whose region is highlighted (js/sim-highlight.js)
 
 // Small helpers for this page. (The ones every sim page uses are in
 // js/sim-page.js.)
@@ -198,10 +199,11 @@ function spreadThroughRegion(d, count, firstCell) {
    ---------------------------------------------------------------------
    The walkers are the function walkWorker() in
    random-walk-coloring-walk.js, with the run loop and the trace
-   (js/sim-worker.js) copied in. startWorker (js/sim-page.js) runs it in
+   (js/sim-worker.js), and countPieces with the search behind it
+   (js/sim-domains.js), copied in. startWorker (js/sim-page.js) runs it in
    a second thread, a "Web Worker", so the page never freezes.
    ===================================================================== */
-const worker = startWorker(walkWorker, [makeRunLoop, newTrace, keepSample]);
+const worker = startWorker(walkWorker, [makeRunLoop, newTrace, keepSample, countPieces, findRegions, spreadRegion]);
 
 worker.onmessage = function (event) {
   const message = event.data;
@@ -273,8 +275,12 @@ const view = makeView(simCanvas, drawSoon, PAD, SMALLEST_BORDERED_CELL);
 const disk = makeDiskView(simCanvas, view, showDomainChoice);
 const outsideRGB = hexToRGB(OUTSIDE), blankRGB = hexToRGB(UNCOLORED);
 
+// A clicked cell's region stands out: every other cell fades
+// (js/sim-highlight.js; the click is in section 6).
 function drawColoring() {
   if (!domain || !latest || simCanvas.hidden) return;
+  findHighlight(highlight, domain, latest.colors);
+  byId("highlight-info").textContent = highlightText(highlight, "region", function (c) { return "color " + (c + 1); });
   if (domainKind === "graph") { drawOnGraph(); return; }
   if (domainKind === "ring") { drawRing(); return; }
   const colors = latest.colors;
@@ -283,8 +289,8 @@ function drawColoring() {
   // The cells, each in its color (-1: not reached yet), with lines
   // between different colors when cells are big enough to see
   // (the outside counts as a color of its own).
-  paintDomain(view, pen, domain, function (v) { return colors[v]; },
-    function (c) { return c === -1 ? blankRGB : colorRGB[c]; }, outsideRGB, BORDER, SMALLEST_BORDERED_CELL);
+  paintDomain(view, pen, domain, highlightGroups(highlight, function (v) { return colors[v]; }, N),
+    highlightRGB(function (c) { return c === -1 ? blankRGB : colorRGB[c]; }, N), outsideRGB, BORDER, SMALLEST_BORDERED_CELL);
 
   pen.restore();                       // no longer cut off at the picture's box, so
   if (showWalkers) drawWalkers(pen);   // walkers on the edge show whole
@@ -296,7 +302,7 @@ function drawColoring() {
 function drawOnGraph() {
   const colors = latest.colors;
   const blank = disk.picture === "spread" ? UNCOLORED_DOT : UNCOLORED;
-  const pen = drawBall(disk, domain, function (v) { return colors[v] === -1 ? blank : colorNames[colors[v]]; });
+  const pen = drawBall(disk, domain, highlightCSS(highlight, function (v) { return colors[v] === -1 ? blank : colorNames[colors[v]]; }));
   if (showWalkers) drawWalkers(pen);
 }
 
@@ -318,6 +324,7 @@ function ringAngle(ring, k) {
 
 function drawRing() {
   const ring = ringShape(), colors = latest.colors;
+  const colorOf = highlightCSS(highlight, function (v) { return colors[v] === -1 ? UNCOLORED : colorNames[colors[v]]; });
   // Size the canvas (sharp on sharp screens) and get its pen.
   const ratio = window.devicePixelRatio || 1;
   simCanvas.style.height = ring.h + "px";
@@ -336,7 +343,7 @@ function drawRing() {
     pen.arc(ring.x, ring.y, ring.outer, a, b);
     pen.arc(ring.x, ring.y, ring.inner, b, a, true);   // back along the inside
     pen.closePath();
-    pen.fillStyle = colors[v] === -1 ? UNCOLORED : colorNames[colors[v]];
+    pen.fillStyle = colorOf(v);
     pen.fill();
     // Cells of the same color touch without a gap: a hairline in their own color.
     pen.strokeStyle = pen.fillStyle;
@@ -491,10 +498,15 @@ window.addEventListener("resize", drawSoon);
      the + / − / Reset buttons        zoom in, zoom out, show it all again
    On a hyperbolic tiling or tree, dragging (anywhere but a walker) moves
    around the plane instead (js/sim-hyperbolic.js).
+   A press that hardly moves (and isn't on a walker) is a click: it
+   highlights the clicked cell's region (js/sim-highlight.js), which
+   follows that cell as the walkers color more cells. Clicking the
+   region again, or outside the cells, shows everything again.
    "Pointer" events cover the mouse, a pen and fingers alike.
    ===================================================================== */
 let dragWalker = -1;          // the walker being dragged, or -1
 let walkerPointer = -1;       // the pointer dragging it
+const clicks = makeClickTracker();   // is a press a click? (js/sim-controls.js)
 // (On phones, a finger on the picture drags instead of scrolling the
 // page: "touch-action: none" in css/style.css.)
 
@@ -522,6 +534,7 @@ function showCursor() {
 // instead (startPlaneDrag and dragPlane, js/sim-hyperbolic.js), and two
 // fingers slide and zoom the picture.
 simCanvas.addEventListener("pointerdown", function (event) {
+  clicks.press(event);
   if (dragWalker < 0 && view.pointers.size === 0) {
     dragWalker = walkerUnder(pointerSpot(view, event));   // a walker, if there's one under the pointer
     if (dragWalker >= 0) {
@@ -534,11 +547,16 @@ simCanvas.addEventListener("pointerdown", function (event) {
   showCursor();
 });
 
+// The cell under the pointer, on any picture (-1: none).
+function cellUnderPointer(event) {
+  return domainKind === "ring" ? ringCellUnder(pointerSpot(view, event))
+                               : cellAtEvent(view, disk, domain, domainKind === "graph", event);
+}
+
 simCanvas.addEventListener("pointermove", function (event) {
+  clicks.move(event);
   if (dragWalker >= 0 && event.pointerId === walkerPointer) {
-    const cell = domainKind === "graph" ? ballCellUnder(disk, domain, event)
-               : domainKind === "ring" ? ringCellUnder(pointerSpot(view, event))
-                                       : cellUnder(view, domain, pointerSpot(view, event));
+    const cell = cellUnderPointer(event);
     if (cell !== -1 && cell !== starts[dragWalker]) {
       starts[dragWalker] = cell;
       restart();
@@ -554,10 +572,16 @@ simCanvas.addEventListener("pointermove", function (event) {
 });
 
 function stopDragging(event) {
+  const isClick = clicks.release(event) && event.type === "pointerup";
+  const onWalker = dragWalker >= 0;
   if (event.pointerId === walkerPointer) { dragWalker = -1; walkerPointer = -1; }
   releasePointer(view, event);
   startDrag();
   showCursor();
+  if (isClick && !onWalker && latest) {
+    clickHighlight(highlight, cellUnderPointer(event), latest.colors);
+    drawSoon();
+  }
 }
 
 // On a hyperbolic tiling or tree, exactly one pointer pressed drags
@@ -578,7 +602,9 @@ simCanvas.addEventListener("pointercancel", stopDragging);
    regions (connected pieces of one color, as nadya's Python finds with
    connected_components), with each one's area and perimeter, are found
    here each time the picture is drawn, by findRegions
-   (js/sim-domains.js); uncolored cells are in no region.
+   (js/sim-domains.js); uncolored cells are in no region. The walkers
+   also count the regions of each color at each sample of the run, for
+   the chart over time.
    ===================================================================== */
 function showStats() {
   if (!domain || !latest) return;
@@ -605,6 +631,8 @@ function showStats() {
   showColorRows(regions);
   drawSizesChart();
   drawInterfaceChart();
+  regionsChart(byId("regions-chart"), latest.traceTimes, latest.traceRegions, N,
+               function (c) { return colorNames[c]; }, "time");
   drawAreasChart(regions);
   // Perimeter against area, only on the 2D page (on a line or ring
   // every region's perimeter is 0, 1 or 2).
@@ -630,13 +658,8 @@ function showColorRows(regions) {
 // The number of cells of each color, over time. The walkers send these
 // as one long list: N numbers (one per color) for each time.
 function drawSizesChart() {
-  const lines = [];
-  for (let c = 0; c < N; c++) {
-    const values = [];
-    for (let k = 0; k < latest.traceTimes.length; k++) values.push(latest.traceSizes[k * N + c]);
-    lines.push({ color: colorNames[c], values: values });
-  }
-  plotOverTime(byId("sizes-chart"), latest.traceTimes, lines, "time");
+  plotOverTime(byId("sizes-chart"), latest.traceTimes,
+    colorLines(latest.traceSizes, latest.traceTimes.length, N, function (c) { return colorNames[c]; }), "time");
 }
 
 // The interface, over time.
@@ -648,7 +671,7 @@ function drawInterfaceChart() {
 // How many regions there are of each size, one bar per size, stacked by
 // color, on a log-log chart (stackedSizeBars, js/sim-charts.js).
 function drawAreasChart(regions) {
-  stackedSizeBars(byId("areas-chart"), regions.areas, regions.color, colorNames, " regions");
+  stackedSizeBars(byId("areas-chart"), regions.areas, regions.color, colorNames, "regions");
 }
 
 /* =====================================================================
@@ -688,6 +711,7 @@ const tool = makeCustomTool({
 function useDomain(kind, d) {
   domainKind = kind;
   domain = d;
+  clearHighlight(highlight);
   // Moving and zooming; zooming out past the whole picture only on a
   // torus (js/sim-view.js). In 1D the picture stays still: the ring is
   // a circle, and the line is one strip across the picture.

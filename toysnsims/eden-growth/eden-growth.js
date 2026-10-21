@@ -985,10 +985,11 @@ function keepRules(rules) {
 
 // The 3D view on a graph: the disk is the floor, with the tiling (or
 // the tree) drawn on it in thin lines, and each site's stack of coins
-// stands on its cell, as wide as the cell (on a tree, a bit over half
-// as wide, so the tree's lines show between the stacks). Every coin is
-// equally thick, so a stack's height shows its count however small its
-// cell. Cells too small to see are left out.
+// stands on its cell. Every coin has the same size, which drawStacks
+// picks so the stacks farthest out fit their cells (on a tree, a bit
+// over half their width, so the tree's lines show between the stacks),
+// so a stack's height shows its count. Cells too small to see are left
+// out.
 function draw3DOnDisk() {
   const s = latest;
   const unit = 1 / (2 * diskShape(disk).middle);    // so the first cell, in the middle, is 1 wide
@@ -1061,6 +1062,7 @@ function showStats() {
   byId("stat-blocks").textContent = s.blocks.toLocaleString();
   byId("stat-base").textContent = s.baseSize.toLocaleString();
   byId("stat-available").textContent = s.available.toLocaleString();
+  byId("stat-covered").textContent = s.covered.toFixed(1) + "%";
   byId("stat-highest").textContent = s.maxHeight.toLocaleString();
   byId("stat-start").textContent = s.height[s.start].toLocaleString();
   byId("stat-full").textContent = s.full.toLocaleString();
@@ -1101,6 +1103,7 @@ function showStats() {
   }
 
   plotOverTime(byId("base-chart"), s.traceSteps, [{ values: s.traceBase, color: CHART_LINE }], "step");
+  plotOverTime(byId("covered-chart"), s.traceSteps, [{ values: s.traceCovered, color: CHART_LINE }], "step", 100);
   if (capped) {
     plotOverTime(byId("full-chart"), s.traceSteps, [{ values: s.traceFull, color: CHART_LINE }], "step");
     plotOverTime(byId("growing-chart"), s.traceSteps, [{ values: s.traceGrowing, color: CHART_LINE }], "step");
@@ -1162,44 +1165,20 @@ function meanRadius(radii, from, to) {
 // radius over that sample's average: blue below, white at 1, red above
 // (full color at 25% off). Gray: no site that way yet.
 function radiusHeatChart(canvas, times, radii, bins) {
-  const pen = chartPen(canvas);
-  const w = canvas.clientWidth, h = canvas.clientHeight;
   const columns = times.length;
-  if (columns < 2) return;
-  const left = 44, up = 6, bottom = h - 16;
-  const tiny = document.createElement("canvas");   // one pixel per sample and direction
-  tiny.width = columns;
-  tiny.height = bins;
-  const tinyPen = tiny.getContext("2d");
-  const image = tinyPen.createImageData(columns, bins);
+  if (columns < 2) { chartPen(canvas); return; }
   const blue = hexToRGB("#3b6fb6"), red = hexToRGB("#c8402f"), gray = hexToRGB(EMPTY);
-  for (let j = 0; j < columns; j++) {
-    const average = meanRadius(radii, j * bins, (j + 1) * bins);
-    for (let k = 0; k < bins; k++) {
-      const r = radii[j * bins + k];
-      let rgb = gray;
-      if (r > 0) {
-        const off = Math.max(-1, Math.min(1, (r / average - 1) / 0.25));   // -1 .. 1
-        const to = off < 0 ? blue : red, a = Math.abs(off);
-        rgb = [0, 1, 2].map(function (c) { return Math.round(255 + (to[c] - 255) * a); });
-      }
-      const p = 4 * ((bins - 1 - k) * columns + j);   // -180 degrees at the bottom
-      image.data[p] = rgb[0]; image.data[p + 1] = rgb[1]; image.data[p + 2] = rgb[2]; image.data[p + 3] = 255;
-    }
+  const averages = times.map(function (t, j) { return meanRadius(radii, j * bins, (j + 1) * bins); });
+  function colorAt(j, k) {
+    const r = radii[j * bins + k];
+    if (r === 0) return gray;
+    const off = Math.max(-1, Math.min(1, (r / averages[j] - 1) / 0.25));   // -1 .. 1
+    const to = off < 0 ? blue : red, a = Math.abs(off);
+    return [0, 1, 2].map(function (c) { return Math.round(255 + (to[c] - 255) * a); });
   }
-  tinyPen.putImageData(image, 0, 0);
-  pen.imageSmoothingEnabled = false;
-  pen.drawImage(tiny, left, up, w - left, bottom - up);
-  // The labels: directions on the left, steps under.
-  pen.textAlign = "right";
-  pen.textBaseline = "middle";
-  for (const [angle, label] of [[180, "180°"], [90, "90°"], [0, "0°"], [-90, "−90°"], [-180, "−180°"]]) {
-    pen.fillText(label, left - 5, up + (bottom - up) * (180 - angle) / 360);
-  }
-  pen.textBaseline = "bottom";
-  pen.fillText("step " + times[columns - 1].toLocaleString(), w, h);
-  pen.textAlign = "left";
-  pen.fillText("0", left, h);
+  // Directions up the left (-180 degrees at the bottom), steps along the bottom.
+  heatChart(canvas, columns, bins, colorAt, { from: 0, to: times[columns - 1], word: "step" },
+            { from: -180, to: 180, step: 90, text: function (angle) { return shortLabel(angle) + "°"; } });
 }
 
 /* =====================================================================

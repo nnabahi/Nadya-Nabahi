@@ -110,7 +110,7 @@ let U = null;               // one random number per cell (site) or edge (bond)
 let swept = null;           // the clusters for every p (sweep in percolation-clusters.js)
 let p = DEFAULTS.p;         // the p on the slider
 let result = null;          // the clusters at p (percolate in percolation-clusters.js)
-let selected = -1;          // a clicked cell: its cluster is highlighted (-1: none)
+const highlight = newHighlight();   // a clicked cell: its cluster is highlighted (js/sim-highlight.js)
 
 let playing = false;        // it starts paused; Play raises p
 let speed = DEFAULT_SPEED;
@@ -130,11 +130,11 @@ function newNumbers() {
   computeClusters();
 }
 
-// The clusters at the current p. If p went down far enough that the
-// clicked site closed, nothing stays highlighted.
+// The clusters at the current p. (If p goes down far enough that the
+// clicked cell leaves every cluster, nothing is highlighted until it
+// is in one again: js/sim-highlight.js.)
 function computeClusters() {
   result = percolate(domain, KIND, p, U, edges);
-  if (selected !== -1 && result.root[selected] === -1) selected = -1;
   drawSoon();
 }
 
@@ -189,8 +189,9 @@ function rgbOfRoot(r) {
   let rgb = mode === "open" ? openRGB
     : mode === "largest" ? (r === result.largestRoot ? accentRGB : othersRGB)
     : colorOfName(result.name[r]);
-  // A clicked cluster stands out: every other cluster fades.
-  if (selected !== -1 && r !== result.root[selected]) rgb = rgb.map(function (t) { return 255 - (255 - t) * 0.25; });
+  // A clicked cluster stands out: every other cluster fades (fadeRGB,
+  // js/sim-highlight.js).
+  if (highlight.inside !== null && r !== highlight.color) rgb = fadeRGB(rgb);
   return rgb;
 }
 
@@ -237,6 +238,7 @@ const disk = makeDiskView(simCanvas, view, showDomainChoice);
 
 function drawPicture() {
   if (!domain || !result || simCanvas.hidden) return;
+  findHighlight(highlight, domain, clusterGroups());   // the clicked cell's cluster, now
   if (domainKind === "graph") { drawOnBall(); return; }
   const pen = fitPicture(view, domain, MAX_PICTURE_HEIGHT);
   const asEdges = KIND === "bond" && view.size * view.zoom >= SMALLEST_EDGE_CELL;
@@ -255,6 +257,17 @@ function drawPicture() {
 
 // The group of cell v in the picture: its cluster's root, or -1 (white).
 function groupOf(v) { return inCluster(v) ? result.root[v] : -1; }
+
+// Every cell's group, as one list: the clusters, as a coloring whose
+// regions are exactly the clusters (for the highlight). Two neighbors
+// with the same root are in the same cluster, and a cluster is joined
+// up through its open sites or edges, so a search through neighbors of
+// the same root finds the whole cluster.
+function clusterGroups() {
+  const groups = new Int32Array(domain.n);
+  for (let v = 0; v < domain.n; v++) groups[v] = groupOf(v);
+  return groups;
+}
 
 // Bond percolation, big cells: the dots and the open edges. Each square
 // looks at the squares to its right and above (and, with 8 neighbors,
@@ -417,13 +430,11 @@ window.addEventListener("resize", drawSoon);
    the same.
    ===================================================================== */
 connectPicture(view, disk, function () { return domainKind === "graph"; }, function (event) {
-  clickCell(domainKind === "graph" ? ballCellUnder(disk, domain, event)
-                                   : cellUnder(view, domain, pointerSpot(view, event)));
+  clickCell(cellAtEvent(view, disk, domain, domainKind === "graph", event));
 }, "pointer");
 
 function clickCell(v) {
-  const sameCluster = selected !== -1 && v !== -1 && result.root[v] !== -1 && result.root[v] === result.root[selected];
-  selected = (v === -1 || !inCluster(v) || sameCluster) ? -1 : v;
+  clickHighlight(highlight, v, clusterGroups());
   drawSoon();
 }
 
@@ -453,8 +464,8 @@ function showStats() {
   byId("stat-cross-at").textContent = swept.crossAt === null ? "never" : "p = " + swept.crossAt.toFixed(4);
   byId("stat-cross-at-name").textContent = onGraph ? "First reaches the edge at"
     : domain.wrap ? "First wraps around at" : "First crosses at";
-  byId("stat-selected").textContent = selected === -1 ? "none (click a cluster)"
-    : result.size[result.root[selected]].toLocaleString() + " cells";
+  byId("stat-selected").textContent = highlight.inside === null ? "none (click a cluster)"
+    : highlight.size.toLocaleString() + " cells";
 
   drawCurve(byId("largest-chart"), function (k) { return largestAt(k) / n; }, "largest cluster / cells");
   drawCurve(byId("clusters-chart"), function (k) { return clustersAt(k) / n; }, "clusters / cells");
@@ -470,46 +481,24 @@ function clustersAt(k) { return k === 0 ? (KIND === "site" ? 0 : domain.n) : swe
 // value once k elements are open. A dot marks the current p, and a
 // dashed line the critical point p_c, when it is known.
 function drawCurve(canvas, valueAt, label) {
-  const pen = chartPen(canvas);
-  const w = canvas.clientWidth, h = canvas.clientHeight;
-  const left = 44, up = 14, bottom = h - 16, POINTS = 400;
-  const values = [];
-  for (let j = 0; j <= POINTS; j++) values.push(valueAt(openAt(swept, j / POINTS)));
-  const top = Math.max(1e-9, ...values);
-  const sx = function (t) { return left + (w - left - 6) * t; };
-  const sy = function (value) { return bottom - (bottom - up) * value / top; };
-
-  pen.textAlign = "right";
-  pen.textBaseline = "middle";
-  pen.fillText(shortLabel(top), left - 5, up);
-  pen.fillText("0", left - 5, bottom);
-  pen.textBaseline = "top";
-  pen.textAlign = "left";
-  pen.fillText("p = 0", left, bottom + 3);
-  pen.textAlign = "right";
-  pen.fillText("1", w - 6, bottom + 3);
-  pen.textAlign = "left";
-  pen.fillText(label, left + 4, 0);
-
+  const POINTS = 400, points = [];
+  for (let j = 0; j <= POINTS; j++) points.push([j / POINTS, valueAt(openAt(swept, j / POINTS))]);
+  const frame = lineChart(canvas, [{ points: points }], { from: 0, to: 1, word: "p" },
+                          { from: 0, to: Math.max(1e-9, seriesRange([{ points: points }], 1)[1]), round: true, word: label });
+  const pen = frame.pen;
   const pc = criticalPoint();
   if (pc !== null) {
     pen.setLineDash([3, 3]);
     pen.strokeStyle = CHART_TEXT;
     pen.lineWidth = 1;
-    pen.beginPath(); pen.moveTo(sx(pc), up); pen.lineTo(sx(pc), bottom); pen.stroke();
+    pen.beginPath(); pen.moveTo(frame.sx(pc), frame.up); pen.lineTo(frame.sx(pc), frame.bottom); pen.stroke();
     pen.setLineDash([]);
-    pen.textAlign = "center";
-    pen.fillText("p_c", sx(pc), bottom + 3);
+    pen.textAlign = "left";
+    pen.textBaseline = "top";
+    pen.fillText("p_c", frame.sx(pc) + 3, frame.up);
   }
   pen.beginPath();
-  values.forEach(function (value, j) {
-    if (j === 0) pen.moveTo(sx(0), sy(value)); else pen.lineTo(sx(j / POINTS), sy(value));
-  });
-  pen.strokeStyle = CHART_LINE;
-  pen.lineWidth = 1.5;
-  pen.stroke();
-  pen.beginPath();
-  pen.arc(sx(p), sy(valueAt(openAt(swept, p))), 4, 0, 2 * Math.PI);
+  pen.arc(frame.sx(p), frame.sy(valueAt(openAt(swept, p))), 4, 0, 2 * Math.PI);
   pen.fillStyle = CHART_LINE;
   pen.fill();
 }
@@ -523,7 +512,7 @@ function drawSizesChart() {
   for (let v = 0; v < domain.n; v++) {
     if (result.root[v] === v && inCluster(v)) sizes.push(result.size[v]);
   }
-  powerOfTwoBars(byId("sizes-chart"), powerOfTwoBins(sizes), " clusters", function (b) { return shortLabel(2 ** b); });
+  powerOfTwoBars(byId("sizes-chart"), powerOfTwoBins(sizes), "clusters");
 }
 
 // The critical point for the domain in use: for a box or torus, where
@@ -581,7 +570,7 @@ function useDomain(kind, d) {
   domain = d;
   edges = edgesOf(d);
   entryEdge = makeEntryEdges(d, edges);
-  selected = -1;
+  clearHighlight(highlight);
   useTorus(view, Boolean(d.wrap));   // moving and zooming (js/sim-view.js)
   showDomainChoice();
   newNumbers();
@@ -678,7 +667,7 @@ connectSpeedSlider("speed", SPEEDS, DEFAULT_SPEED, function (newSpeed) {
 byId("colors").addEventListener("change", drawSoon);
 
 // Seed: the same seed gives the same numbers U every time.
-connectSeed(function () { selected = -1; newNumbers(); });
+connectSeed(function () { clearHighlight(highlight); newNumbers(); });
 
 
 // --- Start ------------------------------------------------------------

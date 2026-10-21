@@ -395,41 +395,26 @@ function showStats() {
 }
 
 function drawLineChart(canvas) {
-  const pen = chartPen(canvas);
-  const w = canvas.clientWidth, h = canvas.clientHeight;
   if (stats.reached === 0) {
-    pen.fillText(stats.count === 0 ? "No grid points on this line." : "No path reaches this line.", 0, 14);
+    chartPen(canvas).fillText(stats.count === 0 ? "No grid points on this line." : "No path reaches this line.", 0, 14);
     return;
   }
   const first = stats.position[0], last = stats.position[stats.position.length - 1];
   const lo = Math.min(first, last) - 0.5, hi = Math.max(first, last) + 0.5;
-  const left = 4, up = 14, bottom = h - 14;
-  const across = function (t) { return left + (w - left) * (t - lo) / (hi - lo); };
-  const height = function (s) { return bottom - (bottom - up) * Math.min(s, 1.05) / 1.05; };
 
-  pen.fillText("1", 0, height(1) - 2);
-  pen.fillText(shortLabel(Math.min(first, last)), 0, h - 2);
-  const end = shortLabel(Math.max(first, last));
-  pen.fillText(end, w - pen.measureText(end).width, h - 2);
-
-  // The bars.
-  const barWidth = Math.max(1, (w - left) / (hi - lo) * 0.8 * (stats.position.length > 1
-    ? Math.abs(stats.position[1] - stats.position[0]) : 1));
-  pen.fillStyle = CHART_LINE;
-  stats.scaled.forEach(function (s, i) {
-    const top = height(s);
-    pen.fillRect(across(stats.position[i]) - barWidth / 2, top, barWidth, Math.max(1, bottom - top));
+  // The bars, 0.8 of the gap between neighboring points wide.
+  const half = 0.4 * (stats.position.length > 1 ? Math.abs(stats.position[1] - stats.position[0]) : 1);
+  const bars = stats.scaled.map(function (s, i) {
+    return { from: stats.position[i] - half, to: stats.position[i] + half, value: Math.min(s, 1.05) };
   });
+  const frame = barChart(canvas, bars, { from: lo, to: hi }, { from: 0, to: 1.05 });
   // The Gaussian, drawn smoothly over them.
-  pen.beginPath();
+  const curve = [];
   for (let k = 0; k <= 200; k++) {
     const t = lo + (hi - lo) * k / 200;
-    if (k === 0) pen.moveTo(across(t), height(stats.gaussian(t)));
-    else pen.lineTo(across(t), height(stats.gaussian(t)));
+    curve.push([t, Math.min(stats.gaussian(t), 1.05)]);
   }
-  pen.strokeStyle = LINE_COLOR;
-  pen.lineWidth = 1.5;
-  pen.stroke();
+  drawSeries(frame, [{ points: curve, color: LINE_COLOR }]);
 }
 
 

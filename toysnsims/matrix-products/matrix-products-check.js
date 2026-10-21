@@ -317,19 +317,8 @@ function drawHistogram() {
   const bins = Math.min(2000, Math.max(1, Math.ceil((hi - lo) / width)));
   const counts = new Array(bins).fill(0);
   for (const x of xs) counts[Math.min(bins - 1, Math.floor((x - lo) / width))]++;
-  const most = Math.max(...counts);
-
-  const pen = chartPen(canvas);
-  const w = canvas.clientWidth, h = canvas.clientHeight;
-  pen.fillStyle = CHART_LINE;
-  for (let i = 0; i < bins; i++) {
-    const barHeight = (h - 20) * counts[i] / most;
-    pen.fillRect(i * w / bins, h - 16 - barHeight, Math.max(w / bins - 0.5, 0.5), barHeight);
-  }
-  pen.fillStyle = CHART_TEXT;
-  pen.fillText(lo.toFixed(4), 2, h - 3);
-  pen.textAlign = "right";
-  pen.fillText(hi.toFixed(4), w - 2, h - 3);
+  const bars = counts.map(function (count, i) { return { from: lo + i * width, to: lo + (i + 1) * width, value: count }; });
+  barChart(canvas, bars, { from: lo, to: lo + bins * width }, { from: 0, to: Math.max(...counts), round: true, whole: true });
 }
 byId("hist-draw").addEventListener("click", drawHistogram);
 drawHistogram();

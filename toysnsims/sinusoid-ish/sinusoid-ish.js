@@ -374,7 +374,7 @@ function drawGrid() {
   const labelRow = Math.min(height - 4, row + 13);
   for (const x of xLines) {
     if (Math.abs(x) < xStep / 2) continue;
-    const label = shortLabel(x);
+    const label = shortLabel(x, xStep);
     pen.fillText(label, px(x) - pen.measureText(label).width / 2, labelRow);
   }
   for (const y of yLines) {
@@ -557,12 +557,13 @@ function showHistograms() {
   byId("samples-heading").textContent = "Many samples: " + samples.toLocaleString() + " so far, " +
     collected.offsets.length.toLocaleString() + " lobes";
   const asLog = byId("hist-mode").value === "log";
+  // On a log scale: the sizes (above 0), with bars of equal width on that scale.
   const sizes = function (list) {
-    return list.map(function (v) { return Math.log10(Math.abs(v)); }).filter(isFinite);
+    return list.map(Math.abs).filter(function (v) { return v > 0 && isFinite(v); });
   };
-  histogram(byId("areas-chart"), asLog ? sizes(collected.areas) : collected.areas, !asLog);
+  histogram(byId("areas-chart"), asLog ? sizes(collected.areas) : collected.areas, !asLog, asLog);
   histogram(byId("offsets-chart"), collected.offsets, false);
-  histogram(byId("peaks-chart"), asLog ? sizes(collected.peaks) : collected.peaks, !asLog);
+  histogram(byId("peaks-chart"), asLog ? sizes(collected.peaks) : collected.peaks, !asLog, asLog);
   if (model === "mirror") {
     const p = chartPen(byId("logder-chart"));
     p.fillText("None for the mirror model: 0 is always a root.", 0, 20);

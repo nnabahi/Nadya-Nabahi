@@ -215,8 +215,11 @@ function stateHash(cells) {
    ---------------------------------------------------------------------
    The page sends:
      { type: "setup", run, dim, width, height, rows, b, offsets, table,
-       edge, edgeState, start, drawn, seed, mode, toStep, look }
-                         a new run from the start. In 1D, "rows" is how
+       edge, edgeState, start, drawn, seed, mode, toStep, look, links }
+                         a new run from the start. "links" are the
+                         tape's or grid's cells as a domain, with 4
+                         and with 8 neighbors ({ 4: ..., 8: ... }), for
+                         counting the clusters. In 1D, "rows" is how
                          many rows the picture shows and "mode" is
                          "fill" (stop when the picture is full) or
                          "scroll" (the oldest row leaves at the top;
@@ -323,8 +326,15 @@ function automatonWorker() {
     else seen.set(key, time);
   }
 
+  // A sample for the charts. The clusters (connected pieces of one
+  // state) of each state, through 4 and through 8 neighbors, are
+  // counted only when a sample is due (countPieces, js/sim-domains.js,
+  // copied in by the page), since that looks at every cell.
   function takeSample() {
-    keepSample(trace, time, { counts: counts, interface4: interface4, interface8: interface8 });
+    keepSample(trace, time, function () {
+      return { counts: counts, interface4: interface4, interface8: interface8,
+               pieces4: countPieces(m.links[4], auto.cells, m.b), pieces8: countPieces(m.links[8], auto.cells, m.b) };
+    });
   }
 
   // 1D in fill mode: done once the picture is full.
@@ -389,6 +399,7 @@ function automatonWorker() {
       traceTimes: Float64Array.from(trace.times), traceCounts: Int32Array.from(trace.lists.counts),
       traceInterface4: Float64Array.from(trace.lists.interface4),
       traceInterface8: Float64Array.from(trace.lists.interface8),
+      tracePieces4: Int32Array.from(trace.lists.pieces4), tracePieces8: Int32Array.from(trace.lists.pieces8),
     });
   }
 }

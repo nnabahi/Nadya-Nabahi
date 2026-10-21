@@ -434,12 +434,12 @@ function drawPlaneGrid() {
   const yAxisAt = Math.max(2, Math.min(width - 40, px(0) + 4));
   for (let x = Math.ceil(left / step) * step; x <= right; x += step) {
     if (Math.abs(x) < step / 2) continue;
-    const label = shortLabel(x);
+    const label = shortLabel(x, step);
     pen.fillText(label, px(x) - pen.measureText(label).width / 2, xAxisAt);
   }
   for (let y = Math.ceil(bottom / step) * step; y <= top; y += step) {
     if (Math.abs(y) < step / 2 || py(y) < 14) continue;     // no number cut off at the top
-    pen.fillText(shortLabel(y), yAxisAt, py(y) - 3);
+    pen.fillText(shortLabel(y, step), yAxisAt, py(y) - 3);
   }
 }
 
@@ -484,7 +484,7 @@ function drawHistogram(values) {
   pen.beginPath();
   for (let x = Math.ceil(line.xmin / step) * step; x <= line.xmax; x += step) {
     pen.moveTo(Math.round(sx(x)) + 0.5, top); pen.lineTo(Math.round(sx(x)) + 0.5, bottom);
-    const label = shortLabel(x);
+    const label = shortLabel(x, step);
     pen.fillText(label, sx(x) - pen.measureText(label).width / 2, height - 4);
   }
   pen.stroke();

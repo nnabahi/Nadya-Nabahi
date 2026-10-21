@@ -16,8 +16,8 @@
      8b. Click to add a tile
      9. Connecting the buttons
    It uses the shared helpers in js/sim-page.js (byId, startWorker,
-   ...), the charts' pens and colors in js/sim-charts.js (chartPen,
-   CHART_LINE), the old site's colors in js/sim-colors.js (defaultColor)
+   ...), the charts in js/sim-charts.js (logLogChart,
+   barChart), the old site's colors in js/sim-colors.js (defaultColor)
    and the formula reading and sliders in js/formulas.js.
    ===================================================================== */
 
@@ -575,7 +575,7 @@ function showStats() {
   const placed = [];
   for (const k of logSpaced(shown)) placed.push([tiles.attempt[k], k + 1]);
   if (shown > 0) placed.push([done, shown]);
-  logLogChart(byId("placed-chart"), [{ points: placed }]);
+  logLogChart(byId("placed-chart"), [{ points: placed }], "attempts", "tiles placed");
 
   // Records as tiles are placed: the largest generation and largest
   // degree among the first k tiles, against k.
@@ -589,17 +589,20 @@ function showStats() {
     if (degree > topDegree) { topDegree = degree; degrees.push([k + 1, topDegree]); }
   }
   if (shown > 0) { generations.push([shown, topGeneration]); degrees.push([shown, topDegree]); }
-  logLogChart(byId("records-chart"), [{ points: generations }, { points: degrees, dots: true }]);
+  logLogChart(byId("records-chart"), [{ points: generations }, { points: degrees, dots: true, radius: 1.5 }], "tiles placed", "record");
 
   // R_k against k.
   const radii = [];
   for (const k of logSpaced(shown)) radii.push([k + 1, tiles.r[k]]);
-  logLogChart(byId("radii-chart"), [{ points: radii, dots: true }]);
+  logLogChart(byId("radii-chart"), [{ points: radii, dots: true, radius: 1.5 }], "k", "R_k");
 
   // How many tiles have 0, 1, 2, ... children (the last bar: that many or more).
   const most = 20, bars = new Array(most + 1).fill(0);
   for (let k = 0; k < shown; k++) bars[Math.min(most, children[k])]++;
-  barChart(byId("children-chart"), bars);
+  barChart(byId("children-chart"), bars.map(function (count, i) { return { from: i - 0.5, to: i + 0.5, value: count }; }),
+    { from: -0.5, to: most + 0.5, whole: true, word: "children",
+      text: function (i) { return i < most ? String(i) : most + "+"; } },
+    { from: 0, to: Math.max(1, ...bars), round: true, whole: true, word: "tiles" });
 }
 
 // At most about 400 of the numbers 0 .. n-1, spread evenly on a log scale.
@@ -612,60 +615,6 @@ function logSpaced(n) {
   }
   return picked;
 }
-
-// A small chart with both axes on log scales. Each series is
-// { points: [[x, y], ...], dots: true/false }: a line, or dots.
-function logLogChart(canvas, series) {
-  const p = chartPen(canvas);
-  const w = canvas.clientWidth, h = canvas.clientHeight, left = 44, bottom = h - 14, top = 4;
-  function positive(q) { return q[0] > 0 && q[1] > 0; }   // a log scale has no room for 0 or less
-  const all = series.flatMap(function (s) { return s.points; }).filter(positive);
-  if (all.length < 2) return;
-  const lx = all.map(function (q) { return Math.log10(q[0]); }), ly = all.map(function (q) { return Math.log10(q[1]); });
-  const x0 = Math.min(...lx), x1 = Math.max(...lx, x0 + 1e-9), y0 = Math.min(...ly), y1 = Math.max(...ly, y0 + 1e-9);
-  function sx(x) { return left + (w - left - 4) * (Math.log10(x) - x0) / (x1 - x0); }
-  function sy(y) { return bottom - (bottom - top) * (Math.log10(y) - y0) / (y1 - y0); }
-  // Axis labels: the smallest and largest values.
-  p.fillText(shortNumber(Math.pow(10, y1)), 0, top + 9);
-  p.fillText(shortNumber(Math.pow(10, y0)), 0, bottom);
-  p.fillText(shortNumber(Math.pow(10, x0)), left, h - 2);
-  const right = shortNumber(Math.pow(10, x1));
-  p.fillText(right, w - p.measureText(right).width, h - 2);
-  p.strokeStyle = CHART_LINE; p.fillStyle = CHART_LINE; p.lineWidth = 1.5;
-  for (const s of series) {
-    const points = s.points.filter(positive);
-    if (s.dots) {
-      for (const q of points) p.fillRect(sx(q[0]) - 1, sy(q[1]) - 1, 2.5, 2.5);
-    } else {
-      p.beginPath();
-      points.forEach(function (q, i) { if (i === 0) p.moveTo(sx(q[0]), sy(q[1])); else p.lineTo(sx(q[0]), sy(q[1])); });
-      p.stroke();
-    }
-  }
-}
-
-// A small bar chart of counts (bar i: count[i]; the last bar is "or more").
-function barChart(canvas, counts) {
-  const p = chartPen(canvas);
-  const w = canvas.clientWidth, h = canvas.clientHeight, top = 12, bottom = h - 14;
-  const biggest = Math.max(1, ...counts), barWidth = w / counts.length;
-  p.fillText(biggest.toLocaleString(), 0, 9);
-  p.fillText("0", 0, h - 2);
-  const last = (counts.length - 1) + "+";
-  p.fillText(last, w - p.measureText(last).width, h - 2);
-  p.fillStyle = CHART_LINE;
-  counts.forEach(function (c, i) {
-    const barHeight = (bottom - top) * c / biggest;
-    if (c > 0) p.fillRect(i * barWidth + 1, bottom - Math.max(1, barHeight), Math.max(1, barWidth - 2), Math.max(1, barHeight));
-  });
-}
-
-// 0.000123 -> "1.2e-4", 12345 -> "12,345".
-function shortNumber(v) {
-  if (v >= 1 && v < 1e7) return Math.round(v).toLocaleString();
-  return v.toExponential(1);
-}
-
 
 /* =====================================================================
    8. POINTING AT A TILE

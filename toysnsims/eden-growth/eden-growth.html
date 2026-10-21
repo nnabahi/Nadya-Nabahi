@@ -274,6 +274,7 @@
               <tr><td>Blocks (n + 1)</td><td id="stat-blocks"></td></tr>
               <tr><td>Base: sites with a block</td><td id="stat-base"></td></tr>
               <tr><td>Available sites</td><td id="stat-available"></td></tr>
+              <tr><td>Covered, % of sites ever available</td><td id="stat-covered"></td></tr>
               <tr><td>Largest height</td><td id="stat-highest"></td></tr>
               <tr><td>Height at the start site</td><td id="stat-start"></td></tr>
               <tr class="cap-only"><td>Full sites (M blocks)</td><td id="stat-full"></td></tr>
@@ -294,6 +295,10 @@
           <div class="stat">
             <h3 class="option-heading">Base size over time</h3>
             <canvas class="chart" id="base-chart"></canvas>
+          </div>
+          <div class="stat">
+            <h3 class="option-heading">Covered, % of sites ever available, over time</h3>
+            <canvas class="chart" id="covered-chart"></canvas>
           </div>
           <!-- With no capacity: the heights. With a capacity they
                stop at M, so the full and growing sites show instead. -->

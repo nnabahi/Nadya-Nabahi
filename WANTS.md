@@ -16,6 +16,16 @@ is and where the details are. When one gets built, it moves out of here
 - **The bacteria rule**: a random bacterium copies itself into its own cell
   or into a neighbor (or only into an empty neighbor). Today's rule is not a
   special case of it, so it would be a second rule to switch to.
+- **Highlight all cells of height h**: pick a height h and every cell
+  (or stack) of another height fades, even in the 3D view, where the
+  other cubes or coins turn gray or see-through. Sandpiles too (both
+  sims are height functions). nadya, 2026-10-21; the click-to-highlight
+  of a region (js/sim-highlight.js) is the closest thing today.
+
+## Sandpiles
+
+- **Highlight all cells of height h**: as for Eden Growth above, also in
+  the 3D view.
 
 ## Random Walk
 

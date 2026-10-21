@@ -31,7 +31,9 @@
      2. The graph tool inside a sim page
           makeCustomTool(page)
      3. Dragging, zooming and clicking the picture
+          makeClickTracker()                is a press a click or a drag?
           connectPicture(view, disk, onGraph, onClick, cursor)
+          cellAtEvent(view, disk, d, onGraph, event)   the cell under the pointer
      4. The clickable grid of offsets
           offsetKey(t), offsetText(t)       an offset's name, and as shown
           showOffsetGrid(grid, dim, reach, offsets, setOffsets, center)
@@ -342,6 +344,34 @@ function makeCustomTool(page) {
 
 const CLICK_DISTANCE = 5;     // a press that moves less than this (in pixels) is a click, not a drag
 
+// Telling a click from a drag: call press, move and release with each
+// pointer event on the picture; release(event) says whether the press
+// that just ended was a click (one pointer, which hardly moved).
+function makeClickTracker() {
+  const pressed = new Set();    // the pointers pressed on the picture (their ids)
+  let pressedAt = null;         // where the first of them went down
+  let dragged = false;          // true once it moved too far (or two fingers came down): not a click
+  return {
+    isPressed: function () { return pressed.size > 0; },
+    press: function (event) {
+      if (pressed.size === 0) { pressedAt = { x: event.clientX, y: event.clientY }; dragged = false; }
+      pressed.add(event.pointerId);
+      if (pressed.size > 1) dragged = true;           // two fingers: a pinch, not a click
+    },
+    // Returns false for a pointer that isn't pressed on the picture.
+    move: function (event) {
+      if (!pressed.has(event.pointerId)) return false;
+      if (Math.hypot(event.clientX - pressedAt.x, event.clientY - pressedAt.y) >= CLICK_DISTANCE) dragged = true;
+      return true;
+    },
+    // Returns null for a pointer that wasn't pressed on the picture.
+    release: function (event) {
+      if (!pressed.delete(event.pointerId)) return null;
+      return pressed.size === 0 && !dragged;
+    },
+  };
+}
+
 // Connect the picture of "view" (its canvas). "disk" is the page's disk
 // view (js/sim-hyperbolic.js), or null on a page with no hyperbolic
 // plane or tree, and onGraph() says whether the picture shows one right
@@ -351,9 +381,7 @@ const CLICK_DISTANCE = 5;     // a press that moves less than this (in pixels) i
 // turns into a closed hand ("grabbing") while the picture is pressed.
 function connectPicture(view, disk, onGraph, onClick, cursor) {
   const canvas = view.canvas;
-  const pressed = new Set();    // the pointers pressed on the picture (their ids)
-  let pressedAt = null;         // where the first of them went down
-  let dragged = false;          // true once it moved too far (or two fingers came down): not a click
+  const clicks = makeClickTracker();
   // (On phones, a finger on a picture that can move drags it instead of
   // scrolling the page: "touch-action: none" in css/style.css.)
 
@@ -366,17 +394,14 @@ function connectPicture(view, disk, onGraph, onClick, cursor) {
   }
 
   canvas.addEventListener("pointerdown", function (event) {
-    if (pressed.size === 0) { pressedAt = { x: event.clientX, y: event.clientY }; dragged = false; }
-    pressed.add(event.pointerId);
-    if (pressed.size > 1) dragged = true;           // two fingers: a pinch, not a click
+    clicks.press(event);
     pressPointer(view, event);
     startDrag();
   });
 
   canvas.addEventListener("pointermove", function (event) {
-    if (cursor) canvas.style.cursor = pressed.size > 0 ? "grabbing" : cursor;
-    if (!pressed.has(event.pointerId)) return;
-    if (Math.hypot(event.clientX - pressedAt.x, event.clientY - pressedAt.y) >= CLICK_DISTANCE) dragged = true;
+    if (cursor) canvas.style.cursor = clicks.isPressed() ? "grabbing" : cursor;
+    if (!clicks.move(event)) return;
     if (disk && disk.dragFrom && view.pointers.has(event.pointerId)) {
       view.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });   // where a second finger starts from
       dragPlane(disk, event.clientX, event.clientY);
@@ -386,16 +411,24 @@ function connectPicture(view, disk, onGraph, onClick, cursor) {
     }
   });
 
-  function release(event, isClick) {
-    if (!pressed.delete(event.pointerId)) return;
+  function release(event, mayClick) {
+    const isClick = clicks.release(event);
+    if (isClick === null) return;
     releasePointer(view, event);
     startDrag();
-    if (isClick && onClick && pressed.size === 0 && !dragged) onClick(event);
+    if (mayClick && isClick && onClick) onClick(event);
   }
   canvas.addEventListener("pointerup", function (event) { release(event, true); });
   canvas.addEventListener("pointercancel", function (event) { release(event, false); });
 }
 
+// The cell under a pointer event on the picture (-1: none): with
+// "onGraph" (a hyperbolic tiling or tree), the cell of ball d
+// (ballCellUnder, js/sim-hyperbolic.js); otherwise the cell of domain d
+// (cellUnder, js/sim-view.js).
+function cellAtEvent(view, disk, d, onGraph, event) {
+  return onGraph ? ballCellUnder(disk, d, event) : cellUnder(view, d, pointerSpot(view, event));
+}
 
 /* =====================================================================
    4. THE CLICKABLE GRID OF OFFSETS

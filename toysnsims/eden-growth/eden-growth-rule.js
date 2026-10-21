@@ -770,10 +770,17 @@ function mountainWorker() {
     return -1;
   }
 
+  // The percent of the sites ever available that are covered (have a
+  // block): the base over the base plus the empty available sites. Every
+  // site ever made was available once, so that is every site made so far.
+  function coveredPercent(m) {
+    return 100 * m.baseSize / m.height.length;
+  }
+
   function takeSample() {
     const m = mountain;
     const values = { base: m.baseSize, highest: m.maxHeight, start: m.height[m.start],
-                     full: m.full, growing: m.baseSize - m.full };
+                     full: m.full, growing: m.baseSize - m.full, covered: coveredPercent(m) };
     // The shape (2D off a torus), worked out only when a sample is due.
     if (m.radii && m.steps >= trace.next) {
       values.convexity = convexity(m);
@@ -830,7 +837,7 @@ function mountainWorker() {
       height: Int32Array.from(m.height),
       start: m.start,
       steps: m.steps, blocks: m.blocks, baseSize: m.baseSize,
-      available: m.available.length, maxHeight: m.maxHeight, full: m.full,
+      available: m.available.length, covered: coveredPercent(m), maxHeight: m.maxHeight, full: m.full,
       atMax: m.steps >= MAX_STEPS,
       allFull: m.available.length === 0,   // with a capacity: every site is full
       atEdge: m.atEdge,                    // on a Penrose tiling's whole plane: it has reached the plane's edge
@@ -840,6 +847,7 @@ function mountainWorker() {
       traceStart: Float64Array.from(trace.lists.start),
       traceFull: Float64Array.from(trace.lists.full),
       traceGrowing: Float64Array.from(trace.lists.growing),
+      traceCovered: Float64Array.from(trace.lists.covered),
     };
     if (holesWanted()) addHoles(message);
     if (m.radii) {

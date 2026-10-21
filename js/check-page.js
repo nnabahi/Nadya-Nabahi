@@ -25,6 +25,9 @@
      spotKey(u, w), sideKeysAt(...)      points and sides as text, to match them up
      eulerCounter(tiling)                the holes of a growing set of cells, by Euler's formula
      holesFromPolygons(set)              its holes and outer boundary, from the polygons alone
+   and, to test the counting of regions (js/sim-domains.js):
+     unionFindRegions(d, colors)         each cell's region, found another way
+     testRegions()                       the regions counted and highlighted, on many domains
    ===================================================================== */
 
 
@@ -298,4 +301,94 @@ function plainWindow(set) {
     }
   }
   return window;
+}
+
+/* ---------------------------------------------------------------------
+   Counting regions
+   ---------------------------------------------------------------------
+   The sims count the regions of a coloring (connected pieces of one
+   color) and highlight a clicked cell's region with a search
+   (findRegions, countPieces and regionOf, js/sim-domains.js). testRegions
+   checks them against regions found another way, by union-find: start
+   with every cell on its own, and join the two cells of every edge
+   whose ends have the same color (B. A. Galler and M. J. Fischer, "An
+   improved equivalence algorithm", Communications of the ACM 7 (1964)
+   301-303). The pages that use it load js/sim-domains.js and the
+   library seedrandom.
+   --------------------------------------------------------------------- */
+
+// Each cell's region, by union-find: root[v] is the same number for
+// two cells exactly when they are in the same region (-1: no color).
+function unionFindRegions(d, colors) {
+  const parent = Int32Array.from({ length: d.n }, function (x, v) { return v; });
+  function find(v) {
+    while (parent[v] !== v) { parent[v] = parent[parent[v]]; v = parent[v]; }
+    return v;
+  }
+  for (let v = 0; v < d.n; v++) {
+    for (let e = d.first[v]; e < d.first[v + 1]; e++) {
+      const w = d.nbr[e];
+      if (colors[v] !== -1 && colors[v] === colors[w]) parent[find(v)] = find(w);
+    }
+  }
+  return Int32Array.from({ length: d.n }, function (x, v) { return colors[v] === -1 ? -1 : find(v); });
+}
+
+// Random colorings of small domains of every kind (some with uncolored
+// cells, as in Random Walk Coloring or the gaps of a tiling), and two
+// colorings whose regions are known by hand.
+function testRegions() {
+  const domains = [
+    ["a 9 × 7 box with 4 neighbors", boxDomain(9, 7, 4, false)],
+    ["a 9 × 7 box with 8 neighbors", boxDomain(9, 7, 8, false)],
+    ["an 8 × 6 torus with 4 neighbors", boxDomain(8, 6, 4, true)],
+    ["an 8 × 6 torus with 8 neighbors", boxDomain(8, 6, 8, true)],
+    ["an 8 × 6 torus of triangles", latticeBox("triangle", 8, 6, true)],
+    ["a 7 × 6 box of hexagons", latticeBox("hexagon", 7, 6, false)],
+    ["an Aztec diamond of order 5", aztecDiamond(5)],
+  ];
+  const random = new Math.seedrandom("regions");
+  const wrong = [];
+  let colorings = 0;
+  for (const [name, d] of domains) {
+    for (let k = 0; k < 40; k++) {
+      const q = 2 + k % 4, blank = k % 3 === 0 ? 0.2 : 0;
+      const colors = new Int32Array(d.n);
+      for (let v = 0; v < d.n; v++) colors[v] = random() < blank ? -1 : Math.floor(random() * q);
+      const root = unionFindRegions(d, colors);
+      // The count of each color: one region per root.
+      const expected = new Array(q).fill(0);
+      for (let v = 0; v < d.n; v++) if (root[v] === v) expected[colors[v]]++;
+      const counted = countPieces(d, colors, q);
+      if (counted.some(function (c, i) { return c !== expected[i]; })) wrong.push(name + " (counts)");
+      // The region of a random colored cell: the cells with its root.
+      const colored = [];
+      for (let v = 0; v < d.n; v++) if (colors[v] !== -1) colored.push(v);
+      const s = colored[Math.floor(random() * colored.length)];
+      const inside = regionOf(d, colors, s);
+      for (let v = 0; v < d.n; v++) {
+        if ((inside[v] === 1) !== (root[v] === root[s])) { wrong.push(name + " (a highlighted region)"); break; }
+      }
+      colorings++;
+    }
+  }
+  addRow("Regions are counted and highlighted right", wrong.length === 0,
+    colorings + " random colorings with 2 to 5 colors (a third with a fifth of the cells uncolored) of " +
+    domains.length + " domains: boxes and tori with 4 and 8 neighbors, triangles, hexagons, an Aztec diamond. " +
+    "The regions of each color are counted as union-find counts them, and the region of a random cell is " +
+    "exactly the cells union-find puts with it." + (wrong.length ? " Wrong on: " + wrong.slice(0, 5).join(", ") : ""));
+
+  // By hand: a 6 × 6 checkerboard has 36 regions through 4 neighbors
+  // (no two side-by-side cells agree) and 2 through 8 (each color is
+  // joined up corner to corner). On an 8 × 5 torus with 4 neighbors,
+  // columns colored 0, 1, 0, 1, ... are 8 regions (each column joins
+  // up through the top and bottom).
+  const checker = function (d) { return Int32Array.from({ length: d.n }, function (x, v) { return (d.x[v] + d.y[v]) % 2; }); };
+  const columns = function (d) { return Int32Array.from({ length: d.n }, function (x, v) { return d.x[v] % 2; }); };
+  const total = function (d, colors) { return countPieces(d, colors, 2).reduce(function (a, b) { return a + b; }, 0); };
+  const four = boxDomain(6, 6, 4, false), eight = boxDomain(6, 6, 8, false), torus = boxDomain(8, 5, 4, true);
+  const found = [total(four, checker(four)), total(eight, checker(eight)), total(torus, columns(torus))];
+  addRow("Regions of colorings known by hand", found[0] === 36 && found[1] === 2 && found[2] === 8,
+    "6 × 6 checkerboard: " + found[0] + " regions with 4 neighbors (should be 36), " + found[1] +
+    " with 8 (should be 2); 8 × 5 torus in striped columns: " + found[2] + " (should be 8).");
 }
