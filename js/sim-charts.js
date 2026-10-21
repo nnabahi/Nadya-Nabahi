@@ -47,13 +47,16 @@ function chartPen(canvas) {
 // color, dashed }, where values[k] is the number at times[k] ("dashed":
 // optional, true for a dashed line, e.g. what theory says). Time goes across,
 // from 0 to the last time (labeled with "word", like "step 1,000"), and
-// the numbers go up, from 0 to the largest (at least 1).
-function plotOverTime(canvas, times, lines, word) {
+// the numbers go up, from 0 to the largest (at least 1), or to "top" if
+// given (e.g. 100 for a percent).
+function plotOverTime(canvas, times, lines, word, top) {
   const pen = chartPen(canvas);
   const w = canvas.clientWidth, h = canvas.clientHeight;
   if (times.length < 2) return;
-  let top = 1;
-  for (const line of lines) for (const value of line.values) top = Math.max(top, value);
+  if (!top) {
+    top = 1;
+    for (const line of lines) for (const value of line.values) top = Math.max(top, value);
+  }
   const lastTime = times[times.length - 1];
   const left = 44, up = 6, bottom = h - 16;
   pen.textAlign = "right";
