@@ -1041,6 +1041,7 @@ function showStats() {
   byId("stat-blocks").textContent = s.blocks.toLocaleString();
   byId("stat-base").textContent = s.baseSize.toLocaleString();
   byId("stat-available").textContent = s.available.toLocaleString();
+  byId("stat-covered").textContent = s.covered.toFixed(1) + "%";
   byId("stat-highest").textContent = s.maxHeight.toLocaleString();
   byId("stat-start").textContent = s.height[s.start].toLocaleString();
   byId("stat-full").textContent = s.full.toLocaleString();
@@ -1081,6 +1082,7 @@ function showStats() {
   }
 
   plotOverTime(byId("base-chart"), s.traceSteps, [{ values: s.traceBase, color: CHART_LINE }], "step");
+  plotOverTime(byId("covered-chart"), s.traceSteps, [{ values: s.traceCovered, color: CHART_LINE }], "step", 100);
   if (capped) {
     plotOverTime(byId("full-chart"), s.traceSteps, [{ values: s.traceFull, color: CHART_LINE }], "step");
     plotOverTime(byId("growing-chart"), s.traceSteps, [{ values: s.traceGrowing, color: CHART_LINE }], "step");
