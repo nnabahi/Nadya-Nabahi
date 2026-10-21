@@ -311,6 +311,34 @@ function traceOutline(dv, pen, A, size, place) {
   pen.lineTo(first[0], first[1]);
 }
 
+// The corners of the cell with motion A, in the disk, in order around
+// it: [[x, y], ...]. (Its sides are circle arcs between them.)
+function diskCellCorners(dv, A) {
+  const shape = diskShape(dv), every = shape.outline.length / shape.p;   // the outline starts each side at a corner
+  const corners = [];
+  for (let k = 0; k < shape.p; k++) corners.push(motionApply(A, shape.outline[k * every][0], shape.outline[k * every][1]));
+  return corners;
+}
+
+// The 3D view's round floor (drawStacks, js/sim-3d.js, with floor
+// { disk: unit }): the disk made "unit" times bigger, so the first cell,
+// in the middle, is 1 wide.
+function diskFloorUnit(dv) { return 1 / (2 * diskShape(dv).middle); }
+
+// Where the cell with motion A stands on that floor: its middle x, y,
+// its width (how big it looks next to the first cell; on a tree a bit
+// over half that, so the stacks don't touch), and on a tiling its
+// corners [[x, y], ...] (on a tree, null: its sites are points). null
+// when it looks too small to see.
+function diskStack(dv, A, unit) {
+  const [mx, my] = motionApply(A, 0, 0);
+  const w = 1 - mx * mx - my * my;
+  if (w < 0.004) return null;
+  const tree = isTree(dv.spec);
+  const corners = tree ? null : diskCellCorners(dv, A).map(function ([x, y]) { return [x * unit, y * unit]; });
+  return { x: mx * unit, y: my * unit, width: (tree ? 0.6 : 1) * w, corners: corners };
+}
+
 // Add the lines from the middle of the cell with motion A to the middle
 // of each of its sides. On a tree, those lines from all the cells are
 // the tree itself: each edge runs from one cell's middle, through the

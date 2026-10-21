@@ -128,7 +128,7 @@ let domainKind = "whole";    // "whole", "box", "torus" or "custom"; on a graph 
 let customDomain = null;     // the last custom domain drawn (js/sim-domains.js), if any
 let run = 0;                 // counts restarts, so leftovers from an older run are ignored
 let show3D = false;          // 2D and graphs: the 3D view instead of the view from above (section 6c)
-let blockShape = "cubes";    // the 3D view's blocks: "cubes" or "coins"
+let blockShape = "tiles";    // the 3D view's blocks: "tiles" (each the shape of its cell) or "coins"
 let stretch = 1;             // the 3D view's Heights: 2^(slider / 2), the slider from -4 (flatter) to 4 (taller)
 
 // The latest message from the mountain (see part 2 of
@@ -846,9 +846,9 @@ function showPictureKind() {
   byId("picture-row").hidden = in3D || dim !== "graph";
   byId("view-rows").hidden = (dim === 1);
   byId("stretch-row").hidden = byId("view3d-help").hidden = !in3D;
-  // Cubes or coins: on a graph or another tiling only coins (cells there
-  // aren't squares, and cubes on cells of different sizes bump into each other).
-  byId("blocks-row").hidden = !in3D || dim === "graph" || onTiling();
+  // Tile-shaped blocks or coins: on a tree only coins (its sites are
+  // points, with no tile).
+  byId("blocks-row").hidden = !in3D || (dim === "graph" && isTree(disk.spec));
   showHolesRow();
   showZoomButtons(view);
   if (in3D && !view3d) start3D();
@@ -871,22 +871,23 @@ function draw3D() {
   sim3d.drawStacks(view3d, {
     x: latest.x, y: latest.y, height: latest.height,
     floor: pictureRange(),   // as from above: a box, or a drawn domain's own cells
-    shape: blockShape, stretch: stretch,
+    shape: blockShape === "tiles" ? "cubes" : "coins", stretch: stretch,   // (a square's tile-shaped block is a cube)
     color: heightColor, empty: hexToRGB(EMPTY), ground: hexToRGB(OUTSIDE),
   });
 }
 
-// The 3D view on another tiling: each site's coins on its cell's
-// middle, as wide as the biggest circle around the middle that fits in
-// the cell (cellRadius, js/sim-domains.js), on the picture's box, with
-// the sites' cells outlined (a side between two sites is drawn twice,
-// over itself).
+// The 3D view on another tiling: each site's blocks in the shape of its
+// cell (or coins on its middle, as wide as the biggest circle around the
+// middle that fits in the cell: cellRadius, js/sim-domains.js), on the
+// picture's box, with the sites' cells outlined (a side between two
+// sites is drawn twice, over itself).
 function draw3DOnTiling() {
-  const d = shownCells(latest, false), x = [], y = [], width = [], lines = [];
+  const d = shownCells(latest, false), x = [], y = [], width = [], lines = [], cells = [];
   for (let v = 0; v < d.n; v++) {
     const [u, w] = cellMiddle(d, v);
     x.push(u); y.push(w); width.push(2 * cellRadius(d, v));
     const corners = cornersOf(d, v);
+    cells.push(corners);
     corners.forEach(function (c, k) {
       const next = corners[(k + 1) % corners.length];
       lines.push(c[0], c[1], next[0], next[1]);
@@ -899,7 +900,7 @@ function draw3DOnTiling() {
   sim3d.drawStacks(view3d, {
     x: x, y: y, height: latest.height, width: width,
     floor: { xmin: box.left + 0.5, xmax: box.right - 0.5, ymin: box.bottom + 0.5, ymax: box.top - 0.5 },
-    shape: "coins", stretch: stretch,
+    shape: blockShape, corners: cells, stretch: stretch,
     color: heightColor, empty: hexToRGB(EMPTY), ground: hexToRGB(OUTSIDE),
     lines: lines, lineColor: hexToRGB(UNDER_COLOR_3D),
   });
@@ -984,26 +985,22 @@ function keepRules(rules) {
 }
 
 // The 3D view on a graph: the disk is the floor, with the tiling (or
-// the tree) drawn on it in thin lines, and each site's stack of coins
-// stands on its cell. Every coin has the same size, which drawStacks
-// picks so the stacks farthest out fit their cells (on a tree, a bit
-// over half their width, so the tree's lines show between the stacks),
-// so a stack's height shows its count. Cells too small to see are left
-// out.
+// the tree) drawn on it in thin lines, and each site's stack stands on
+// its cell (diskStack, js/sim-hyperbolic.js): tile-shaped blocks or
+// coins, and on a tree always coins. Every block has the same size,
+// which drawStacks picks so the stacks farthest out fit their cells, so
+// a stack's height shows its count. Cells too small to see are left out.
 function draw3DOnDisk() {
-  const s = latest;
-  const unit = 1 / (2 * diskShape(disk).middle);    // so the first cell, in the middle, is 1 wide
-  const thinner = isTree(disk.spec) ? 0.6 : 1;
-  const x = [], y = [], height = [], width = [];
+  const s = latest, unit = diskFloorUnit(disk);
+  const x = [], y = [], height = [], width = [], cells = [];
   for (let i = 0; i < s.height.length; i++) {
-    const [mx, my] = motionApply(seenFrom(disk, sitePlace(i)), 0, 0);
-    const w = 1 - mx * mx - my * my;           // how much smaller than the first cell it looks
-    if (w < 0.004) continue;
-    x.push(mx * unit); y.push(my * unit); height.push(s.height[i]); width.push(thinner * w);
+    const stack = diskStack(disk, seenFrom(disk, sitePlace(i)), unit);
+    if (!stack) continue;
+    x.push(stack.x); y.push(stack.y); height.push(s.height[i]); width.push(stack.width); cells.push(stack.corners);
   }
   sim3d.drawStacks(view3d, {
     x: x, y: y, height: height, width: width, floor: { disk: unit },
-    shape: "coins", stretch: stretch,
+    shape: isTree(disk.spec) ? "coins" : blockShape, corners: cells, stretch: stretch,
     color: heightColor, empty: hexToRGB(EMPTY), ground: hexToRGB(OUTSIDE),
     lines: floorLines(unit), lineColor: hexToRGB(UNDER_COLOR_3D),
   });
