@@ -113,11 +113,11 @@ function showTime(t) {
 function defaultStarts(d, count) {
   if (domains.kind === "graph") return spreadThroughRegion(d, count, 0);
   if (domains.kind === "custom" || d.lattice) return spreadThroughRegion(d, count, topLeftCell(d));
-  if (domains.kind === "line" || domains.kind === "ring") return lineStarts(d, count);
+  if (onLine()) return lineStarts(d, count);
   return gridStarts(d, count);
 }
 
-// 1D: the walkers spread evenly along the line, the first on the
+// 1D: the walkers spread evenly along the segment or cycle, the first on the
 // leftmost cell.
 function lineStarts(d, count) {
   const length = d.xmax - d.xmin + 1, starts = [];
@@ -253,7 +253,7 @@ function drawColoring() {
   findHighlight(highlight, domain, latest.colors);
   byId("highlight-info").textContent = highlightText(highlight, "region", function (c) { return "color " + (c + 1); });
   if (domains.kind === "graph") { drawOnGraph(); return; }
-  if (domains.kind === "ring") { drawRing(); return; }
+  if (onCycle()) { drawRing(); return; }
   const colors = latest.colors;
   const pen = fitPicture(view, domain, MAX_PICTURE_HEIGHT);
 
@@ -273,7 +273,10 @@ function drawOnGraph() {
   if (showWalkers) drawWalkers(pen);
 }
 
-// 1D ring: drawn as a circle, since its two ends are glued together.
+// Is the domain a cycle (1D)? It is drawn as a ring.
+function onCycle() { return onLine() && domains.kind === "torus"; }
+
+// 1D cycle: drawn as a ring (a circle), since its two ends are glued together.
 // Cell k is a piece of a thick band ("annulus"), going clockwise from
 // the top. ringShape says where the band is on the canvas.
 function ringShape() {
@@ -334,7 +337,7 @@ function drawRing() {
   if (showWalkers) drawWalkers(pen);
 }
 
-// 1D ring: where cell v is drawn (the middle of its piece of the band).
+// 1D cycle: where cell v is drawn (the middle of its piece of the band).
 function ringSpot(v) {
   const ring = ringShape(), k = domain.x[v] - domain.xmin;
   const a = ringAngle(ring, k + 0.5), middle = (ring.inner + ring.outer) / 2;
@@ -342,7 +345,7 @@ function ringSpot(v) {
   return { x: ring.x + middle * Math.cos(a), y: ring.y + middle * Math.sin(a), r: r };
 }
 
-// 1D ring: the cell under a spot on the canvas, or -1 off the band.
+// 1D cycle: the cell under a spot on the canvas, or -1 off the band.
 function ringCellUnder(spot) {
   const ring = ringShape();
   const dx = spot.x - ring.x, dy = spot.y - ring.y, distance = Math.hypot(dx, dy);
@@ -361,7 +364,7 @@ function ringCellUnder(spot) {
 function walkerSpots(i) {
   const d = domain, v = latest.positions[i];
   if (domains.kind === "graph") return graphSpots(v);
-  if (domains.kind === "ring") return [ringSpot(v)];
+  if (onCycle()) return [ringSpot(v)];
   if (d.lattice) return tilingSpots(v);
   let columns = [d.x[v] - d.xmin], rows = [d.ymax - d.y[v]];   // its square (column, row)
   if (d.wrap) {
@@ -482,8 +485,8 @@ function walkerUnder(spot) {
 
 // The cell under the pointer, on any picture (-1: none).
 function cellUnderPointer(event) {
-  return domains.kind === "ring" ? ringCellUnder(pointerSpot(view, event))
-                               : cellAtEvent(view, disk, domain, domains.kind === "graph", event);
+  return onCycle() ? ringCellUnder(pointerSpot(view, event))
+                   : cellAtEvent(view, disk, domain, domains.kind === "graph", event);
 }
 
 connectPicture(view, {
@@ -550,7 +553,7 @@ function showStats() {
   regionsChart(byId("regions-chart"), latest.traceTimes, latest.traceRegions, N,
                function (c) { return colorNames[c]; }, "time");
   drawAreasChart(regions);
-  // Perimeter against area, only on the 2D page (on a line or ring
+  // Perimeter against area, only on the 2D page (on a segment or cycle
   // every region's perimeter is 0, 1 or 2).
   if (byId("perimeter-chart")) perimeterChart(byId("perimeter-chart"), regions, colorNames, CELL_LINES);
 }
@@ -594,9 +597,10 @@ function drawAreasChart(regions) {
    ---------------------------------------------------------------------
    Box / Torus / Custom / Hyperbolic plane or tree, and their options,
    the Lattice options among them (connectDomains, js/sim-controls.js).
-   The 1D page (random-walk-coloring-1d.html) has the Ring and the Line
-   instead, and there the picture stays still: the ring is a circle,
-   and the line is one strip across the picture.
+   The 1D page (random-walk-coloring-1d.html) has the line's Segment
+   and Cycle instead (data-dim="1"), and there the picture stays still:
+   the cycle is a ring, and the segment is one strip across the
+   picture.
    Custom swaps the picture for the graph tool. The region must be one
    connected piece (otherwise the cells cut off from every walker could
    never be colored).
@@ -617,25 +621,12 @@ const domains = connectDomains({
         : ["", region.n + " cells in one connected piece."];
     },
   },
-  kinds: { line: useLine, ring: useLine },
-  still: Boolean(document.querySelector('input[name="domain"][value="ring"]')),
   use: function (d) {
     domain = d;
     clearHighlight(highlight);
     setWalkerCount(N);
   },
 });
-
-// 1D: a box one cell tall, its length from the Length box. A ring is a
-// torus one cell tall: the two ends are neighbors, and it is drawn as a
-// circle (drawRing). (boxDomain drops the up and down neighbors, which
-// would be the cell itself.)
-function useLine() {
-  const kind = checked("domain");
-  const length = readWhole("set-width", 2, MAX_SIDE, DEFAULTS.width);
-  domains.use(kind, boxDomain(length, 1, 4, kind === "ring"));
-}
-
 
 /* =====================================================================
    9. CONNECTING THE BUTTONS ON THE PAGE

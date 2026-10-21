@@ -4,7 +4,8 @@
    Most sims run on a domain of cells, and their pages have the same
    few controls for it:
      - the Domain options: Box, Torus, Custom (drawn in the graph tool),
-       and on most sims "Hyperbolic plane or tree";
+       and on most sims "Hyperbolic plane or tree" (on the line: Segment
+       and Cycle), and on some the whole plane (or line);
      - the graph tool itself, shown inside the page for Custom;
      - a clickable grid of cells for picking a set of offsets (the random
        mountain's tile, the cellular automata's neighborhood).
@@ -18,13 +19,15 @@
 
    Contents:
      1. The Domain options
-          domainOptionsHTML(ticked, least)  the options themselves, written once
+          domainOptionsHTML(settings)       the options themselves, written once
           connectDomains(page)              connect them: what each one does
           fillDomainOptions(defaults, most, ball) their values at the start
+          onLine()                          is the domain on the line (1D)?
+          sizeFromOptions(least, most, defaults)  the size they say
           boxFromOptions(least, most, defaults)   the box or torus they say
         and the Lattice options, on pages that have them:
           connectLattice(onChange)          fill in and connect them
-          onSquares()                       is the lattice the square grid?
+          onSquares()                       is the lattice the square grid (or the line)?
           onFiniteTiling()                  is it a tiling that never repeats?
           cornersCanBeCells()               can its corners be the cells?
           readTiling()                      the tiling the Lattice options say
@@ -45,23 +48,42 @@
    ---------------------------------------------------------------------
    Most pages hold an empty box for them under their "Domain" heading,
      <div class="domain-options" data-ticked="torus"></div>
-   which this file fills in as the page loads (domainOptionsHTML):
-   data-ticked is the kind ticked at the start ("box" or "torus"), and
-   data-least, if given, the smallest size the size boxes go down to
-   (2 if left out). Pages whose domains are different (the 1D ring and
-   line, Uniform Discrete Tiling) write their own, with the same ids.
+   which this file fills in as the page loads (domainOptionsHTML). Its
+   settings:
+     data-ticked        the kind ticked at the start ("box", "torus", ...)
+     data-least         the smallest size the size boxes go down to (2 if
+                        left out)
+     data-whole         (no value) the whole plane is offered too: "Whole
+                        plane" (on the line "Whole line"), and on the
+                        hyperbolic plane or tree the whole graph as well
+                        as a ball
+     data-dim="1"       a page on the line (1D): Segment, Cycle and the
+                        size, and nothing else. A page with both (Eden
+                        Growth's Dimension option) switches its options
+                        with domains.setDim, which sets data-dim.
+     data-no-neighbors  (no value) no Neighbors menu: the page's sim says
+                        who neighbors whom another way (Eden Growth's tile)
+   Uniform Discrete Tiling, whose cells are its own, writes its own
+   options, with the same ids.
 
    The radio buttons name="domain" pick the kind of domain, and every
    page uses the same ids for the options that go with each:
+     whole        nothing more: no size
      box, torus   the boxes set-width and set-height (in the row
-                  size-row) and, on most pages, the Neighbors menu
-                  set-neighbors (in the row neighbors-row)
+                  size-row; on the line only set-width) and, on most
+                  pages, the Neighbors menu set-neighbors (in the row
+                  neighbors-row)
      custom       the row custom-row, with the line custom-info and the
                   button edit-custom; the graph tool itself is section 2
      graph        the hyperbolic plane or tree: the rows in graph-rows
-                  (js/sim-hyperbolic.js reads them)
+                  (js/sim-hyperbolic.js reads them), with data-whole the
+                  radio buttons name="graph-region" ("whole" or "ball")
    A page has only the options it offers, and can have its own kinds
-   too (Uniform Discrete Tiling's Aztec diamond, the 1D ring and line).
+   too (Uniform Discrete Tiling's Aztec diamond).
+
+   THE LINE. A segment is a box one cell tall, and a cycle a torus one
+   cell tall, so on the line the kinds are the same, with other names
+   (DOMAIN_KINDS), and the size is one box.
 
    THE LATTICE. A page whose sim runs on any tiling (js/sim-tilings.js)
    also has, in the box lattice-rows: the menu set-tiling (the square
@@ -77,24 +99,55 @@
    grid, and on Penrose's first tiling (P1).
    ===================================================================== */
 
-fillBlocks(".domain-options", function (settings) {
-  return domainOptionsHTML(settings.ticked, settings.least || 2);
-});
+// The kinds of domain, in order, and their names on the line (1D) and
+// in the plane (2D); "" where a kind isn't offered. "whole" shows only
+// on pages with data-whole.
+const DOMAIN_KINDS = [
+  ["whole", "Whole line", "Whole plane"],
+  ["box", "Segment", "Box"],
+  ["torus", "Cycle", "Torus"],
+  ["custom", "", "Custom (draw it)"],
+  ["graph", "", "Hyperbolic plane or tree"],
+];
 
-// The Domain options, as HTML: the kinds (with "ticked" ticked), the
-// size (boxes that go down to "least"), the Lattice options, the
-// neighbors, the custom domain's row, and the hyperbolic plane or
-// tree's rows (js/sim-hyperbolic.js reads their ids).
-function domainOptionsHTML(ticked, least) {
-  function kind(value, label) {
-    return '<label><input type="radio" name="domain" value="' + value + '"' + (value === ticked ? " checked" : "") +
-      "> " + label + "</label>";
-  }
+fillBlocks(".domain-options", domainOptionsHTML);
+
+// The Domain options, as HTML, from the placeholder's settings (above):
+// the kinds and the size, and in 2D the Lattice options, the neighbors,
+// the custom domain's row, and the hyperbolic plane or tree's rows.
+function domainOptionsHTML(settings) {
+  const oneD = (settings.dim === "1"), whole = ("whole" in settings);
+  const rows = [kindsHTML(settings.ticked, oneD, whole), sizeRowHTML(settings.least || 2, oneD)];
+  if (oneD) return rows.join("");
+  rows.push(latticeRowsHTML());
+  if (!("noNeighbors" in settings)) rows.push(neighborsRowHTML());
+  rows.push(customRowHTML(), graphRowsHTML(whole));
+  return rows.join("");
+}
+
+// The kinds offered (with "ticked" ticked), each name in a <span> so it
+// can change with the dimension (showKinds, in connectDomains).
+function kindsHTML(ticked, oneD, whole) {
+  const labels = DOMAIN_KINDS.map(function ([kind, lineName, planeName]) {
+    const name = oneD ? lineName : planeName;
+    if (!name || (kind === "whole" && !whole)) return "";
+    return '<label><input type="radio" name="domain" value="' + kind + '"' + (kind === ticked ? " checked" : "") +
+      "> <span>" + name + "</span></label>";
+  });
+  return '<div class="option-row">' + labels.join("") + "</div>";
+}
+
+// The size: boxes that go down to "least", one on the line, two (width
+// and height) in the plane.
+function sizeRowHTML(least, oneD) {
   function size(id) { return '<input type="number" id="' + id + '" min="' + least + '" step="1">'; }
-  return '<div class="option-row">' + kind("box", "Box") + kind("torus", "Torus") + kind("custom", "Custom (draw it)") +
-      kind("graph", "Hyperbolic plane or tree") + "</div>" +
-    '<div class="option-row" id="size-row">Size ' + size("set-width") + " &times; " + size("set-height") + "</div>" +
-    '<div id="lattice-rows">' +
+  return '<div class="option-row" id="size-row">Size ' + size("set-width") +
+    (oneD ? "" : '<span id="height-part"> &times; ' + size("set-height") + "</span>") + "</div>";
+}
+
+// The Lattice options (connectLattice reads them).
+function latticeRowsHTML() {
+  return '<div id="lattice-rows">' +
       '<div class="option-row">Lattice <select id="set-tiling"></select></div>' +
       '<div class="option-row">Code <input type="text" class="tiling-code" id="tiling-code" spellcheck="false" ' +
         'autocomplete="off"> <a class="small" href="' + SITE_ROOT + 'help/gomjau-hogg.html">how codes work</a></div>' +
@@ -102,12 +155,30 @@ function domainOptionsHTML(ticked, least) {
       '<div class="option-row" id="cells-row">Cells are the ' +
         '<label><input type="radio" name="cells-are" value="tiles" checked> tiles</label> ' +
         '<label><input type="radio" name="cells-are" value="corners"> corners</label></div>' +
-    "</div>" +
-    '<div class="option-row" id="neighbors-row">Neighbors <select id="set-neighbors">' +
-      '<option value="4">4 (share a side)</option><option value="8">8 (sides or corners)</option></select></div>' +
-    '<div class="option-row" id="custom-row" hidden><span id="custom-info"></span> ' +
-      '<button class="tool-button" id="edit-custom">Edit custom domain</button></div>' +
-    '<div id="graph-rows" hidden>' +
+    "</div>";
+}
+
+function neighborsRowHTML() {
+  return '<div class="option-row" id="neighbors-row">Neighbors <select id="set-neighbors">' +
+    '<option value="4">4 (share a side)</option><option value="8">8 (sides or corners)</option></select></div>';
+}
+
+function customRowHTML() {
+  return '<div class="option-row" id="custom-row" hidden><span id="custom-info"></span> ' +
+    '<button class="tool-button" id="edit-custom">Edit custom domain</button></div>';
+}
+
+// The hyperbolic plane or tree's rows (js/sim-hyperbolic.js reads their
+// ids): the graph, the ball (with "whole", a choice of the whole graph
+// or the ball), and how it is drawn.
+function graphRowsHTML(whole) {
+  const radius = 'every cell within R = <input type="number" id="set-ball-radius" min="1" step="1"> steps of the start';
+  const region = whole
+    ? '<div class="option-row"><label><input type="radio" name="graph-region" value="whole" checked> ' +
+        "Whole plane or tree</label></div>" +
+      '<div class="option-row"><label><input type="radio" name="graph-region" value="ball"> Ball:</label> ' + radius + "</div>"
+    : '<div class="option-row">Ball: ' + radius + "</div>";
+  return '<div id="graph-rows" hidden>' +
       '<div class="option-row" id="graph-presets"></div>' +
       '<div class="option-row"><label><input type="radio" name="graph-kind" value="tiling" checked> Tiling {p, q}:</label> ' +
         'p <input type="number" id="set-p" min="3" max="12" step="1" value="7"> ' +
@@ -115,8 +186,7 @@ function domainOptionsHTML(ticked, least) {
       '<div class="option-row"><label><input type="radio" name="graph-kind" value="tree"> Tree, degree</label> ' +
         '<input type="number" id="set-degree" min="3" max="12" step="1" value="3"></div>' +
       '<p class="muted small" id="graph-info"></p>' +
-      '<div class="option-row">Ball: every cell within R = <input type="number" id="set-ball-radius" min="1" step="1"> ' +
-        "steps of the start</div>" +
+      region +
       '<p class="muted small" id="ball-info"></p>' +
       '<div class="option-row">Drawn in ' +
         '<label><input type="radio" name="picture" value="disk" checked> the disk</label> ' +
@@ -134,9 +204,12 @@ function domainOptionsHTML(ticked, least) {
 //                  what kind it is); "extra" is whatever came with it
 //                  (see domains.use)
 // and, on pages that offer them:
+//   whole()        the whole plane (or line) of the lattice in use
 //   disk           the disk view (js/sim-hyperbolic.js)
-//   ball()         the ball the options say (usually ballFromOptions,
-//                  js/sim-hyperbolic.js), or null if they don't say one
+//   ball()         the domain on the hyperbolic plane or tree the options
+//                  say: a ball (usually ballFromOptions,
+//                  js/sim-hyperbolic.js) or, with data-whole, maybe the
+//                  whole graph; or null if they don't say one
 //   custom         the graph tool's parts (makeCustomTool, section 2),
 //                  "check" at least; "done" is left out unless the page
 //                  does more than use the drawing, and info(d) (if
@@ -145,10 +218,10 @@ function domainOptionsHTML(ticked, least) {
 //                  one, or changing the size while it is ticked, calls
 //                  its function, which then calls domains.use
 //   show()         show the page's own options that change with the domain
-//   still          true if the picture never moves or zooms
+// A picture on the line stays still; any other can be moved and zoomed.
 // Returns "domains":
-//   domains.kind          the kind in use: "box", "torus", "custom",
-//                         "graph" or one of page.kinds
+//   domains.kind          the kind in use: "whole", "box", "torus",
+//                         "custom", "graph" or one of page.kinds
 //   domains.custom        the last custom domain used (null until one is)
 //   domains.tool          the graph tool (null on a page without Custom)
 //   domains.use(kind, d, extra)   switch to the domain d of that kind:
@@ -157,6 +230,9 @@ function domainOptionsHTML(ticked, least) {
 //   domains.useBox()      switch to the box or torus the options say
 //   domains.useTicked()   switch to the kind ticked on the page, as its
 //                         options say (the page's start does this)
+//   domains.setDim(dim)   switch the options to the line (1) or the
+//                         plane (2), with their first kind ticked; then
+//                         domains.useTicked() uses it
 //   domains.show()        show the options that fit the domain in use
 function connectDomains(page) {
   const domains = { kind: checked("domain"), custom: null, tool: null };
@@ -168,7 +244,7 @@ function connectDomains(page) {
     closeTool();
     domains.kind = kind;
     if (kind === "custom") domains.custom = d;
-    useTorus(page.view, Boolean(d.wrap), !page.still);   // the whole picture again (js/sim-view.js)
+    useTorus(page.view, Boolean(d.wrap), !onLine());   // the whole picture again (js/sim-view.js)
     page.use(d, extra);
     domains.show();
   };
@@ -179,15 +255,22 @@ function connectDomains(page) {
     domains.use(d.wrap ? "torus" : "box", d);
   };
 
-  // The size options belong to whichever kind is ticked: one of the
-  // page's own, or else a box or torus.
+  // The size and Lattice options belong to whichever kind is ticked: the
+  // whole plane, one of the page's own, or else a box or torus.
   domains.useTicked = function () {
     const kinds = page.kinds || {}, ticked = checked("domain");
-    if (kinds[ticked]) kinds[ticked]();
+    if (ticked === "whole") domains.use("whole", page.whole());
+    else if (kinds[ticked]) kinds[ticked]();
     else domains.useBox();
   };
 
-  // A ball of the hyperbolic plane or tree. If the options don't say
+  domains.setDim = function (dim) {
+    const place = document.querySelector(".domain-options");
+    place.dataset.dim = String(dim);
+    place.querySelector('input[name="domain"]').checked = true;
+  };
+
+  // A domain on the hyperbolic plane or tree. If the options don't say
   // one, the domain in use stays.
   function useGraph() {
     closeTool();
@@ -197,14 +280,15 @@ function connectDomains(page) {
   }
 
   domains.show = function () {
-    const kind = domains.kind, isCustom = (kind === "custom"), onGraph = (kind === "graph");
+    const kind = domains.kind, isCustom = (kind === "custom"), onGraph = (kind === "graph"), line = onLine();
+    showKinds();
     radioOf(kind).checked = true;
-    byId("size-row").hidden = isCustom || onGraph;
-    if (byId("set-neighbors")) byId("neighbors-row").hidden = isCustom || onGraph || !onSquares();
+    byId("size-row").hidden = isCustom || onGraph || kind === "whole";
+    if (byId("height-part")) byId("height-part").hidden = line;
+    if (byId("set-neighbors")) byId("neighbors-row").hidden = isCustom || onGraph || line || !onSquares();
     if (byId("set-tiling")) {
-      byId("lattice-rows").hidden = isCustom || onGraph;
+      byId("lattice-rows").hidden = isCustom || onGraph || line;
       byId("cells-row").hidden = !cornersCanBeCells();
-      if (offers("torus")) radioOf("torus").parentElement.hidden = onFiniteTiling();
     }
     if (offers("custom")) {
       byId("custom-row").hidden = !isCustom;
@@ -218,6 +302,19 @@ function connectDomains(page) {
     if (page.show) page.show();
   };
 
+  // Name the kinds for the line or the plane (DOMAIN_KINDS), hiding the
+  // ones it doesn't offer, and the torus of a tiling that never repeats.
+  // (Not on a page that writes its own kinds.)
+  function showKinds() {
+    if (!document.querySelector(".domain-options")) return;
+    for (const [kind, lineName, planeName] of DOMAIN_KINDS) {
+      if (!offers(kind)) continue;
+      const name = onLine() ? lineName : planeName, label = radioOf(kind).parentElement;
+      label.lastChild.textContent = name;   // (its <span>)
+      label.hidden = !name || (kind === "torus" && onFiniteTiling());
+    }
+  }
+
   for (const radio of document.querySelectorAll('input[name="domain"]')) {
     radio.addEventListener("change", function () {
       if (radio.value === "custom") domains.tool.open();
@@ -228,7 +325,7 @@ function connectDomains(page) {
   for (const id of ["set-width", "set-height", "set-neighbors"]) {
     if (byId(id)) byId(id).addEventListener("change", domains.useTicked);
   }
-  if (byId("set-tiling")) connectLattice(domains.useBox);
+  if (byId("set-tiling")) connectLattice(domains.useTicked);
   if (offers("custom")) {
     domains.tool = makeCustomTool(page.view, page.player, Object.assign({
       done: function (drawing) { domains.use("custom", drawnDomain(drawing.graph, drawing.grid)); },
@@ -238,20 +335,23 @@ function connectDomains(page) {
   }
   if (offers("graph")) {
     for (const id of ["set-p", "set-q", "set-degree", "set-ball-radius"]) byId(id).addEventListener("change", useGraph);
-    for (const radio of document.querySelectorAll('input[name="graph-kind"]')) radio.addEventListener("change", useGraph);
+    for (const radio of document.querySelectorAll('input[name="graph-kind"], input[name="graph-region"]')) {
+      radio.addEventListener("change", useGraph);
+    }
     showGraphPresets(useGraph);
   }
   return domains;
 }
 
 // The options' values at the start: the box's size (defaults.width x
-// defaults.height, at most "most" on a side) and neighbors, and, with a
-// "ball" (as in makeBall: its default radius R and largest radius
-// "most"), the hyperbolic plane or tree's ball.
+// defaults.height, at most "most" on a side; on the line just the
+// width) and neighbors, and, with a "ball" (as in makeBall: its default
+// radius R and largest radius "most"), the hyperbolic plane or tree's
+// ball.
 function fillDomainOptions(defaults, most, ball) {
   byId("set-width").value = defaults.width;
   byId("set-width").max = most;
-  if (byId("set-height")) {
+  if (byId("set-height") && !onLine()) {
     byId("set-height").value = defaults.height;
     byId("set-height").max = most;
   }
@@ -262,20 +362,37 @@ function fillDomainOptions(defaults, most, ball) {
   }
 }
 
-// The box or torus the options say (boxDomain, js/sim-domains.js): its
-// sides are whole numbers from "least" to "most" ("defaults" when a box
-// is left empty), and with no Neighbors option cells have 4 neighbors.
-// On a lattice other than the square grid, a tilingBox of the tiling in
-// use (readTiling), the sides in side lengths, and at least
+// Is the domain on the line (1D)? On a page on the line (data-dim="1"),
+// and after domains.setDim(1) on a page with both.
+function onLine() {
+  const place = document.querySelector(".domain-options");
+  return Boolean(place) && place.dataset.dim === "1";
+}
+
+// The size the options say, { width, height, torus }: whole numbers
+// from "least" to "most" ("defaults" when a box is left empty), the
+// height 1 on the line; torus is true when Torus (Cycle) is ticked and
+// the lattice has one.
+function sizeFromOptions(least, most, defaults) {
+  return {
+    width: readWhole("set-width", least, most, defaults.width),
+    height: onLine() ? 1 : readWhole("set-height", least, most, defaults.height),
+    torus: checked("domain") === "torus" && !onFiniteTiling(),
+  };
+}
+
+// The box or torus the options say (sizeFromOptions, as a boxDomain,
+// js/sim-domains.js); with no Neighbors option, and on the line, cells
+// have 4 neighbors (on the line just the 2 beside them). On a lattice
+// other than the square grid, a tilingBox of the tiling in use
+// (readTiling), the sides in side lengths, and at least
 // SMALLEST_TILING_BOX of them, so it always has a cell.
 function boxFromOptions(least, most, defaults) {
   if (!onSquares()) least = Math.max(least, SMALLEST_TILING_BOX);
-  const width = readWhole("set-width", least, most, defaults.width);
-  const height = readWhole("set-height", least, most, defaults.height);
-  const torus = checked("domain") === "torus" && !onFiniteTiling();
-  if (!onSquares()) return tilingBox(tilingInUse.block, width, height, torus);
-  const neighbors = byId("set-neighbors") ? Number(byId("set-neighbors").value) : 4;
-  return boxDomain(width, height, neighbors, torus);
+  const size = sizeFromOptions(least, most, defaults);
+  if (!onSquares()) return tilingBox(tilingInUse.block, size.width, size.height, size.torus);
+  const neighbors = byId("set-neighbors") && !onLine() ? Number(byId("set-neighbors").value) : 4;
+  return boxDomain(size.width, size.height, neighbors, size.torus);
 }
 
 // A box of a tiling is at least this many side lengths on a side, so it
@@ -292,10 +409,11 @@ const SMALLEST_TILING_BOX = 4;
 // are the cells.
 let tilingInUse = null;
 
-// Is the lattice the square grid? (Always, on a page with no Lattice
-// options.) Its code is TILINGS[0]'s.
+// Is the lattice the square grid? Always on a page with no Lattice
+// options, and on the line, which is one row of squares. Its code is
+// TILINGS[0]'s.
 function onSquares() {
-  return !byId("set-tiling") || byId("set-tiling").value === "0";
+  return onLine() || !byId("set-tiling") || byId("set-tiling").value === "0";
 }
 
 // Is the lattice a tiling that never repeats (js/sim-penrose.js)? It has
@@ -354,7 +472,7 @@ function readTiling() {
   try {
     const block = tilingBlock(code, corners);   // (js/sim-tilings.js)
     tilingInUse = { code: code, corners: corners, block: block };
-    const hasTorus = Boolean(document.querySelector('input[name="domain"], #domain-choice'));   // (Random Walk has no domain)
+    const hasTorus = Boolean(document.querySelector('input[name="domain"]'));   // (Random Walk has no domain)
     message.textContent = !block.finite ? "Its corners: " + block.vertexTypes.map(cornerShort).join(", ") + "." :
       "It never repeats" + (hasTorus ? ", so there is no torus" : "") + ", and its point of five-fold symmetry is in the middle." +
       (block.tilesOnly ? " Only its tiles can be the cells: the inner corner of a star or a boat touches just two tiles." : "");
