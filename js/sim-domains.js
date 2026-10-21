@@ -51,6 +51,7 @@
      latticeBox(...)          a box or torus of triangles or hexagons
      triangleHexagon(N)       a hexagon of side N, cut into triangles
      tilingBox(...)           a box or torus of a tiling's cells
+     cellNeighbors(cell)      a tiling cell's neighbors, each once
      tilingCells(...)         some cells of a tiling, to draw (a growing set)
      cornersOf(d, v)          the corners of a cell that is a polygon
      cellCorners(...)         the corners of a triangle or hexagon cell
@@ -533,6 +534,10 @@ function tilingBox(tiling, width, height, torus) {
       const [u, w] = cell.middle;
       if (u >= left && u < left + width && w >= bottom && w < bottom + height) cells.push([0, 0, k]);
     });
+    // Row by row, by their middles: the block's numbers depend on how it
+    // grew, and the box should be the same whichever way it did.
+    const middle = function (c) { return tiling.cells[c[2]].middle; };
+    cells.sort(function (c, d) { return middle(c)[1] - middle(d)[1] || middle(c)[0] - middle(d)[0]; });
   } else if (torus) {
     let reach = 1;    // the farthest block a neighbor is in
     for (const cell of tiling.cells) for (const [, I, J] of cell.next) reach = Math.max(reach, Math.abs(I), Math.abs(J));
@@ -577,6 +582,21 @@ function tilingBox(tiling, width, height, torus) {
   d.sides = sides;   // as latticeSides (js/sim-view.js) gives for the other lattices
   if (!torus) { d.onLeft = onLeft; d.onRight = onRight; }
   return d;
+}
+
+// The cells across a tiling cell's sides ("next"), each once, as
+// [k, dx, dy]. Two cells share at most one side, except in Penrose's
+// P1, where a pentagon in the notch of a star or a boat shares two
+// sides with it: the corner between those touches no other tile, so
+// the two cells really meet along one bent side.
+function cellNeighbors(cell) {
+  const seen = new Set();
+  return cell.next.filter(function ([k, dx, dy]) {
+    const key = k + "," + dx + "," + dy;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 // Where block (I, J) of domain d's tiling starts, in the picture.

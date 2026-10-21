@@ -18,7 +18,9 @@
         sink = grains at the start + grains added, after every step.
 
      4. Undo: undoing every step gives back the start exactly, and the
-        steps after that replay the undone ones.
+        steps after that replay the undone ones. And on a box of a
+        tiling, a cell whose neighbors are all in the box loses no grain
+        when it topples.
 
      5. Counting recurrent piles. On a small domain every stable pile can
         be listed. The number of recurrent ones (by the burning test)
@@ -233,7 +235,7 @@ const mainCases = [
   tilingCase("box 7 x 7 of the corners of 3.12.12", "12-3/m30/r(h3)", true, 7, 7, false),
   withSink(tilingCase("torus of 4.6.12 with a sink cell", "12-6,4/m30/r(c2)", false, 4, 4, true)),
   tilingCase("box 8 x 8 of the Penrose kites and darts", "Penrose P2", false, 8, 8, false),
-  tilingCase("box 8 x 8 of Penrose's pentagons, stars, boats and diamonds (stars at 10 grains)", "Penrose P1", false, 8, 8, false),
+  tilingCase("box 8 x 8 of Penrose's pentagons, stars, boats and diamonds (stars at 5 grains)", "Penrose P1", false, 8, 8, false),
 ];
 
 // Topple until stable in four ways and compare the piles and the
@@ -265,6 +267,25 @@ function testAbelian(c) {
     }
   }
   return problems.slice(0, 3).join("; ");
+}
+
+// On a tiling, a cell whose sides all lead to cells of the box loses no
+// grain when it topples: its threshold is its number of neighbors in
+// the box. (A star of P1 has 10 sides but 5 neighbors, a pentagon in
+// each notch, sharing two sides with it.)
+function testNoLossInside(c) {
+  const d = c.options.domain, pile = newPile(c.options);
+  let inside = 0;
+  for (let v = 0; v < d.n; v++) {
+    if (d.sides[v].includes(-1)) continue;
+    inside++;
+    const start = new Int32Array(d.n);
+    start[v] = pile.threshold[v];
+    pile.setHeights(start);
+    pile.step(0);
+    if (pile.lost !== 0) return "cell " + v + " lost " + pile.lost + " grains in one topple, inside the box";
+  }
+  return inside === 0 ? "no cell has all its neighbors in the box" : "";
 }
 
 // Conservation while grains are also added and removed at random.
@@ -503,6 +524,10 @@ function allTests() {
   for (const c of mainCases) {
     tests.push(plainTest("Undo: " + c.name, function () { return testUndo(c); },
       "undoing every step gives back the start, and replaying gives the same pile"));
+  }
+  for (const c of mainCases.filter(function (c) { return c.options.domain.lattice === "tiling" && !c.options.domain.wrap; })) {
+    tests.push(plainTest("No grain lost inside the box: " + c.name, function () { return testNoLossInside(c); },
+      "a cell whose neighbors are all in the box gives every grain it topples with to them"));
   }
   for (const c of smallCases) {
     tests.push(function () {

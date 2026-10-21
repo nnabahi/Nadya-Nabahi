@@ -1,7 +1,7 @@
 /* =====================================================================
    eden-growth-check.js  —  the tests on eden-growth-check.html
    ---------------------------------------------------------------------
-   Nine kinds of test of the growth rule in eden-growth-rule.js:
+   Ten kinds of test of the growth rule in eden-growth-rule.js:
 
      1. Same mountain as nadya's Python. Her randmountain.py and
         randonesidedmountain.py turn a list of uniform numbers u into a
@@ -83,6 +83,18 @@
             the holes' cells against those found from the polygons alone;
           - the shape: one cell has convexity 1, the area and the hull
             against every corner of every base cell, and the radii.
+
+    10. Penrose's tilings (P1, P2 and P3, js/sim-penrose.js), in a box
+        and on the whole plane, whose patch grows as the mountain spreads:
+          - exact odds (as in 2), invariants (3), the holes and the shape
+            (as in 9);
+          - in a box, a cell's tile has every cell of the box within r
+            steps, though the box's patch reaches only 2 past the box;
+          - the clocks go with where a cell is, not its number: in a box
+            and on the plane, the same seed grows the same mountain until
+            the one on the plane first leaves the box;
+          - the plane stops at its edge (160 side lengths out), and until
+            then every base cell's tile is whole.
 
    Random numbers come from the library seedrandom, each test with its
    own fixed seed, so the page gives the same results every time.
@@ -224,6 +236,7 @@ function tileKeys(c, key) {
       const further = [];
       for (const [a, b, k] of layer) {
         for (const [k2, da, db] of c.tiling.cells[k].next) {
+          if (k2 < 0) continue;    // (past the edge of a Penrose tiling's patch)
           const cell = [a + da, b + db, k2];
           if (seen.has(cell.join(","))) continue;
           seen.add(cell.join(","));
@@ -758,11 +771,11 @@ function tilingNamed(code, corners) {
 const SQUARES = "4/m45/r(h1)", TRIANGLES = "3/m30/r(h2)", HEXAGONS = "6/m30/r(h1)";
 
 // A box or torus of a tiling (tilingBox, js/sim-domains.js), as the
-// growth rule wants it, and its middle cell (the start).
+// growth rule wants it, its middle cell (the start), and the tiling.
 function tilingDomain(t, width, height, torus) {
   const d = tilingBox(t, width, height, torus), cells = [];
   for (let v = 0; v < d.n; v++) cells.push([d.x[v], d.y[v], d.part[v]]);
-  return { domain: { kind: "cells", cells: cells, wrap: d.wrap }, start: cells[Math.floor(cells.length / 2)] };
+  return { domain: { kind: "cells", cells: cells, wrap: d.wrap }, start: cells[Math.floor(cells.length / 2)], tiling: t };
 }
 
 // The size of the tile "every cell within r steps" against the
@@ -871,8 +884,8 @@ function checkTilingHoles(options, steps) {
 // The shape on another tiling, after "steps" steps: the area kept
 // block by block = the polygons' areas added up (cornersAt,
 // js/check-page.js), and the convexity = that area over the area of the
-// hull of every corner of every base cell (convexity itself only hands
-// the lowest and highest cell of each column to the hull).
+// hull of every corner of every base cell (convexity itself uses the
+// hull kept up to date as cells join the base).
 function checkTilingShape(options, steps) {
   const m = newMountain(Object.assign({ shapeBins: 8 }, options));
   for (let k = 0; k < steps && m.available.length > 0; k++) m.step();
@@ -898,6 +911,130 @@ function oneCellConvexity(t) {
                             start: [0, 0, z], shapeBins: 8 });
     if (Math.abs(convexity(m) - 1) > 1e-9) return "cell " + z + ": " + convexity(m);
   }
+  return "";
+}
+
+
+/* ===================================================================
+   4g. PENROSE TILINGS
+   -------------------------------------------------------------------
+   A Penrose tiling never repeats: it is one block, a patch that grows
+   (js/sim-penrose.js). On the whole plane the mountain grows the patch
+   it is given as it spreads, so each test makes its own
+   (penroseBlock). Cells are named by their keys, which say where they
+   are: two patches number the same cell differently.
+   =================================================================== */
+
+// The cell of a Penrose patch, as [0, 0, z], whose middle is nearest
+// the point (u, w).
+function nearestCell(block, u, w) {
+  const far = function (z) { return Math.hypot(block.cells[z].middle[0] - u, block.cells[z].middle[1] - w); };
+  let best = 0;
+  for (let z = 1; z < block.cells.length; z++) if (far(z) < far(best)) best = z;
+  return [0, 0, best];
+}
+
+// The keys of the cells of tile "moves" (from ballTile) of a patch.
+function tileNames(block, moves) {
+  return moves.map(function (move) { return block.cells[move[2]].key; });
+}
+
+// In a box, the patch reaches only 2 past the box (tilingBox,
+// js/sim-domains.js), so a cell's tile (ballTile) leaves out what lies
+// further. It must still have every cell of the box within r steps: the
+// same as on a patch reaching 2r + 2 past the box (a step goes less
+// than 2, so r steps can't get further). Returns "" if it does.
+function checkBoxTiles(kind, corners, width, r) {
+  const block = penroseBlock(kind, corners), box = tilingDomain(block, width, width, false);
+  const big = penroseBlock(kind, corners);
+  growPenrose(big, width / 2 + 2 * r + 2, width / 2 + 2 * r + 2);
+  const number = new Map(big.cells.map(function (cell, z) { return [cell.key, z]; }));
+  const inBox = new Set(box.domain.cells.map(function (c) { return block.cells[c[2]].key; }));
+  const keep = function (key) { return inBox.has(key); };
+  for (const [, , z] of box.domain.cells) {
+    const mine = tileNames(block, ballTile(block, z, r)).filter(keep);
+    const should = new Set(tileNames(big, ballTile(big, number.get(block.cells[z].key), r)).filter(keep));
+    if (!sameSet(mine, should)) return "cell " + z + ": " + mine.length + " cells of the box in its tile, " + should.size + " on a bigger patch";
+  }
+  return "";
+}
+
+// The heights of mountain m's base, by the keys of its cells.
+function heightsByName(m, block) {
+  const heights = new Map();
+  for (let i = 0; i < m.height.length; i++) if (m.height[i] > 0) heights.set(block.cells[m.siteZ[i]].key, m.height[i]);
+  return heights;
+}
+
+// The clocks go with where a cell is (its key), not its number. So a
+// mountain in a box and one on the whole plane, from the same cell with
+// the same seed, must be the same until the one on the plane first puts
+// a block outside the box: until then, every site available in the box
+// is available on the plane with the same clock, and the sites outside
+// the box are the only others. Returns { problem, steps }: what is
+// wrong ("" if nothing), and the steps they agreed for.
+function sameInBoxAndPlane(kind, corners, width, extra, most) {
+  const boxBlock = penroseBlock(kind, corners), planeBlock = penroseBlock(kind, corners);
+  const box = tilingDomain(boxBlock, width, width, false);
+  const start = boxBlock.cells[box.start[2]].key;
+  const common = Object.assign({ dim: 2, clocks: "box and plane " + kind }, extra);
+  const inBox = newMountain(Object.assign({ tiling: boxBlock, domain: box.domain, start: box.start }, common));
+  const onPlane = newMountain(Object.assign({ tiling: planeBlock, domain: { kind: "whole" },
+    start: [0, 0, planeBlock.cells.findIndex(function (cell) { return cell.key === start; })] }, common));
+  const inside = new Set(box.domain.cells.map(function (c) { return boxBlock.cells[c[2]].key; }));
+  for (let k = 1; k <= most; k++) {
+    inBox.step();
+    onPlane.step();
+    const a = heightsByName(inBox, boxBlock), b = heightsByName(onPlane, planeBlock);
+    if (Array.from(b.keys()).some(function (key) { return !inside.has(key); })) return { problem: "", steps: k - 1 };
+    if (describe(a) !== describe(b)) return { problem: "step " + k + ": the mountains differ, with the plane's still in the box", steps: k - 1 };
+  }
+  return { problem: "the mountain on the plane was still in the box after " + most + " steps", steps: most };
+}
+
+// Does a cell within r - 1 steps of cell z of a patch have a side with
+// nothing across it (so the tile with radius r is cut off)?
+function tileCutOff(block, z, r) {
+  const seen = new Set([z]);
+  let layer = [z];
+  for (let step = 0; step < r; step++) {
+    const further = [];
+    for (const k of layer) {
+      for (const [k2] of block.cells[k].next) {
+        if (k2 < 0) return true;
+        if (!seen.has(k2)) { seen.add(k2); further.push(k2); }
+      }
+    }
+    layer = further;
+  }
+  return false;
+}
+
+// The whole plane stops at PENROSE_PLANE_MOST (js/sim-penrose.js). A
+// mountain started 120 side lengths out grows until a new base cell
+// needs more: a cell whose middle is more than 160 - (4r + 8) out (it
+// needs every cell within 4r + 6 of it, and their neighbors, 2 further).
+// That cell is less than 2r further out than the base before it, and
+// every base cell's tile is whole, that last one's too. Returns "" if
+// all holds.
+function checkPlaneEdge(kind, corners, r) {
+  const block = penroseBlock(kind, corners);
+  penroseReach(block, 120, 0, 0);
+  const m = newMountain({ dim: 2, tiling: block, radius: r, domain: { kind: "whole" }, start: nearestCell(block, 120, 0),
+                          cap: 1, clocks: "edge " + kind });
+  while (!m.atEdge && m.steps < 50000) m.step();
+  if (!m.atEdge) return "no edge after " + m.steps + " steps";
+  if (block.X !== PENROSE_PLANE_MOST) return "the plane reaches " + block.X + ", not " + PENROSE_PLANE_MOST;
+  const limit = PENROSE_PLANE_MOST - 4 * r - 8, beyond = [];
+  let cut = 0;
+  for (let i = 0; i < m.height.length; i++) {
+    if (m.height[i] === 0) continue;
+    const [u, w] = block.cells[m.siteZ[i]].middle, out = Math.max(Math.abs(u), Math.abs(w));
+    if (out > limit) beyond.push(out);
+    if (tileCutOff(block, m.siteZ[i], r)) cut++;
+  }
+  if (beyond.length !== 1 || beyond[0] > limit + 2 * r) return "base cells past " + limit + ": " + beyond.map(function (out) { return out.toFixed(1); }).join(", ");
+  if (cut > 0) return cut + " base cells have their tile cut off";
   return "";
 }
 
@@ -1205,6 +1342,98 @@ function allTests() {
       const problem = checkRadii(Object.assign({ shapeBins: 180 }, options), steps);
       addRow("Other tilings, shape: radius in each of 180 directions, " + name + ", " + steps.toLocaleString() + " steps", problem === "",
              problem || "kept block by block = found again from scratch");
+    });
+  }
+
+  // 10. Penrose's tilings.
+  const p1Box = tilingDomain(penroseBlock("P1", false), 16, 16, false);
+  const p2Box = tilingDomain(penroseBlock("P2", true), 10, 10, false);
+  const p3Box = tilingDomain(penroseBlock("P3", true), 20, 20, false);
+  const penroseCases = [
+    Object.assign({ name: "Penrose rhombs (P3), r = 1", steps: 4, tiling: penroseBlock("P3", false), radius: 1 }, whole2),
+    Object.assign({ name: "Penrose P1, r = 2", steps: 2, tiling: penroseBlock("P1", false), radius: 2 }, whole2),
+    { name: "corners of the kites and darts (P2), r = 1, s = 1, in a 10 x 10 box", steps: 4, dim: 2, tiling: p2Box.tiling, radius: 1,
+      domain: p2Box.domain, start: p2Box.start, s: 1 },
+  ];
+  for (const c of penroseCases) {
+    tests.push(function () {
+      const result = chiSquareTest(c, 100000);
+      addRow("Penrose tilings, exact odds: " + c.name + ", " + c.steps + " steps", result.pass, result.text);
+    });
+    tests.push(function () {
+      const result = chiSquareTest(c, 100000, true);
+      addRow("Penrose tilings, clocks, exact odds: " + c.name + ", " + c.steps + " steps", result.pass, result.text);
+    });
+  }
+  for (const make of [
+    function () { return Object.assign({ name: "Penrose P1, r = 1", tiling: penroseBlock("P1", false), radius: 1 }, whole2); },
+    function () {
+      return { name: "corners of the rhombs (P3), r = 2, in a 20 x 20 box", dim: 2, tiling: p3Box.tiling, radius: 2,
+               domain: p3Box.domain, start: p3Box.start };
+    },
+  ]) {
+    tests.push(function () {
+      const c = make(), problem = checkInvariants(c, 3000);
+      addRow("Penrose tilings, invariants: " + c.name + ", 3000 steps", problem === "", problem || "all hold after every step");
+    });
+    tests.push(function () {
+      const c = make(), problem = checkInvariants(Object.assign({ clocks: "invariants " + c.name }, c), 3000);
+      addRow("Penrose tilings, clocks, invariants: " + c.name + ", 3000 steps", problem === "", problem || "all hold after every step");
+    });
+  }
+  for (const [kind, corners, name] of [["P1", false, "Penrose P1"], ["P2", true, "corners of the kites and darts (P2)"],
+                                       ["P3", false, "Penrose rhombs (P3)"]]) {
+    tests.push(function () {
+      const problem = checkBoxTiles(kind, corners, 16, 4);
+      addRow("Penrose tilings, in a box: " + name + ", 16 x 16, r = 4", problem === "",
+             problem || "every cell's tile has every cell of the box within 4 steps, as on a bigger patch");
+    });
+  }
+  for (const [kind, corners, name, extra] of [["P3", false, "Penrose rhombs (P3), r = 1, M = 1", { radius: 1, cap: 1 }],
+                                              ["P2", true, "corners of the kites and darts (P2), r = 2, M = 2, s = 1", { radius: 2, cap: 2, s: 1 }]]) {
+    tests.push(function () {
+      const { problem, steps } = sameInBoxAndPlane(kind, corners, 20, extra, 5000);
+      addRow("Penrose tilings, clocks, a 20 x 20 box and the whole plane: " + name, problem === "",
+             problem || "the same mountain for " + steps + " steps, until the one on the plane first left the box");
+    });
+  }
+  for (const [name, make, steps] of [
+    ["kites and darts (P2), M = 1", function () { return Object.assign({ tiling: penroseBlock("P2", false), cap: 1, clocks: "penrose holes 1" }, whole2); }, 3000],
+    ["corners of the rhombs (P3), no capacity", function () { return Object.assign({ tiling: penroseBlock("P3", true), clocks: "penrose holes 2" }, whole2); }, 3000],
+    ["Penrose P1, M = 1, a 16 x 16 box until full", function () {
+      return { dim: 2, tiling: p1Box.tiling, cap: 1, clocks: "penrose holes 3", domain: p1Box.domain, start: p1Box.start };
+    }, 3000],
+  ]) {
+    tests.push(function () {
+      const { problem, most } = checkTilingHoles(Object.assign({ radius: 1 }, make()), steps);
+      addRow("Penrose tilings, holes: " + name + ", r = 1, up to " + steps.toLocaleString() + " steps", problem === "",
+             problem || "beta_1 matches Euler's formula at every step (at most " + most + (most === 1 ? " hole" : " holes") + " at once), and the holes' cells match the polygons'");
+    });
+  }
+  for (const [name, make, steps] of [
+    ["Penrose rhombs (P3), r = 1, M = 1", function () {
+      return Object.assign({ tiling: penroseBlock("P3", false), radius: 1, cap: 1, clocks: "penrose shape 1" }, whole2);
+    }, 10000],
+    ["corners of the kites and darts (P2), r = 2, M = 2, s = -1", function () {
+      return Object.assign({ tiling: penroseBlock("P2", true), radius: 2, cap: 2, s: -1, clocks: "penrose shape 2" }, whole2);
+    }, 5000],
+  ]) {
+    tests.push(function () {
+      const problem = checkTilingShape(make(), steps);
+      addRow("Penrose tilings, shape: area and convexity, " + name + ", " + steps.toLocaleString() + " steps", problem === "",
+             problem || "the area added up and the hull of every corner agree");
+    });
+    tests.push(function () {
+      const problem = checkRadii(Object.assign({ shapeBins: 180 }, make()), steps);
+      addRow("Penrose tilings, shape: radius in each of 180 directions, " + name + ", " + steps.toLocaleString() + " steps", problem === "",
+             problem || "kept block by block = found again from scratch");
+    });
+  }
+  for (const [kind, corners, name, r] of [["P1", false, "Penrose P1", 2], ["P2", true, "corners of the kites and darts (P2)", 6]]) {
+    tests.push(function () {
+      const problem = checkPlaneEdge(kind, corners, r);
+      addRow("Penrose tilings, the edge of the plane: " + name + ", r = " + r + ", M = 1, from 120 side lengths out", problem === "",
+             problem || "it stops when a new base cell is just past " + (PENROSE_PLANE_MOST - 4 * r - 8) + " out, and every tile is whole");
     });
   }
   return tests;

@@ -439,10 +439,11 @@ function newPile(options) {
 
 // The thresholds of a box or torus of any other tiling (tilingBox,
 // js/sim-domains.js): a cell topples when it has as many grains as it
-// has neighbors in the whole tiling, a tile's number of sides, or the
-// number of sides that meet at a corner.
+// has neighbors in the whole tiling (cellNeighbors, js/sim-domains.js):
+// a tile's number of sides, or the number of sides that meet at a
+// corner, but a star of Penrose's P1 has 10 sides and 5 neighbors.
 function tilingThresholds(d) {
-  return Int32Array.from(d.part, function (k) { return d.tiling.cells[k].next.length; });
+  return Int32Array.from(d.part, function (k) { return cellNeighbors(d.tiling.cells[k]).length; });
 }
 
 

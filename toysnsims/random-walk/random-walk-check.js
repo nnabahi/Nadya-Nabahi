@@ -11,16 +11,17 @@
         largest distance, lowest and highest site) match a plain
         recount from its path.
      4. The convex hull: shapes worked out by hand, and the walk's hull
-        (from the lowest and highest site of each column) = the hull of
-        every visited site.
+        (kept up to date as it goes) = the hull of every visited site.
      5. The holes: beta_1 from holeHistory = a plain count at every step.
      6. The outer boundary: shapes worked out by hand.
      7. Known answers for the simple random walk: the mean number of
         returns by step 20 in 1D, and E|S_n|^2 = n in 2D and 3D.
-     8. Other tilings (2D): each step goes to a neighbor, all equally
-        likely; the numbers kept and the hull, recounted; the holes,
-        against Euler's formula at every step and against a count that
-        uses only the polygons (not the tiling's lists of neighbors).
+     8. Other tilings (2D), the Penrose tilings among them: each step
+        goes to a neighbor, all equally likely; the numbers kept and the
+        hull, recounted; the holes, against Euler's formula at every
+        step and against a count that uses only the polygons (not the
+        tiling's lists of neighbors). And on a Penrose tiling, the walk
+        stops at the edge of its plane.
    ===================================================================== */
 
 
@@ -133,7 +134,7 @@ function checkWalkHull(weights, steps) {
   const all = convexHull(path.map(function (p) { return [p[0], p[1]]; }));
   const quick = walkHull(walk);
   const pass = Math.abs(quick.perimeter - polygonPerimeter(all)) < 1e-9 && Math.abs(quick.area - polygonArea(all)) < 1e-9;
-  addRow("2D, weights " + weights.join(", ") + ": the hull from each column's lowest and highest site, " + steps.toLocaleString() + " steps",
+  addRow("2D, weights " + weights.join(", ") + ": the hull kept up to date, " + steps.toLocaleString() + " steps",
          pass, "perimeter " + niceNumber(quick.perimeter) + ", area " + niceNumber(quick.area) +
          (pass ? ", the same as the hull of every visited site" : "; every site gives " + niceNumber(polygonPerimeter(all)) + ", " + niceNumber(polygonArea(all))));
 }
@@ -209,12 +210,16 @@ function checkSquareDistance(dim, runs, steps) {
 
 // The tilings these tests walk on: a name, its code, and whether its
 // corners are the cells (tilingBlock, js/sim-tilings.js). Each has cells
-// with different numbers of neighbors, or (snub hexagonal) no mirror.
+// with different numbers of neighbors, or (snub hexagonal) no mirror;
+// the Penrose tilings (js/sim-penrose.js) never repeat.
 const TEST_TILINGS = [
   { name: "Truncated square (4.8²), tiles", code: "8-4/m90/r(h4)", corners: false },
   { name: "Kagome (3.6.3.6), corners", code: "6-3-6/m30/r(v4)", corners: true },
   { name: "3⁶; 3².6², tiles", code: "3-6/m30/r(h2)", corners: false },
   { name: "Snub hexagonal (3⁴.6), corners", code: "6-3-3/r60/r(h5)", corners: true },
+  { name: "Penrose pentagons, stars, boats and diamonds (P1), tiles", code: "Penrose P1", corners: false },
+  { name: "Penrose kites and darts (P2), corners", code: "Penrose P2", corners: true },
+  { name: "Penrose rhombs (P3), tiles", code: "Penrose P3", corners: false },
 ];
 
 // A walk of "steps" steps on one of TEST_TILINGS, and its path.
@@ -222,26 +227,34 @@ function tilingWalk(t, seed, steps) {
   return walkPath({ dim: 2, tiling: tilingBlock(t.code, t.corners), seed: seed + " " + t.code }, steps);
 }
 
-// Each step goes to one of the cell's neighbors (its list "next"), each
-// equally likely: a chi-square test for each kind of cell, added up.
-// And each step's two cells have a side in common (found from their
-// polygons, not from the list).
+// Each step goes to one of the cell's neighbors (the cells across its
+// sides, each once: a pentagon of Penrose's P1 in a star's notch shares
+// two sides with it), each equally likely: a chi-square test for each
+// kind of cell, added up (on a Penrose tiling, where every cell is
+// different, for the cells with each number of neighbors). And each
+// step's two cells have a side in common (found from their polygons,
+// not from the list).
 function checkTilingSteps(t, steps) {
   const { walk, path } = tilingWalk(t, "neighbors", steps);
   const cells = walk.tiling.cells;
   // seen[k][j]: how often a step from a cell of kind k went to its neighbor number j.
-  const seen = cells.map(function (cell) { return new Array(cell.next.length).fill(0); });
+  const near = cells.map(cellNeighbors);
+  const kindOf = function (k) { return walk.tiling.finite ? near[k].length : k; };
+  const seen = new Map();
   let problem = "";
   for (let n = 1; n < path.length && !problem; n++) {
     const [x0, y0, k] = path[n - 1], [x1, y1, z] = path[n];
-    const j = cells[k].next.findIndex(function ([z2, dx, dy]) { return z2 === z && dx === x1 - x0 && dy === y1 - y0; });
+    const j = near[k].findIndex(function ([z2, dx, dy]) { return z2 === z && dx === x1 - x0 && dy === y1 - y0; });
     const before = sideKeysAt(walk.tiling, x0, y0, k), shared = sideKeysAt(walk.tiling, x1, y1, z).filter(function (key) { return before.includes(key); });
     if (j === -1) problem = "step " + n + " doesn't go to a neighbor in the list";
-    else if (shared.length !== 1) problem = "step " + n + "'s two cells have " + shared.length + " sides in common, not 1";
-    else seen[k][j]++;
+    else if (shared.length === 0) problem = "step " + n + "'s two cells have no side in common";
+    else {
+      if (!seen.has(kindOf(k))) seen.set(kindOf(k), new Array(near[k].length).fill(0));
+      seen.get(kindOf(k))[j]++;
+    }
   }
   let statistic = 0, degrees = 0;
-  for (const counts of seen) {
+  for (const counts of seen.values()) {
     const total = counts.reduce(function (a, b) { return a + b; }, 0);
     if (total < 5 * counts.length) continue;    // (too few visits to test)
     const test = equalChiSquare(counts);
@@ -251,7 +264,8 @@ function checkTilingSteps(t, steps) {
   const pValue = 1 - jStat.chisquare.cdf(statistic, degrees);
   addRow(t.name + ": each step to a neighbor across a side, all equally likely, " + steps.toLocaleString() + " steps",
          !problem && pValue > 0.001,
-         problem || "chi-square " + statistic.toFixed(2) + " on " + degrees + " degrees of freedom (" + cells.length + " kinds of cell), p = " + pValue.toFixed(3));
+         problem || "chi-square " + statistic.toFixed(2) + " on " + degrees + " degrees of freedom (" + seen.size +
+                    (walk.tiling.finite ? " numbers of neighbors" : " kinds of cell") + "), p = " + pValue.toFixed(3));
 }
 
 // The numbers kept step by step, and the hull from the lines of cells,
@@ -276,7 +290,7 @@ function checkTilingKept(t, steps) {
   const all = convexHull(Array.from(keys, function (key) { return middleAt(walk.tiling, ...key.split(",").map(Number)); }));
   const quick = walkHull(walk);
   const pass = Math.abs(quick.perimeter - polygonPerimeter(all)) < 1e-9 && Math.abs(quick.area - polygonArea(all)) < 1e-9;
-  addRow(t.name + ": the hull from each line of cells' lowest and highest, " + steps.toLocaleString() + " steps",
+  addRow(t.name + ": the hull kept up to date, " + steps.toLocaleString() + " steps",
          pass, "perimeter " + niceNumber(quick.perimeter) + ", area " + niceNumber(quick.area) +
          (pass ? ", the same as the hull of every visited cell's middle" : "; every cell gives " + niceNumber(polygonPerimeter(all)) + ", " + niceNumber(polygonArea(all))));
 }
@@ -315,6 +329,23 @@ function checkTilingHoles(t, steps) {
          problems.join("; ") || plain.sizes.length + " holes (" + ours.size + " cells), outer boundary " + frontier + " sides, the same both ways");
 }
 
+// On a Penrose tiling, the walk grows its plane as it goes, and stops
+// where the plane can't grow any more (PENROSE_PLANE_MOST,
+// js/sim-penrose.js): at the first cell within 10 of the plane's edge
+// (it needs 8 around it, and its neighbors' 2 more). So it stops
+// between 10 and 8 from the edge (a step goes less than 2).
+function checkPenroseEdge() {
+  const w = newWalk({ dim: 2, tiling: tilingBlock("Penrose P3", false), seed: "edge" });
+  while (!w.atEdge && w.steps < 500000) w.step();
+  const [x, y] = w.tiling.cells[w.z].middle, out = Math.max(Math.abs(x), Math.abs(y));
+  const missing = w.siteZ.filter(function (z) { return w.tiling.cells[z].next.some(function ([k]) { return k < 0; }); }).length;
+  const pass = w.atEdge && w.tiling.X === PENROSE_PLANE_MOST && out > PENROSE_PLANE_MOST - 10 && out <= PENROSE_PLANE_MOST - 8 && missing === 0;
+  addRow("Penrose rhombs (P3): the walk grows its plane, and stops at the edge", pass,
+         "stopped at step " + w.steps.toLocaleString() + ", " + niceNumber(out) + " from the middle (the plane reaches " + w.tiling.X +
+         "); " + w.tiling.cells.length.toLocaleString() + " cells built, and every visited cell has all its neighbors" +
+         (missing ? " but " + missing : ""));
+}
+
 function allTests() {
   return [
     function () { checkDirections(1, [1, 1], 20000); },
@@ -341,7 +372,7 @@ function allTests() {
       function () { checkTilingKept(t, 5000); },
       function () { checkTilingHoles(t, 3000); },
     ];
-  }));
+  }), checkPenroseEdge);
 }
 
 runChecksOnClick(allTests);
