@@ -19,7 +19,8 @@
        number U, from the seed. At the p on the slider, the ones with
        U < p are open (percolation-clusters.js finds the clusters).
      - Draws the clusters, each in its own color, and the statistics.
-     - Play raises p slowly, so you watch the clusters grow and join.
+     - Play raises p slowly, in steps of 0.001, so you watch the
+       clusters grow and join.
    All of this is quick (well under a second even for the biggest
    domain), so it runs in the page itself, with no second thread.
 
@@ -31,8 +32,9 @@
      5. Drawing
      6. Moving, zooming and clicking a cluster
      7. Statistics
-     8. Custom domains: the graph tool inside this page
-     9. Connecting the buttons on the page
+     8. Play: raising p
+     9. Custom domains: the graph tool inside this page
+     10. Connecting the buttons on the page
    ===================================================================== */
 
 
@@ -91,10 +93,11 @@ const TILING_CRITICAL = KIND === "site" ? {
   "6/m30/r(h1)": { tiles: "2 sin(π/18)", corners: "1 − 2 sin(π/18)" },
 };
 
-// Play raises p by this much per second (the Speed slider).
-const SPEEDS = [0.001, 0.1];   // the slider's starting min and max (boxes at its ends change them)
-const DEFAULT_SPEED = 0.005;
-const STEP = 0.01;                // how much one press of Step raises p
+// Play and Step raise p by P_STEP (the p slider's own step), Play this
+// many times per second (the Speed slider).
+const P_STEP = 0.001;
+const SPEEDS = [1, 100];   // the slider's starting min and max (boxes at its ends change them)
+const DEFAULT_SPEED = 5;
 
 
 /* =====================================================================
@@ -111,10 +114,6 @@ let swept = null;           // the clusters for every p (sweep in percolation-cl
 let p = DEFAULTS.p;         // the p on the slider
 let result = null;          // the clusters at p (percolate in percolation-clusters.js)
 const highlight = newHighlight();   // a clicked cell: its cluster is highlighted (js/sim-highlight.js)
-
-let playing = false;        // it starts paused; Play raises p
-let speed = DEFAULT_SPEED;
-let lastFrame = 0;          // when Play last moved p (milliseconds)
 
 
 /* =====================================================================
@@ -537,7 +536,30 @@ function tilingCritical() {
 
 
 /* =====================================================================
-   8. CUSTOM DOMAINS: THE GRAPH TOOL INSIDE THIS PAGE
+   8. PLAY: RAISING p
+   ---------------------------------------------------------------------
+   Play and Step raise p by P_STEP (rounded to a multiple of it), on the
+   run loop every sim uses (makeRunLoop, js/sim-worker.js), up to p = 1.
+   A step only moves p; the clusters are found once for each batch of
+   steps (setP, section 10).
+   ===================================================================== */
+const raising = makeRunLoop(function () { p = Math.min(1, Math.round((p + P_STEP) / P_STEP) * P_STEP); },
+                            function () { setP(p); },
+                            function () { return p >= 1; });
+
+// Restart: back to p = 0, paused.
+function restart() {
+  player.setPlaying(false);
+  setP(0);
+}
+
+// Play / Pause, Step, Restart and the Speed slider (connectPlay,
+// js/sim-page.js).
+const player = connectPlay(raising, SPEEDS, DEFAULT_SPEED, "step of 0.001", "steps of 0.001", restart);
+
+
+/* =====================================================================
+   9. CUSTOM DOMAINS: THE GRAPH TOOL INSIDE THIS PAGE
    ---------------------------------------------------------------------
    Choosing "Custom" swaps the picture for the graph tool, loaded in an
    <iframe> (a page inside this page): makeCustomTool, in
@@ -546,8 +568,8 @@ function tilingCritical() {
    ===================================================================== */
 const tool = makeCustomTool({
   view: view,
-  isPlaying: function () { return playing; },
-  setPlaying: setPlaying,
+  isPlaying: function () { return player.playing; },
+  setPlaying: player.setPlaying,
   check: function (drawing) {
     const cells = drawing.graph.vertices.length;
     return cells < 2 ? ["Paint at least two cells.", ""] : ["", cells + " cells."];
@@ -561,7 +583,7 @@ const tool = makeCustomTool({
 
 
 /* =====================================================================
-   9. CONNECTING THE BUTTONS ON THE PAGE
+   10. CONNECTING THE BUTTONS ON THE PAGE
    ===================================================================== */
 
 // Switch to a new domain: its edges, new random numbers, the sweep.
@@ -616,25 +638,6 @@ function setP(value) {
   computeClusters();
 }
 
-// Play raises p a little at every screen refresh, at the chosen speed,
-// until p = 1. (Play at p = 1 starts again from p = 0.)
-function setPlaying(on) {
-  playing = on;
-  showPlaying(on);
-  if (on) {
-    if (p >= 1) setP(0);
-    lastFrame = performance.now();
-    requestAnimationFrame(playFrame);
-  }
-}
-function playFrame(now) {
-  if (!playing) return;
-  const next = p + speed * (now - lastFrame) / 1000;
-  lastFrame = now;
-  setP(next);
-  if (p >= 1) setPlaying(false);
-  else requestAnimationFrame(playFrame);
-}
 
 // Domain: Box / Torus / Custom / Hyperbolic plane or tree, and their
 // options (js/sim-controls.js).
@@ -645,23 +648,6 @@ connectDomainChoice({ box: useBox, torus: useBox, custom: tool.open, graph: useG
 byId("p-slider").addEventListener("input", function () { setP(this.value); });
 byId("p-box").addEventListener("change", function () { setP(this.value); });
 byId("p-critical").addEventListener("click", function () { setP(criticalPoint()); });
-
-// Play / Pause, Step, p back to 0.
-byId("play").addEventListener("click", function () { setPlaying(!playing); });
-byId("step").addEventListener("click", function () {
-  if (playing) setPlaying(false);
-  setP(Math.round((p + STEP) * 1000) / 1000);
-});
-byId("p-zero").addEventListener("click", function () {
-  if (playing) setPlaying(false);
-  setP(0);
-});
-
-// Speed.
-connectSpeedSlider("speed", SPEEDS, DEFAULT_SPEED, function (newSpeed) {
-  speed = newSpeed;
-  byId("speed-label").textContent = "p rises " + speed + " per second";
-});
 
 // Colors.
 byId("colors").addEventListener("change", drawSoon);
@@ -676,4 +662,3 @@ fillLatticeMenu();
 byId("seed").value = DEFAULTS.seed;
 byId("p-slider").value = byId("p-box").value = p;
 useBox();
-setPlaying(false);   // paused: press Play to raise p
