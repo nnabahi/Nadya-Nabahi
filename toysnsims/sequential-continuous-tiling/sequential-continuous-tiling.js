@@ -283,6 +283,7 @@ function showWanted(lower) {
   byId("attempts-slider").value = wanted > 0 ? Math.log10(wanted) : 0;
   if (wanted > computed) sim.send({ type: "target", target: wanted });
   if (lower) drawAll(); else drawNew();
+  player.showDone();    // at the most attempts, Play and Step are grayed out
 }
 
 function oneMoreAttempt() {

@@ -46,13 +46,14 @@
 //   loop.step()        one step (of the first kind that can make one),
 //                      then report()
 //   loop.playing       is it playing?
+//   loop.isDone()      can't the run go on? (isDone, or never)
 //   loop.stopped       (optional) runs when the loop pauses by itself,
 //                      or won't play because the run is done
 function makeRunLoop(steps, report, isDone) {
   const TICK_BUDGET = 25;    // milliseconds of work between two reports
   const kinds = [].concat(steps);
   const done = isDone || function () { return false; };
-  const loop = { playing: false, speeds: kinds.map(function (step, k) { return k === 0 ? 1 : 0; }) };
+  const loop = { playing: false, isDone: done, speeds: kinds.map(function (step, k) { return k === 0 ? 1 : 0; }) };
   const owed = kinds.map(function () { return 0; });   // steps of each kind due but not yet made
   let lastTick = 0, timer = null;
 
@@ -133,19 +134,21 @@ function makeRunLoop(steps, report, isDone) {
 //   { type: "step" }
 //   and the sim's own messages.
 // After each of them, and as it plays, the page gets
-//   { type: "state", run, playing, playId, ...the values }
-// "run" lets the page skip leftovers of an older run, and "playing" with
+//   { type: "state", run, playing, playId, done, ...the values }
+// "run" lets the page skip leftovers of an older run, "playing" with
 // "playId" (the last Play or Pause the worker got) says whether it
-// paused by itself after the page's last press. Before the first setup
-// there is nothing to run, so nothing else is answered. Returns the run
-// loop (loop.playing says whether it plays).
+// paused by itself after the page's last press, and "done" says the run
+// can't go on (sim.isDone). Before the first setup there is nothing to
+// run, so nothing else is answered. Returns the run loop (loop.playing
+// says whether it plays).
 function serveRun(sim) {
   let run = 0, playId = 0, started = false;
   const loop = makeRunLoop(sim.steps, report, sim.isDone);
 
   function report() {
     sim.report(function (values, handOver) {
-      self.postMessage(Object.assign({ type: "state", run: run, playing: loop.playing, playId: playId }, values),
+      self.postMessage(Object.assign({ type: "state", run: run, playing: loop.playing, playId: playId,
+                                       done: loop.isDone() }, values),
                        handOver || []);
     });
   }

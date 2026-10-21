@@ -223,6 +223,7 @@ function replay() {
   while (cloud.t < wantedT) stepOnce();
   draw();
   showStats();
+  player.showDone();    // at "Stop at t", Play and Step are grayed out
 }
 
 // A slider fires many times a second; replay at most once per screen
@@ -238,7 +239,7 @@ function playStep() {
   wantedT = cloud.t;
 }
 const showStatsSlowly = notTooOften(250, function () { return stepping.playing; }, showStats);
-const stepping = makeRunLoop(playStep, function () { draw(); showStatsSlowly(); },
+const stepping = makeRunLoop(playStep, function () { draw(); showStatsSlowly(); player.showDone(); },
   function () { return cloud === null || cloud.t >= tMax; });
 
 // Restart: back to t = 0, paused.
@@ -535,7 +536,10 @@ byId("add-matrix").addEventListener("click", function () {
   typedByHand();
 });
 
-byId("set-tmax").addEventListener("change", function () { tMax = readWhole("set-tmax", 1, 5000, START_TMAX); });
+byId("set-tmax").addEventListener("change", function () {
+  tMax = readWhole("set-tmax", 1, 5000, START_TMAX);
+  player.showDone();
+});
 byId("set-runs").addEventListener("change", function () {
   runs = readWhole("set-runs", 1, 20000, START_RUNS);
   byId("set-run").max = runs;

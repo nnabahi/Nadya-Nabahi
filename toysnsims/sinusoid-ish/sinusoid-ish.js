@@ -177,6 +177,7 @@ function newSample() {
     byId("set-message").textContent = problem.message;
     law = null;                          // nothing to sample until the set is fixed
     player.setPlaying(false);
+    player.showDone();
     return;
   }
   draw();
@@ -408,9 +409,12 @@ const sampling = makeRunLoop(addSample,
 // js/sim-page.js).
 const player = connectPlay(sampling, SPEEDS, START_SPEED, "sample", "samples", restartSamples);
 
+// The samples so far: how many, and their histograms. At the most
+// samples, Play and Step are grayed out.
 function showHistograms() {
   byId("samples-heading").textContent = "Many samples: " + samples.toLocaleString() + " so far, " +
     collected.offsets.length.toLocaleString() + " lobes";
+  player.showDone();
   const asLog = byId("hist-mode").value === "log";
   // On a log scale: the sizes (above 0), with bars of equal width on that scale.
   const sizes = function (list) {

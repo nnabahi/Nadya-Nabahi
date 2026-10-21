@@ -252,7 +252,6 @@ function walkWorker() {
       interfaceEdges: interfaceEdges,
       time: time,
       moves: moves,
-      done: colored === n,
       coverTime: coverTime,
       traceTimes: Float64Array.from(trace.times),
       traceInterface: Int32Array.from(trace.lists.interfaceEdges),

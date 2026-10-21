@@ -670,9 +670,10 @@ function showStats() {
   if (note !== lastNote && (note !== "" || byId("sim-message").textContent === lastNote)) showMessage(note);
   lastNote = note;
 
-  const stayOn = byId("stay-on").checked;
-  byId("play").disabled = s.stable && !byId("storm").checked && !stayOn && !player.playing;   // nothing can happen
-  byId("step").disabled = s.stable && !byId("storm").checked;
+  // (Play and Step are grayed out when nothing can happen: connectPlay.
+  // Step also can't do anything on a stable pile with no storm, even
+  // when Play keeps going so that clicks topple at once.)
+  if (s.stable && !byId("storm").checked) byId("step").disabled = true;
   byId("jump").disabled = s.stable;
   byId("undo").disabled = !s.canUndo;
   byId("add-identity").disabled = !s.hasSink;

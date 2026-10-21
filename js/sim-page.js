@@ -336,8 +336,10 @@ function connectSliderAndBox(sliderId, boxId, set) {
 //                         run starts paused
 //   sim.send(message)     one of the sim's own messages (new settings
 //                         that don't restart, a click, ...)
-//   sim.play(speed), sim.pause(), sim.step(), sim.stopped
-//                         for connectPlay, which sets sim.stopped
+//   sim.isDone()          the run can't go on, as the worker last said
+//   sim.play(speed), sim.pause(), sim.step(), sim.stopped, sim.showDone
+//                         for connectPlay, which sets sim.stopped and
+//                         sim.showDone
 // A burst of setups (from a slider being dragged) never piles up: while
 // the worker works on one, only the newest of the later ones waits, and
 // the messages sent after it wait behind it. (A newer setup replaces
@@ -349,6 +351,7 @@ function runInWorker(fn, helpers, show) {
   let playId = 0;            // counts presses of Play and Pause (see serveRun)
   let working = 0;           // the run whose setup the worker is working on (0: none)
   let waiting = [];          // the newest setup not sent yet, and the messages after it
+  let done = false;          // the run can't go on (serveRun says, with each report)
 
   function post(message) {
     if (waiting.length) waiting.push(message); else worker.postMessage(message);
@@ -370,12 +373,15 @@ function runInWorker(fn, helpers, show) {
   sim.play = function (speed) { post({ type: "play", speed: speed, id: ++playId }); };
   sim.pause = function () { post({ type: "pause", id: ++playId }); };
   sim.step = function () { post({ type: "step" }); };
+  sim.isDone = function () { return done; };
 
   worker.onmessage = function (event) {
     const message = event.data;
     if (message.run === working) { working = 0; sendWaiting(); }
     if (message.run !== sim.run) return;                        // from an older run
     if (!message.playing && message.playId === playId && sim.stopped) sim.stopped();   // it paused by itself
+    done = message.done;
+    if (sim.showDone) sim.showDone();
     show(message);
   };
   worker.onerror = function () {
@@ -401,8 +407,13 @@ function runInWorker(fn, helpers, show) {
 //   player.playing           true while the sim plays
 //   player.setPlaying(on)    play or pause
 //   player.setUnits(one, many)   new names for a step
+//   player.showDone()        gray out Play and Step if the run can't go
+//                            on (runner.isDone()), or bring them back
 // Step pauses, then makes one step. When the run pauses by itself (it
-// can't go on), the Play button shows it.
+// can't go on), the Play button shows it, and Play and Step are grayed
+// out until it can go on again (after Restart, say): a sim in a second
+// thread says so with each report, and a sim on the page calls
+// player.showDone() whenever its run changes.
 function connectPlay(runner, speeds, startSpeed, one, many, restart) {
   const player = { playing: false };
   let speed = startSpeed;
@@ -423,6 +434,8 @@ function connectPlay(runner, speeds, startSpeed, one, many, restart) {
     showSpeed();
   };
   runner.stopped = function () { showPlay(false); };
+  player.showDone = function () { byId("play").disabled = byId("step").disabled = runner.isDone(); };
+  runner.showDone = player.showDone;    // (runInWorker calls it with each report)
 
   byId("play").addEventListener("click", function () { player.setPlaying(!player.playing); });
   byId("step").addEventListener("click", function () {

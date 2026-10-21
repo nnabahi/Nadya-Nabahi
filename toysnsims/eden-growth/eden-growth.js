@@ -406,7 +406,6 @@ function showMountain(message) {
     showMessage("The mountain has reached the edge of the part of this tiling the page builds (" + PENROSE_PLANE_MOST +
                 " side lengths from the middle each way), so it stops here.");
   }
-  byId("play").disabled = byId("step").disabled = Boolean(message.atMax || message.allFull || message.atEdge);
   drawSoon();
 }
 

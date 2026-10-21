@@ -612,6 +612,7 @@ const showP = connectSliderAndBox("p-slider", "p-box", setP);
 function setP(value) {
   p = showP(value);
   computeClusters();
+  player.showDone();    // at p = 1, Play and Step are grayed out
 }
 
 byId("p-critical").addEventListener("click", function () { setP(criticalPoint()); });

@@ -539,7 +539,6 @@ function showStats() {
   byId("stat-cover").textContent = s.coverTime === null ? "not yet" : showTime(s.coverTime);
 
   if (s.done) showMessage("Every cell is colored. Cover time: " + showTime(s.coverTime) + ".");
-  byId("play").disabled = byId("step").disabled = s.done;
   byId("start-info").textContent = started()
     ? "The run has started. Press Restart to go back to the start and move the walkers again."
     : "Drag a walker to choose where it starts. Changing N or the domain puts the walkers " +

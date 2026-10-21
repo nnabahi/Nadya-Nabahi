@@ -370,7 +370,7 @@ function automatonWorker() {
     send({
       time: time, cells: auto.cells.slice(),
       picture: shown && shown.picture, shownFirst: shown && shown.first, shownLast: shown && shown.last,
-      oldest: oldest, done: isDone(),
+      oldest: oldest,
       counts: counts.slice(), interface4: interface4, interface8: interface8,
       repeat: repeat, checked: seen.size, randomEdges: m.edge === "random",
       traceTimes: Float64Array.from(trace.times), traceCounts: Int32Array.from(trace.lists.counts),
