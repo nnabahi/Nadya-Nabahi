@@ -638,8 +638,9 @@ function drawCharts2D(s) {
   plotOverTime(byId("perimeter-chart"), times, withGuide([{ values: s.tracePerimeter, color: CHART_LINE }], theory("perimeter", times)), "step");
   plotOverTime(byId("area-chart"), times, withGuide([{ values: s.traceArea, color: CHART_LINE }], theory("area", times)), "step");
   plotOverTime(byId("holes-chart"), s.holes.times, [{ values: s.holes.beta, color: CHART_LINE }], "step");
-  stackedSizeBars(byId("hole-sizes-chart"), s.holes.sizes, new Array(s.holes.sizes.length).fill(0), [CHART_LINE], " holes");
-  logLogChart(byId("frontier-chart"), s.frontierSteps, s.frontierValues, "outer boundary length", 2 / 3);
+  stackedSizeBars(byId("hole-sizes-chart"), s.holes.sizes, new Array(s.holes.sizes.length).fill(0), [CHART_LINE], "holes");
+  const frontier = Array.from(s.frontierSteps, function (step, k) { return [step, s.frontierValues[k]]; });
+  logLogChart(byId("frontier-chart"), [{ points: frontier }], "step", "outer boundary length (log-log)", 2 / 3);
   persistenceChart(byId("persistence-chart"), s.holes.births, s.holes.deaths,
                    document.querySelector("input[name=against]:checked").value, s.steps);
 }

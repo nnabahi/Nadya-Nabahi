@@ -2,28 +2,44 @@
    sim-charts.js  —  the small charts in a sim's Statistics box
    ---------------------------------------------------------------------
    Shared by the sims and their check pages, so every chart looks the
-   same. Each chart is a <canvas> on the page; these draw on it. Load
-   this file after js/sim-page.js.
+   same and every chart has numbered axes. Each chart is a <canvas> on
+   the page; these draw on it. Load this file after js/sim-page.js.
 
    Contents:
-     CHART_TEXT, CHART_LINE           the colors of the charts
-     chartPen(canvas)                 get a chart ready to draw on
-     plotOverTime(...)                numbers over time, as lines
-     colorLines(...)                  one line per color, from a trace, for plotOverTime
-     regionsChart(...)                the number of regions of each color over time
-     histogram(...)                   a histogram of some numbers
-     powerOfTwoBins(sizes)            sizes grouped by powers of 2 ...
-     powerOfTwoBars(...)              ... drawn as bars
-     stackedSizeBars(...)             region sizes, one bar per size, stacked by color, log-log
-     perimeterChart(...)              perimeter against area of each region
-     persistenceChart(...)            how long each hole lived, log-log
-     logLogChart(...)                 a number against the step, log-log,
-                                        with a guide line of a given slope
-     chartZoom(canvas, redraw),       zoom a chart in time (wheel, pinch,
-       shownTimes(zoom, first, last)    drag, double-click for all of it)
-     niceStep, shortLabel, niceNumber numbers for axes and tables
+     1. Colors and the pen
+          CHART_TEXT, CHART_LINE     the colors of the charts
+          chartPen(canvas)           get a chart ready to draw on
+     2. Axes: the numbers along a chart's sides
+          chartFrame(canvas, x, y)   a chart with two numbered axes
+          shortLabel(v, step)        a number short enough for an axis
+     3. Drawing inside the axes
+          drawSeries(frame, series)  lines or dots
+          drawBars(frame, bars)      bars, one color or stacked
+          drawHeat(frame, ...)       a heat map
+          lineChart, barChart, heatChart   a frame and its drawing at once
+          seriesRange(series, k)     the smallest and largest x (k = 0) or y (k = 1)
+     4. The charts the sims share
+          plotOverTime(...)          numbers over time, as lines
+          colorLines(...)            one line per color, from a trace, for plotOverTime
+          regionsChart(...)          the number of regions of each color over time
+          histogram(...)             a histogram of some numbers
+          powerOfTwoBins(sizes)      sizes grouped by powers of 2 ...
+          powerOfTwoBars(...)        ... drawn as bars
+          stackedSizeBars(...)       region sizes, one bar per size, stacked by color, log-log
+          perimeterChart(...)        perimeter against area of each region
+          persistenceChart(...)      how long each hole lived, log-log
+          logLogChart(...)           numbers against numbers, log-log,
+                                       with a guide line of a given slope
+     5. Zooming in time
+          chartZoom(canvas, redraw), shownTimes(zoom, first, last)
+     6. Numbers
+          niceStep, niceNumber
    ===================================================================== */
 
+
+/* =====================================================================
+   1. COLORS AND THE PEN
+   ===================================================================== */
 
 // The charts in the Statistics box use the site's own colors from
 // section 1 of css/style.css, so restyling the site restyles them too.
@@ -45,44 +61,423 @@ function chartPen(canvas) {
   return pen;
 }
 
-// Numbers over time: one line for each entry of "lines", { values,
-// color, dashed }, where values[k] is the number at times[k] ("dashed":
-// optional, true for a dashed line, e.g. what theory says). Time goes across,
-// from 0 to the last time (labeled with "word", like "step 1,000"), and
-// the numbers go up, from 0 to the largest (at least 1), or to "top" if
-// given (e.g. 100 for a percent).
-function plotOverTime(canvas, times, lines, word, top) {
+
+/* =====================================================================
+   2. AXES: THE NUMBERS ALONG A CHART'S SIDES
+   ---------------------------------------------------------------------
+   Every chart is drawn in a "frame": the plot in the middle, with
+   numbered ticks up its left side (the y axis) and along its bottom
+   (the x axis). An axis is an object with these keys (only "from" and
+   "to" are needed):
+     from, to   the numbers at its two ends
+     scale      "linear" (the default); "log": 1, 10, 100, ... evenly
+                spaced ("from" must be above 0); or "log+1": the log of
+                the number plus 1, so that 0 fits too (for counts)
+     round      true: move the ends out to the nearest ticks (or, on a
+                log scale, powers of 10), so both ends are numbered
+     whole      true: ticks only at whole numbers (bars, counts)
+     step       a fixed step between ticks (e.g. 90 for degrees)
+     text(v)    how to write the tick at v (the default is shortLabel)
+     word       what the axis is: written at the bottom right for x,
+                above the plot at the top left for y
+     ticks      false: no numbers on this axis
+   Ticks sit at nice numbers: 1, 2 or 5 times a power of 10, about
+   X_TICKS of them across and Y_TICKS up, fewer when their numbers would
+   crowd each other. On a log scale they are 1, 2, 5, 10, 20, 50, ...
+   when there is room, else 1, 10, 100, ..., else fewer powers of 10.
+   ===================================================================== */
+const X_TICKS = 10, Y_TICKS = 3;
+const TICK_GAP = 6;        // the least room between two tick numbers, in pixels
+const TEXT_HEIGHT = 11;    // the height of a number (the pen's 11px font)
+
+// Clear the chart and draw the axes x and y on it. Returns the frame:
+// the pen, where the plot sits (left, right, up, bottom, in pixels),
+// and sx(v), sy(v), the spot on the screen of the number v on the x
+// and y axis. Draw the chart itself with section 3, or with the pen.
+function chartFrame(canvas, x, y) {
   const pen = chartPen(canvas);
   const w = canvas.clientWidth, h = canvas.clientHeight;
-  if (times.length < 2) return;
-  if (!top) {
-    top = 1;
-    for (const line of lines) for (const value of line.values) top = Math.max(top, value);
+  x = readyAxis(x);
+  y = readyAxis(y);
+  // The y ticks first: their numbers decide how wide the left margin is.
+  const up = y.word ? 18 : 6;
+  const bottom = h - (x.ticks === false && !x.word ? 4 : 16);
+  const yTicks = pickTicks(y, bottom - up, Y_TICKS, function () { return TEXT_HEIGHT; });
+  const widest = Math.max(0, ...yTicks.map(function (t) { return pen.measureText(t.text).width; }));
+  const left = y.ticks === false ? 4 : Math.ceil(widest) + 8, right = w - 4;
+  const xTicks = pickTicks(x, right - left, X_TICKS, function (text) { return pen.measureText(text).width; });
+  const frame = {
+    pen: pen, w: w, h: h, left: left, right: right, up: up, bottom: bottom,
+    sx: function (v) { return left + (right - left) * axisPlace(x, v); },
+    sy: function (v) { return bottom - (bottom - up) * axisPlace(y, v); },
+  };
+  chartAxes(frame, x, xTicks, y, yTicks);
+  return frame;
+}
+
+// A copy of an axis with its defaults filled in and its data's ends
+// kept (dataFrom, dataTo), with room to draw even when both ends are
+// the same number.
+function readyAxis(axis) {
+  const a = Object.assign({ scale: "linear", text: shortLabel }, axis);
+  if (!isFinite(a.from) || !isFinite(a.to)) { a.from = a.scale === "log" ? 1 : 0; a.to = a.from + 1; }
+  if (a.scale === "log" && !(a.from > 0)) a.from = a.to > 1 ? 1 : a.to / 10;   // a log scale has no 0
+  if (!(a.to > a.from)) a.to = a.scale === "log" ? a.from * 10 : a.from + 1;
+  a.dataFrom = a.from;
+  a.dataTo = a.to;
+  return a;
+}
+
+// Where the number v is on an axis: 0 at its "from" end, 1 at its "to".
+function axisPlace(axis, v) {
+  const at = axisUnits(axis);
+  return (at(v) - at(axis.from)) / (at(axis.to) - at(axis.from));
+}
+function axisUnits(axis) {
+  if (axis.scale === "log") return Math.log10;
+  if (axis.scale === "log+1") return function (v) { return Math.log10(v + 1); };
+  return function (v) { return v; };
+}
+
+// The ticks of an axis that is "pixels" long, as a list of { at, text }:
+// the densest choice of nice numbers with at most about 1.5 times
+// "wanted" ticks whose numbers don't crowd ("sizeOf(text)": how much
+// room a number takes along the axis), or the sparsest choice if none
+// fits. With "round", this also moves the axis' ends out.
+function pickTicks(axis, pixels, wanted, sizeOf) {
+  if (axis.ticks === false) return [];
+  const choices = axis.scale === "linear" ? linearChoices(axis, wanted) : logChoices(axis);
+  let ticks = [];
+  for (const choose of choices) {
+    ticks = choose();
+    if (ticks.length <= 1.5 * wanted && ticksFit(ticks, axis, pixels, sizeOf)) break;
   }
-  const lastTime = times[times.length - 1];
-  const left = 44, up = 6, bottom = h - 16;
+  return axis.scale === "log+1" ? withZero(ticks, axis, pixels, sizeOf) : ticks;
+}
+
+// A "log+1" axis starts at 0, which sits close to 1 (1 is at log 2):
+// the 0 tick goes first, and the 1 tick is left out if they would crowd.
+function withZero(ticks, axis, pixels, sizeOf) {
+  if (axis.from > 0) return ticks;
+  const zero = { at: 0, text: axis.text(0, 1) };
+  if (ticks.length > 0 && !ticksFit([zero, ticks[0]], axis, pixels, sizeOf)) ticks = ticks.slice(1);
+  return [zero].concat(ticks);
+}
+
+// The choices for a linear axis, densest first: ticks every "step", for
+// the nice steps from about 1/wanted of the axis up to all of it.
+function linearChoices(axis, wanted) {
+  if (axis.step) return [function () { return linearTicks(axis, axis.step); }];
+  const range = axis.dataTo - axis.dataFrom, choices = [];
+  let step = niceStep(range / wanted);
+  if (axis.whole) step = Math.max(1, step);
+  for (;;) {
+    const each = step;
+    choices.push(function () { return linearTicks(axis, each); });
+    if (step > range) return choices;        // the last choice: at most two ticks
+    step = niceStep(step * 1.5);             // the next nice step: 1 -> 2 -> 5 -> 10 -> ...
+  }
+}
+
+// The ticks at the multiples of "step" from one end of a linear axis to
+// the other (with "round", the ends move out to multiples of step first).
+function linearTicks(axis, step) {
+  axis.from = axis.dataFrom;
+  axis.to = axis.dataTo;
+  if (axis.round) {
+    axis.from = Math.floor(axis.from / step + 1e-9) * step;
+    axis.to = Math.ceil(axis.to / step - 1e-9) * step;
+  }
+  const ticks = [];
+  for (let k = Math.ceil(axis.from / step - 1e-9); k * step <= axis.to + 1e-9 * step; k++) {
+    const v = Number((k * step).toPrecision(12));   // 0.30000000000000004 -> 0.3
+    ticks.push({ at: v, text: axis.text(v, step) });
+  }
+  return ticks;
+}
+
+// The choices for a log axis, densest first: 1, 2, 5 in each power of
+// 10; just the powers of 10; then every 2nd, 3rd, 5th or 10th power.
+function logChoices(axis) {
+  const choices = [[[1, 2, 5], 1], [[1], 1], [[1], 2], [[1], 3], [[1], 5], [[1], 10]];
+  return choices.map(function ([firsts, every]) {
+    return function () { return logTicks(axis, firsts, every); };
+  });
+}
+
+// The ticks f * 10^p on a log axis, for f in "firsts" and every
+// "every"-th power p. (A "log+1" axis gets its 0 in pickTicks.)
+function logTicks(axis, firsts, every) {
+  axis.from = axis.dataFrom;
+  axis.to = axis.dataTo;
+  if (axis.round) {
+    if (axis.scale === "log") axis.from = Math.pow(10, Math.floor(Math.log10(axis.from) + 1e-9));
+    axis.to = Math.pow(10, Math.ceil(Math.log10(axis.to) - 1e-9));
+  }
+  const ticks = [];
+  const lowest = Math.floor(Math.log10(Math.max(axis.from, axis.scale === "log" ? 1e-300 : 1)));
+  for (let power = lowest; power <= Math.ceil(Math.log10(axis.to)); power++) {
+    if (((power % every) + every) % every !== 0) continue;
+    for (const f of firsts) {
+      const v = Number((f * Math.pow(10, power)).toPrecision(12));
+      if (v < axis.from * (1 - 1e-9) || v > axis.to * (1 + 1e-9) || (axis.whole && v < 1)) continue;
+      ticks.push({ at: v, text: axis.text(v, v) });
+    }
+  }
+  return ticks;
+}
+
+// Whether the numbers of these ticks keep TICK_GAP pixels apart.
+function ticksFit(ticks, axis, pixels, sizeOf) {
+  for (let k = 1; k < ticks.length; k++) {
+    const apart = pixels * (axisPlace(axis, ticks[k].at) - axisPlace(axis, ticks[k - 1].at));
+    if (apart < (sizeOf(ticks[k].text) + sizeOf(ticks[k - 1].text)) / 2 + TICK_GAP) return false;
+  }
+  return true;
+}
+
+// The two axis lines, a small mark at each tick with its number, and
+// the axes' words. An x number stays right of the y numbers and left of
+// the x axis' word (one that would run into the word is left out).
+function chartAxes(frame, x, xTicks, y, yTicks) {
+  const pen = frame.pen;
+  pen.save();
+  pen.strokeStyle = pen.fillStyle = CHART_TEXT;
+  pen.lineWidth = 1;
+  pen.beginPath();
+  pen.moveTo(frame.left - 0.5, frame.up);
+  pen.lineTo(frame.left - 0.5, frame.bottom + 0.5);
+  pen.lineTo(frame.right, frame.bottom + 0.5);
+  pen.stroke();
+
+  // Up the left side.
   pen.textAlign = "right";
   pen.textBaseline = "middle";
-  pen.fillText(top.toLocaleString(), left - 6, up);
-  pen.fillText("0", left - 6, bottom);
-  pen.textBaseline = "bottom";
-  pen.fillText(word + " " + (Number.isInteger(lastTime) ? lastTime.toLocaleString()
-    : lastTime.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })), w, h);
-  pen.textAlign = "left";
-  pen.fillText("0", left, h);
-  for (const line of lines) {
-    pen.beginPath();
-    line.values.forEach(function (value, k) {
-      const sx = left + (w - left) * times[k] / Math.max(lastTime, 1e-9);
-      const sy = bottom - (bottom - up) * value / top;
-      if (k === 0) pen.moveTo(sx, sy); else pen.lineTo(sx, sy);
-    });
-    pen.strokeStyle = line.color;
-    pen.lineWidth = 1.5;
-    pen.setLineDash(line.dashed ? [4, 3] : []);
-    pen.stroke();
+  for (const t of yTicks) {
+    const at = Math.round(frame.sy(t.at));
+    pen.fillRect(frame.left - 4, at, 3, 1);
+    pen.fillText(t.text, frame.left - 6, Math.max(TEXT_HEIGHT / 2, at));
   }
+  pen.textAlign = "left";
+  pen.textBaseline = "top";
+  if (y.word) pen.fillText(y.word, 0, 0);
+
+  // Along the bottom.
+  let wordStart = frame.w;
+  if (x.word) {
+    pen.textAlign = "right";
+    pen.fillText(x.word, frame.w, frame.bottom + 4);
+    wordStart = frame.w - pen.measureText(x.word).width - TICK_GAP;
+    pen.textAlign = "left";
+  }
+  for (const t of xTicks) {
+    const at = Math.round(frame.sx(t.at)), width = pen.measureText(t.text).width;
+    const start = Math.min(Math.max(frame.left - 2, at - width / 2), frame.w - width);
+    if (start + width > wordStart) continue;
+    pen.fillRect(at, frame.bottom + 1, 1, 3);
+    pen.fillText(t.text, start, frame.bottom + 4);
+  }
+  pen.restore();
+}
+
+// A number short enough for an axis: 3, 0.25, 1.5k, 20k, 1M, 2e-5.
+// "step" (optional) is the step between the axis' ticks, which decides
+// how many decimals show; without it, up to 4 significant digits.
+function shortLabel(v, step) {
+  const size = Math.abs(v);
+  if (size < 1e-12) return "0";
+  let text;
+  if (size >= 1e9 || size < 1e-3) {
+    const power = Math.floor(Math.log10(size));
+    text = Number((v / Math.pow(10, power)).toPrecision(step ? 2 : 3)) + "e" + power;
+  } else {
+    const unit = size >= 1e6 ? 1e6 : size >= 1e3 ? 1e3 : 1;
+    const decimals = step ? Math.max(0, -Math.floor(Math.log10(step / unit) + 1e-9)) : null;
+    text = (decimals === null ? Number((v / unit).toPrecision(4)) : Number((v / unit).toFixed(Math.min(decimals, 12)))) +
+      (unit === 1e6 ? "M" : unit === 1e3 ? "k" : "");
+  }
+  return text.replace(/^-/, "\u2212");   // a real minus sign, −
+}
+
+
+/* =====================================================================
+   3. DRAWING INSIDE THE AXES
+   ---------------------------------------------------------------------
+   Each takes the frame from chartFrame and draws with its sx and sy,
+   so the drawing always matches the numbers on the axes.
+   ===================================================================== */
+
+// Lines or dots. Each entry of "series" is
+//   { points: [[x, y], ...], color, dashed, width, dots, radius, alpha, border }
+// "color" (default CHART_LINE) may also be a function of the point's
+// place k in the list (for dots of different colors); "dashed": a
+// dashed line (e.g. what theory says); "width": the line's width
+// (default 1.5); "dots": dots of radius "radius" (default 2.5) instead
+// of a line; "alpha": how see-through, from 0 (invisible) to 1 (the
+// default); "border": the color of a thin line around each dot. Points
+// off a log axis (0 or less) are left out. Everything stays inside the
+// plot, so nothing covers the numbers.
+function drawSeries(frame, series) {
+  const pen = frame.pen;
+  pen.save();
+  clipToPlot(frame);
+  for (const s of series) {
+    pen.globalAlpha = s.alpha === undefined ? 1 : s.alpha;
+    if (s.dots) chartDots(frame, s); else chartLine(frame, s);
+  }
+  pen.restore();
+}
+
+function chartLine(frame, s) {
+  const pen = frame.pen;
+  pen.beginPath();
+  let started = false;
+  for (const [vx, vy] of s.points) {
+    const px = frame.sx(vx), py = frame.sy(vy);
+    if (!isFinite(px) || !isFinite(py)) continue;
+    if (started) pen.lineTo(px, py); else pen.moveTo(px, py);
+    started = true;
+  }
+  pen.strokeStyle = s.color || CHART_LINE;
+  pen.lineWidth = s.width || 1.5;
+  pen.setLineDash(s.dashed ? [4, 3] : []);
+  pen.stroke();
   pen.setLineDash([]);
+}
+
+function chartDots(frame, s) {
+  const pen = frame.pen, radius = s.radius || 2.5;
+  pen.lineWidth = 0.5;
+  if (s.border) pen.strokeStyle = s.border;
+  s.points.forEach(function ([vx, vy], k) {
+    const px = frame.sx(vx), py = frame.sy(vy);
+    if (!isFinite(px) || !isFinite(py)) return;
+    pen.beginPath();
+    pen.arc(px, py, radius, 0, 2 * Math.PI);
+    pen.fillStyle = typeof s.color === "function" ? s.color(k) : s.color || CHART_LINE;
+    pen.fill();
+    if (s.border) pen.stroke();
+  });
+}
+
+// Bars standing on the bottom of the plot. Each bar is
+//   { from, to, value, color, border }   from x = from to x = to, "value" tall
+// or has "pieces": [{ value, color }, ...] in place of value and color:
+// pieces stacked from the bottom up, splitting the bar's height in
+// proportion to their values (so on a log scale too, each piece's share
+// of the bar is its share of the total). "color" defaults to CHART_LINE;
+// "border": the color of a thin line around the bar. Bars wider than 4
+// pixels get a 1 pixel gap on each side.
+function drawBars(frame, bars) {
+  const pen = frame.pen;
+  pen.save();
+  clipToPlot(frame);
+  for (const bar of bars) {
+    const pieces = bar.pieces || [{ value: bar.value, color: bar.color }];
+    const total = pieces.reduce(function (sum, piece) { return sum + piece.value; }, 0);
+    if (!(total > 0)) continue;
+    const x0 = frame.sx(bar.from), x1 = frame.sx(bar.to);
+    const gap = x1 - x0 >= 4 ? 1 : 0, width = Math.max(1, x1 - x0 - 2 * gap);
+    const height = Math.max(1, frame.bottom - frame.sy(total));
+    let top = frame.bottom;
+    for (const piece of pieces) {
+      if (!(piece.value > 0)) continue;
+      const tall = height * piece.value / total;
+      pen.fillStyle = piece.color || CHART_LINE;
+      pen.fillRect(x0 + gap, top - tall, width, tall);
+      top -= tall;
+    }
+    if (bar.border) {
+      pen.strokeStyle = bar.border;
+      pen.lineWidth = 0.5;
+      pen.strokeRect(x0 + gap, frame.bottom - height, width, height);
+    }
+  }
+  pen.restore();
+}
+
+// A heat map filling the plot: "columns" across and "rows" up (row 0 at
+// the bottom), cell (c, r) colored colorAt(c, r), an [r, g, b] list
+// (each 0 to 255), or left blank where it gives null.
+function drawHeat(frame, columns, rows, colorAt) {
+  const tiny = document.createElement("canvas");   // one pixel per cell, stretched to the plot
+  tiny.width = columns;
+  tiny.height = rows;
+  const tinyPen = tiny.getContext("2d");
+  const image = tinyPen.createImageData(columns, rows);
+  for (let c = 0; c < columns; c++) {
+    for (let r = 0; r < rows; r++) {
+      const rgb = colorAt(c, r);
+      if (!rgb) continue;
+      const p = 4 * ((rows - 1 - r) * columns + c);
+      image.data[p] = rgb[0]; image.data[p + 1] = rgb[1]; image.data[p + 2] = rgb[2]; image.data[p + 3] = 255;
+    }
+  }
+  tinyPen.putImageData(image, 0, 0);
+  frame.pen.imageSmoothingEnabled = false;
+  frame.pen.drawImage(tiny, frame.left, frame.up, frame.right - frame.left, frame.bottom - frame.up);
+}
+
+// Keep what is drawn next inside the plot (with a few pixels to spare,
+// so a line along the top or a dot at the right end shows whole).
+function clipToPlot(frame) {
+  frame.pen.beginPath();
+  frame.pen.rect(frame.left, frame.up - 4, frame.w - frame.left, frame.bottom - frame.up + 4);
+  frame.pen.clip();
+}
+
+// A frame and its drawing at once; each returns the frame, for any
+// extra marks.
+function lineChart(canvas, series, x, y) {
+  const frame = chartFrame(canvas, x, y);
+  drawSeries(frame, series);
+  return frame;
+}
+function barChart(canvas, bars, x, y) {
+  const frame = chartFrame(canvas, x, y);
+  drawBars(frame, bars);
+  return frame;
+}
+function heatChart(canvas, columns, rows, colorAt, x, y) {
+  const frame = chartFrame(canvas, x, y);
+  drawHeat(frame, columns, rows, colorAt);
+  return frame;
+}
+
+// The smallest and largest x (k = 0) or y (k = 1) of the points of all
+// the series, leaving out any that aren't numbers.
+function seriesRange(series, k) {
+  let low = Infinity, high = -Infinity;
+  for (const s of series) {
+    for (const point of s.points) {
+      if (!isFinite(point[k])) continue;
+      low = Math.min(low, point[k]);
+      high = Math.max(high, point[k]);
+    }
+  }
+  return [low, high];
+}
+
+
+/* =====================================================================
+   4. THE CHARTS THE SIMS SHARE
+   ===================================================================== */
+
+// Numbers over time: one line for each entry of "lines", { values,
+// color, dashed }, where values[k] is the number at times[k] ("dashed":
+// optional, true for a dashed line, e.g. what theory says). Time goes
+// across, from 0 to the last time, under the word "word" (like "step"),
+// and the numbers go up, from 0 (or the lowest, if below 0) to the
+// largest (at least 1) rounded up to a tick, or to "top" if given (e.g.
+// 100 for a percent).
+function plotOverTime(canvas, times, lines, word, top) {
+  if (times.length < 2) { chartPen(canvas); return; }
+  const series = lines.map(function (line) {
+    return { points: Array.from(line.values, function (v, k) { return [times[k], v]; }), color: line.color, dashed: line.dashed };
+  });
+  const [low, high] = seriesRange(series, 1);
+  return lineChart(canvas, series, { from: 0, to: times[times.length - 1], word: word },
+                   { from: Math.min(0, low), to: top || Math.max(1, high), round: !top });
 }
 
 // One line per color for plotOverTime, from a trace that keeps "count"
@@ -115,32 +510,28 @@ function regionsChart(canvas, times, pieces, count, lineColor, word) {
   plotOverTime(canvas, times, lines, word);
 }
 
-// A histogram of "values" with 60 bars, labeled with the tallest count
-// and the two ends. With "trimmed", the range is the middle 90% of the
-// values, and anything outside goes into the first or last bar.
-function histogram(canvas, values, trimmed) {
-  const pen = chartPen(canvas);
-  if (values.length < 2) return;
-  const w = canvas.clientWidth, h = canvas.clientHeight, top = 12, bottom = h - 14;
-  const sorted = Float64Array.from(values).sort();
+// A histogram of "values" with 60 bars of equal width. With "trimmed",
+// the range is the middle 90% of the values, and anything outside goes
+// into the first or last bar. With "log", the values must be above 0,
+// and the bars are of equal width on a log scale (1, 10, 100, ...
+// evenly spaced), for values from tiny to huge.
+function histogram(canvas, values, trimmed, log) {
+  if (values.length < 2) { chartPen(canvas); return; }
+  const place = log ? Math.log10 : function (v) { return v; };     // where a value goes across ...
+  const value = log ? function (u) { return Math.pow(10, u); } : place;   // ... and back
+  const sorted = Float64Array.from(values, place).sort();
   let lo = trimmed ? sorted[Math.floor(0.05 * (sorted.length - 1))] : sorted[0];
   let hi = trimmed ? sorted[Math.ceil(0.95 * (sorted.length - 1))] : sorted[sorted.length - 1];
   // All (nearly) the same value, like an eigenvalue 1 that rounding
   // spreads by about 1e-15: one bar in the middle, not a bar of noise.
   if (!(hi - lo > 1e-9 * Math.max(1, Math.abs(lo)))) { lo -= 0.5; hi = lo + 1; }
-  const bars = 60, counts = new Array(bars).fill(0);
-  for (const v of sorted) counts[Math.max(0, Math.min(bars - 1, Math.floor((v - lo) / (hi - lo) * bars)))]++;
-
-  const biggest = Math.max(...counts), barWidth = w / bars;
-  pen.fillText(biggest.toLocaleString(), 0, 9);
-  pen.fillText(shortLabel(lo), 0, h - 2);
-  const last = shortLabel(hi);
-  pen.fillText(last, w - pen.measureText(last).width, h - 2);
-  pen.fillStyle = CHART_LINE;
-  counts.forEach(function (c, i) {
-    const barHeight = Math.max(1, (bottom - top) * c / biggest);
-    if (c > 0) pen.fillRect(i * barWidth, bottom - barHeight, Math.max(1, barWidth - 1), barHeight);
+  const BARS = 60, counts = new Array(BARS).fill(0);
+  for (const u of sorted) counts[Math.max(0, Math.min(BARS - 1, Math.floor((u - lo) / (hi - lo) * BARS)))]++;
+  const bars = counts.map(function (count, i) {
+    return { from: value(lo + (hi - lo) * i / BARS), to: value(lo + (hi - lo) * (i + 1) / BARS), value: count };
   });
+  return barChart(canvas, bars, { from: value(lo), to: value(hi), scale: log ? "log" : "linear" },
+                  { from: 0, to: Math.max(...counts), round: true, whole: true });
 }
 
 // How many of "sizes" (whole numbers, at least 1) there are of each
@@ -157,30 +548,17 @@ function powerOfTwoBins(sizes) {
   return bins;
 }
 
-// One bar per entry of "bins" (as from powerOfTwoBins), labeled under it
-// by label(b), the smallest size in bar b. The tallest bar's count is
-// written at the top left, as "most: 120" followed by "word" (e.g.
-// " clusters"). With "logScale", the bars' heights are on a logarithmic
-// scale (log of count + 1), so a power law shows as bars falling evenly.
-function powerOfTwoBars(canvas, bins, word, label, logScale) {
-  const pen = chartPen(canvas);
-  if (bins.length === 0) return;
-  const w = canvas.clientWidth, h = canvas.clientHeight;
-  const most = Math.max(...bins);
-  const top = 14, bottom = h - 14, barWidth = w / bins.length;
-  const tall = function (count) {
-    return logScale ? Math.log10(count + 1) / Math.log10(most + 1) : count / most;
-  };
-  pen.textBaseline = "top";
-  pen.fillText("most: " + most.toLocaleString() + word, 0, 0);
-  pen.textAlign = "center";
-  bins.forEach(function (count, b) {
-    const barHeight = count === 0 ? 0 : Math.max(1, (bottom - top) * tall(count));
-    pen.fillStyle = CHART_LINE;
-    pen.fillRect(b * barWidth + 1, bottom - barHeight, Math.max(1, barWidth - 2), barHeight);
-    pen.fillStyle = CHART_TEXT;
-    pen.fillText(label(b), (b + 0.5) * barWidth, bottom + 2);
-  });
+// One bar per entry of "bins" (as from powerOfTwoBins), numbered under
+// it by the smallest size in it (1, 2, 4, 8, ...), counting "word" (e.g.
+// "clusters") up the left. With "logScale", the counts are on a
+// logarithmic scale (log of count + 1), so a power law shows as bars
+// falling evenly.
+function powerOfTwoBars(canvas, bins, word, logScale) {
+  if (bins.length === 0) { chartPen(canvas); return; }
+  const bars = bins.map(function (count, b) { return { from: b - 0.5, to: b + 0.5, value: count }; });
+  return barChart(canvas, bars,
+    { from: -0.5, to: bins.length - 0.5, whole: true, word: "size", text: function (b) { return shortLabel(Math.pow(2, b), Math.pow(2, b)); } },
+    { from: 0, to: Math.max(...bins), scale: logScale ? "log+1" : "linear", round: !logScale, whole: true, word: word });
 }
 
 // How many regions there are of each size, as bars stacked by color,
@@ -189,92 +567,30 @@ function powerOfTwoBars(canvas, bins, word, label, logScale) {
 // line). "sizes" are the regions' sizes (whole numbers, at least 1),
 // colorOf[r] is region r's color, and colors[c] is how color c is drawn.
 // Every size has its own bar, never merged with others: size s goes
-// from log(s) to log(s + 1) across, so small sizes get wide bars and
-// big ones thin bars packed close together. A bar's height is
-// log(count + 1), and its colors split that height in proportion to
-// their counts: color 0 at the bottom, then 1 on top of it, and so on
-// (so with red and green, green sits on red).
-// The tallest bar's count is written at the top left, followed by
-// "word" (e.g. " regions").
+// from log(s - 1/2) to log(s + 1/2) across, so it sits over its tick,
+// small sizes get wide bars and big ones thin bars packed close
+// together. A bar's height is log(count + 1), and its colors split
+// that height in proportion to their counts: color 0 at the bottom,
+// then 1 on top of it, and so on (so with red and green, green sits on
+// red). "word" says what is counted (e.g. "regions").
 function stackedSizeBars(canvas, sizes, colorOf, colors, word) {
-  const pen = chartPen(canvas);
-  if (sizes.length === 0) return;
-  const w = canvas.clientWidth, h = canvas.clientHeight;
-  const left = 34, top = 18, bottom = h - 14;   // room for the axes' numbers
-
+  if (sizes.length === 0) { chartPen(canvas); return; }
   // counts.get(s)[c] = the number of regions of size s and color c.
   const counts = new Map();
-  let biggest = 1;
+  let biggest = 1, most = 1;
   sizes.forEach(function (size, r) {
     if (!counts.has(size)) counts.set(size, new Array(colors.length).fill(0));
     counts.get(size)[colorOf[r]]++;
     biggest = Math.max(biggest, size);
   });
-  function total(bar) { return bar.reduce(function (a, b) { return a + b; }, 0); }
-  let most = 1;
-  for (const bar of counts.values()) most = Math.max(most, total(bar));
-
-  // Where size s starts across (size biggest + 1 is the right edge),
-  // and how tall a bar of "count" regions is.
-  function across(s) { return left + (w - left) * Math.log(s) / Math.log(biggest + 1); }
-  function tall(count) { return (bottom - top) * Math.log(count + 1) / Math.log(most + 1); }
-
-  // The bars: each color's piece on top of the ones before it.
+  const bars = [];
   counts.forEach(function (bar, size) {
-    const x = across(size), width = across(size + 1) - x;
-    const gap = width >= 4 ? 1 : 0, height = tall(total(bar));
-    let y = bottom;
-    bar.forEach(function (count, c) {
-      if (count === 0) return;
-      const piece = height * count / total(bar);
-      pen.fillStyle = colors[c];
-      pen.fillRect(x + gap, y - piece, Math.max(1, width - 2 * gap), piece);
-      y -= piece;
-    });
+    most = Math.max(most, bar.reduce(function (a, b) { return a + b; }, 0));
+    bars.push({ from: size - 0.5, to: size + 0.5, pieces: bar.map(function (count, c) { return { value: count, color: colors[c] }; }) });
   });
-
-  // The axes: a line up the left side and one along the bottom.
-  pen.strokeStyle = CHART_TEXT;
-  pen.lineWidth = 1;
-  pen.beginPath();
-  pen.moveTo(left - 0.5, top);
-  pen.lineTo(left - 0.5, bottom + 0.5);
-  pen.lineTo(w, bottom + 0.5);
-  pen.stroke();
-
-  // The labels: what the chart counts, the counts 0, 1, 2, 5, 10, ...
-  // up the left side (each with a small tick, skipping any that would
-  // crowd the one below), and the sizes 1, 2, 5, 10, 20, 50, ... under
-  // their bars (skipping any that would crowd the one before).
-  pen.fillStyle = CHART_TEXT;
-  pen.textBaseline = "top";
-  pen.fillText("number of" + word + " (log-log), most: " + most.toLocaleString(), left + 4, 0);
-  pen.textAlign = "right";
-  pen.textBaseline = "middle";
-  let lastY = Infinity;
-  for (let power = 1; power <= most; power *= 10) {
-    for (const count of power === 1 ? [0, 1, 2, 5] : [power, 2 * power, 5 * power]) {
-      if (count > most) break;
-      const y = bottom - tall(count);
-      if (lastY - y < 12) continue;
-      pen.fillText(count.toLocaleString(), left - 6, y);
-      pen.fillRect(left - 4, Math.round(y), 3, 1);
-      lastY = y;
-    }
-  }
-  pen.textAlign = "center";
-  pen.textBaseline = "top";
-  let lastRight = -Infinity;
-  for (let power = 1; power <= biggest; power *= 10) {
-    for (const size of [power, 2 * power, 5 * power]) {
-      if (size > biggest) break;
-      const text = size.toLocaleString(), half = pen.measureText(text).width / 2;
-      const x = Math.min(Math.max((across(size) + across(size + 1)) / 2, left + half), w - half);
-      if (x - half < lastRight + 6) continue;
-      pen.fillText(text, x, bottom + 2);
-      lastRight = x + half;
-    }
-  }
+  return barChart(canvas, bars,
+    { from: 0.5, to: biggest + 0.5, scale: "log", whole: true, word: "size" },
+    { from: 0, to: most, scale: "log+1", whole: true, word: "number of " + word + " (log-log)" });
 }
 
 // Each region (from findRegions, js/sim-domains.js) as a dot: area
@@ -283,42 +599,16 @@ function stackedSizeBars(canvas, sizes, colorOf, colors, word) {
 // thin "border" line around it). Regions with no other color next to
 // them (perimeter 0) are left out.
 function perimeterChart(canvas, regions, colorNames, border) {
-  const pen = chartPen(canvas);
-  const w = canvas.clientWidth, h = canvas.clientHeight;
-  const left = 34, up = 18, bottom = h - 16;
-  let maxArea = 10, maxPerimeter = 10;
+  const points = [], colors = [];
   regions.areas.forEach(function (area, r) {
-    maxArea = Math.max(maxArea, area);
-    maxPerimeter = Math.max(maxPerimeter, regions.perimeters[r]);
+    if (regions.perimeters[r] === 0) return;
+    points.push([area, regions.perimeters[r]]);
+    colors.push(colorNames[regions.color[r]]);
   });
-  const xTop = Math.ceil(Math.log10(maxArea)), yTop = Math.ceil(Math.log10(maxPerimeter));
-  function sx(area) { return left + (w - left - 8) * Math.log10(area) / xTop; }
-  function sy(perimeter) { return bottom - (bottom - up) * Math.log10(perimeter) / yTop; }
-
-  // The axes' marks at 1, 10, 100, ...
-  pen.textAlign = "center";
-  pen.textBaseline = "top";
-  for (let k = 0; k <= xTop; k++) pen.fillText(String(10 ** k), sx(10 ** k), bottom + 3);
-  pen.textAlign = "right";
-  pen.textBaseline = "middle";
-  for (let k = 0; k <= yTop; k++) pen.fillText(String(10 ** k), left - 5, sy(10 ** k));
-  pen.textBaseline = "bottom";
-  pen.fillText("area", w, bottom);
-  pen.textAlign = "left";
-  pen.textBaseline = "top";
-  pen.fillText("perimeter", left + 4, 0);
-
-  pen.lineWidth = 0.5;
-  pen.strokeStyle = border;
-  regions.areas.forEach(function (area, r) {
-    const perimeter = regions.perimeters[r];
-    if (perimeter === 0) return;
-    pen.beginPath();
-    pen.arc(sx(area), sy(perimeter), 2.5, 0, 2 * Math.PI);
-    pen.fillStyle = colorNames[regions.color[r]];
-    pen.fill();
-    pen.stroke();
-  });
+  const series = [{ points: points, dots: true, border: border, color: function (k) { return colors[k]; } }];
+  return lineChart(canvas, series,
+    { from: 1, to: Math.max(10, seriesRange(series, 0)[1]), scale: "log", word: "area" },
+    { from: 1, to: Math.max(10, seriesRange(series, 1)[1]), scale: "log", round: true, word: "perimeter" });
 }
 
 // Each hole that has closed, as a dot: how long it lived (its
@@ -328,96 +618,42 @@ function perimeterChart(canvas, regions, colorNames, border) {
 // and births go from 1 to now. Dots are see-through, so where many fall
 // together the color is darker.
 function persistenceChart(canvas, births, deaths, against, now) {
-  const pen = chartPen(canvas);
-  const w = canvas.clientWidth, h = canvas.clientHeight;
-  const left = 44, up = 18, bottom = h - 16, right = w - 22;
-  let longest = 10;
-  for (let k = 0; k < births.length; k++) longest = Math.max(longest, deaths[k] - births[k]);
-  const xTop = Math.ceil(Math.log10(Math.max(now, 10))), yTop = Math.ceil(Math.log10(longest));
-  function sx(step) { return left + (right - left) * Math.log10(step) / xTop; }
-  function sy(life) { return bottom - (bottom - up) * Math.log10(life) / yTop; }
-
-  // The axes' marks at 1, 10, 100, ...
-  pen.textAlign = "center";
-  pen.textBaseline = "top";
-  for (let k = 0; k <= xTop; k++) pen.fillText((10 ** k).toLocaleString(), sx(10 ** k), bottom + 3);
-  pen.textAlign = "right";
-  pen.textBaseline = "middle";
-  for (let k = 0; k <= yTop; k++) pen.fillText((10 ** k).toLocaleString(), left - 5, sy(10 ** k));
-  pen.textBaseline = "bottom";
-  pen.fillText(against === "death" ? "died at step" : "born at step", w, bottom);
-  pen.textAlign = "left";
-  pen.textBaseline = "top";
-  pen.fillText("lived (steps)", left + 4, 0);
-
-  pen.fillStyle = CHART_LINE;
-  pen.globalAlpha = 0.35;
-  for (let k = 0; k < births.length; k++) {
-    pen.beginPath();
-    pen.arc(sx(against === "death" ? deaths[k] : births[k]), sy(deaths[k] - births[k]), 2.5, 0, 2 * Math.PI);
-    pen.fill();
-  }
-  pen.globalAlpha = 1;
+  const points = Array.from(births, function (born, k) { return [against === "death" ? deaths[k] : born, deaths[k] - born]; });
+  const series = [{ points: points, dots: true, alpha: 0.35 }];
+  return lineChart(canvas, series,
+    { from: 1, to: Math.max(now, 10), scale: "log", word: against === "death" ? "died at step" : "born at step" },
+    { from: 1, to: Math.max(10, seriesRange(series, 1)[1]), scale: "log", round: true, word: "lived (steps)" });
 }
 
-// A number against the step, both on logarithmic scales (1, 10, 100,
-// ... evenly spaced), as a line through the points (steps[k],
-// values[k]) (points with a value or step below 1 are left out). So a
-// power law, value = c step^a, shows as a straight line of slope a.
-// With "slope", a dashed gray guide line of that slope goes through
-// the last point, to compare with. "word" says what the numbers are.
-function logLogChart(canvas, steps, values, word, slope) {
-  const pen = chartPen(canvas);
-  const w = canvas.clientWidth, h = canvas.clientHeight;
-  const left = 44, up = 18, bottom = h - 16, right = w - 22;
-  const points = [];
-  for (let k = 0; k < steps.length; k++) if (steps[k] >= 1 && values[k] >= 1) points.push([steps[k], values[k]]);
-  if (points.length < 2) return;
-  let most = 10, last = 10;
-  for (const [step, value] of points) { most = Math.max(most, value); last = Math.max(last, step); }
-  const xTop = Math.ceil(Math.log10(last)), yTop = Math.ceil(Math.log10(most));
-  function sx(step) { return left + (right - left) * Math.log10(step) / xTop; }
-  function sy(value) { return bottom - (bottom - up) * Math.log10(value) / yTop; }
-
-  // The axes' marks at 1, 10, 100, ...
-  pen.textAlign = "center";
-  pen.textBaseline = "top";
-  for (let k = 0; k <= xTop; k++) pen.fillText((10 ** k).toLocaleString(), sx(10 ** k), bottom + 3);
-  pen.textAlign = "right";
-  pen.textBaseline = "middle";
-  for (let k = 0; k <= yTop; k++) pen.fillText((10 ** k).toLocaleString(), left - 5, sy(10 ** k));
-  pen.textBaseline = "bottom";
-  pen.fillText("step", w, bottom);
-  pen.textAlign = "left";
-  pen.textBaseline = "top";
-  pen.fillText(word + " (log-log)", left + 4, 0);
-
-  // The guide: value = c step^slope through the last point, drawn from
-  // step 1 (or where it comes in at the bottom) to the last step.
-  pen.save();
-  pen.beginPath();
-  pen.rect(left, up, right - left, bottom - up);
-  pen.clip();
-  if (slope) {
-    const [s1, v1] = points[points.length - 1];
-    pen.beginPath();
-    pen.moveTo(sx(1), sy(v1 / Math.pow(s1, slope)));
-    pen.lineTo(sx(s1), sy(v1));
-    pen.strokeStyle = CHART_TEXT;
-    pen.lineWidth = 1;
-    pen.setLineDash([4, 3]);
-    pen.stroke();
-    pen.setLineDash([]);
-  }
-  pen.beginPath();
-  points.forEach(function ([step, value], k) {
-    if (k === 0) pen.moveTo(sx(step), sy(value)); else pen.lineTo(sx(step), sy(value));
+// Numbers against numbers, both on logarithmic scales (1, 10, 100, ...
+// evenly spaced), so a power law, y = c x^a, shows as a straight line of
+// slope a. Each entry of "series" is as for drawSeries (a line, or
+// dots); points with a number 0 or less are left out. "xWord" and
+// "yWord" say what the numbers are. With "slope", a dashed gray guide
+// line of that slope goes through the last point of the first series,
+// to compare with.
+function logLogChart(canvas, series, xWord, yWord, slope) {
+  const positive = series.map(function (s) {
+    return Object.assign({}, s, { points: s.points.filter(function (p) { return p[0] > 0 && p[1] > 0; }) });
   });
-  pen.strokeStyle = CHART_LINE;
-  pen.lineWidth = 1.5;
-  pen.stroke();
-  pen.restore();
+  if (positive[0].points.length < 2) { chartPen(canvas); return; }
+  const [x0, x1] = seriesRange(positive, 0), [y0, y1] = seriesRange(positive, 1);
+  if (slope) positive.unshift(guideLine(positive[0].points, slope, x0));
+  return lineChart(canvas, positive, { from: x0, to: x1, scale: "log", word: xWord },
+                   { from: y0, to: y1, scale: "log", round: true, word: yWord });
 }
+
+// The line y = c x^slope through the last of "points", from x = "from"
+// to that point: dashed and gray, as a guide.
+function guideLine(points, slope, from) {
+  const [x1, y1] = points[points.length - 1];
+  return { points: [[from, y1 * Math.pow(from / x1, slope)], [x1, y1]], color: CHART_TEXT, dashed: true, width: 1 };
+}
+
+
+/* =====================================================================
+   5. ZOOMING IN TIME
+   ===================================================================== */
 
 // Zooming a chart in time, like the pictures: on the chart,
 //   mouse wheel, or pinch   zoom in or out around the pointer
@@ -427,7 +663,8 @@ function logLogChart(canvas, steps, values, word, slope) {
 // "redraw" draws the chart again. When drawing, the chart asks
 // shownTimes(zoom, first, last), where first .. last is the whole run,
 // for the stretch to draw, and sets zoom.left and zoom.right to where
-// time 'from' and time 'to' go on the canvas (in screen pixels).
+// time 'from' and time 'to' go on the canvas (in screen pixels): the
+// frame's left and right.
 // While the chart shows the whole run, it keeps growing with the run;
 // zoomed in, it stays on the same stretch of time.
 function chartZoom(canvas, redraw) {
@@ -501,19 +738,17 @@ function shownTimes(zoom, first, last) {
   return [zoom.from, zoom.to];
 }
 
+
+/* =====================================================================
+   6. NUMBERS
+   ===================================================================== */
+
 // The nicest of 1, 2, 5, 10, 20, 50, ... (times a power of 10) that is
 // at least "rough": the step between grid lines on an axis.
 function niceStep(rough) {
   const power = Math.pow(10, Math.floor(Math.log10(rough)));
   for (const k of [1, 2, 5, 10]) if (k * power >= rough) return k * power;
   return 10 * power;
-}
-
-// A number short enough for an axis: 3, 0.25, 1.5e+6.
-function shortLabel(v) {
-  if (Math.abs(v) < 1e-12) return "0";
-  if (Math.abs(v) >= 1e5 || Math.abs(v) < 1e-3) return v.toExponential(1);
-  return String(Number(v.toPrecision(4)));
 }
 
 // A number with 4 significant digits: 1.234, 0.0001234 -> 1.234e-4.

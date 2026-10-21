@@ -481,46 +481,24 @@ function clustersAt(k) { return k === 0 ? (KIND === "site" ? 0 : domain.n) : swe
 // value once k elements are open. A dot marks the current p, and a
 // dashed line the critical point p_c, when it is known.
 function drawCurve(canvas, valueAt, label) {
-  const pen = chartPen(canvas);
-  const w = canvas.clientWidth, h = canvas.clientHeight;
-  const left = 44, up = 14, bottom = h - 16, POINTS = 400;
-  const values = [];
-  for (let j = 0; j <= POINTS; j++) values.push(valueAt(openAt(swept, j / POINTS)));
-  const top = Math.max(1e-9, ...values);
-  const sx = function (t) { return left + (w - left - 6) * t; };
-  const sy = function (value) { return bottom - (bottom - up) * value / top; };
-
-  pen.textAlign = "right";
-  pen.textBaseline = "middle";
-  pen.fillText(shortLabel(top), left - 5, up);
-  pen.fillText("0", left - 5, bottom);
-  pen.textBaseline = "top";
-  pen.textAlign = "left";
-  pen.fillText("p = 0", left, bottom + 3);
-  pen.textAlign = "right";
-  pen.fillText("1", w - 6, bottom + 3);
-  pen.textAlign = "left";
-  pen.fillText(label, left + 4, 0);
-
+  const POINTS = 400, points = [];
+  for (let j = 0; j <= POINTS; j++) points.push([j / POINTS, valueAt(openAt(swept, j / POINTS))]);
+  const frame = lineChart(canvas, [{ points: points }], { from: 0, to: 1, word: "p" },
+                          { from: 0, to: Math.max(1e-9, seriesRange([{ points: points }], 1)[1]), round: true, word: label });
+  const pen = frame.pen;
   const pc = criticalPoint();
   if (pc !== null) {
     pen.setLineDash([3, 3]);
     pen.strokeStyle = CHART_TEXT;
     pen.lineWidth = 1;
-    pen.beginPath(); pen.moveTo(sx(pc), up); pen.lineTo(sx(pc), bottom); pen.stroke();
+    pen.beginPath(); pen.moveTo(frame.sx(pc), frame.up); pen.lineTo(frame.sx(pc), frame.bottom); pen.stroke();
     pen.setLineDash([]);
-    pen.textAlign = "center";
-    pen.fillText("p_c", sx(pc), bottom + 3);
+    pen.textAlign = "left";
+    pen.textBaseline = "top";
+    pen.fillText("p_c", frame.sx(pc) + 3, frame.up);
   }
   pen.beginPath();
-  values.forEach(function (value, j) {
-    if (j === 0) pen.moveTo(sx(0), sy(value)); else pen.lineTo(sx(j / POINTS), sy(value));
-  });
-  pen.strokeStyle = CHART_LINE;
-  pen.lineWidth = 1.5;
-  pen.stroke();
-  pen.beginPath();
-  pen.arc(sx(p), sy(valueAt(openAt(swept, p))), 4, 0, 2 * Math.PI);
+  pen.arc(frame.sx(p), frame.sy(valueAt(openAt(swept, p))), 4, 0, 2 * Math.PI);
   pen.fillStyle = CHART_LINE;
   pen.fill();
 }
@@ -534,7 +512,7 @@ function drawSizesChart() {
   for (let v = 0; v < domain.n; v++) {
     if (result.root[v] === v && inCluster(v)) sizes.push(result.size[v]);
   }
-  powerOfTwoBars(byId("sizes-chart"), powerOfTwoBins(sizes), " clusters", function (b) { return shortLabel(2 ** b); });
+  powerOfTwoBars(byId("sizes-chart"), powerOfTwoBins(sizes), "clusters");
 }
 
 // The critical point for the domain in use: for a box or torus, where

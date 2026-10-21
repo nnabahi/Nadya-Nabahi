@@ -18,7 +18,7 @@
        which run in a second thread (a "Web Worker"), and draws every
        coloring they send back, with the statistics.
    Small helpers used by every sim page (byId, readWhole, ...) are in
-   js/sim-page.js, the charts' (chartPen, ...) in js/sim-charts.js, and
+   js/sim-page.js, the charts (stackedSizeBars, ...) in js/sim-charts.js, and
    moving and zooming the picture in js/sim-view.js.
 
    The file is split into numbered sections:
@@ -671,7 +671,7 @@ function drawInterfaceChart() {
 // How many regions there are of each size, one bar per size, stacked by
 // color, on a log-log chart (stackedSizeBars, js/sim-charts.js).
 function drawAreasChart(regions) {
-  stackedSizeBars(byId("areas-chart"), regions.areas, regions.color, colorNames, " regions");
+  stackedSizeBars(byId("areas-chart"), regions.areas, regions.color, colorNames, "regions");
 }
 
 /* =====================================================================

@@ -17,7 +17,7 @@
        highlights its cluster: the cells joined to it through tiles of
        its color (js/sim-highlight.js).
    Small helpers used by every sim page (byId, readWhole, ...) are in
-   js/sim-page.js, and the charts' (chartPen, ...) in js/sim-charts.js.
+   js/sim-page.js, and the charts (lineChart, ...) in js/sim-charts.js.
 
    The file is split into numbered sections:
      1. Settings you might want to change
@@ -477,32 +477,13 @@ function drawClustersChart() {
 // One line per tile (in its color) and a gray one for gaps: the share of
 // the cells, from 0 to 1, against the number of moves.
 function drawCoverChart() {
-  const canvas = byId("cover-chart");
-  const pen = chartPen(canvas);
-  const w = canvas.clientWidth, h = canvas.clientHeight;
-  if (trace.moves.length < 2) return;
-  const lastMove = Math.max(trace.moves[trace.moves.length - 1], 1);
-  const left = 30, up = 6, bottom = h - 16;
-  pen.textAlign = "right";
-  pen.textBaseline = "middle";
-  pen.fillText("1", left - 6, up);
-  pen.fillText("0", left - 6, bottom);
-  pen.textBaseline = "bottom";
-  pen.fillText(lastMove.toLocaleString() + " moves", w, h);
-  pen.textAlign = "left";
-  pen.fillText("0", left, h);
+  if (trace.moves.length < 2) { chartPen(byId("cover-chart")); return; }
   const lineColors = tiles.map(function (t, k) { return defaultColor(k, tiles.length); }).concat([CHART_TEXT]);
-  lineColors.forEach(function (color, k) {
-    pen.beginPath();
-    trace.moves.forEach(function (m, i) {
-      const sx = left + (w - left) * m / lastMove;
-      const sy = bottom - (bottom - up) * trace.shares[i][k];
-      if (i === 0) pen.moveTo(sx, sy); else pen.lineTo(sx, sy);
-    });
-    pen.strokeStyle = color;
-    pen.lineWidth = 1.5;
-    pen.stroke();
+  const series = lineColors.map(function (color, k) {
+    return { points: trace.moves.map(function (m, i) { return [m, trace.shares[i][k]]; }), color: color };
   });
+  lineChart(byId("cover-chart"), series, { from: 0, to: Math.max(trace.moves[trace.moves.length - 1], 1), word: "moves" },
+            { from: 0, to: 1 });
 }
 
 

@@ -1144,44 +1144,20 @@ function meanRadius(radii, from, to) {
 // radius over that sample's average: blue below, white at 1, red above
 // (full color at 25% off). Gray: no site that way yet.
 function radiusHeatChart(canvas, times, radii, bins) {
-  const pen = chartPen(canvas);
-  const w = canvas.clientWidth, h = canvas.clientHeight;
   const columns = times.length;
-  if (columns < 2) return;
-  const left = 44, up = 6, bottom = h - 16;
-  const tiny = document.createElement("canvas");   // one pixel per sample and direction
-  tiny.width = columns;
-  tiny.height = bins;
-  const tinyPen = tiny.getContext("2d");
-  const image = tinyPen.createImageData(columns, bins);
+  if (columns < 2) { chartPen(canvas); return; }
   const blue = hexToRGB("#3b6fb6"), red = hexToRGB("#c8402f"), gray = hexToRGB(EMPTY);
-  for (let j = 0; j < columns; j++) {
-    const average = meanRadius(radii, j * bins, (j + 1) * bins);
-    for (let k = 0; k < bins; k++) {
-      const r = radii[j * bins + k];
-      let rgb = gray;
-      if (r > 0) {
-        const off = Math.max(-1, Math.min(1, (r / average - 1) / 0.25));   // -1 .. 1
-        const to = off < 0 ? blue : red, a = Math.abs(off);
-        rgb = [0, 1, 2].map(function (c) { return Math.round(255 + (to[c] - 255) * a); });
-      }
-      const p = 4 * ((bins - 1 - k) * columns + j);   // -180 degrees at the bottom
-      image.data[p] = rgb[0]; image.data[p + 1] = rgb[1]; image.data[p + 2] = rgb[2]; image.data[p + 3] = 255;
-    }
+  const averages = times.map(function (t, j) { return meanRadius(radii, j * bins, (j + 1) * bins); });
+  function colorAt(j, k) {
+    const r = radii[j * bins + k];
+    if (r === 0) return gray;
+    const off = Math.max(-1, Math.min(1, (r / averages[j] - 1) / 0.25));   // -1 .. 1
+    const to = off < 0 ? blue : red, a = Math.abs(off);
+    return [0, 1, 2].map(function (c) { return Math.round(255 + (to[c] - 255) * a); });
   }
-  tinyPen.putImageData(image, 0, 0);
-  pen.imageSmoothingEnabled = false;
-  pen.drawImage(tiny, left, up, w - left, bottom - up);
-  // The labels: directions on the left, steps under.
-  pen.textAlign = "right";
-  pen.textBaseline = "middle";
-  for (const [angle, label] of [[180, "180°"], [90, "90°"], [0, "0°"], [-90, "−90°"], [-180, "−180°"]]) {
-    pen.fillText(label, left - 5, up + (bottom - up) * (180 - angle) / 360);
-  }
-  pen.textBaseline = "bottom";
-  pen.fillText("step " + times[columns - 1].toLocaleString(), w, h);
-  pen.textAlign = "left";
-  pen.fillText("0", left, h);
+  // Directions up the left (-180 degrees at the bottom), steps along the bottom.
+  heatChart(canvas, columns, bins, colorAt, { from: 0, to: times[columns - 1], word: "step" },
+            { from: -180, to: 180, step: 90, text: function (angle) { return shortLabel(angle) + "°"; } });
 }
 
 /* =====================================================================

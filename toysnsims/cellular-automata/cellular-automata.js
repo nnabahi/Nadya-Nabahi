@@ -593,7 +593,7 @@ function showStats() {
 
   // The clusters' areas (powerOfTwoBars, js/sim-charts.js), and
   // perimeter against area (perimeterChart).
-  powerOfTwoBars(byId("areas-chart"), powerOfTwoBins(regions.areas), " clusters", function (k) { return String(2 ** k); });
+  powerOfTwoBars(byId("areas-chart"), powerOfTwoBins(regions.areas), "clusters");
   perimeterChart(byId("perimeter-chart"), regions, colorNames, BORDER);
 }
 

@@ -18,7 +18,7 @@
        which runs in a second thread (a "Web Worker"), and draws every
        coloring it sends back, with the statistics.
    Small helpers used by every sim page (byId, readWhole, ...) are in
-   js/sim-page.js, the charts' (chartPen, ...) in js/sim-charts.js, and
+   js/sim-page.js, the charts (barChart, lineChart, ...) in js/sim-charts.js, and
    moving and zooming the picture in js/sim-view.js.
 
    The file is split into numbered sections:
@@ -639,30 +639,26 @@ function largestFirst(sizes) {
 }
 
 // One bar per color, as tall as its number of cells, largest first.
+// The bars go from the largest on the left to the smallest on the
+// right; each keeps its own color, so you can follow a color as it
+// grows and shrinks. A highlighted color's bar stays bright.
+let sizesFrame = null;     // where the bars are drawn, for clicks
+
 function drawSizes() {
-  const canvas = byId("sizes-chart");
-  const pen = chartPen(canvas);
-  const w = canvas.clientWidth, h = canvas.clientHeight;
   const sizes = colorSizes();
-  const biggest = Math.max(...sizes);
-  pen.textBaseline = "top";
-  pen.fillText("largest: " + biggest + " cells", 0, 0);
-  // The bars go from the largest on the left to the smallest on the
-  // right; each keeps its own color, so you can follow a color as it
-  // grows and shrinks. A highlighted color's bar stays bright.
-  const top = 16, barWidth = w / N;
-  largestFirst(sizes).forEach(function (c, place) {
-    const barHeight = Math.max(1, (h - top) * sizes[c] / biggest);
-    pen.fillStyle = shade(c);
-    pen.fillRect(place * barWidth + 1, h - barHeight, Math.max(1, barWidth - 2), barHeight);
+  const bars = largestFirst(sizes).map(function (c, place) {
+    return { from: place + 0.5, to: place + 1.5, value: sizes[c], color: shade(c) };
   });
+  sizesFrame = barChart(byId("sizes-chart"), bars,
+    { from: 0.5, to: N + 0.5, whole: true, word: "largest first" },
+    { from: 0, to: Math.max(...sizes), round: true, whole: true, word: "cells" });
 }
 
 // Clicking a bar highlights its color (section 5b).
 byId("sizes-chart").addEventListener("click", function (event) {
-  if (!colors) return;
-  const box = this.getBoundingClientRect();
-  const place = Math.floor((event.clientX - box.left) / (box.width / N));
+  if (!colors || !sizesFrame) return;
+  const x = event.clientX - this.getBoundingClientRect().left;
+  const place = Math.floor((x - sizesFrame.left) / ((sizesFrame.right - sizesFrame.left) / N));
   const order = largestFirst(colorSizes());
   if (place >= 0 && place < N) highlight(order[place]);
 });
@@ -707,48 +703,21 @@ function keepAlphas(alphas) {
 const traceZoom = chartZoom(byId("trace-chart"), drawTrace);
 
 function drawTrace() {
-  const canvas = byId("trace-chart");
-  const pen = chartPen(canvas);
-  const w = canvas.clientWidth, h = canvas.clientHeight;
-  if (trace.length < 2) return;
+  if (trace.length < 2) { chartPen(byId("trace-chart")); return; }
   const [from, to] = shownTimes(traceZoom, trace[0][0], trace[trace.length - 1][0]);
 
   // The points in the stretch shown, plus one on each side, so the line
-  // runs all the way to both edges. The numbers on the left are the
-  // lowest and highest of these points.
+  // runs all the way to both edges. The numbers on the left go from the
+  // lowest to the highest of these points.
   let firstK = 0, lastK = trace.length - 1;
   while (firstK + 1 < trace.length && trace[firstK + 1][0] <= from) firstK++;
   while (lastK - 1 >= 0 && trace[lastK - 1][0] >= to) lastK--;
-  const points = trace.slice(firstK, lastK + 1);
-  let low = Infinity, high = -Infinity;
-  for (const p of points) { low = Math.min(low, p[1]); high = Math.max(high, p[1]); }
-
-  const left = 40, top = 6, bottom = h - 16;
-  traceZoom.left = left;
-  traceZoom.right = w;
-  pen.textAlign = "right";
-  pen.textBaseline = "middle";
-  pen.fillText(String(high), left - 6, top);
-  pen.fillText(String(low), left - 6, bottom);
-  pen.textBaseline = "bottom";
-  pen.fillText("moves " + Math.round(to).toLocaleString(), w, h);
-  pen.textAlign = "left";
-  pen.fillText(Math.round(from).toLocaleString(), left, h);
-
-  pen.save();
-  pen.beginPath();
-  pen.rect(left, 0, w - left, bottom + 1);
-  pen.clip();                                   // keep the line off the numbers
-  pen.beginPath();
-  points.forEach(function (p, k) {
-    const sx = left + (w - left) * (p[0] - from) / Math.max(1e-9, to - from);
-    const sy = bottom - (bottom - top) * (p[1] - low) / Math.max(1, high - low);
-    if (k === 0) pen.moveTo(sx, sy); else pen.lineTo(sx, sy);
-  });
-  pen.strokeStyle = CHART_LINE;
-  pen.lineWidth = 1.5;
-  pen.stroke();
-  pen.restore();
+  const series = [{ points: trace.slice(firstK, lastK + 1) }];
+  const [low, high] = seriesRange(series, 1);
+  const frame = lineChart(byId("trace-chart"), series, { from: from, to: to, word: "moves" },
+                          { from: low, to: high, round: true, whole: true });
+  traceZoom.left = frame.left;
+  traceZoom.right = frame.right;
 }
 
 
@@ -761,50 +730,22 @@ function drawTrace() {
 const alphaZoom = chartZoom(byId("alpha-chart"), drawAlphas);
 
 function drawAlphas() {
-  const canvas = byId("alpha-chart");
-  const pen = chartPen(canvas);
-  const w = canvas.clientWidth, h = canvas.clientHeight;
-  if (alphaTrace.length < 2) return;
+  if (alphaTrace.length < 2) { chartPen(byId("alpha-chart")); return; }
   const [from, to] = shownTimes(alphaZoom, alphaTrace[0][0], alphaTrace[alphaTrace.length - 1][0]);
-
-  const left = 40, top = 6, bottom = h - 16;
-  alphaZoom.left = left;
-  alphaZoom.right = w;
-  const yOf = function (alpha) { return bottom - (bottom - top) * alpha; };
-  pen.textAlign = "right";
-  pen.textBaseline = "middle";
-  pen.fillText("1", left - 6, top);
-  pen.fillText("0", left - 6, bottom);
-  pen.textBaseline = "bottom";
-  pen.fillText("moves " + Math.round(to).toLocaleString(), w, h);
-  pen.textAlign = "left";
-  pen.fillText(Math.round(from).toLocaleString(), left, h);
-
-  pen.save();
-  pen.beginPath();
-  pen.rect(left, 0, w - left, bottom + 1);
-  pen.clip();                                   // keep the dots off the numbers
-  pen.fillStyle = CHART_LINE;
-  pen.globalAlpha = 0.5;                        // see-through, so crowded dots show darker
-  for (const p of alphaTrace) {
-    if (p[0] < from || p[0] > to) continue;
-    const sx = left + (w - left) * (p[0] - from) / Math.max(1e-9, to - from);
-    pen.fillRect(sx - 1, yOf(p[1]) - 1, 2, 2);
-  }
-  pen.restore();
-
-  // The average alpha, dashed, with its value written above it.
   const average = alphaSum / alphaCount;
-  pen.strokeStyle = CHART_TEXT;
-  pen.setLineDash([4, 3]);
-  pen.beginPath();
-  pen.moveTo(left, yOf(average));
-  pen.lineTo(w, yOf(average));
-  pen.stroke();
-  pen.setLineDash([]);
+  // The dots are see-through, so crowded dots show darker.
+  const frame = lineChart(byId("alpha-chart"), [
+    { points: alphaTrace, dots: true, radius: 1, alpha: 0.5 },
+    { points: [[from, average], [to, average]], color: CHART_TEXT, dashed: true, width: 1 },
+  ], { from: from, to: to, word: "moves" }, { from: 0, to: 1 });
+  alphaZoom.left = frame.left;
+  alphaZoom.right = frame.right;
+
+  // The average alpha's value, written above its dashed line.
+  const pen = frame.pen;
   pen.textAlign = "right";
   pen.textBaseline = "bottom";
-  pen.fillText("average " + average.toFixed(3), w, Math.max(top + 12, yOf(average) - 2));
+  pen.fillText("average " + average.toFixed(3), frame.right, Math.max(frame.up + 12, frame.sy(average) - 2));
 }
 
 
