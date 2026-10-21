@@ -68,6 +68,8 @@
      paintDomain(...)            whichever of these fits the domain's cells
      screenCopies, nearScreen    where the polygons go on the screen (and on a
                                  torus, each copy of the picture that shows)
+     cellLinesPath, cellDotsPath lines between neighbors' middles, and dots on
+                                 middles (a tree, a walk), on every copy
      zoomBy, slideCells, resetView   zoom around a point, move; back to the start
      cellUnder, cellAtEvent      the cell under the pointer
    Moving, zooming and clicking either kind of picture:
@@ -485,6 +487,64 @@ function screenCopies(view, d) {
 function nearScreen(view, x, y) {
   const margin = 4 * view.cell;
   return x >= view.left - margin && x <= view.left + view.width + margin && y >= -margin && y <= view.height + margin;
+}
+
+// Lines from the middle of a cell of domain d to the middle of a
+// neighbor, after fitPicture, on every copy of the picture that shows
+// (screenCopies), as one path to stroke (or several, for several
+// colors). addLines(line) calls line(v, w) once for each line, from
+// cell v to its neighbor w. On a torus the line goes to the copy of w
+// nearest v, so a line across the torus's edge doesn't cross the whole
+// picture. (A spanning tree, or a walk: Connected Coloring, Uniform
+// Spanning Tree.) Also sets view.cell.
+function cellLinesPath(view, d, addLines) {
+  const middles = cellMiddles(d), steps = d.wrap ? torusSteps(d) : null;   // (js/sim-domains.js)
+  const ends = [];
+  addLines(function (v, w) { ends.push(v, w); });
+  const path = new Path2D();
+  for (const { sx, sy } of screenCopies(view, d)) {
+    for (let k = 0; k < ends.length; k += 2) {
+      const a = middles[ends[k]], x = sx(a[0]), y = sy(a[1]);
+      if (!nearScreen(view, x, y)) continue;
+      const b = nearestCopy(middles[ends[k + 1]], a, steps);
+      path.moveTo(x, y);
+      path.lineTo(sx(b[0]), sy(b[1]));
+    }
+  }
+  return path;
+}
+
+// Dots "radius" pixels big on the middles of the cells "cells" of
+// domain d, on every copy of the picture that shows, as one path to
+// fill. (A root, or the head of a walk.)
+function cellDotsPath(view, d, cells, radius) {
+  const middles = cellMiddles(d), path = new Path2D();
+  for (const { sx, sy } of screenCopies(view, d)) {
+    for (const v of cells) {
+      const x = sx(middles[v][0]), y = sy(middles[v][1]);
+      if (!nearScreen(view, x, y)) continue;
+      path.moveTo(x + radius, y);
+      path.arc(x, y, radius, 0, 2 * Math.PI);
+    }
+  }
+  return path;
+}
+
+// The copy of the point p nearest the point "from", on a torus that
+// repeats by the two steps "steps" (torusSteps; null off a torus: p
+// itself).
+function nearestCopy(p, from, steps) {
+  if (!steps) return p;
+  const [across, up] = steps;
+  let best = p, far = Infinity;
+  for (let a = -1; a <= 1; a++) {
+    for (let b = -1; b <= 1; b++) {
+      const q = [p[0] + a * across[0] + b * up[0], p[1] + a * across[1] + b * up[1]];
+      const d = Math.hypot(q[0] - from[0], q[1] - from[1]);
+      if (d < far) { far = d; best = q; }
+    }
+  }
+  return best;
 }
 
 // The copies of domain d's picture that show, as the shift [du, dw] of

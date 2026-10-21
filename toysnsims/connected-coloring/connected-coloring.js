@@ -82,7 +82,7 @@ let startShape = "";           // what the start was: "rectangles", "blocks" or 
 
 // The latest coloring and numbers from the chain.
 let colors = null;             // colors[v] = color of cell v
-let latest = null;             // the numbers, and the run so far (section 5 of connected-coloring-chain.js)
+let latest = null;             // the numbers, and the run so far (section 4 of connected-coloring-chain.js)
 let highlighted = -1;          // the color shown highlighted, or -1 for none (section 5b)
 
 
@@ -180,12 +180,13 @@ function compactStart(d, count) {
    4. RUNNING THE CHAIN
    ---------------------------------------------------------------------
    The chain is the function chainWorker() in connected-coloring-chain.js,
-   with the trace (js/sim-worker.js) copied in for the charts.
+   with Wilson's algorithm and the tree counter (js/sim-spanning.js)
+   copied in, and the trace (js/sim-worker.js) for the charts.
    runInWorker (js/sim-page.js) runs it in a second thread, a "Web
    Worker", so the page never freezes. Watching each move, a message
    carries the move's film, shown first (section 5c).
    ===================================================================== */
-const sim = runInWorker(chainWorker, [newTrace, keepSample], function (message) {
+const sim = runInWorker(chainWorker, [newWilson, newTreeCounter, newTrace, keepSample], function (message) {
   if (message.film && watching) startFilm(message); else useMessage(message);
 });
 
@@ -350,7 +351,7 @@ connectPicture(view, {
      4. the coin: the pieces get their new colors;
      5. accept or reject, with alpha: a rejected move puts the old
         colors back.
-   The chain (connected-coloring-chain.js, section 5) sends each move's
+   The chain (connected-coloring-chain.js, section 4) sends each move's
    "film" and waits for "next" before making another one, so the moves
    are the same ones as without watching. The Steps slider sets how
    many steps of the walk show per second; Pause stops in the middle of
@@ -371,15 +372,14 @@ function startFilm(message) {
     pair: log.pair, walks: log.walks, root: log.root, cut: log.cut,
     stepping: !player.playing,          // from the Step button: show it all, even paused
     shown: colors.slice(),              // the colors on screen
-    middles: cellMiddles(domain),
-    parent: new Int32Array(domain.n).fill(-1),   // the tree so far: each cell's next cell toward the root
-    inTree: new Uint8Array(domain.n),
-    place: new Int32Array(domain.n).fill(-1),    // where each cell is in "path", or -1
-    path: [],                           // the walk so far, with its loops erased
-    walk: 0, step: 0,                   // which walk, and which step of it
+    walk: 0, step: 1,                   // which walk, and which of its cells comes next
     stage: "pick", wait: stopTime(), owed: 0, last: performance.now(),
   };
-  film.inTree[film.root] = 1;
+  // Wilson's algorithm again (newWilson, js/sim-spanning.js), each walk
+  // going where the chain's walk went: wilson.parent is the tree so far,
+  // and wilson.path the walk so far, with its loops erased.
+  film.wilson = newWilson(domain.n, function () { return film.walks[film.walk][film.step++]; });
+  film.wilson.start([film.root], film.walks.map(function (walk) { return walk[0]; }));
   showFilmInfo();
   requestAnimationFrame(playFilm);
 }
@@ -429,32 +429,14 @@ function runFilm(seconds) {
 }
 
 // One step of Wilson's algorithm: start the next walk, or take one
-// step of this one, erasing the loop it closes, or join the tree.
+// step of this one, erasing the loop it closes, or join the tree. When
+// the walk joins the tree, the next walk is next.
 function walkStep() {
-  const walk = film.walks[film.walk], path = film.path, place = film.place;
-  if (path.length === 0) {                        // a new walk starts
-    place[walk[0]] = 0;
-    path.push(walk[0]);
+  film.wilson.step();
+  if (!film.wilson.newWalk && film.wilson.path.length === 0) {
+    film.walk++;
     film.step = 1;
-  } else {
-    const v = walk[film.step++];
-    if (film.inTree[v]) {                         // it hit the tree: the path joins it
-      path.push(v);
-      for (let k = 0; k + 1 < path.length; k++) {
-        film.parent[path[k]] = path[k + 1];
-        film.inTree[path[k]] = 1;
-        place[path[k]] = -1;
-      }
-      path.length = 0;
-      film.walk++;
-      if (film.walk === film.walks.length) { film.stage = "cut"; film.wait = stopTime(); }
-    } else if (place[v] >= 0) {                   // back on its own path: erase the loop
-      for (let k = place[v] + 1; k < path.length; k++) place[path[k]] = -1;
-      path.length = place[v] + 1;
-    } else {
-      place[v] = path.length;
-      path.push(v);
-    }
+    if (film.walk === film.walks.length) { film.stage = "cut"; film.wait = stopTime(); }
   }
   showFilmInfo();
 }
@@ -467,10 +449,8 @@ function showFilmInfo() {
   let text = "Move " + f.message.proposed.toLocaleString() + ": ";
   if (f.stage === "pick") text += name + " picked, " + cells + " cells.";
   else if (f.stage === "walk") {
-    let inTree = 0;
-    for (let v = 0; v < domain.n; v++) inTree += f.inTree[v];
     text += "a random spanning tree of " + name + " (Wilson's algorithm): walk " +
-      Math.min(f.walk + 1, f.walks.length) + " of " + f.walks.length + ", " + inTree + " of " + cells + " cells in the tree.";
+      Math.min(f.walk + 1, f.walks.length) + " of " + f.walks.length + ", " + f.wilson.joined + " of " + cells + " cells in the tree.";
   } else if (f.stage === "cut") text += "one random edge of the tree is cut, leaving two pieces.";
   else if (f.stage === "recolor") text += "a fair coin gives the two pieces their colors.";
   else text += "α = " + niceNumber(alpha) + ", " +
@@ -478,84 +458,45 @@ function showFilmInfo() {
   byId("highlight-info").textContent = text;
 }
 
-// The middle of every cell of domain d, in the picture (cellMiddle,
-// js/sim-domains.js), worked out once per domain.
-function cellMiddles(d) {
-  if (d.middles) return d.middles;
-  d.middles = [];
-  for (let v = 0; v < d.n; v++) d.middles.push(cellMiddle(d, v));
-  return d.middles;
-}
-
-// Where to draw cell w's middle when coming from the point "from": on a
-// torus, the copy of it nearest "from" (so a line to a neighbor across
-// the torus's edge doesn't cross the whole picture).
-function nearestMiddle(w, from) {
-  const [u, h] = film.middles[w];
-  if (!domain.wrap) return [u, h];
-  const [across, up] = torusSteps(domain);       // (js/sim-domains.js)
-  let best = [u, h], far = Infinity;
-  for (let a = -1; a <= 1; a++) {
-    for (let b = -1; b <= 1; b++) {
-      const p = [u + a * across[0] + b * up[0], h + a * across[1] + b * up[1]];
-      const d = Math.hypot(p[0] - from[0], p[1] - from[1]);
-      if (d < far) { far = d; best = p; }
-    }
-  }
-  return best;
-}
-
 // The tree (black), the cut edge (red, only while it is cut), and the
-// walk's path (white, with a dot at its head), on every copy that shows.
+// walk's path (white, with a dot at its head), on every copy that shows
+// (cellLinesPath and cellDotsPath, js/sim-view.js).
 function drawFilm(pen) {
-  const f = film, copies = screenCopies(view, domain);   // (js/sim-view.js; sets view.cell)
-  const width = Math.max(1.5, view.cell * 0.18);
-  pen.lineCap = pen.lineJoin = "round";
-  for (const { sx, sy } of copies) {
-    const line = function (path, a, b) {
-      path.moveTo(sx(a[0]), sy(a[1]));
-      path.lineTo(sx(b[0]), sy(b[1]));
-    };
-    const tree = new Path2D(), cut = new Path2D(), walk = new Path2D();
+  const f = film, tree = f.wilson.parent, path = f.wilson.path;
+  const isCut = function (v) { return v === f.cut[0] && tree[v] === f.cut[1]; };
+  const treeLines = cellLinesPath(view, domain, function (line) {
     for (let v = 0; v < domain.n; v++) {
-      const p = f.parent[v];
-      if (p === -1) continue;
-      const isCut = v === f.cut[0] && p === f.cut[1];
-      if (isCut && f.stage !== "walk" && f.stage !== "cut") continue;   // it's gone
-      line(isCut && f.stage === "cut" ? cut : tree, f.middles[v], nearestMiddle(p, f.middles[v]));
+      if (tree[v] === -1) continue;
+      if (isCut(v) && f.stage !== "walk") continue;   // it flashes red, then it's gone
+      line(v, tree[v]);
     }
-    let at = f.middles[f.root];
-    pen.fillStyle = TREE;
-    pen.beginPath();
-    pen.arc(sx(at[0]), sy(at[1]), 1.6 * width, 0, 2 * Math.PI);   // the root
-    pen.fill();
-    if (f.path.length > 0) {
-      at = f.middles[f.path[0]];
-      walk.moveTo(sx(at[0]), sy(at[1]));
-      for (let k = 1; k < f.path.length; k++) {
-        at = nearestMiddle(f.path[k], at);
-        walk.lineTo(sx(at[0]), sy(at[1]));
-      }
-    }
-    pen.strokeStyle = TREE;
-    pen.lineWidth = width;
-    pen.stroke(tree);
+  });
+  const width = Math.max(1.5, view.cell * 0.18);    // (cellLinesPath sets view.cell)
+  pen.lineCap = pen.lineJoin = "round";
+  pen.strokeStyle = TREE;
+  pen.lineWidth = width;
+  pen.stroke(treeLines);
+  pen.fillStyle = TREE;
+  pen.fill(cellDotsPath(view, domain, [f.root], 1.6 * width));
+  if (f.stage === "cut") {
     pen.strokeStyle = CUT;
     pen.lineWidth = 2 * width;
-    pen.stroke(cut);
-    if (f.path.length > 0) {
-      pen.strokeStyle = TREE;                    // a dark edge, so white shows on any color
-      pen.lineWidth = 2 * width;
-      pen.stroke(walk);
-      pen.strokeStyle = WALK;
-      pen.lineWidth = width;
-      pen.stroke(walk);
-      pen.fillStyle = WALK;
-      pen.beginPath();
-      pen.arc(sx(at[0]), sy(at[1]), 1.4 * width, 0, 2 * Math.PI);   // the walk's head
-      pen.fill();
-      pen.stroke();
-    }
+    pen.stroke(cellLinesPath(view, domain, function (line) { line(f.cut[0], f.cut[1]); }));
+  }
+  if (path.length > 0) {
+    const walk = cellLinesPath(view, domain, function (line) {
+      for (let k = 0; k + 1 < path.length; k++) line(path[k], path[k + 1]);
+    });
+    pen.strokeStyle = TREE;                    // a dark edge, so white shows on any color
+    pen.lineWidth = 2 * width;
+    pen.stroke(walk);
+    pen.strokeStyle = WALK;
+    pen.lineWidth = width;
+    pen.stroke(walk);
+    const head = cellDotsPath(view, domain, [path[path.length - 1]], 1.4 * width);
+    pen.fillStyle = WALK;
+    pen.fill(head);
+    pen.stroke(head);
   }
 }
 
