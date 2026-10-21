@@ -2,10 +2,11 @@
    sequential-continuous-tiling-check.js  —  the checks on the check page
    ---------------------------------------------------------------------
    Each check below builds a packing with packingCore() (from
-   sequential-continuous-tiling-growth.js), compares it with something known, and
-   returns { name, pass, details }. The end of the file runs them one
-   after another and fills in the table on the page (addRow, in
-   js/check-page.js, like the other check pages).
+   sequential-continuous-tiling-growth.js), compares it with something
+   known, and adds its row to the table on the page (addRow, in
+   js/check-page.js). The "Run the checks" button runs them one after
+   another (runChecksOnClick, js/check-page.js), then draws the two
+   pictures, as on the other check pages.
 
      1. Your gasket, on your own centers, against your formula
      2. Squares in a square, against the same formula with max(|x|, |y|)
@@ -63,12 +64,10 @@ function checkGasket() {
     worst = Math.max(worst, Math.abs(tiles.r[t] - R));
     if (tiles.parent[t] !== parent && runnerUp - R > TOLERANCE) wrongParents++;
   }
-  return {
-    name: "1. Your gasket against your formula (3,000 of your centers)",
-    pass: worst < TOLERANCE && wrongParents === 0 && wrongZeros === 0,
-    details: tiles.count + " tiles. Largest difference in R: " + worst.toExponential(1) +
-      ". Wrong parents: " + wrongParents + ". Wrongly empty attempts: " + wrongZeros + ".",
-  };
+  addRow("1. Your gasket against your formula (3,000 of your centers)",
+    worst < TOLERANCE && wrongParents === 0 && wrongZeros === 0,
+    tiles.count + " tiles. Largest difference in R: " + worst.toExponential(1) +
+      ". Wrong parents: " + wrongParents + ". Wrongly empty attempts: " + wrongZeros + ".");
 }
 
 
@@ -87,12 +86,10 @@ function checkSquares() {
     for (let j = 0; j < k; j++) R = Math.min(R, Math.max(Math.abs(x - tiles.cx[j]), Math.abs(y - tiles.cy[j])) - tiles.r[j]);
     worst = Math.max(worst, Math.abs(R - tiles.r[k]));
   }
-  return {
-    name: "2. Squares in a square against the max(|x|, |y|) formula",
-    pass: packing.exactTiles && worst < TOLERANCE,
-    details: tiles.count + " tiles. Largest difference in R: " + worst.toExponential(1) +
-      ". Square counted as convex and symmetric: " + packing.exactTiles + ".",
-  };
+  addRow("2. Squares in a square against the max(|x|, |y|) formula",
+    packing.exactTiles && worst < TOLERANCE,
+    tiles.count + " tiles. Largest difference in R: " + worst.toExponential(1) +
+      ". Square counted as convex and symmetric: " + packing.exactTiles + ".");
 }
 
 
@@ -113,12 +110,10 @@ function checkMesh() {
   for (let k = 0; k < a.count && same; k++) {
     same = a.cx[k] === b.cx[k] && a.cy[k] === b.cy[k] && a.r[k] === b.r[k] && a.parent[k] === b.parent[k];
   }
-  return {
-    name: "3. Mesh search = checking every obstacle (star in a heart, 1,000 attempts)",
-    pass: same,
-    details: a.count + " tiles each. Time with the mesh " + Math.round(meshTime) +
-      " ms, checking everything " + Math.round(allTime) + " ms.",
-  };
+  addRow("3. Mesh search = checking every obstacle (star in a heart, 1,000 attempts)",
+    same,
+    a.count + " tiles each. Time with the mesh " + Math.round(meshTime) +
+      " ms, checking everything " + Math.round(allTime) + " ms.");
 }
 
 
@@ -149,12 +144,10 @@ function checkNonConvex() {
       }
     }
   }
-  return {
-    name: "4. Non-convex tile (star in a heart, 2,000 attempts): no overlaps, all inside S",
-    pass: overlaps === 0 && outside === 0 && !packing.exactTiles,
-    details: tiles.count + " tiles. Corners inside another tile: " + overlaps +
-      ". Corners outside S: " + outside + ". Star counted as non-convex: " + !packing.exactTiles + ".",
-  };
+  addRow("4. Non-convex tile (star in a heart, 2,000 attempts): no overlaps, all inside S",
+    overlaps === 0 && outside === 0 && !packing.exactTiles,
+    tiles.count + " tiles. Corners inside another tile: " + overlaps +
+      ". Corners outside S: " + outside + ". Star counted as non-convex: " + !packing.exactTiles + ".");
 }
 
 
@@ -175,12 +168,10 @@ function checkUniform() {
     counts[ring * 8 + slice]++;
   }
   const test = equalChiSquare(counts);     // js/check-page.js
-  return {
-    name: "5. Uniform centers on an annulus (chi-square, 40,000 centers)",
-    pass: test.pValue > 0.001,
-    details: "Chi-square = " + test.statistic.toFixed(1) + " with " + test.degrees + " degrees of freedom, p = " +
-             test.pValue.toFixed(3) + ".",
-  };
+  addRow("5. Uniform centers on an annulus (chi-square, 40,000 centers)",
+    test.pValue > 0.001,
+    "Chi-square = " + test.statistic.toFixed(1) + " with " + test.degrees + " degrees of freedom, p = " +
+      test.pValue.toFixed(3) + ".");
 }
 
 
@@ -206,12 +197,10 @@ function checkDensity(s) {
     D = Math.max(D, Math.abs(F - k / total), Math.abs(F - (k + 1) / total));
   }
   const p = ksPValue(D, total);
-  return {
-    name: "6. Your density with s = " + s + " (Kolmogorov-Smirnov, 20,000 centers)",
-    pass: p > 0.001,
-    details: "D = " + D.toFixed(4) + ", p = " + p.toFixed(3) + ". Times f went above its ceiling: " +
-      packing.ceilingMisses + ".",
-  };
+  addRow("6. Your density with s = " + s + " (Kolmogorov-Smirnov, 20,000 centers)",
+    p > 0.001,
+    "D = " + D.toFixed(4) + ", p = " + p.toFixed(3) + ". Times f went above its ceiling: " +
+      packing.ceilingMisses + ".");
 }
 
 
@@ -228,12 +217,10 @@ function checkSpeed() {
   const time = performance.now() - start;
   let covered = 0;
   for (let k = 0; k < packing.tiles.count; k++) covered += packing.tiles.r[k] * packing.tiles.r[k];
-  return {
-    name: "7. Speed: 50,000 attempts of your gasket",
-    pass: true,
-    details: Math.round(time) + " ms. " + packing.tiles.count + " tiles placed, covering " +
-      (100 * covered).toFixed(2) + "% of the disk.",
-  };
+  addRow("7. Speed: 50,000 attempts of your gasket",
+    true,
+    Math.round(time) + " ms. " + packing.tiles.count + " tiles placed, covering " +
+      (100 * covered).toFixed(2) + "% of the disk.");
 }
 
 
@@ -275,28 +262,16 @@ function drawTiles(canvas, tiles, count, shape, win) {
   }
 }
 
-const CHECKS = [checkGasket, checkSquares, checkMesh, checkNonConvex, checkUniform,
-  () => checkDensity(0.25), () => checkDensity(1), checkSpeed];
-
-// One check at a time, with a short pause so the page can show each
-// row; then the status line and the two pictures.
-let next = 0, failed = 0;
-function runNext() {
-  if (next === CHECKS.length) {
-    byId("status").textContent = failed === 0 ? "All checks passed." : failed + " check(s) failed.";
-    const disk = newPacking({ inS: DISK, inT: DISK });
-    drawTiles(byId("picture-gasket"), gasketForPicture.tiles, gasketForPicture.count, disk.shape, WINDOW);
-    const star = newPacking({ inS: HEART, inT: STAR, window: HEART_WINDOW });
-    for (let n = 0; n < 3000; n++) star.attempt();
-    drawTiles(byId("picture-star"), star.tiles, star.tiles.count, star.shape, HEART_WINDOW);
-    return;
-  }
-  let result;
-  try { result = CHECKS[next](); }
-  catch (error) { result = { name: "Check " + (next + 1), pass: false, details: "Stopped with an error: " + error.message }; }
-  if (!result.pass) failed++;
-  addRow(result.name, result.pass, result.details);
-  next++;
-  setTimeout(runNext, 20);
+// The two pictures, after the checks (the gasket is check 7's).
+function drawPictures() {
+  const disk = newPacking({ inS: DISK, inT: DISK });
+  drawTiles(byId("picture-gasket"), gasketForPicture.tiles, gasketForPicture.count, disk.shape, WINDOW);
+  const star = newPacking({ inS: HEART, inT: STAR, window: HEART_WINDOW });
+  for (let n = 0; n < 3000; n++) star.attempt();
+  drawTiles(byId("picture-star"), star.tiles, star.tiles.count, star.shape, HEART_WINDOW);
 }
-setTimeout(runNext, 20);
+
+runChecksOnClick(function () {
+  return [checkGasket, checkSquares, checkMesh, checkNonConvex, checkUniform,
+          function () { checkDensity(0.25); }, function () { checkDensity(1); }, checkSpeed, drawPictures];
+});

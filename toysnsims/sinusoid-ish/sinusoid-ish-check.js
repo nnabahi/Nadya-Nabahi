@@ -1,12 +1,12 @@
 /* =====================================================================
    sinusoid-ish-check.js  —  the tests on sinusoid-ish-check.html
    ---------------------------------------------------------------------
-   Tests of sinusoid-ish-roots.js, the math behind the sim. They run when
-   the page opens; each one adds a row to the table (addRow, in
-   js/check-page.js, like the other check pages):
-     check(what, shouldBe, got, passed)
-   Then the page's two pictures: one sample, live, and the histogram to
-   compare with nadya's Python.
+   Tests of sinusoid-ish-roots.js, the math behind the sim. The "Run the
+   checks" button runs them (runChecksOnClick, in js/check-page.js, like
+   the other check pages); each one adds rows to the table with
+   check(what, shouldBe, got, passed). Then the page's two pictures
+   (js/sim-charts.js): one sample, live, and the histogram to compare
+   with nadya's Python.
    ===================================================================== */
 
 function check(what, shouldBe, got, passed) {
@@ -32,7 +32,7 @@ function largestGap(a, b, from, to) {
 // (Stein & Shakarchi, "Complex Analysis", 2003, Ch. 5, Sec. 3).
 // The product is cut at N roots on each side, so it is only close:
 // the error is about x^2 / N.
-(function () {
+function testSineWave() {
   const N = 20000, u = makeUniforms(7, N);
   const one = readGapSet("{1}", {});
 
@@ -67,11 +67,11 @@ function largestGap(a, b, from, to) {
   check("Sine lobes: " + lobes.length + " lobes, |area| = 2/(π|sin πa|) (relative error)", "under 0.005", show(worstArea), worstArea < 0.005);
   check("Sine lobes: |peak| = 1/|sin πa| (relative error)", "under 0.005", show(worstPeak), worstPeak < 0.005);
   check("Sine lobes: peak offset = 1/2", "under 0.001", show(worstOffset), worstOffset < 0.001);
-})();
+}
 
 // --- B. One peak per lobe, for random gaps -------------------------
 // f' should change sign at each peak found.
-(function () {
+function testPeaks() {
   const N = 300, roots = makeRoots("walk", readGapSet("{2, 3}", {}), makeUniforms(3, N), N);
   const lobes = lobesIn(-30, 30, roots);
   let good = 0;
@@ -81,14 +81,14 @@ function largestGap(a, b, from, to) {
   }
   check("Gaps {2, 3}: f' changes sign at every peak found", lobes.length + " of " + lobes.length,
         good + " of " + lobes.length, good === lobes.length && lobes.length > 0);
-})();
+}
 
 // --- C. Reading the box, and the size-biased gap -------------------
 // The size-biased gap has average E[g^2] / E[g] (the gap covering 0
 // is picked with probability proportional to its length). Averaged
 // here over 100000 evenly spread u, not random ones, so it is exact
 // up to rounding.
-(function () {
+function testGapSets() {
   function averageSizeBiased(law) {
     let sum = 0;
     for (let i = 0; i < 100000; i++) sum += law.sizeBiased((i + 0.5) / 100000);
@@ -132,13 +132,13 @@ function largestGap(a, b, from, to) {
                                     Math.abs(asFormula.sizeBiased(u) - asInterval.sizeBiased(u)));
   }
   check('"1 + δu" gives the same gaps as "[1, 1 + δ]"', "under 0.0001", show(worstDraw), worstDraw < 1e-4);
-})();
+}
 
 // --- D. Stationarity (random, so "close", not exact) ---------------
 // Stationary roots have, on average, (length) / (mean gap) roots in
 // any window, wherever it is. 20000 random samples, so the counts
 // wobble by about 0.005.
-(function () {
+function testStationary() {
   const samples = 20000, N = 20;
   function averageCount(model, law, from, to) {
     let total = 0;
@@ -164,42 +164,26 @@ function largestGap(a, b, from, to) {
     const got = averageCount("lattice", jitter, from, from + 0.37);
     check("Jittered lattice, jitter [−1/2, 1/2]: average roots in [" + from + ", " + (from + 0.37).toFixed(2) + ")", "0.37", show(got), Math.abs(got - 0.37) < 0.02);
   }
-})();
-
-/* ===================================================================
-   The pictures
-   =================================================================== */
-
-// Draw curves on a canvas. "curves" is a list of { f, dashed }.
-function plot(canvas, curves, from, to) {
-  const pen = sharpPen(canvas);   // (js/sim-page.js)
-  const w = canvas.clientWidth, h = canvas.clientHeight, points = 800;
-
-  // Pick the height from the solid curve, so the picture fits it.
-  let top = 0;
-  for (let i = 0; i <= points; i++) top = Math.max(top, Math.abs(curves[0].f(from + (to - from) * i / points)));
-  top *= 1.1;
-  const X = function (x) { return (x - from) / (to - from) * w; };
-  const Y = function (y) { return h / 2 - y / top * (h / 2); };
-
-  pen.strokeStyle = "#999"; pen.lineWidth = 1;
-  pen.beginPath(); pen.moveTo(0, Y(0)); pen.lineTo(w, Y(0)); pen.moveTo(X(0), 0); pen.lineTo(X(0), h); pen.stroke();
-
-  for (const curve of curves) {
-    pen.strokeStyle = curve.dashed ? "#999" : "#2b6cb0";
-    pen.lineWidth = 2;
-    pen.setLineDash(curve.dashed ? [6, 6] : []);
-    pen.beginPath();
-    for (let i = 0; i <= points; i++) {
-      const x = from + (to - from) * i / points;
-      if (i === 0) pen.moveTo(X(x), Y(curve.f(x))); else pen.lineTo(X(x), Y(curve.f(x)));
-    }
-    pen.stroke();
-  }
-  pen.setLineDash([]);
 }
 
-// Section 1: one sample, redrawn when δ moves.
+runChecksOnClick(function () { return [testSineWave, testPeaks, testGapSets, testStationary]; });
+
+/* ===================================================================
+   The pictures, drawn as the sim's charts are (js/sim-charts.js)
+   =================================================================== */
+
+// The points of y = f(x) at 801 evenly spread x from "from" to "to".
+function curvePoints(f, from, to) {
+  const points = [];
+  for (let i = 0; i <= 800; i++) {
+    const x = from + (to - from) * i / 800;
+    points.push([x, f(x)]);
+  }
+  return points;
+}
+
+// Section 1: one sample, redrawn when δ moves. Solid: f; dashed: the
+// sine wave; and the line y = 0. The height fits f.
 const N_PLOT = 300, U_PLOT = makeUniforms(1, N_PLOT);
 function drawSample() {
   const delta = Number(byId("delta").value);
@@ -207,42 +191,31 @@ function drawSample() {
   const law = readGapSet("[1, 1 + δ]", { δ: delta });
   const roots = makeRoots("walk", law, U_PLOT, N_PLOT);
   const R0 = roots[N_PLOT], m = law.mean;
-  plot(byId("plot"), [
-    { f: function (x) { return fValue(x, roots); } },
-    { f: function (x) { return Math.sin(Math.PI * (R0 - x) / m) / Math.sin(Math.PI * R0 / m); }, dashed: true },
-  ], -10, 10);
+  const f = curvePoints(function (x) { return fValue(x, roots); }, -10, 10);
+  const sine = curvePoints(function (x) { return Math.sin(Math.PI * (R0 - x) / m) / Math.sin(Math.PI * R0 / m); }, -10, 10);
+  const top = 1.1 * Math.max(...f.map(function (point) { return Math.abs(point[1]); }));
+  lineChart(byId("plot"), [
+    { points: [[-10, 0], [10, 0]], color: CHART_TEXT, width: 1 },
+    { points: f, width: 2 },
+    { points: sine, color: CHART_TEXT, dashed: true },
+  ], { from: -10, to: 10, word: "x" }, { from: -top, to: top, round: true });
 }
 byId("delta").addEventListener("input", drawSample);
 drawSample();
 
-// Section 3: histogram of peak offsets for gaps {2, 3}.
-(function () {
+// Section 3: histogram of peak offsets for gaps {2, 3}, as the sim's
+// offsets chart draws it (histogram, js/sim-charts.js).
+function drawOffsets() {
   const law = readGapSet("{2, 3}", {}), N = 60, offsets = [];
   for (let k = 0; k < 300; k++) {
     const roots = makeRoots("walk", law, makeUniforms("python " + k, N), N);
     for (const lobe of lobesIn(-15, 15, roots)) offsets.push(lobe.offset);
   }
   offsets.sort(function (a, b) { return a - b; });
-
-  const canvas = byId("offsets"), pen = sharpPen(canvas);
-  const width = canvas.clientWidth, height = canvas.clientHeight;
-  const bins = 100, lo = 0.5, hi = 2, counts = new Array(bins).fill(0);
-  for (const x of offsets) {
-    const b = Math.floor((x - lo) / (hi - lo) * bins);
-    if (b >= 0 && b < bins) counts[b]++;
-  }
-  const most = Math.max(...counts), barW = width / bins;
-  pen.fillStyle = "#4682b4";
-  counts.forEach(function (c, b) {
-    const barH = c / most * (height - 20);
-    pen.fillRect(b * barW, height - 16 - barH, barW - 1, barH);
-  });
-  pen.fillStyle = "#555"; pen.font = "12px sans-serif";
-  pen.fillText(lo, 2, height - 2);
-  pen.fillText(hi, width - 24, height - 2);
-
+  histogram(byId("offsets"), offsets, false);
   const q = function (p) { return offsets[Math.floor(p * (offsets.length - 1))].toFixed(4); };
   byId("offset-summary").textContent =
-    offsets.length + " lobes. Offsets from " + lo + " to " + hi + ". Quartiles: " +
+    offsets.length + " lobes. Offsets from " + q(0) + " to " + q(1) + ". Quartiles: " +
     q(0.25) + ", " + q(0.5) + ", " + q(0.75) + ".";
-})();
+}
+drawOffsets();
