@@ -152,19 +152,9 @@
         </div>
 
         <h3 class="option-heading">Run</h3>
-        <div class="option-row">
-          <button class="tool-button" id="play">Play</button>
-          <button class="tool-button" id="step" title="One move">Step</button>
-          <button class="tool-button" id="restart" title="Back to the starting packing, same seed">Restart</button>
-        </div>
-        <div class="option-row">
-          Speed <input type="range" class="wide-range" id="speed" min="0" step="1">
-          <span class="muted" id="speed-label"></span>
-        </div>
-        <div class="option-row">
-          Seed <input type="text" id="seed" size="8">
-          <button class="tool-button" id="new-seed" title="A random new seed">New seed</button>
-        </div>
+        <div class="option-row play-row" data-step="One move" data-restart="Back to the starting packing, same seed"></div>
+        <div class="option-row speed-row"></div>
+        <div class="option-row seed-row"></div>
         <p class="muted small">The same seed always gives the same run.</p>
       </section>
 

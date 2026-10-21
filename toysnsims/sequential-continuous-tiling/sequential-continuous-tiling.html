@@ -91,19 +91,9 @@
           Attempts n = <input type="number" id="set-attempts" min="0" step="1" style="width: 7em">
           <input type="range" class="wide-range" id="attempts-slider" min="0" max="6" step="0.01">
         </div>
-        <div class="option-row">
-          <button class="tool-button" id="play">Play</button>
-          <button class="tool-button" id="step" title="One more attempt">Step</button>
-          <button class="tool-button" id="restart" title="Back to no tiles, same seed">Restart</button>
-        </div>
-        <div class="option-row">
-          Speed <input type="range" class="wide-range" id="speed" min="0" step="1">
-          <span class="muted" id="speed-label"></span>
-        </div>
-        <div class="option-row">
-          Seed <input type="text" id="seed" size="8">
-          <button class="tool-button" id="new-seed" title="A random new seed">New seed</button>
-        </div>
+        <div class="option-row play-row" data-step="One more attempt" data-restart="Back to no tiles, same seed"></div>
+        <div class="option-row speed-row"></div>
+        <div class="option-row seed-row"></div>
         <p class="muted small">The same seed always gives the same packing. Every attempt has
           its own random numbers, so dragging n only adds or removes tiles at the end, and a
           small change to a formula or slider moves the picture a little.</p>

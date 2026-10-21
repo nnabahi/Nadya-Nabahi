@@ -6,13 +6,15 @@
    fillBlocks below. The placeholder's data-... settings say how this
    page's copy differs (for example which link is the active one).
 
-   This file fills the top bar. Every page has
+   Every page loads this file first. It fills the top bar: a page with
+   one has
      <header class="topbar" data-active="toysnsims.html"></header>
      <script src="js/site.js"></script>
    (data-active is the file whose link stands out), with the script
    right after the bar so the bar is there before the rest of the page
-   shows. The other pieces are filled by the files that make them work,
-   like the Domain options (js/sim-controls.js).
+   shows. The other pieces are filled by the files that make them work:
+   the Play, Speed and Seed rows by js/sim-page.js, and the Domain
+   options by js/sim-controls.js.
    ===================================================================== */
 
 
@@ -25,8 +27,10 @@ const SITE_ROOT = document.currentScript.getAttribute("src").replace("js/site.js
 // Fill every placeholder that matches "selector" (a CSS selector) with
 // the HTML that build(settings) returns, where settings are that
 // placeholder's data-... values (data-active="..." is settings.active).
+// It goes before anything the placeholder already holds (like a page's
+// own buttons after Play, Step and Restart).
 function fillBlocks(selector, build) {
-  for (const place of document.querySelectorAll(selector)) place.innerHTML = build(place.dataset);
+  for (const place of document.querySelectorAll(selector)) place.insertAdjacentHTML("afterbegin", build(place.dataset));
 }
 
 // The top bar's links, left to right: [file, label].

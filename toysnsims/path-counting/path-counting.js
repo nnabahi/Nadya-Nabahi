@@ -465,6 +465,7 @@ byId("view3d-reset").addEventListener("click", lookAlongDirection);
 
 // Start: your periodic rule on the 61 x 61 grid, at 45 degrees (the
 // line x + y = 60).
+byId("seed").value = "1";
 useSize();
 lineNumber = N;
 byId("line-c").value = lineNumber;

@@ -96,22 +96,16 @@
         <p class="muted small" id="start-help"></p>
 
         <h3 class="option-heading">Run</h3>
-        <div class="option-row">
-          <button class="tool-button" id="play">Play</button>
-          <button class="tool-button" id="step" title="One topple (or one round)">Step</button>
+        <div class="option-row play-row" data-step="One topple (or one round)" data-restart="Back to the start, same seed">
           <button class="tool-button" id="undo" title="Take back the last topple (or round)">Undo</button>
           <button class="tool-button" id="jump" title="Topple until stable, at once">Jump to the end</button>
-          <button class="tool-button" id="restart" title="Back to the start, same seed">Restart</button>
           <button class="tool-button" id="add-identity" title="Add the identity of this table to the pile (then it topples)">Add the identity</button>
         </div>
         <div class="option-row">
           <label><input type="radio" name="order" value="one" checked> One random topple at a time</label>
           <label><input type="radio" name="order" value="rounds"> All unstable cells at once</label>
         </div>
-        <div class="option-row">
-          Speed <input type="range" class="wide-range" id="speed" min="0" step="1">
-          <span class="muted" id="speed-label"></span>
-        </div>
+        <div class="option-row speed-row"></div>
 
         <h3 class="option-heading">Storm</h3>
         <div class="option-row">
@@ -156,10 +150,7 @@
           </select>
           <label><input type="checkbox" id="show-numbers" checked> Show grain count on cell</label>
         </div>
-        <div class="option-row">
-          Seed <input type="text" id="seed" size="8">
-          <button class="tool-button" id="new-seed" title="A random new seed">New seed</button>
-        </div>
+        <div class="option-row seed-row"></div>
         <p class="muted small">The seed fixes the random start, the order of the topples
           and where the storm's grains land. The final pile never depends on the order.</p>
       </section>

@@ -19,6 +19,8 @@
      sharpPen(canvas, width, height)  a canvas's pen, sharp on sharp screens
      oncePerFrame(draw)               draw at the next screen refresh
      notTooOften(gap, busy, draw)     draw at most every "gap" ms while busy
+     the Play, Speed and Seed rows    written once, filled in as the page loads
+     buttonHTML(id, label, title)     a small button, as HTML
      showPlaying(on)                  the Play button, while it plays
      speedText(speed, one, many)      "5 moves per second", for the Speed slider
      addRangeBoxes(slider, lo, hi, ...)  "min" and "max" boxes at a slider's ends
@@ -189,6 +191,36 @@ function notTooOften(gap, busy, draw) {
     last = now;
     draw();
   };
+}
+
+// The Play, Speed and Seed rows, written once. A sim page holds empty
+// rows where they go, which are filled in as the page loads:
+//   <div class="option-row play-row" data-step="One sweep" data-restart="Back to the start, same seed"></div>
+//       Play, Step and Restart (before any of the page's own buttons
+//       already in the row); data-play, data-step and data-restart say
+//       what each one does, shown when the mouse rests on it
+//   <div class="option-row speed-row"></div>
+//       the Speed slider, and the label after it saying how fast
+//   <div class="option-row seed-row"></div>
+//       the Seed box, and its button: "New seed" ("A random new seed"),
+//       or data-new (data-new-title) instead
+// connectPlay and connectSeed (below) make them work.
+fillBlocks(".play-row", function (settings) {
+  return buttonHTML("play", "Play", settings.play) + buttonHTML("step", "Step", settings.step) +
+    buttonHTML("restart", "Restart", settings.restart);
+});
+fillBlocks(".speed-row", function () {
+  return 'Speed <input type="range" class="wide-range" id="speed" min="0" step="1"> <span class="muted" id="speed-label"></span>';
+});
+fillBlocks(".seed-row", function (settings) {
+  return 'Seed <input type="text" id="seed" size="8"> ' +
+    buttonHTML("new-seed", settings.new || "New seed", settings.newTitle || "A random new seed");
+});
+
+// A small button (class "tool-button"), as HTML: id="id", the words
+// "label", and "title" (if given) shown when the mouse rests on it.
+function buttonHTML(id, label, title) {
+  return '<button class="tool-button" id="' + id + '"' + (title ? ' title="' + title + '"' : "") + ">" + label + "</button>";
 }
 
 // The Play button (id="play") says "Pause" and looks pressed while the
