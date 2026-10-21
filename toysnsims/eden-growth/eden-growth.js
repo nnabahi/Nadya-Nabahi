@@ -4,13 +4,13 @@
    What it does, in plain words:
      - Reads the tile T from the clickable grid of cells (as on the old
        site; the preset and Make buttons fill the grid in), and the
-       domain from the Domain options (a custom domain is drawn in the
-       graph tool, shown inside this page).
+       domain from the shared Domain options (js/sim-controls.js; a
+       custom domain is drawn in the graph tool, shown inside this page).
      - In 2D, on another tiling than the squares (the Lattice options),
        the tile is "every cell within distance r" instead.
-     - Or, for "Hyperbolic plane or tree": the graph (a tiling {p,q} or
-       a tree, built as needed by js/sim-graphs.js) and the radius r of
-       the tile "every cell within distance r".
+     - Or, on the Domain "Hyperbolic plane or tree": the graph (a tiling
+       {p,q} or a tree, built as needed by js/sim-graphs.js) and the
+       radius r of the tile "every cell within distance r".
      - Hands them to the growth rule (eden-growth-rule.js), which
        runs in a second thread (a "Web Worker"), and draws every
        mountain it sends back, with the statistics.
@@ -18,7 +18,8 @@
    js/sim-page.js, the charts in js/sim-charts.js, moving, zooming,
    clicking and painting the 2D picture in js/sim-view.js (shared with
    the coloring sims), the hull and holes in js/sim-shape.js (shared
-   with Random Walk), the graph tool in js/sim-controls.js,
+   with Random Walk), the Domain options and the graph tool in
+   js/sim-controls.js,
    the hyperbolic pictures in js/sim-hyperbolic.js, the tilings in
    js/sim-tilings.js, and the 3D view in js/sim-3d.js.
 
@@ -33,7 +34,7 @@
      6c. The 3D view
      6d. The hyperbolic plane or a tree, seen from above
      7. Statistics
-     8. Custom domains: the graph tool inside this page
+     8. The Domain options, and the graph tool inside this page
      9. Connecting the buttons on the page
    ===================================================================== */
 
@@ -65,16 +66,15 @@ const PRESETS = {
 const GRID_REACH = { 1: 10, 2: 5 };
 const MAX_RADIUS = 30;             // the largest r of the Make buttons
 
-// The domains for each dimension (on "Hyperbolic plane or tree", a ball
-// is every cell within R steps of the start), and the default and
-// largest size of a bounded one.
-const DOMAINS = {
-  1: [["whole", "Whole line"], ["box", "Segment"], ["torus", "Cycle"]],
-  2: [["whole", "Whole plane"], ["box", "Box"], ["torus", "Torus"], ["custom", "Custom (draw it)"]],
-  graph: [["whole", "The whole plane (or tree)"], ["ball", "A ball"]],
+// The default and largest size of a bounded domain: on the line a
+// segment or cycle, in the plane a box or torus (sites on a side), and
+// on "Hyperbolic plane or tree" a ball, every cell within R steps of
+// the start.
+const SIZES = {
+  1: { width: 101, most: 2001 },
+  2: { width: 41, height: 41, most: 301 },
 };
-const DEFAULT_SIZE = { 1: 101, 2: 41, graph: 6 };
-const MAX_SIZE = { 1: 2001, 2: 301, graph: 12 };
+const BALL = { R: 6, most: 12 };
 
 // On a graph, the largest r for the tile "every cell within distance r".
 // (The graph presets are in js/sim-hyperbolic.js.) On another flat
@@ -110,22 +110,16 @@ const DEFAULT_SPEED = 20;
    2. WHAT THE PAGE REMEMBERS (the "state")
    ===================================================================== */
 
-let dim = 2;                 // 1, 2 or "graph" (the hyperbolic plane or a tree)
-// What the latest restart sent (section 5), kept with each message
+let dim = 2;                 // 1 (the line), 2 (the plane) or "graph" (the hyperbolic plane or a tree)
+let where = null;            // the domain in use (section 4)
+// The domain of the latest restart (section 5), kept with each message
 // from that run as latest.setup, so a mountain is always drawn the way
-// it was grown: { domain, tiling, box, wrap } (the domain as the growth
-// rule has it; in 2D on another tiling the tiling, from uprightBlock in
-// js/sim-tilings.js, and for a box or torus the tiling domain drawn,
-// else null; the torus's range, or null). On a Penrose tiling's whole
-// plane, the tiling is the page's copy of the plane the second thread
-// grows ("mirror": penroseMirror, js/sim-penrose.js).
-let sentSetup = null;
-// In 2D on another tiling, its box or torus (boxOfTiling, section 4),
-// and the options it was built from.
-let tilingBoxNow = null, tilingBoxFor = "", mirror = null;
+// it was grown: "where" then, but with "tiling" the tiling it is drawn
+// on. On a Penrose tiling's whole plane, that is the page's copy of the
+// plane the second thread grows ("mirror": penroseMirror,
+// js/sim-penrose.js).
+let sentSetup = null, mirror = null;
 let tile = [];               // the offsets, e.g. [[-1], [1]] or [[1, 0], ...]
-let domainKind = "whole";    // "whole", "box", "torus" or "custom"; on a graph "whole" or "ball"
-let customDomain = null;     // the last custom domain drawn (js/sim-domains.js), if any
 let show3D = false;          // 2D and graphs: the 3D view instead of the view from above (section 6c)
 let blockShape = "tiles";    // the 3D view's blocks: "tiles" (each the shape of its cell) or "coins"
 let stretch = 1;             // the 3D view's Heights: 2^(slider / 2), the slider from -4 (flatter) to 4 (taller)
@@ -150,9 +144,15 @@ function haveMountain() { return Boolean(latest && latest.height && latest.dim =
    the seed and the step, like a Desmos slider.
    ===================================================================== */
 
-// Use these offsets as the tile (0 is left out: it changes nothing),
-// show them, and restart at the same step.
+// Use these offsets as the tile, and restart at the same step.
 function setTile(offsets) {
+  pickTile(offsets);
+  restart(true);
+}
+
+// Use these offsets as the tile (0 is left out: it changes nothing),
+// and show them.
+function pickTile(offsets) {
   const seen = new Set();
   tile = [];
   for (const t of offsets) {
@@ -163,26 +163,18 @@ function setTile(offsets) {
   }
   showTileGrid();
   byId("tile-info").textContent = describeTile();
-  restart(true);
 }
 
-// Is the mountain on another tiling than the squares? In 2D, when the
-// Lattice options (js/sim-controls.js) say so; a custom domain is always
-// drawn in squares.
+// Is the domain in use on another tiling than the squares (section 4)?
+// (A custom domain is always drawn in squares.)
 function onTiling() {
-  return dim === 2 && domainKind !== "custom" && !onSquares();
+  return Boolean(where.tiling);
 }
 
-// The options that fit the dimension and the lattice: the Lattice
-// options in 2D (not for a custom domain), "Cells are the tiles /
-// corners" only off the square grid; the graph's options on a graph;
-// and the tile: the clickable grid of offsets on the line and the
-// square grid, "every cell within distance r" on a graph or another
-// tiling (where r can go further).
-function showLatticeAndTile() {
-  byId("lattice-rows").hidden = (dim !== 2 || domainKind === "custom");
-  byId("cells-row").hidden = !cornersCanBeCells();
-  byId("graph-rows").hidden = (dim !== "graph");
+// The tile that fits the domain: the clickable grid of offsets on the
+// line and the square grid, "every cell within distance r" on a graph
+// or another tiling (where r can go further).
+function showTileOptions() {
   const ball = (dim === "graph" || onTiling());
   byId("ball-tile").hidden = !ball;
   byId("offset-tile").hidden = ball;
@@ -246,49 +238,51 @@ function describeTile() {
 /* =====================================================================
    4. THE DOMAIN
    ---------------------------------------------------------------------
-   Whole line / plane: no limits. Segment / Box, Cycle / Torus: the
-   given number of sites, centered on 0 (so the first block, on 0, is
-   in the middle). Custom: the cells drawn in the graph tool. On a
-   graph: the whole graph, or a ball around the start. On another
-   tiling: the whole plane from cell 0 of block (0, 0), or a box or
-   torus of the given size in side lengths (tilingBox,
-   js/sim-domains.js) from the cell nearest its middle. On a Penrose
-   tiling, cell 0 is the one nearest its point of five-fold symmetry.
+   The shared Domain options (connected in section 8), with the whole
+   line or plane too. Whole line / plane: no limits. Segment / Box,
+   Cycle / Torus: the given number of sites, centered on 0 (so the
+   first block, on 0, is in the middle). Custom: the cells drawn in the
+   graph tool. Hyperbolic plane or tree: the whole graph, or a ball
+   around the start. On another tiling: the whole plane from cell 0 of
+   block (0, 0), or a box or torus of the given size in side lengths
+   (tilingBox, js/sim-domains.js) from the cell nearest its middle. On
+   a Penrose tiling, cell 0 is the one nearest its point of five-fold
+   symmetry.
+
+   The domain in use ("where", section 2) is
+     grow     the domain as the growth rule wants it: { kind: "whole" },
+              a box { kind: "box", xmin, xmax, ymin, ymax, torus }, the
+              cells of a box of another tiling or of a drawn domain
+              { kind: "cells", cells, wrap }, or a ball of a graph
+              { kind: "ball", layers }
+     start    the first block's site (on a graph, always its first
+              cell, so none)
+     tiling   on another tiling, the tiling (uprightBlock,
+              js/sim-tilings.js)
+     box      on another tiling's box or torus, the tiling domain, to draw
+     range    on the line and the squares, a bounded domain's x and y
+              range, which the picture shows
+     wrap     the torus the picture wraps around: a range of squares, or
+              on another tiling of blocks; or null
    ===================================================================== */
 
-// Show the domain choices for this dimension, with "domainKind" ticked
-// (a Penrose tiling never repeats, so it has no torus).
-function showDomainChoice() {
-  const row = byId("domain-choice");
-  row.innerHTML = "";
-  for (const [kind, name] of DOMAINS[dim]) {
-    if (kind === "torus" && dim === 2 && onFiniteTiling()) continue;
-    const label = document.createElement("label");
-    label.innerHTML = '<input type="radio" name="domain" value="' + kind + '"> ' + name;
-    const radio = label.firstChild;
-    radio.checked = (kind === domainKind);
-    radio.addEventListener("change", function () {
-      if (kind === "custom") { tool.open(); return; }
-      if (tool.isOpen) tool.close();
-      domainKind = kind;
-      showDomainChoice();
-      restart(true);
-    });
-    row.appendChild(label);
-  }
-  // A new domain starts with the whole picture; in 2D and on a graph it
-  // can be moved and zoomed (section 6b), and zoomed out further on a torus.
-  useTorus(view, torusRange() !== null, dim !== 1);   // the 1D side view doesn't move
-  const bounded = (domainKind === "box" || domainKind === "torus" || domainKind === "ball");
-  byId("size-row").hidden = !bounded;
-  byId("size-label").textContent = dim === 1 ? "Sites" : dim === 2 ? "Size" : "Every cell within R =";
-  byId("height-part").hidden = (dim !== 2);
-  byId("custom-row").hidden = (domainKind !== "custom");
-  if (domainKind === "custom" && customDomain) {
-    byId("custom-info").textContent = "Your domain: " + customDomain.n + " cells" +
-      (customDomain.wrap ? ", on a torus." : ".");
-  }
-  showLatticeAndTile();
+// The whole line, plane or tiling.
+function wholeDomain() {
+  const grow = { kind: "whole" };
+  if (!onSquares()) return { grow: grow, start: [0, 0, 0], tiling: tilingInUse.block };
+  return { grow: grow, start: onLine() ? [0] : [0, 0] };
+}
+
+// A segment or cycle, or a box or torus, of the size the options say
+// (sizeFromOptions, js/sim-controls.js), centered on 0; on another
+// tiling, its box or torus (boxOfTiling).
+function boxOfOptions() {
+  if (!onSquares()) return boxOfTiling();
+  const sizes = SIZES[onLine() ? 1 : 2], size = sizeFromOptions(1, sizes.most, sizes);
+  const across = centered(size.width), down = centered(size.height);
+  const range = { xmin: across.low, xmax: across.high, ymin: down.low, ymax: down.high };
+  return { grow: Object.assign({ kind: "box", torus: size.torus }, range), start: onLine() ? [0] : [0, 0],
+           range: range, wrap: size.torus ? range : null };
 }
 
 // From -floor((size - 1) / 2) to there + size - 1: "size" sites with 0
@@ -298,51 +292,12 @@ function centered(size) {
   return { low: low, high: low + size - 1 };
 }
 
-// The domain and the start site, as the growth rule wants them.
-function domainSettings() {
-  if (dim === "graph") {       // the start is always the graph's first cell
-    return { domain: domainKind === "ball"
-      ? { kind: "ball", layers: readWhole("set-width", 1, MAX_SIZE.graph, DEFAULT_SIZE.graph) }
-      : { kind: "whole" } };
-  }
-  if (domainKind === "custom") {
-    const d = customDomain;
-    const cells = [];
-    for (let v = 0; v < d.n; v++) cells.push([d.x[v], d.y[v]]);
-    return { domain: { kind: "cells", cells: cells, wrap: d.wrap }, start: customStart(d) };
-  }
-  if (onTiling()) {
-    if (domainKind === "whole") return { domain: { kind: "whole" }, start: [0, 0, 0] };
-    const box = boxOfTiling();
-    return { domain: { kind: "cells", cells: box.cells, wrap: box.domain.wrap }, start: box.start };
-  }
-  const start = dim === 1 ? [0] : [0, 0];
-  if (domainKind === "whole") return { domain: { kind: "whole" }, start: start };
-  const across = centered(readWhole("set-width", 1, MAX_SIZE[dim], DEFAULT_SIZE[dim]));
-  const down = dim === 1 ? { low: 0, high: 0 } : centered(readWhole("set-height", 1, MAX_SIZE[dim], DEFAULT_SIZE[dim]));
-  return {
-    domain: { kind: "box", xmin: across.low, xmax: across.high, ymin: down.low, ymax: down.high,
-              torus: domainKind === "torus" },
-    start: start,
-  };
-}
-
-// The box or torus of another tiling that the Domain options say
-// (boxFromOptions, js/sim-controls.js: its sides in side lengths), as
-// { domain, cells, start }: the tiling domain, to draw; its cells as
-// the growth rule wants them, [x, y, z] (cell z of block (x, y)); and
-// the start, the cell whose middle is nearest the middle of the box.
-// Built again only when the options change.
+// The box or torus of another tiling that the options say
+// (boxFromOptions, js/sim-controls.js: its sides in side lengths), from
+// the cell whose middle is nearest the middle of the box.
 function boxOfTiling() {
-  const key = [tilingInUse.code, tilingInUse.corners, domainKind, byId("set-width").value, byId("set-height").value].join(" ");
-  if (key !== tilingBoxFor) {
-    const d = boxFromOptions(1, MAX_SIZE[2], { width: DEFAULT_SIZE[2], height: DEFAULT_SIZE[2] });
-    const cells = [];
-    for (let v = 0; v < d.n; v++) cells.push([d.x[v], d.y[v], d.part[v]]);
-    tilingBoxNow = { domain: d, cells: cells, start: cells[middleOfBox(d)] };
-    tilingBoxFor = key;
-  }
-  return tilingBoxNow;
+  const d = boxFromOptions(1, SIZES[2].most, SIZES[2]), grow = cellsToGrow(d);
+  return { grow: grow, start: grow.cells[middleOfBox(d)], tiling: tilingInUse.block, box: d, wrap: d.wrap };
 }
 
 // The cell of tiling domain d whose middle is nearest the middle of its
@@ -355,6 +310,31 @@ function middleOfBox(d) {
     if (distance < bestDistance) { best = v; bestDistance = distance; }
   }
   return best;
+}
+
+// The hyperbolic plane or a tree, as the graph options say
+// (readGraphOptions, js/sim-hyperbolic.js): the whole graph, or a ball of
+// radius R around the start. null if the options aren't a hyperbolic
+// graph. Puts the start back in the middle of the picture.
+function graphDomain() {
+  if (!readGraphOptions(disk)) return null;
+  backToStart(disk);
+  if (checked("graph-region") === "whole") return { grow: { kind: "whole" } };
+  return { grow: { kind: "ball", layers: readWhole("set-ball-radius", 1, BALL.most, BALL.R) } };
+}
+
+// A domain drawn in the graph tool (js/sim-domains.js).
+function customDomainOf(d) {
+  return { grow: cellsToGrow(d), start: customStart(d), range: d, wrap: d.wrap };
+}
+
+// The cells of domain d (a box of another tiling, or a drawn domain) as
+// the growth rule wants them: [x, y], or on another tiling [x, y, z]
+// (cell z of block (x, y)).
+function cellsToGrow(d) {
+  const cells = [];
+  for (let v = 0; v < d.n; v++) cells.push(d.part ? [d.x[v], d.y[v], d.part[v]] : [d.x[v], d.y[v]]);
+  return { kind: "cells", cells: cells, wrap: d.wrap };
 }
 
 // The first block of a custom domain: on (0, 0) if it was painted, else
@@ -387,6 +367,10 @@ const sim = runInWorker(mountainWorker,
    cellWindow, squareWindow, tilingWindow, finiteWindow, convexHull, growingHull, polygonArea, convexity]
   .concat(penroseHelpers()), showMountain);
 
+// On a graph whose rules the page can't learn (js/sim-graphs.js).
+const BY_GEOMETRY = "This tiling has too many cells near the start for the page to learn its rules, " +
+  "so it is built by geometry, which only reaches about distance 23 from the start.";
+
 // A report from the worker: keep what is new, and draw it. When the run
 // can't go on, it has paused by itself, and Play and Step are off.
 function showMountain(message) {
@@ -394,12 +378,8 @@ function showMountain(message) {
   if (message.planeCells) addPlaneCells(sentSetup.tiling, message.planeCells);   // on a Penrose tiling's whole plane
   if (message.places) keepPlaces(message);                        // on a graph (section 6d)
   if (message.rules) keepRules(message.rules);                    // on a graph (section 6d)
-  if (message.dim === "graph") {
-    byId("graph-built").textContent = message.exact ? "" : "This tiling has too many cells near the start " +
-      "for the page to learn its rules, so it is built by geometry, which only reaches about distance 23 from the start.";
-  }
   latest = message;
-  showMessage(message.problem);
+  showMessage(message.problem || (message.dim === "graph" && !message.exact ? BY_GEOMETRY : ""));
   if (message.atMax) showMessage("That's the most steps this page goes to.");
   if (message.allFull) showMessage("Every site is full (it has capacity M), so no more blocks can land.");
   if (message.atEdge) {   // on a Penrose tiling's whole plane
@@ -415,10 +395,8 @@ function showMountain(message) {
 // starts again from one block. Blocks you clicked (section 6b) are kept,
 // unless it starts again from one block or "forget" is true (a new seed).
 function restart(keepStep, forget) {
-  if (domainKind === "custom" && !customDomain) return;
-  const where = domainSettings();
   const message = {
-    dim: dim, domain: where.domain, cap: maxHeight(), s: Number(byId("weight-s").value), seed: byId("seed").value,
+    dim: dim, domain: where.grow, cap: maxHeight(), s: Number(byId("weight-s").value), seed: byId("seed").value,
     steps: (keepStep && latest && latest.steps) ? latest.steps : 0,
     forgetClicks: !keepStep || Boolean(forget),
   };
@@ -430,7 +408,7 @@ function restart(keepStep, forget) {
     // On a Penrose tiling's whole plane, the second thread builds the
     // plane itself (js/sim-penrose.js, section 9): it needs only which
     // tiling, and how many of the plane's cells the page has.
-    const block = tilingInUse.block, plane = block.finite && domainKind === "whole";
+    const block = where.tiling, plane = block.finite && where.grow.kind === "whole";
     if (plane) mirror = penroseMirror(mirror, block);
     message.tiling = plane ? { code: block.code, corners: block.corners, penrose: block.penrose, finite: true } : block;
     message.cellsKnown = plane ? mirror.cells.length : 0;
@@ -441,8 +419,7 @@ function restart(keepStep, forget) {
     message.tile = tile;
     message.start = where.start;
   }
-  sentSetup = { domain: where.domain, tiling: drawnOn,
-                box: onTiling() && domainKind !== "whole" ? boxOfTiling().domain : null, wrap: torusRange() };
+  sentSetup = Object.assign({}, where, { tiling: drawnOn });
   sim.setup(message);
 }
 
@@ -476,7 +453,7 @@ const view = makeView(simCanvas, drawSoon);      // where the picture goes, and 
 // "Hyperbolic plane or tree": the graph, how it is drawn, and how far
 // the plane has been moved (js/sim-hyperbolic.js, section 6d). Changing
 // how it is drawn ("Drawn in") shows the right options and buttons.
-const disk = makeDiskView(simCanvas, view, showPictureKind);
+const disk = makeDiskView(simCanvas, view, function () { domains.show(); });
 // After the window changes size, or the picture opens or closes as a
 // full screen popup (js/sim-page.js): draw again at the new size.
 window.addEventListener("resize", drawSoon);
@@ -492,11 +469,11 @@ function heightColor(h, highest) {
 }
 
 // The x and y range of the picture, { xmin, xmax, ymin, ymax }: a
-// bounded domain itself, or around the available sites.
+// bounded domain's own (a segment, cycle, box, torus or drawn domain),
+// or around the available sites.
 function pictureRange() {
-  const s = latest, domain = s.setup.domain;
-  if (domain.kind === "box") return domain;           // a box or torus (in 1D a segment or cycle)
-  if (domain.kind === "cells") return customDomain;   // a drawn domain
+  const s = latest;
+  if (s.setup.range) return s.setup.range;
   let xmin = Infinity, xmax = -Infinity, ymin = Infinity, ymax = -Infinity;
   for (let i = 0; i < s.x.length; i++) {
     xmin = Math.min(xmin, s.x[i]); xmax = Math.max(xmax, s.x[i]);
@@ -507,7 +484,7 @@ function pictureRange() {
 }
 
 function drawMountain() {
-  if (!haveMountain() || tool.isOpen) return;
+  if (!haveMountain() || domains.tool.isOpen) return;
   if (dim !== 1 && show3D) draw3D();     // section 6c
   else if (dim === 1) drawLine();
   else if (dim === 2 && latest.setup.tiling) drawTiling();
@@ -566,15 +543,6 @@ function drawLine() {
 // site there. On a torus that wraps around, so the squares beyond the
 // box show the torus again, and the picture can be moved and zoomed
 // (section 6b).
-
-// The torus that the Domain options make the 2D picture wrap around,
-// or null: its range of squares, or on another tiling of blocks.
-function torusRange() {
-  if (dim !== 2) return null;
-  if (domainKind === "torus") return onTiling() ? boxOfTiling().domain.wrap : domainSettings().domain;
-  if (domainKind === "custom" && customDomain && customDomain.wrap) return customDomain.wrap;
-  return null;
-}
 
 // The sites of the last 2D picture as a domain (js/sim-domains.js) whose
 // cell number i is site i: its range, its torus, and cellAt, which site
@@ -673,13 +641,14 @@ function framePicture(pen) {
    yet) can take a block, as in the rule. It works in the pictures seen
    from above (1D, 2D, the disk, the half-plane and the spread-out
    tree), not in 3D. The worker keeps the clicked blocks, so they stay
-   when you change the tile or the domain or go back with "Go to step";
-   Restart and a new seed forget them.
+   when you change the tile or the domain or go back with "Go to step"
+   (and those on another lattice come back with it); Restart and a new
+   seed forget them.
    ===================================================================== */
 connectPicture(view, { disk: disk, onGraph: function () { return dim === "graph"; }, onClick: clickAt });
 
 function clickAt(event) {
-  if (!haveMountain() || tool.isOpen) return;
+  if (!haveMountain() || domains.tool.isOpen) return;
   const site = siteUnder(event);
   if (site >= 0 && latest.height[site] >= maxHeight()) {
     showMessage("That site is full: it already has capacity M.");
@@ -772,11 +741,9 @@ const three = make3D(simCanvas, PICTURE_HEIGHT, {   // js/sim-page.js
 // Which picture shows: the view from above, the 3D view (not in 1D),
 // or neither while the graph tool is open.
 function showPictureKind() {
-  const in3D = (dim !== 1 && show3D);
-  simCanvas.hidden = tool.isOpen || in3D;
-  three.show(!tool.isOpen && in3D);
-  showDiskButtons(disk, dim === "graph" && disk.picture !== "spread");
-  byId("picture-row").hidden = in3D || dim !== "graph";
+  const in3D = (dim !== 1 && show3D), toolOpen = domains.tool.isOpen;
+  simCanvas.hidden = toolOpen || in3D;
+  three.show(!toolOpen && in3D);
   byId("view-rows").hidden = (dim === 1);
   byId("stretch-row").hidden = byId("view3d-help").hidden = !in3D;
   // Tile-shaped blocks or coins: on a tree only coins (its sites are
@@ -953,19 +920,6 @@ function floorLines(unit) {
   return lines;
 }
 
-// A new graph from the options: start again on it, with the first cell
-// in the middle of the picture.
-function useGraph() {
-  if (!readGraphOptions(disk)) return;
-  backToStart(disk);
-  resetView(view);
-  showPictureKind();
-  restart(true);
-}
-for (const id of ["set-p", "set-q", "set-degree"]) byId(id).addEventListener("change", useGraph);
-for (const radio of document.querySelectorAll('input[name="graph-kind"]')) radio.addEventListener("change", useGraph);
-byId("set-radius").addEventListener("change", function () { restart(true); });
-
 
 /* =====================================================================
    7. STATISTICS
@@ -1101,73 +1055,62 @@ function radiusHeatChart(canvas, times, radii, bins) {
 }
 
 /* =====================================================================
-   8. CUSTOM DOMAINS: THE GRAPH TOOL INSIDE THIS PAGE
+   8. THE DOMAIN OPTIONS, AND THE GRAPH TOOL INSIDE THIS PAGE
    ---------------------------------------------------------------------
-   As in the other sims: choosing "Custom" swaps the picture for the
-   graph tool, loaded in an <iframe> (makeCustomTool, js/sim-controls.js).
-   Done uses the drawing. Only the painted cells matter (the tile
-   decides where blocks can go next), so the domain need not be one
-   connected piece.
+   The shared Domain options (connectDomains, js/sim-controls.js), with
+   the domains of section 4. A new domain keeps the seed and the step,
+   like the tile.
+   As in the other sims, choosing "Custom" swaps the picture for the
+   graph tool, loaded in an <iframe> (makeCustomTool,
+   js/sim-controls.js). Done uses the drawing. Only the painted cells
+   matter (the tile decides where blocks can go next), so the domain
+   need not be one connected piece.
    ===================================================================== */
-const tool = makeCustomTool(view, player, {
-  title: "Draw the domain",
-  help: "Paint the cells the mountain may grow on (any color counts). The first block goes on (0, 0) " +
-        "if you painted it, otherwise on the painted cell nearest the middle. Then press Done.",
-  showPicture: showPictureKind,     // the 2D or 3D picture hides while the tool is open
-  check: function (drawing) {
-    const cells = drawing.graph.vertices.length;
-    return cells === 0 ? ["Paint the domain first.", ""] : ["", cells + " cells."];
+const domains = connectDomains({
+  view: view, player: player, disk: disk,
+  whole: wholeDomain, box: boxOfOptions, ball: graphDomain,
+  custom: {
+    title: "Draw the domain",
+    help: "Paint the cells the mountain may grow on (any color counts). The first block goes on (0, 0) " +
+          "if you painted it, otherwise on the painted cell nearest the middle. Then press Done.",
+    showPicture: showPictureKind,     // the 2D or 3D picture hides while the tool is open
+    check: function (drawing) {
+      const cells = drawing.graph.vertices.length;
+      return cells === 0 ? ["Paint the domain first.", ""] : ["", cells + " cells."];
+    },
   },
-  done: function (drawing) {
-    customDomain = drawnDomain(drawing.graph, drawing.grid);
-    domainKind = "custom";
-    showDomainChoice();
+  use: function (d) {
+    dim = onLine() ? 1 : domains.kind === "graph" ? "graph" : 2;
+    where = domains.kind === "custom" ? customDomainOf(d) : d;
     restart(true);
   },
-  cancel: showDomainChoice,
+  show: function () { showTileOptions(); showPictureKind(); },
 });
-byId("edit-custom").addEventListener("click", tool.open);
 
 
 /* =====================================================================
    9. CONNECTING THE BUTTONS ON THE PAGE
    ===================================================================== */
 
-// Dimension: 1D, 2D or a graph. Each has its own domains (and 1D and 2D
-// their own tile presets), so the domain goes back to the whole line,
-// plane or graph, and in 1D and 2D the tile to the first preset.
-function setDimension(value) {
-  dim = value;
-  if (tool.isOpen) tool.close();
-  domainKind = "whole";
-  byId("set-width").value = byId("set-height").value = DEFAULT_SIZE[dim];
-  byId("set-width").max = byId("set-height").max = MAX_SIZE[dim];
-  showDomainChoice();     // (with the lattice and tile options that fit: showLatticeAndTile)
-  showPictureKind();
-  if (dim === "graph") {
-    useGraph();
-  } else {
-    showPresets();
-    setTile(PRESETS[dim][0].tile);
-  }
+// Dimension: the line or the plane. Each has its own Domain options
+// (domains.setDim) and tile presets, so the domain goes back to the
+// whole line or plane with the sizes at their defaults, and the tile to
+// the first preset.
+function setDimension(n) {
+  dim = n;
+  domains.setDim(n);
+  fillDomainOptions(SIZES[n], SIZES[n].most, BALL);
+  showPresets();
+  pickTile(PRESETS[n][0].tile);
+  domains.useTicked();
 }
 for (const radio of document.querySelectorAll('input[name="dimension"]')) {
-  radio.addEventListener("change", function () { setDimension(radio.value === "graph" ? "graph" : Number(radio.value)); });
+  radio.addEventListener("change", function () { setDimension(Number(radio.value)); });
 }
 
-// Lattice (2D): the square grid or another tiling (js/sim-controls.js).
-// A new lattice keeps the seed and the step, but forgets clicked blocks
-// (a click was on a cell of the old lattice).
-connectLattice(function () {
-  if (domainKind === "torus" && onFiniteTiling()) domainKind = "box";
-  showDomainChoice();
-  restart(true, true);
-});
-
-// The size of a segment, cycle, box or torus, or the R of a ball.
-for (const id of ["set-width", "set-height"]) {
-  byId(id).addEventListener("change", function () { restart(true); });
-}
+// The tile's r, on a graph or another tiling: keeps the seed and the
+// step, like the tile.
+byId("set-radius").addEventListener("change", function () { restart(true); });
 
 // Capacity: the checkbox shows the slider for M. Changing either
 // keeps the seed and the step, like the tile and the domain.
@@ -1192,7 +1135,7 @@ byId("weight-s").addEventListener("input", function () { showWeight(); restart(t
 
 // "Shade the holes" shows with the holes (2D, not on a torus), from above.
 function showHolesRow() {
-  byId("holes-row").hidden = !(haveMountain() && latest.holes) || show3D || tool.isOpen;
+  byId("holes-row").hidden = !(haveMountain() && latest.holes) || show3D || domains.tool.isOpen;
 }
 // Shade the holes: only changes the picture.
 byId("show-holes").addEventListener("change", drawSoon);
@@ -1212,5 +1155,4 @@ byId("seed").value = DEFAULT_SEED;
 byId("goto-steps").value = 1000;
 showMaxHeight();
 showWeight();
-showGraphPresets(useGraph);
 setDimension(2);   // 2D by default: with M = 1 it is the Eden model

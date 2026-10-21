@@ -20,8 +20,8 @@
 
     <!-- THE 1D PAGE. It runs the same code as random-walk-coloring.html
          (random-walk-coloring.js): only the Domain options and the About
-         text differ. The script sees that "1D ring" is ticked and makes
-         a ring (or a line, if "1D line" is picked).
+         text differ. Its Domain options are the line's (data-dim="1"):
+         a cycle, drawn as a ring, or a segment.
 
          The boxes, as on every sim page (their layout is in
          section 6 of css/style.css). All the behavior lives in
@@ -56,15 +56,10 @@
         </div>
 
         <h3 class="option-heading">Domain</h3>
-        <div class="option-row">
-          <!-- A line of cells one cell tall (the two ends don't meet), or a
-               ring (the two ends are neighbors), drawn as a circle. -->
-          <label><input type="radio" name="domain" value="ring" checked> Ring</label>
-          <label><input type="radio" name="domain" value="line"> Line</label>
-        </div>
-        <div class="option-row" id="size-row">
-          Length <input type="number" id="set-width" min="2" step="1">
-        </div>
+        <!-- The line's domains (js/sim-controls.js fills them in): a
+             segment of cells (the two ends don't meet), or a cycle (the
+             two ends are neighbors), drawn as a ring. -->
+        <div class="domain-options" data-ticked="torus" data-dim="1"></div>
 
         <h3 class="option-heading">Walkers</h3>
         <div class="option-row">
@@ -153,8 +148,8 @@
         </p>
         <p>
           Each step, a walker moves one cell left or right, chosen at random.
-          On the <strong>ring</strong> the two ends are neighbors, so it is
-          drawn as a circle; on the <strong>line</strong> a walker at an end
+          On the <strong>cycle</strong> the two ends are neighbors, so it is
+          drawn as a ring; on the <strong>segment</strong> a walker at an end
           can only step back in. In <strong>discrete time</strong> all walkers
           step together, and if several land on a new cell at once, one of
           them is picked at random to color it. In <strong>continuous
@@ -169,22 +164,22 @@
         <p>
           <strong>Things to try:</strong> drag the walkers to new starting
           places, then press Play; switch between the two models; change N
-          or the length.
+          or the size.
         </p>
         </div>
 
         <div data-panel="details" hidden>
         <p>
-          The domain is the cycle <span class="tex">C_L</span> (ring) or the
-          path <span class="tex">P_L</span> (line) on
+          The domain is the cycle <span class="tex">C_L</span> or the
+          path <span class="tex">P_L</span> (the segment) on
           <span class="tex">L</span> cells. Walker
           <span class="tex">i</span>, for <span class="tex">i = 1, \dots, N</span>,
           is a simple random walk <span class="tex">X^i_t</span>: each step
-          goes to a uniformly chosen neighbor (on the line, an end cell has
+          goes to a uniformly chosen neighbor (on the segment, an end cell has
           only one). The color of cell <span class="tex">v</span> is the
           <span class="tex">i</span> whose walker reaches
           <span class="tex">v</span> first. The walkers start evenly spaced,
-          walker 1 on the top cell of the ring (the left end of the line).
+          walker 1 on the top cell of the cycle (the left end of the segment).
         </p>
         <p>
           <strong>Background.</strong> Two walkers competing on a cycle are

@@ -675,8 +675,8 @@ function convexity(m) {
 
    Clicks. A clicked block is kept as "step n landed on this site", so
    it stays when the run is grown again (going back with "goto", or a
-   change to the tile or the domain); a setup with forgetClicks (the
-   Restart button, a new seed) forgets them. A clicked block lands at
+   change to the tile, the domain or the lattice); a setup with
+   forgetClicks (the Restart button, a new seed) forgets them. A clicked block lands at
    the time of the block before it, and that site's next alarm starts
    then; every other site keeps its alarms. If the clicked site isn't
    available at that step any more (say the domain changed), that step
@@ -747,10 +747,16 @@ function mountainWorker() {
   }
 
   // A name for site i that stays the same from run to run (site numbers
-  // can change): its coordinates, or its cell of the graph.
+  // can change): the lattice, and its coordinates or its cell of the
+  // graph. A site of another lattice has another name, so a click on it
+  // waits until that lattice is back.
   function siteName(i) {
     const m = mountain;
-    return m.dim === "graph" ? "graph " + m.siteNode[i] : m.dim + "D " + m.siteX[i] + "," + m.siteY[i] + "," + m.siteZ[i];
+    return m.dim === "graph" ? "graph " + options.graph.p + "," + options.graph.q + " " + m.siteNode[i]
+      : m.dim + "D " + latticeName() + " " + m.siteX[i] + "," + m.siteY[i] + "," + m.siteZ[i];
+  }
+  function latticeName() {
+    return options.tiling ? options.tiling.code + (options.tiling.corners ? " corners" : "") : "squares";
   }
   // The site with that name, or -1 if it isn't available.
   function findSite(name) {
