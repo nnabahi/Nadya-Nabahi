@@ -11,9 +11,15 @@
      <script src="js/site.js"></script>
    (data-active is the file whose link stands out), with the script
    right after the bar so the bar is there before the rest of the page
-   shows. The other pieces are filled by the files that make them work:
-   the zoom buttons by js/sim-view.js, and so on.
+   shows. The other pieces are filled by the files that make them work,
+   like the Domain options (js/sim-controls.js).
    ===================================================================== */
+
+
+// The way from this page to the site's main folder, e.g. "../../" on a
+// sim page: this script's own address, as the page wrote it, without
+// the "js/site.js" at its end. Links the code writes start with it.
+const SITE_ROOT = document.currentScript.getAttribute("src").replace("js/site.js", "");
 
 
 // Fill every placeholder that matches "selector" (a CSS selector) with
@@ -32,18 +38,11 @@ const SITE_LINKS = [
   ["toysnsims.html", "Toys n' Sims"],
 ];
 
-// The top bar. "root" is the way from this page to the site's main
-// folder, e.g. "../../" on a sim page.
-function fillTopBar(root) {
-  fillBlocks("header.topbar", function (settings) {
-    const links = SITE_LINKS.map(function ([file, label]) {
-      const active = file === settings.active ? ' class="active"' : "";
-      return '<a href="' + root + file + '"' + active + ">" + label + "</a>";
-    });
-    return "<nav>" + links.join("") + "</nav>";
+// The top bar.
+fillBlocks("header.topbar", function (settings) {
+  const links = SITE_LINKS.map(function ([file, label]) {
+    const active = file === settings.active ? ' class="active"' : "";
+    return '<a href="' + SITE_ROOT + file + '"' + active + ">" + label + "</a>";
   });
-}
-
-// The way to the main folder is this script's own address (as the page
-// wrote it) without the "js/site.js" at its end.
-fillTopBar(document.currentScript.getAttribute("src").replace("js/site.js", ""));
+  return "<nav>" + links.join("") + "</nav>";
+});

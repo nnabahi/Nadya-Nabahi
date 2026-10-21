@@ -812,7 +812,6 @@ const domains = connectDomains({
     showPictureKind();
     restart();
   },
-  show: function () { byId("lattice-note").hidden = onSquares(); },   // (the Neighbors option says it on squares)
 });
 
 // The grains that make each cell of the table d topple: as many as it

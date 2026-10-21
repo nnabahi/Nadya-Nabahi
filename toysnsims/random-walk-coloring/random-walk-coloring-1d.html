@@ -64,52 +64,6 @@
         </div>
         <div class="option-row" id="size-row">
           Length <input type="number" id="set-width" min="2" step="1">
-          <span id="height-part" hidden>&times; <input type="number" id="set-height" min="2" step="1"></span>
-        </div>
-
-        <!-- Options of the 2D page that the shared code still looks for.
-             They are never shown here. -->
-        <div hidden>
-        <div class="option-row" id="neighbors-row">
-          Neighbors
-          <select id="set-neighbors">
-            <option value="4">4 (share a side)</option>
-            <option value="8">8 (sides or corners)</option>
-          </select>
-        </div>
-        <div class="option-row" id="custom-row" hidden>
-          <span id="custom-info"></span>
-          <button class="tool-button" id="edit-custom">Edit custom domain</button>
-        </div>
-
-        <!-- Hyperbolic plane or tree only: which graph, how big a ball of
-             it, and how it is drawn (the ids are the ones
-             js/sim-hyperbolic.js reads). -->
-        <div id="graph-rows" hidden>
-          <div class="option-row" id="graph-presets"></div>
-          <div class="option-row">
-            <label><input type="radio" name="graph-kind" value="tiling" checked> Tiling {p, q}:</label>
-            p <input type="number" id="set-p" min="3" max="12" step="1" value="7">
-            q <input type="number" id="set-q" min="3" max="12" step="1" value="3">
-          </div>
-          <div class="option-row">
-            <label><input type="radio" name="graph-kind" value="tree"> Tree, degree</label>
-            <input type="number" id="set-degree" min="3" max="12" step="1" value="3">
-          </div>
-          <p class="muted small" id="graph-info"></p>
-          <div class="option-row">
-            Ball: every cell within R =
-            <input type="number" id="set-ball-radius" min="1" step="1">
-            steps of the start
-          </div>
-          <p class="muted small" id="ball-info"></p>
-          <div class="option-row">
-            Drawn in
-            <label><input type="radio" name="picture" value="disk" checked> the disk</label>
-            <label><input type="radio" name="picture" value="half"> the half-plane</label>
-            <label id="spread-choice"><input type="radio" name="picture" value="spread"> spread out</label>
-          </div>
-        </div>
         </div>
 
         <h3 class="option-heading">Walkers</h3>

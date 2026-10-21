@@ -18,6 +18,7 @@
 
    Contents:
      1. The Domain options
+          domainOptionsHTML(ticked, least)  the options themselves, written once
           connectDomains(page)              connect them: what each one does
           fillDomainOptions(defaults, most, ball) their values at the start
           boxFromOptions(least, most, defaults)   the box or torus they say
@@ -42,6 +43,14 @@
 /* =====================================================================
    1. THE DOMAIN OPTIONS
    ---------------------------------------------------------------------
+   Most pages hold an empty box for them under their "Domain" heading,
+     <div class="domain-options" data-ticked="torus"></div>
+   which this file fills in as the page loads (domainOptionsHTML):
+   data-ticked is the kind ticked at the start ("box" or "torus"), and
+   data-least, if given, the smallest size the size boxes go down to
+   (2 if left out). Pages whose domains are different (the 1D ring and
+   line, Uniform Discrete Tiling) write their own, with the same ids.
+
    The radio buttons name="domain" pick the kind of domain, and every
    page uses the same ids for the options that go with each:
      box, torus   the boxes set-width and set-height (in the row
@@ -67,6 +76,54 @@
    The cells-row hides where only the tiles can be cells: on the square
    grid, and on Penrose's first tiling (P1).
    ===================================================================== */
+
+fillBlocks(".domain-options", function (settings) {
+  return domainOptionsHTML(settings.ticked, settings.least || 2);
+});
+
+// The Domain options, as HTML: the kinds (with "ticked" ticked), the
+// size (boxes that go down to "least"), the Lattice options, the
+// neighbors, the custom domain's row, and the hyperbolic plane or
+// tree's rows (js/sim-hyperbolic.js reads their ids).
+function domainOptionsHTML(ticked, least) {
+  function kind(value, label) {
+    return '<label><input type="radio" name="domain" value="' + value + '"' + (value === ticked ? " checked" : "") +
+      "> " + label + "</label>";
+  }
+  function size(id) { return '<input type="number" id="' + id + '" min="' + least + '" step="1">'; }
+  return '<div class="option-row">' + kind("box", "Box") + kind("torus", "Torus") + kind("custom", "Custom (draw it)") +
+      kind("graph", "Hyperbolic plane or tree") + "</div>" +
+    '<div class="option-row" id="size-row">Size ' + size("set-width") + " &times; " + size("set-height") + "</div>" +
+    '<div id="lattice-rows">' +
+      '<div class="option-row">Lattice <select id="set-tiling"></select></div>' +
+      '<div class="option-row">Code <input type="text" class="tiling-code" id="tiling-code" spellcheck="false" ' +
+        'autocomplete="off"> <a class="small" href="' + SITE_ROOT + 'help/gomjau-hogg.html">how codes work</a></div>' +
+      '<p class="muted small tiling-message" id="tiling-message"></p>' +
+      '<div class="option-row" id="cells-row">Cells are the ' +
+        '<label><input type="radio" name="cells-are" value="tiles" checked> tiles</label> ' +
+        '<label><input type="radio" name="cells-are" value="corners"> corners</label></div>' +
+    "</div>" +
+    '<div class="option-row" id="neighbors-row">Neighbors <select id="set-neighbors">' +
+      '<option value="4">4 (share a side)</option><option value="8">8 (sides or corners)</option></select></div>' +
+    '<div class="option-row" id="custom-row" hidden><span id="custom-info"></span> ' +
+      '<button class="tool-button" id="edit-custom">Edit custom domain</button></div>' +
+    '<div id="graph-rows" hidden>' +
+      '<div class="option-row" id="graph-presets"></div>' +
+      '<div class="option-row"><label><input type="radio" name="graph-kind" value="tiling" checked> Tiling {p, q}:</label> ' +
+        'p <input type="number" id="set-p" min="3" max="12" step="1" value="7"> ' +
+        'q <input type="number" id="set-q" min="3" max="12" step="1" value="3"></div>' +
+      '<div class="option-row"><label><input type="radio" name="graph-kind" value="tree"> Tree, degree</label> ' +
+        '<input type="number" id="set-degree" min="3" max="12" step="1" value="3"></div>' +
+      '<p class="muted small" id="graph-info"></p>' +
+      '<div class="option-row">Ball: every cell within R = <input type="number" id="set-ball-radius" min="1" step="1"> ' +
+        "steps of the start</div>" +
+      '<p class="muted small" id="ball-info"></p>' +
+      '<div class="option-row">Drawn in ' +
+        '<label><input type="radio" name="picture" value="disk" checked> the disk</label> ' +
+        '<label><input type="radio" name="picture" value="half"> the half-plane</label> ' +
+        '<label id="spread-choice"><input type="radio" name="picture" value="spread"> spread out</label></div>' +
+    "</div>";
+}
 
 // Connect the Domain options. "page" has the page's own parts:
 //   view, player   the picture's view (js/sim-view.js) and its Play /
@@ -199,7 +256,7 @@ function fillDomainOptions(defaults, most, ball) {
     byId("set-height").max = most;
   }
   if (byId("set-neighbors")) byId("set-neighbors").value = String(defaults.neighbors);
-  if (ball) {
+  if (ball && byId("set-ball-radius")) {
     byId("set-ball-radius").value = ball.R;
     byId("set-ball-radius").max = ball.most;
   }

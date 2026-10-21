@@ -63,77 +63,8 @@
           <a class="tool-button model-check" href="sandpiles-check.html">model check</a></h2>
 
         <h3 class="option-heading">Table</h3>
-        <div class="option-row">
-          <label><input type="radio" name="domain" value="box" checked> Box</label>
-          <label><input type="radio" name="domain" value="torus"> Torus</label>
-          <label><input type="radio" name="domain" value="custom"> Custom (draw it)</label>
-          <label><input type="radio" name="domain" value="graph"> Hyperbolic plane or tree</label>
-        </div>
-        <div class="option-row" id="size-row">
-          Size <input type="number" id="set-width" min="1" step="1">
-          &times; <input type="number" id="set-height" min="1" step="1">
-        </div>
-        <!-- The lattice: the square grid, any tiling by regular
-             polygons, from the menu or typed as a code (GomJau-Hogg
-             notation), or a Penrose tiling (js/sim-penrose.js), with its
-             tiles or its corners as the cells (js/sim-controls.js reads
-             these ids). -->
-        <div id="lattice-rows">
-          <div class="option-row">
-            Lattice <select id="set-tiling"></select>
-          </div>
-          <div class="option-row">
-            Code <input type="text" class="tiling-code" id="tiling-code" spellcheck="false" autocomplete="off">
-            <a class="small" href="../../help/gomjau-hogg.html">how codes work</a>
-          </div>
-          <p class="muted small tiling-message" id="tiling-message"></p>
-          <div class="option-row" id="cells-row">
-            Cells are the
-            <label><input type="radio" name="cells-are" value="tiles" checked> tiles</label>
-            <label><input type="radio" name="cells-are" value="corners"> corners</label>
-          </div>
-          <p class="muted small" id="lattice-note">Each cell topples when it has as many grains as it has neighbors.</p>
-        </div>
-        <div class="option-row" id="neighbors-row">
-          Neighbors
-          <select id="set-neighbors">
-            <option value="4">4 (share a side): topples at 4 grains</option>
-            <option value="8">8 (sides or corners): topples at 8 grains</option>
-          </select>
-        </div>
-        <div class="option-row" id="custom-row" hidden>
-          <span id="custom-info"></span>
-          <button class="tool-button" id="edit-custom">Edit custom domain</button>
-        </div>
-
-        <!-- Hyperbolic plane or tree only: which graph, how big a ball of
-             it, and how it is drawn (the ids are the ones
-             js/sim-hyperbolic.js reads). -->
-        <div id="graph-rows" hidden>
-          <div class="option-row" id="graph-presets"></div>
-          <div class="option-row">
-            <label><input type="radio" name="graph-kind" value="tiling" checked> Tiling {p, q}:</label>
-            p <input type="number" id="set-p" min="3" max="12" step="1" value="7">
-            q <input type="number" id="set-q" min="3" max="12" step="1" value="3">
-          </div>
-          <div class="option-row">
-            <label><input type="radio" name="graph-kind" value="tree"> Tree, degree</label>
-            <input type="number" id="set-degree" min="3" max="12" step="1" value="3">
-          </div>
-          <p class="muted small" id="graph-info"></p>
-          <div class="option-row">
-            Ball: every cell within R =
-            <input type="number" id="set-ball-radius" min="1" step="1">
-            steps of the start
-          </div>
-          <p class="muted small" id="ball-info"></p>
-          <div class="option-row">
-            Drawn in
-            <label><input type="radio" name="picture" value="disk" checked> the disk</label>
-            <label><input type="radio" name="picture" value="half"> the half-plane</label>
-            <label id="spread-choice"><input type="radio" name="picture" value="spread"> spread out</label>
-          </div>
-        </div>
+        <div class="domain-options" data-ticked="box" data-least="1"></div>
+        <p class="muted small">Each cell topples when it has as many grains as it has neighbors.</p>
 
         <h3 class="option-heading">Start</h3>
         <div class="option-row">
