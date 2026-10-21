@@ -494,8 +494,10 @@
           tends to a fixed convex set, the limit shape [2, 10], which is not
           known exactly. The page measures the base's shape directly. The
           <em>convexity</em> is <span class="tex">\mathrm{area}(K_n)/\mathrm{area}(\mathrm{hull}(K_n))</span>,
-          with the convex hull found from the lowest and highest square of each
-          column [11]. The <em>radius in direction</em> <span class="tex">\theta</span>
+          with the convex hull kept up to date as the base grows: a new corner
+          inside the hull changes nothing, and otherwise the hull of the old
+          corners and the new one is found with Andrew's monotone chain [11].
+          The <em>radius in direction</em> <span class="tex">\theta</span>
           is the largest straight-line distance from the start to a base site
           (middle to middle) whose direction from the start lies in the
           <span class="tex">2^\circ</span> slice around <span class="tex">\theta</span>;
@@ -515,15 +517,34 @@
           as on a graph (below); on the square grid <span class="tex">r = 1</span>
           is the 4 neighbors. The rule is otherwise the same. Distances go from
           middle to middle, and <span class="tex">K_n</span> is the union of the
-          closed polygons of the base, all in side lengths. A column of cells is
-          one cell moved again and again by the same step of the tiling's
-          repeating block, so the cells between its lowest and highest are in the
-          hull of those two, as for squares. The check page compares the tile's
-          size with the coordination sequences of the square, triangular and
-          hexagonal grids [12], and the holes with Euler's formula
+          closed polygons of the base, all in side lengths. The check page
+          compares the tile's size with the coordination sequences of the
+          square, triangular and hexagonal grids [12], and the holes with
+          Euler's formula
           <span class="tex">\beta_1 = 1 - V + E - F</span> for a connected base
           [13]. The limit shape statements above are proved for the square grid
           [2, 10].
+        </p>
+        <p>
+          <strong>Penrose tilings.</strong> The menu also has Penrose's three
+          tilings [15, 16]: pentagons, stars, boats and diamonds (P1), all with
+          sides 1; kites and darts (P2), with sides 1 and
+          <span class="tex">\varphi = (1 + \sqrt 5)/2</span>; and thick and thin
+          rhombs (P3), with sides 1. They never repeat: no shift moves one onto
+          itself [14, Section 10.3]. So there is no torus, and the box is
+          centered on the tiling's point of five-fold symmetry. On the whole
+          plane the mountain starts at the cell nearest that point, and the
+          page builds the tiling as the mountain reaches farther out, up to 160
+          side lengths from that point each way, and the mountain stops when
+          it gets near there. The cells are the tiles, or for P2 and P3 the
+          corners, and the tile is the ball <span class="tex">T(x)</span> as
+          above. A pentagon of P1 in the notch of a star or a boat shares two
+          sides with it, and is one step away. The times
+          <span class="tex">E(x, h)</span> are made from where the cell
+          <span class="tex">x</span> is, not from its number in the page's
+          list, so with the same seed a box and the whole plane grow the same
+          mountain until the one on the plane first leaves the box (the check
+          page checks this).
         </p>
         <p>
           <strong>On a graph.</strong> With "Hyperbolic plane or tree", the sites
@@ -625,6 +646,14 @@
             of London A</em> 453 (1997), 2369&ndash;2389.</li>
           <li>A. Hatcher, <em>Algebraic Topology</em>, Cambridge University Press,
             2002, Theorem 2.44.</li>
+          <li>B. Gr&uuml;nbaum, G. C. Shephard, <em>Tilings and Patterns</em>,
+            W. H. Freeman, 1987.</li>
+          <li>R. Penrose, &ldquo;The role of aesthetics in pure and applied
+            mathematical research&rdquo;, <em>Bull. Inst. Math. Appl.</em> 10
+            (1974), 266&ndash;271.</li>
+          <li>R. Penrose, &ldquo;Pentaplexity: a class of non-periodic tilings
+            of the plane&rdquo;, <em>Math. Intelligencer</em> 2 (1979),
+            32&ndash;37.</li>
         </ol>
         </div>
       </section>
@@ -640,8 +669,9 @@
        (they also typeset the formulas, so they come after KaTeX), the
        second thread's run loop, charts, colors, domains, the picture's
        view (moving and zooming it), the hyperbolic tilings and trees and
-       their pictures, the options and controls of the domain, and the
-       convex hull and the holes. Then the growth rule (it runs in a
+       their pictures, the tilings by regular polygons and the Penrose
+       tilings, the options and controls of the domain, and the convex
+       hull and the holes. Then the growth rule (it runs in a
        second thread), then this page's code. -->
   <script src="../../js/sim-page.js"></script>
   <script src="../../js/sim-worker.js"></script>
@@ -652,6 +682,7 @@
   <script src="../../js/sim-graphs.js"></script>
   <script src="../../js/sim-hyperbolic.js"></script>
   <script src="../../js/sim-tilings.js"></script>
+  <script src="../../js/sim-penrose.js"></script>
   <script src="../../js/sim-controls.js"></script>
   <script src="../../js/sim-shape.js"></script>
   <script src="eden-growth-rule.js"></script>

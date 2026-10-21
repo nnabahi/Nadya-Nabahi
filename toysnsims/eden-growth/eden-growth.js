@@ -116,11 +116,13 @@ let dim = 2;                 // 1, 2 or "graph" (the hyperbolic plane or a tree)
 // it was grown: { domain, tiling, box, wrap } (the domain as the growth
 // rule has it; in 2D on another tiling the tiling, from uprightBlock in
 // js/sim-tilings.js, and for a box or torus the tiling domain drawn,
-// else null; the torus's range, or null).
+// else null; the torus's range, or null). On a Penrose tiling's whole
+// plane, the tiling is the page's copy of the plane the second thread
+// grows ("mirror": penroseMirror, js/sim-penrose.js).
 let sentSetup = null;
 // In 2D on another tiling, its box or torus (boxOfTiling, section 4),
 // and the options it was built from.
-let tilingBoxNow = null, tilingBoxFor = "";
+let tilingBoxNow = null, tilingBoxFor = "", mirror = null;
 let tile = [];               // the offsets, e.g. [[-1], [1]] or [[1, 0], ...]
 let domainKind = "whole";    // "whole", "box", "torus" or "custom"; on a graph "whole" or "ball"
 let customDomain = null;     // the last custom domain drawn (js/sim-domains.js), if any
@@ -180,7 +182,7 @@ function onTiling() {
 // tiling (where r can go further).
 function showLatticeAndTile() {
   byId("lattice-rows").hidden = (dim !== 2 || domainKind === "custom");
-  byId("cells-row").hidden = onSquares();
+  byId("cells-row").hidden = !cornersCanBeCells();
   byId("graph-rows").hidden = (dim !== "graph");
   const ball = (dim === "graph" || onTiling());
   byId("ball-tile").hidden = !ball;
@@ -257,14 +259,17 @@ function describeTile() {
    graph: the whole graph, or a ball around the start. On another
    tiling: the whole plane from cell 0 of block (0, 0), or a box or
    torus of the given size in side lengths (tilingBox,
-   js/sim-domains.js) from the cell nearest its middle.
+   js/sim-domains.js) from the cell nearest its middle. On a Penrose
+   tiling, cell 0 is the one nearest its point of five-fold symmetry.
    ===================================================================== */
 
-// Show the domain choices for this dimension, with "domainKind" ticked.
+// Show the domain choices for this dimension, with "domainKind" ticked
+// (a Penrose tiling never repeats, so it has no torus).
 function showDomainChoice() {
   const row = byId("domain-choice");
   row.innerHTML = "";
   for (const [kind, name] of DOMAINS[dim]) {
+    if (kind === "torus" && dim === 2 && onFiniteTiling()) continue;
     const label = document.createElement("label");
     label.innerHTML = '<input type="radio" name="domain" value="' + kind + '"> ' + name;
     const radio = label.firstChild;
@@ -377,8 +382,9 @@ function customStart(d) {
    ---------------------------------------------------------------------
    The growth rule is mountainWorker() in eden-growth-rule.js,
    with newMountain(), ballTile(), newGraphMountain(), the hyperbolic
-   tilings and trees, and the run loop and the trace (js/sim-worker.js)
-   copied in.
+   tilings and trees, the run loop and the trace (js/sim-worker.js),
+   the hull and holes (js/sim-shape.js) and what grows a Penrose
+   tiling's plane (js/sim-penrose.js) copied in.
    startWorker (js/sim-page.js) runs it in a second thread, so the page
    never freezes.
    ===================================================================== */
@@ -386,12 +392,14 @@ const worker = startWorker(mountainWorker,
   [newMountain, ballTile, newGraphMountain, makeGraph, tilingShape, motionTimes, motionApply, halfTurn, coshFromStart,
    learnedRules, tilingByGeometry, tilingByRules, tilingRules, testRules, hashTable, ballAround, spreadPlace,
    makeRunLoop, newTrace, keepSample, seededUniform, pickSite, newClocks, holeHistory, bettiOverTime,
-   cellWindow, squareWindow, tilingWindow, convexHull, polygonArea, convexity]);
+   cellWindow, squareWindow, tilingWindow, finiteWindow, convexHull, growingHull, polygonArea, convexity]
+  .concat(penroseHelpers()));
 
 worker.onmessage = function (event) {
   const message = event.data;
   if (message.type !== "state" || message.run !== run) return;   // from an older run
   message.setup = sentSetup;                                      // how it was grown (section 2)
+  if (message.planeCells) addPlaneCells(sentSetup.tiling, message.planeCells);   // on a Penrose tiling's whole plane
   if (message.places) keepPlaces(message);                        // on a graph (section 6d)
   if (message.rules) keepRules(message.rules);                    // on a graph (section 6d)
   if (message.dim === "graph") {
@@ -408,7 +416,12 @@ worker.onmessage = function (event) {
     if (player.playing) player.setPlaying(false);
     showMessage("Every site is full (it has capacity M), so no more blocks can land.");
   }
-  byId("play").disabled = byId("step").disabled = Boolean(message.atMax || message.allFull);
+  if (message.atEdge) {   // on a Penrose tiling's whole plane: the run is over
+    if (player.playing) player.setPlaying(false);
+    showMessage("The mountain has reached the edge of the part of this tiling the page builds (" + PENROSE_PLANE_MOST +
+                " side lengths from the middle each way), so it stops here.");
+  }
+  byId("play").disabled = byId("step").disabled = Boolean(message.atMax || message.allFull || message.atEdge);
   drawSoon();
 };
 
@@ -430,18 +443,26 @@ function restart(keepStep, forget) {
     steps: (keepStep && latest && latest.steps) ? latest.steps : 0,
     forgetClicks: !keepStep || Boolean(forget),
   };
+  let drawnOn = null;   // the tiling the mountain is drawn on (see sentSetup)
   if (dim === "graph") {
     message.graph = disk.spec;
     message.radius = ballRadius();
   } else if (onTiling()) {
-    message.tiling = tilingInUse.block;
+    // On a Penrose tiling's whole plane, the second thread builds the
+    // plane itself (js/sim-penrose.js, section 9): it needs only which
+    // tiling, and how many of the plane's cells the page has.
+    const block = tilingInUse.block, plane = block.finite && domainKind === "whole";
+    if (plane) mirror = penroseMirror(mirror, block);
+    message.tiling = plane ? { code: block.code, corners: block.corners, penrose: block.penrose, finite: true } : block;
+    message.cellsKnown = plane ? mirror.cells.length : 0;
     message.radius = ballRadius();
     message.start = where.start;
+    drawnOn = plane ? mirror : block;
   } else {
     message.tile = tile;
     message.start = where.start;
   }
-  sentSetup = { domain: where.domain, tiling: message.tiling || null,
+  sentSetup = { domain: where.domain, tiling: drawnOn,
                 box: onTiling() && domainKind !== "whole" ? boxOfTiling().domain : null, wrap: torusRange() };
   worker.postMessage(message);
   player.carryOn();
@@ -1218,7 +1239,11 @@ for (const radio of document.querySelectorAll('input[name="dimension"]')) {
 // Lattice (2D): the square grid or another tiling (js/sim-controls.js).
 // A new lattice keeps the seed and the step, but forgets clicked blocks
 // (a click was on a cell of the old lattice).
-connectLattice(function () { showDomainChoice(); restart(true, true); });
+connectLattice(function () {
+  if (domainKind === "torus" && onFiniteTiling()) domainKind = "box";
+  showDomainChoice();
+  restart(true, true);
+});
 
 // The size of a segment, cycle, box or torus, or the R of a ball.
 for (const id of ["set-width", "set-height"]) {

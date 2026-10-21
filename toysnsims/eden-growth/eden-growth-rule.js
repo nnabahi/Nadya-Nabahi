@@ -83,7 +83,12 @@
    is "every cell within r steps of the site" (a step crosses one side;
    ballTile below), as on a graph (next paragraph). On the square grid
    r = 1 is the 4 neighbors. Distances, the hull and the holes go by the
-   middles and polygons of the cells, in side lengths.
+   middles and polygons of the cells, in side lengths. On a Penrose
+   tiling (js/sim-penrose.js), which never repeats, the block is one
+   patch around the middle, so a site is always cell z of block (0, 0):
+   a box's patch, or on the whole plane a patch that grows as the
+   mountain spreads, up to PENROSE_PLANE_MOST from the middle, where it
+   stops.
 
    ON ANY GRAPH ("Graph" on the page). The same rule on a graph whose
    cells are made as they are needed (js/sim-graphs.js): a hyperbolic
@@ -125,8 +130,11 @@
 //   dim     1 or 2
 //   tile    the offsets: [[dx], ...] in 1D, [[dx, dy], ...] in 2D
 //   tiling  (2D only, and only for another tiling than the squares) the
-//           tiling's repeating block (uprightBlock, js/sim-tilings.js).
-//           A site is then cell z of block (x, y), and "tile" is left out:
+//           tiling's repeating block (uprightBlock, js/sim-tilings.js),
+//           or a Penrose tiling's block (js/sim-penrose.js): for a box,
+//           its patch, and on the whole plane its plane (penrosePlane),
+//           which the mountain grows. A site is then cell z of block
+//           (x, y), and "tile" is left out:
 //   radius  (with a tiling) r: the tile is every cell within r steps
 //   domain  one of
 //             { kind: "whole" }
@@ -148,10 +156,9 @@
 //           (straight-line, middle to middle, in side lengths) of a base
 //           site whose direction from the start is in slice k of
 //           shapeBins equal slices of the circle (slice 0 starts at angle
-//           -180 degrees, to the left), 0 if none yet; m.columns has, for
-//           each column of cells, the lowest and highest y of the base
-//           there (a column is the cells z of the blocks (x, y) for one x
-//           and z: on the squares, one x); m.area is the base's area.
+//           -180 degrees, to the left), 0 if none yet; m.hull is the
+//           convex hull of the base's cells' corners (growingHull,
+//           js/sim-shape.js); m.area is the base's area.
 // It returns an object whose step(u) drops one block, and whose fields
 // say how the mountain looks (see the end of this function).
 function newMountain(options) {
@@ -166,10 +173,11 @@ function newMountain(options) {
   // The cells: on another tiling, cell z of block (x, y) is the cell
   // tiling.cells[z] moved by x a + y b; on the grids, the square of side
   // 1 around (x, y), as the one cell of a block of size 1 (z is always 0).
+  // A Penrose tiling has one block, and on the whole plane it grows.
   const block = tiling || { a: [1, 0], b: [0, 1],
     cells: [{ middle: [0, 0], corners: [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5]] }] };
+  const finite = Boolean(tiling && tiling.finite), plane = finite && domain.kind === "whole";
   const parts = block.cells.length;
-  const areas = block.cells.map(function (cell) { return polygonArea(cell.corners); });
 
   // Every site gets a number, 0, 1, 2, ..., in the order it becomes
   // available. For site number i:
@@ -187,9 +195,9 @@ function newMountain(options) {
   // The tile, as moves [dx, dy, z2] for each kind of cell z: a block on
   // cell z of block (x, y) makes cell z2 of block (x + dx, y + dy)
   // available. On the grids, the offsets T, for the one kind of cell;
-  // on another tiling, every cell within r steps (ballTile, below).
-  const tiles = tiling ? block.cells.map(function (cell, z) { return ballTile(tiling, z, options.radius); })
-                       : [offsetMoves(options.tile)];
+  // on another tiling, every cell within r steps (ballTile, below),
+  // worked out the first time a cell of that kind joins the base (tileOf).
+  const tiles = tiling ? new Map() : new Map([[0, offsetMoves(options.tile)]]);
 
   // For a drawn domain (or a box or torus of another tiling): the keys
   // of its cells, to look them up quickly.
@@ -216,9 +224,10 @@ function newMountain(options) {
 
   // One number per site, for the Map above. Coordinates up to about a
   // million either way, with up to 2048 cells in a block, fit without
-  // two sites sharing a key (it stays below 2^53).
+  // two sites sharing a key (it stays below 2^53). On a Penrose tiling,
+  // every site is in block (0, 0): z.
   function keyOf(x, y, z) {
-    return ((x + 1048576) * 2097152 + (y + 1048576)) * parts + z;
+    return finite ? z : ((x + 1048576) * 2097152 + (y + 1048576)) * parts + z;
   }
 
   // Wrap a number into lo..hi, for tori. E.g. lo = 0, hi = 9: 10 -> 0, -1 -> 9.
@@ -272,8 +281,15 @@ function newMountain(options) {
   }
 
   // Site i's place, for its alarm clocks (newClocks): (x, y), and z too
-  // when a block has more than one cell.
+  // when a block has more than one cell. On a Penrose tiling, its cell's
+  // name, which says where it is (its cell number depends on how the
+  // patch grew), in two halves of 26 bits (the clocks take whole numbers
+  // of up to 32 bits): so a box and the whole plane have the same clocks.
   function clockPlace(i) {
+    if (finite) {
+      const key = block.cells[siteZ[i]].key;
+      return [Math.floor(key / 67108864), key % 67108864];
+    }
     return parts === 1 ? [siteX[i], siteY[i]] : [siteX[i], siteY[i], siteZ[i]];
   }
 
@@ -293,7 +309,8 @@ function newMountain(options) {
     dim: dim,
     tiling: tiling,    // (null on the grids; holeHistory, js/sim-shape.js, reads it)
     siteX: siteX, siteY: siteY, siteZ: siteZ, height: height, available: available, bornAt: bornAt,
-    radii: bins ? new Float64Array(bins) : null, columns: bins ? new Map() : null, area: 0,
+    radii: bins ? new Float64Array(bins) : null, hull: bins ? growingHull() : null, area: 0,
+    atEdge: false,     // on a Penrose tiling's plane: the mountain has reached its edge
     steps: 0,          // n, the number of steps so far
     time: 0,           // with clocks: when the last block landed
     blocks: 0,         // blocks dropped, including the first one (= n + 1)
@@ -336,12 +353,31 @@ function newMountain(options) {
       bornAt[i] = m.blocks - 1;   // the start's block is block 1, step n's is block n + 1
       m.baseSize += 1;
       if (bins) addToShape(i);
-      for (const [dx, dy, z] of tiles[siteZ[i]]) makeAvailable(siteX[i] + dx, siteY[i] + dy, z);
+      for (const [dx, dy, z] of tileOf(siteZ[i])) makeAvailable(siteX[i] + dx, siteY[i] + dy, z);
     }
   }
 
-  // A new base site i: its slice's radius, its column (see shapeBins)
-  // and its area.
+  // The tile of a cell of kind z (on the grids, z = 0), worked out the
+  // first time. On a Penrose tiling's plane, the plane must first hold
+  // every cell within 4r + 6 of it: the tile, every cell within r steps
+  // (a step goes less than 2), the tiles of those, and the window the
+  // holes look at, 5 past the base (js/sim-shape.js). If it can't grow
+  // that far (PENROSE_PLANE_MOST, js/sim-penrose.js), the mountain has
+  // reached its edge, and the run stops after this step. This cell's
+  // own tile is still whole: it was in the tile of a cell that fit.
+  function tileOf(z) {
+    if (!tiles.has(z)) {
+      if (plane) {
+        const [x, y] = block.cells[z].middle;
+        if (!penroseReach(block, x, y, 4 * options.radius + 6)) m.atEdge = true;
+      }
+      tiles.set(z, ballTile(tiling, z, options.radius));
+    }
+    return tiles.get(z);
+  }
+
+  // A new base site i: its slice's radius, its corners for the hull, and
+  // its area.
   function addToShape(i) {
     const x = siteX[i], y = siteY[i], z = siteZ[i];
     const [u, w] = placeOf(x, y, z), dx = u - startPlace[0], dy = w - startPlace[1];
@@ -349,10 +385,9 @@ function newMountain(options) {
       const k = Math.min(bins - 1, Math.floor((Math.atan2(dy, dx) + Math.PI) / (2 * Math.PI) * bins));
       m.radii[k] = Math.max(m.radii[k], Math.sqrt(dx * dx + dy * dy));
     }
-    const column = m.columns.get(x * parts + z);
-    if (!column) m.columns.set(x * parts + z, { x: x, z: z, low: y, high: y });
-    else { column.low = Math.min(column.low, y); column.high = Math.max(column.high, y); }
-    m.area += areas[z];
+    const corners = polygonOf(x, y, z);
+    for (const corner of corners) m.hull.add(corner);
+    m.area += polygonArea(corners);
   }
 
   // The height at (x, y, z) (in 1D, y = 0; on the grids, z = 0), or 0 if
@@ -384,6 +419,7 @@ function ballTile(tiling, z, r) {
     const further = [];
     for (const [x, y, k] of layer) {
       for (const [k2, dx, dy] of tiling.cells[k].next) {
+        if (k2 < 0) continue;    // (past the edge of a Penrose tiling's patch)
         const key = (x + dx) + "," + (y + dy) + "," + k2;
         if (seen.has(key)) continue;
         seen.add(key);
@@ -612,18 +648,11 @@ function newGraphMountain(options) {
    another tiling), K. Its convexity is area(K) / area(hull of K), where
    the hull is the smallest convex set holding K: 1 when K is convex,
    smaller the more K has bays and holes. The hull of K is the hull of
-   its cells' corners. The cells of one column (see shapeBins) are one
-   cell moved along the step b again and again, so every cell between
-   the lowest and the highest lies in the hull of those two: only their
-   corners are handed to convexHull.
+   its cells' corners, kept up to date as cells join the base (m.hull:
+   growingHull, js/sim-shape.js).
    ===================================================================== */
 function convexity(m) {
-  const points = [];
-  for (const column of m.columns.values()) {
-    points.push(...m.polygonOf(column.x, column.low, column.z));
-    if (column.high > column.low) points.push(...m.polygonOf(column.x, column.high, column.z));
-  }
-  return m.area / polygonArea(convexHull(points));
+  return m.area / polygonArea(m.hull.corners());
 }
 
 /* =====================================================================
@@ -641,7 +670,11 @@ function convexity(m) {
          (on another tiling: tiling and radius instead of tile; on a
          graph: dim "graph", and graph and radius instead of tile and start)
          a new mountain, grown at once to "steps" steps with the same
-         seed (so changing a setting keeps the step you were at)
+         seed (so changing a setting keeps the step you were at). On a
+         Penrose tiling's whole plane, the mountain is on this thread's
+         plane of it (kept from run to run while the tiling stays the
+         same), and the setup also says how many of the plane's cells the
+         page already has, cellsKnown.
      { type: "play", speed }   drop "speed" blocks per second
                                (Infinity = as fast as possible)
      { type: "pause" }
@@ -660,8 +693,11 @@ function convexity(m) {
    is random as usual.
 
    The worker answers with "state" messages: the available sites, their
-   heights, and the numbers for the Statistics box. Each carries
-   its run number, so the page can ignore leftovers from an older run.
+   heights, and the numbers for the Statistics box, and on a Penrose
+   tiling's whole plane the plane's cells the page doesn't have yet, and
+   whether the mountain has reached the plane's edge (where it stops).
+   Each carries its run number, so the page can ignore leftovers from an
+   older run.
    ===================================================================== */
 function mountainWorker() {
   const MAX_STEPS = 10000000;   // ten million blocks at most
@@ -681,6 +717,9 @@ function mountainWorker() {
   // the last answer, for the step holesStep, and holesFree is when the
   // next one may start.
   let holes = null, holesStep = -1, holesFree = 0;
+  // On a Penrose tiling's whole plane: the plane (penrosePlane,
+  // js/sim-penrose.js), and how many of its cells the page has.
+  let plane = null, cellsSent = 0;
 
   // Start again from one block, and grow to "steps" steps.
   function setup(steps) {
@@ -689,6 +728,11 @@ function mountainWorker() {
     holesStep = -1;    // (the holes kept are the old mountain's)
     try {
       const withClocks = Object.assign({}, options, { clocks: String(options.seed), shapeBins: holesWanted() ? SHAPE_BINS : 0 });
+      if (onPlane()) {
+        plane = penrosePlane(plane, options.tiling);
+        cellsSent = options.cellsKnown;
+        withClocks.tiling = plane;
+      }
       mountain = options.dim === "graph" ? newGraphMountain(withClocks) : newMountain(withClocks);
     } catch (error) {
       mountain = null;
@@ -703,7 +747,7 @@ function mountainWorker() {
   // The run can't go on: the step limit, or (with a capacity) every
   // site is full, so no block can land anywhere.
   function isDone() {
-    return mountain !== null && (mountain.steps >= MAX_STEPS || mountain.available.length === 0);
+    return mountain !== null && (mountain.steps >= MAX_STEPS || mountain.available.length === 0 || mountain.atEdge);
   }
 
   function oneStep() {
@@ -796,6 +840,7 @@ function mountainWorker() {
       available: m.available.length, covered: coveredPercent(m), maxHeight: m.maxHeight, full: m.full,
       atMax: m.steps >= MAX_STEPS,
       allFull: m.available.length === 0,   // with a capacity: every site is full
+      atEdge: m.atEdge,                    // on a Penrose tiling's whole plane: it has reached the plane's edge
       traceSteps: Float64Array.from(trace.times),
       traceBase: Float64Array.from(trace.lists.base),
       traceHighest: Float64Array.from(trace.lists.highest),
@@ -818,9 +863,15 @@ function mountainWorker() {
       message.y = Int32Array.from(m.siteY);
       if (m.tiling) message.z = Int32Array.from(m.siteZ);
     }
+    if (onPlane()) addPlane(message);
     // Hand the lists of sites over instead of copying them again.
     const lists = [message.height, message.x, message.y, message.z, message.places].filter(Boolean);
     self.postMessage(message, lists.map(function (list) { return list.buffer; }));
+  }
+
+  // Is the mountain on a Penrose tiling's whole plane?
+  function onPlane() {
+    return Boolean(options.tiling && options.tiling.finite) && options.domain.kind === "whole";
   }
 
   // Holes (and the shape charts) only make sense in 2D, off a torus
@@ -848,6 +899,15 @@ function mountainWorker() {
       births: Float64Array.from(holes.births), deaths: Float64Array.from(holes.deaths),
       cells: Int32Array.from(holes.holeCells), times: Float64Array.from(times), beta: beta,
     };
+  }
+
+  // On a Penrose tiling's whole plane: the plane's cells the page doesn't
+  // have yet.
+  function addPlane(message) {
+    if (plane.cells.length > cellsSent) {
+      message.planeCells = planeCellsFrom(plane, cellsSent);
+      cellsSent = plane.cells.length;
+    }
   }
 
   // On a graph: the places of the sites made since the last message,

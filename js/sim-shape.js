@@ -12,6 +12,7 @@
    Contents:
      convexHull(points)        the corners of the smallest convex polygon
                                holding some points
+     growingHull()             the same, kept up to date as points come
      polygonArea(corners)      a polygon's area ...
      polygonPerimeter(corners) ... and the length around it
      holeHistory(set, now)     the holes of a set of cells (squares, or
@@ -20,7 +21,8 @@
      bettiOverTime(holes, times)   the number of holes at given steps
      frontierLength(set)       the length of the set's outer boundary
      cellWindow(...)           the cells around a set that these two
-                               look at (squareWindow, tilingWindow)
+                               look at (squareWindow, tilingWindow,
+                               finiteWindow)
    ===================================================================== */
 
 
@@ -48,6 +50,34 @@ function convexHull(points) {
     hull.pop();   // its last point starts the other edge
   }
   return hull;
+}
+
+// The convex hull of a set of points that only grows: hull.add(p) adds
+// the point p, and hull.corners() is the hull's corners now, as
+// convexHull gives them. Only the corners so far are kept: the hull of
+// the set with p is the hull of those and p. A point inside the hull
+// (or on its edge) changes nothing, and is checked in one pass around
+// it; otherwise the hull is found again.
+function growingHull() {
+  let kept = [];   // the corners so far (or, while there is just one point, that point)
+  // Is p inside the convex polygon with these corners (counterclockwise),
+  // or on its edge? Then it is on the left of every side, or on it.
+  function inside(p) {
+    if (kept.length < 3) return false;
+    for (let k = 0; k < kept.length; k++) {
+      const a = kept[k], b = kept[(k + 1) % kept.length];
+      if ((b[0] - a[0]) * (p[1] - a[1]) - (b[1] - a[1]) * (p[0] - a[0]) < 0) return false;
+    }
+    return true;
+  }
+  return {
+    add: function (p) {
+      if (inside(p)) return;
+      const corners = convexHull(kept.concat([p]));
+      kept = corners.length > 0 ? corners : [p];
+    },
+    corners: function () { return kept.length > 1 ? kept : []; },
+  };
 }
 
 // The area inside a polygon, from its corners in order (the "shoelace
@@ -244,7 +274,8 @@ function frontierLength(set) {
 //                  can reach far away.
 //   neighbors(c)   c's neighbors across its sides, those in the window
 function cellWindow(set, inside) {
-  return set.tiling ? tilingWindow(set, inside) : squareWindow(set, inside);
+  if (!set.tiling) return squareWindow(set, inside);
+  return set.tiling.finite ? finiteWindow(set, inside) : tilingWindow(set, inside);
 }
 
 // The window of squares: the box around the set, one square bigger all
@@ -319,6 +350,47 @@ function tilingWindow(set, inside) {
         if (n >= 0) list.push(n);
       }
       return list;
+    },
+  };
+}
+
+// The window of a tiling that never repeats (js/sim-penrose.js): one
+// block, a patch around the middle. The window is the patch's cells
+// whose middles are within 5 of the box around the set's middles. Its
+// edge is the cells more than 3 out, and those missing a neighbor (at
+// the edge of the patch): none can be in a hole, as every cell of the
+// set lies within 2 of that box (a cell's corners are less than 2 from
+// its middle). The cells up to 3 out have all their neighbors in the
+// window (their middles are less than 2 further out). Cell k of the
+// patch is number numberOf[k] of the window.
+function finiteWindow(set, inside) {
+  const cells = set.tiling.cells;
+  let xmin = Infinity, xmax = -Infinity, ymin = Infinity, ymax = -Infinity;
+  for (const i of inside) {
+    const [x, y] = cells[set.siteZ[i]].middle;
+    xmin = Math.min(xmin, x); xmax = Math.max(xmax, x);
+    ymin = Math.min(ymin, y); ymax = Math.max(ymax, y);
+  }
+  // How far the middle of cell k is out of the box (0 inside it).
+  const out = function (k) {
+    const [x, y] = cells[k].middle;
+    return Math.max(xmin - x, x - xmax, ymin - y, y - ymax, 0);
+  };
+  const list = [], numberOf = new Int32Array(cells.length).fill(-1);
+  cells.forEach(function (cell, k) {
+    if (out(k) <= 5) { numberOf[k] = list.length; list.push(k); }
+  });
+  return {
+    count: list.length,
+    cellOf: function (i) { return numberOf[set.siteZ[i]]; },
+    siteOf: function (c) { return [0, 0, list[c]]; },
+    onEdge: function (c) {
+      return out(list[c]) > 3 || cells[list[c]].next.some(function ([k]) { return k < 0; });
+    },
+    neighbors: function (c) {
+      const near = [];
+      for (const [k] of cells[list[c]].next) if (k >= 0 && numberOf[k] >= 0) near.push(numberOf[k]);
+      return near;
     },
   };
 }

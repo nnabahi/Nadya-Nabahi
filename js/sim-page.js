@@ -60,12 +60,27 @@ function readWhole(id, lo, hi, fallback) {
 // the computer (file://). So the function's own text is wrapped in a
 // "Blob" (a file made in memory) and the worker is made from that; it
 // works both ways. "helpers" (optional) is a list of other functions
-// the worker uses; their text is put in first, so "fn" can call them.
+// the worker uses, and of constants it uses, given as objects like
+// { PHI: PHI }; their text is put in first, so "fn" can use them.
 function startWorker(fn, helpers) {
-  const parts = (helpers || []).map(function (helper) { return helper.toString() + "\n"; });
+  const parts = (helpers || []).map(function (helper) {
+    if (typeof helper === "function") return helper.toString() + "\n";
+    return Object.keys(helper).map(function (name) { return "const " + name + " = " + sourceOf(helper[name]) + ";\n"; }).join("");
+  });
   parts.push("(" + fn.toString() + ")();");
   const code = new Blob(parts, { type: "text/javascript" });
   return new Worker(URL.createObjectURL(code));
+}
+
+// JavaScript text that makes "value" again: a number, a text, true or
+// false, a function, or a list or an object of those (for startWorker).
+function sourceOf(value) {
+  if (typeof value === "function") return value.toString();
+  if (Array.isArray(value)) return "[" + value.map(sourceOf).join(", ") + "]";
+  if (value !== null && typeof value === "object") {
+    return "{ " + Object.keys(value).map(function (key) { return JSON.stringify(key) + ": " + sourceOf(value[key]); }).join(", ") + " }";
+  }
+  return JSON.stringify(value);
 }
 
 

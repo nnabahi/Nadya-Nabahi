@@ -218,35 +218,32 @@ function eulerCounter(tiling) {
 // cell i being cell siteZ[i] of block (siteX[i], siteY[i])), found as
 // slowly and plainly as possible from the polygons alone: two cells are
 // neighbors when they have a side in common (the same middle of a
-// side). In the blocks around the set's cells, 3 more all round, the
-// empty cells are flooded from the outermost blocks; the empty cells it
-// doesn't reach are the holes' cells, in groups of neighbors. (least
-// and most are in js/sim-domains.js.) Returns { sizes, cells (as text "x,y,z"),
-// frontier (the sides between a cell of the set and a flooded one) }.
+// side). In a window of cells around the set (plainWindow), the empty
+// cells are flooded from the window's edge; the empty cells it doesn't
+// reach are the holes' cells, in groups of neighbors. Returns { sizes,
+// cells (as text "x,y,z"), frontier (the sides between a cell of the
+// set and a flooded one) }.
 function holesFromPolygons(set) {
-  const tiling = set.tiling, parts = tiling.cells.length, MARGIN = 3;
-  const xs = set.siteX, ys = set.siteY;
-  const xmin = least(xs) - MARGIN, xmax = most(xs) + MARGIN;
-  const ymin = least(ys) - MARGIN, ymax = most(ys) + MARGIN;
+  const tiling = set.tiling, xs = set.siteX, ys = set.siteY;
   const visited = new Set(xs.map(function (x, i) { return x + "," + ys[i] + "," + set.siteZ[i]; }));
   // Every cell of the window, and for each side's middle the cells with that side.
   const cells = [], bySide = new Map();
-  for (let x = xmin; x <= xmax; x++) {
-    for (let y = ymin; y <= ymax; y++) {
-      for (let z = 0; z < parts; z++) {
-        const cell = { key: x + "," + y + "," + z, full: false, reached: false, next: [] };
-        cell.full = visited.has(cell.key);
-        cell.edge = (x === xmin || x === xmax || y === ymin || y === ymax);
-        for (const side of sideKeysAt(tiling, x, y, z)) {
-          if (!bySide.has(side)) bySide.set(side, []);
-          bySide.get(side).push(cell);
-        }
-        cells.push(cell);
-      }
+  for (const [x, y, z, edge] of plainWindow(set)) {
+    const cell = { key: x + "," + y + "," + z, full: false, reached: false, edge: edge, next: [] };
+    cell.full = visited.has(cell.key);
+    for (const side of sideKeysAt(tiling, x, y, z)) {
+      if (!bySide.has(side)) bySide.set(side, []);
+      bySide.get(side).push(cell);
     }
+    cells.push(cell);
   }
+  // A side no other cell of the window has is on the window's border
+  // (or a patch's: a box of a Penrose tiling's patch reaches only 2
+  // past the box), and what is past it is empty: its cell is an edge
+  // cell too.
   for (const pair of bySide.values()) {
     if (pair.length === 2) { pair[0].next.push(pair[1]); pair[1].next.push(pair[0]); }
+    else pair[0].edge = true;
   }
   // The flood from the edge.
   const todo = cells.filter(function (cell) { return cell.edge && !cell.full; });
@@ -276,6 +273,35 @@ function holesFromPolygons(set) {
   return { sizes: sizes, cells: holeCells, frontier: frontier };
 }
 
+// The window of cells holesFromPolygons looks at, as [x, y, z, edge]
+// for cell z of block (x, y), edge true for the cells it floods from.
+// On a tiling that repeats: the blocks around the set's cells, 3 more
+// all round, edge the outermost blocks. On one that never repeats (one
+// block, a patch: js/sim-penrose.js), the patch's cells whose middles
+// are within 6 of the box around the set's middles, edge those more
+// than 4 out. (least and most are in js/sim-domains.js.)
+function plainWindow(set) {
+  const tiling = set.tiling, window = [];
+  if (tiling.finite) {
+    const middles = set.siteZ.map(function (z) { return tiling.cells[z].middle; });
+    const us = middles.map(function (m) { return m[0]; }), ws = middles.map(function (m) { return m[1]; });
+    const left = least(us), right = most(us), bottom = least(ws), top = most(ws);
+    tiling.cells.forEach(function (cell, z) {
+      const [u, w] = cell.middle, out = Math.max(left - u, u - right, bottom - w, w - top, 0);
+      if (out <= 6) window.push([0, 0, z, out > 4]);
+    });
+    return window;
+  }
+  const MARGIN = 3, xs = set.siteX, ys = set.siteY;
+  const xmin = least(xs) - MARGIN, xmax = most(xs) + MARGIN;
+  const ymin = least(ys) - MARGIN, ymax = most(ys) + MARGIN;
+  for (let x = xmin; x <= xmax; x++) {
+    for (let y = ymin; y <= ymax; y++) {
+      for (let z = 0; z < tiling.cells.length; z++) window.push([x, y, z, x === xmin || x === xmax || y === ymin || y === ymax]);
+    }
+  }
+  return window;
+}
 
 /* ---------------------------------------------------------------------
    Counting regions

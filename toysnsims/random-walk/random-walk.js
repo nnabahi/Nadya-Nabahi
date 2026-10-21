@@ -85,11 +85,13 @@ let path = new Int32Array(1024), pathLength = 0;
 let grid = null;
 
 // 2D on another tiling: the tiling's repeating block (uprightBlock,
-// js/sim-tilings.js), or null on the square grid (and in 1D and 3D).
-// runTiling is the one sent with the latest restart, walkTiling the one
-// of the walk on the screen (they differ until the new walk's first
-// message comes).
-let runTiling = null, walkTiling = null;
+// js/sim-tilings.js), or null on the square grid (and in 1D and 3D). On
+// a Penrose tiling, the page's copy of the walk's plane instead, its
+// cells as the second thread sends them ("mirror": penroseMirror,
+// js/sim-penrose.js). runTiling is the one of the latest restart,
+// walkTiling the one of the walk on the screen (they differ until the
+// new walk's first message comes).
+let runTiling = null, walkTiling = null, mirror = null;
 
 // 3D: the hull's surface area and volume, worked out when it is drawn.
 let hull3D = { area: 0, volume: 0 };
@@ -130,12 +132,13 @@ function theoryShows() { return simpleWalk() && !walkTiling; }
 function tilingNow() { return dim === 2 && !onSquares() ? tilingInUse.block : null; }
 
 // The Lattice options show in 2D only, "Cells are the tiles / corners"
-// only off the square grid, and the weights only on the grids (on
-// another tiling, a line saying each neighbor is equally likely).
+// only where the corners can be cells, and the weights only on the
+// grids (on another tiling, a line saying each neighbor is equally
+// likely).
 function showLatticeOptions() {
   const tiling = tilingNow() !== null;
   byId("lattice-rows").hidden = (dim !== 2);
-  byId("cells-row").hidden = onSquares();
+  byId("cells-row").hidden = !cornersCanBeCells();
   byId("weights-box").hidden = tiling;
   byId("tiling-step-note").hidden = !tiling;
 }
@@ -173,14 +176,16 @@ function showWeights() {
    The walk is walkWorker() in random-walk-rule.js, with newWalk(), its
    shape, the run loop, the trace and the random numbers
    (js/sim-worker.js), the hull, holes and outer boundary
-   (js/sim-shape.js) and blockStart (js/sim-domains.js) copied in.
+   (js/sim-shape.js), blockStart and cellNeighbors (js/sim-domains.js)
+   and what grows a Penrose tiling's plane (js/sim-penrose.js) copied
+   in.
    startWorker (js/sim-page.js) runs it in a second thread, so the page
    never freezes.
    ===================================================================== */
 const worker = startWorker(walkWorker,
-  [newWalk, cutsOf, walkHull, hullCandidates3D, makeRunLoop, newTrace, keepSample, seededUniform, blockStart,
-   convexHull, polygonArea, polygonPerimeter, holeHistory, bettiOverTime, frontierLength,
-   cellWindow, squareWindow, tilingWindow]);
+  [newWalk, cutsOf, walkHull, hullCandidates3D, makeRunLoop, newTrace, keepSample, seededUniform, blockStart, cellNeighbors,
+   convexHull, growingHull, polygonArea, polygonPerimeter, holeHistory, bettiOverTime, frontierLength,
+   cellWindow, squareWindow, tilingWindow, finiteWindow].concat(penroseHelpers()));
 
 worker.onmessage = function (event) {
   const message = event.data;
@@ -192,8 +197,11 @@ worker.onmessage = function (event) {
     return;
   }
   keepSites(message);
+  if (message.planeCells) addPlaneCells(walkTiling, message.planeCells);
   latest = message;
-  showMessage(message.atMax ? "The walk has reached two million steps, the most this page walks." : "");
+  showMessage(message.atMax ? "The walk has reached two million steps, the most this page walks." :
+              message.atEdge ? "The walk has reached the edge of the part of this tiling the page builds (" +
+                               PENROSE_PLANE_MOST + " side lengths from the middle each way), so it stops here." : "");
   drawSoon();
 };
 
@@ -240,10 +248,12 @@ function biggerGrid(x, y, upTo) {
 // (so changing a weight keeps the step).
 function restart(keepStep) {
   run++;
-  runTiling = tilingNow();
+  const tiling = tilingNow(), finite = Boolean(tiling && tiling.finite);
+  if (finite) mirror = penroseMirror(mirror, tiling);
+  runTiling = finite ? mirror : tiling;
   worker.postMessage({
-    type: "setup", run: run, dim: dim, weights: weights(), tiling: runTiling, seed: byId("seed").value,
-    steps: (keepStep && haveWalk()) ? latest.steps : 0,
+    type: "setup", run: run, dim: dim, weights: weights(), tiling: tiling, seed: byId("seed").value,
+    steps: (keepStep && haveWalk()) ? latest.steps : 0, cellsKnown: finite ? mirror.cells.length : 0,
   });
   player.carryOn();
 }

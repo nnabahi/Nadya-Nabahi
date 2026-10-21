@@ -84,6 +84,7 @@
      6. The block for the sims, and growing it
      7. The kinds of corner, and of P1's tiles
      8. In the menus
+     9. The whole plane (Random Walk, Eden Growth)
    ===================================================================== */
 
 
@@ -753,7 +754,8 @@ function penroseBlock(kind, corners) {
 // Make the block hold every cell whose middle is in the rectangle
 // |x| <= X, |y| <= Y around the middle of the tiling (in side lengths),
 // as well as those it held already. Those keep their numbers; new ones
-// are numbered after them.
+// are numbered after them, nearest the middle first (so cell 0 is the
+// one nearest the middle).
 function growPenrose(block, X, Y) {
   X = Math.max(X, block.X);
   Y = Math.max(Y, block.Y);
@@ -765,6 +767,8 @@ function growPenrose(block, X, Y) {
     if (place.has(cell.key)) order[place.get(cell.key)] = k; else later.push(k);
   });
   if (order.includes(-1)) throw new Error("A grown Penrose patch lost a cell of the smaller one.");
+  const far = fresh.map(function (cell) { return cell.middle[0] * cell.middle[0] + cell.middle[1] * cell.middle[1]; });
+  later.sort(function (j, k) { return far[j] - far[k] || fresh[j].key - fresh[k].key; });
   const sorted = order.concat(later), newNumber = new Int32Array(fresh.length);
   sorted.forEach(function (k, n) { newNumber[k] = n; });
   for (const cell of fresh) {
@@ -946,4 +950,98 @@ const PENROSE_TILINGS = [
 function penroseFromCode(code, corners) {
   const tiling = PENROSE_TILINGS.find(function (t) { return t.code === code; });
   return tiling ? penroseBlock(code.slice(-2), corners) : null;
+}
+
+
+/* =====================================================================
+   9. THE WHOLE PLANE (Random Walk, Eden Growth)
+   ---------------------------------------------------------------------
+   A walk or a mountain on the whole plane runs in a second thread (a
+   "Web Worker", startWorker in js/sim-page.js). That thread keeps its
+   own patch, "the plane", and grows it as the walk or the mountain
+   reaches farther out (penroseReach): each time to twice its size,
+   from 10 side lengths from the middle each way to 20, 40, 80 and
+   160, and no further (PENROSE_PLANE_MOST; that is about 100,000
+   tiles, built in a few seconds). It always grows through the same
+   sizes, so its cells are numbered the same way every time. The page
+   draws with its own copy of the plane's cells, which has only what
+   drawing needs (penroseMirror), and the thread sends it the cells it
+   doesn't have yet (planeCellsFrom, addPlaneCells). penroseHelpers()
+   lists what the thread needs of this file.
+   ===================================================================== */
+
+const PENROSE_PLANE_MOST = 160;
+
+// The plane of "tiling" (a Penrose tiling's block, as the page has it):
+// "plane" again if it is already that tiling's, else a new one.
+function penrosePlane(plane, tiling) {
+  if (plane && plane.code === tiling.code && plane.corners === tiling.corners) return plane;
+  return penroseBlock(tiling.penrose, tiling.corners);
+}
+
+// Make the plane hold every cell within "reach" of the point (x, y) (in
+// side lengths from the middle), with all their neighbors (whose
+// middles are less than 2 further), growing it if it has to. Returns
+// false, leaving it as it is, if that would take it past
+// PENROSE_PLANE_MOST.
+function penroseReach(plane, x, y, reach) {
+  const need = Math.max(Math.abs(x), Math.abs(y)) + reach + 2;
+  if (need > PENROSE_PLANE_MOST) return false;
+  while (need > Math.min(plane.X, plane.Y)) {
+    growPenrose(plane, Math.min(2 * plane.X, PENROSE_PLANE_MOST), Math.min(2 * plane.Y, PENROSE_PLANE_MOST));
+  }
+  return true;
+}
+
+// The cells of the plane from number "from" on, to send to the page:
+// their middles, how many corners each has, and the corners, as typed
+// lists of numbers (those go from one thread to another much faster
+// than lists of lists).
+function planeCellsFrom(plane, from) {
+  const cells = plane.cells.slice(from);
+  const counts = Uint8Array.from(cells, function (cell) { return cell.corners.length; });
+  const middles = new Float64Array(2 * cells.length);
+  const corners = new Float64Array(2 * counts.reduce(function (a, b) { return a + b; }, 0));
+  let at = 0;
+  cells.forEach(function (cell, j) {
+    middles.set(cell.middle, 2 * j);
+    for (const c of cell.corners) { corners.set(c, at); at += 2; }
+  });
+  return { from: from, counts: counts, middles: middles, corners: corners };
+}
+
+// The page's copy of the plane of "tiling" (the page's block of it):
+// "mirror" again if it is already that tiling's, else a new one with no
+// cells yet. Its cells have only their corners and middles.
+function penroseMirror(mirror, tiling) {
+  if (mirror && mirror.code === tiling.code && mirror.corners === tiling.corners) return mirror;
+  return { code: tiling.code, corners: tiling.corners, a: tiling.a, b: tiling.b, finite: true, cells: [] };
+}
+
+// Add the cells the thread sent (planeCellsFrom) to the page's copy,
+// skipping those it has already.
+function addPlaneCells(mirror, sent) {
+  let at = 0;
+  sent.counts.forEach(function (count, j) {
+    const corners = [];
+    for (let c = 0; c < count; c++, at += 2) corners.push([sent.corners[at], sent.corners[at + 1]]);
+    if (sent.from + j === mirror.cells.length) {
+      mirror.cells.push({ corners: corners, middle: [sent.middles[2 * j], sent.middles[2 * j + 1]] });
+    }
+  });
+}
+
+// What the second thread needs of this file to grow a plane, for
+// startWorker (js/sim-page.js): the functions of sections 1 to 6 and
+// of this one, and the constants they use.
+function penroseHelpers() {
+  return [zPlus, zMinus, zTurn, zTurnBack, zOverPhi, zTimesPhi, zTowards, zUnit, zKey, zName, zX, zY, zToNumbers,
+    triangle, startTriangles, splitTriangles, mightReach, splitsToCover,
+    p1Tile, p1SideTurn, p1Units, starParts, pentagonNext, pentagonTiles, p1SplitsToCover, p1Start, p1Split, p1Sides,
+    edgeGap, diamondBetween, acrossIsPentagon, p1MightReach, p1Finished,
+    halfKey, tilesOf, startingFromSmallest, signedArea, centerOfMass,
+    tileCells, sideKey, linkCells, cornerCells, aroundCorner,
+    penroseBlock, growPenrose, penroseCells, penroseTiles, penrosePlane, penroseReach, planeCellsFrom,
+    { ZETA_POWERS: ZETA_POWERS, PHI: PHI, ZETA_X: ZETA_X, ZETA_Y: ZETA_Y, SPLIT: SPLIT, P1_SIDES: P1_SIDES,
+      P1_SPLIT: P1_SPLIT, P1_MIDDLE: P1_MIDDLE, TILE_NAMES: TILE_NAMES, PENROSE_PLANE_MOST: PENROSE_PLANE_MOST }];
 }

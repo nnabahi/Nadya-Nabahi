@@ -26,6 +26,7 @@
         and the Lattice options, on pages that have them:
           onSquares()                       is the lattice the square grid?
           onFiniteTiling()                  is it a tiling that never repeats?
+          cornersCanBeCells()               can its corners be the cells?
           readTiling()                      the tiling the Lattice options say
      2. The graph tool inside a sim page
           makeCustomTool(page)
@@ -58,8 +59,8 @@
    usual box or torus, with its Neighbors option; any other tiling is a
    tilingBox (js/sim-domains.js), its size in side lengths. A Penrose
    tiling never repeats, so it has no torus: its Torus option hides.
-   Penrose's first tiling (P1) has only its tiles as cells, so for it
-   the cells-row hides too.
+   The cells-row hides where only the tiles can be cells: on the square
+   grid, and on Penrose's first tiling (P1).
    ===================================================================== */
 
 // What each Domain option does: "choices" gives a function for each
@@ -96,7 +97,7 @@ function showDomainOptions(kind, custom, disk) {
   if (byId("set-tiling")) {
     byId("lattice-rows").hidden = isCustom || onGraph;
     byId("neighbors-row").hidden = isCustom || onGraph || !onSquares();
-    byId("cells-row").hidden = onSquares() || Boolean(tilingInUse.block.tilesOnly);
+    byId("cells-row").hidden = !cornersCanBeCells();
     const torus = document.querySelector('input[name="domain"][value="torus"]');
     if (torus) torus.parentElement.hidden = onFiniteTiling();
   }
@@ -165,6 +166,14 @@ function onFiniteTiling() {
   return !onSquares() && Boolean(tilingInUse.block.finite);
 }
 
+// Can the corners of the lattice be the cells, as well as its tiles? Not
+// on the square grid (they would be squares again), nor on Penrose's
+// first tiling (js/sim-penrose.js: the inner corners of its stars and
+// boats touch just two tiles).
+function cornersCanBeCells() {
+  return !onSquares() && !tilingInUse.block.tilesOnly;
+}
+
 // The Lattice menu: the tilings of menuTilings() (js/sim-tilings.js),
 // and "Your own code". Starts on the square grid.
 function fillLatticeMenu() {
@@ -210,8 +219,9 @@ function readTiling() {
   try {
     const block = tilingBlock(code, corners);   // (js/sim-tilings.js)
     tilingInUse = { code: code, corners: corners, block: block };
+    const hasTorus = Boolean(document.querySelector('input[name="domain"], #domain-choice'));   // (Random Walk has no domain)
     message.textContent = !block.finite ? "Its corners: " + block.vertexTypes.map(cornerShort).join(", ") + "." :
-      "It never repeats, so it has no torus. A box is centered on its point of five-fold symmetry." +
+      "It never repeats" + (hasTorus ? ", so there is no torus" : "") + ", and its point of five-fold symmetry is in the middle." +
       (block.tilesOnly ? " Only its tiles can be the cells: the inner corner of a star or a boat touches just two tiles." : "");
     message.classList.remove("problem");
     return true;

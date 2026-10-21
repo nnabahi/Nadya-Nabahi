@@ -328,11 +328,12 @@
           <span class="tex">A_n</span> grows like
           <span class="tex">\pi n / 4</span>, from the Brownian hull's mean area
           <span class="tex">\pi t / 2</span> [11]. With a drift both change:
-          <span class="tex">L_n \sim 2|\mu| n</span> [12]. The page finds the
-          hull from the lowest and highest site of each column (only these can
-          be corners) with Andrew's monotone chain [13]; in 3D, from the lowest
-          and highest site over each <span class="tex">(x, y)</span>, with
-          Quickhull [14].
+          <span class="tex">L_n \sim 2|\mu| n</span> [12]. The page keeps the
+          hull up to date as the walk visits new sites: a new site inside the
+          hull changes nothing, and otherwise the hull of the old corners and
+          the new site is found with Andrew's monotone chain [13]; in 3D, the
+          hull of the lowest and highest site over each
+          <span class="tex">(x, y)</span> is found with Quickhull [14].
         </p>
         <p>
           <strong>Holes.</strong> In 2D, let <span class="tex">K_n</span> be the
@@ -389,6 +390,31 @@
           more than one kind of cell, the cells with more neighbors are visited
           more: in the long run the walk spends time at each cell in proportion
           to its number of neighbors [22, Chapter 2].
+        </p>
+        <p>
+          <strong>Penrose tilings.</strong> The menu also has Penrose's three
+          tilings [23, 24]: pentagons, stars, boats and diamonds (P1), all with
+          sides 1; kites and darts (P2), with sides 1 and
+          <span class="tex">\varphi = (1 + \sqrt 5)/2</span>; and thick and thin
+          rhombs (P3), with sides 1. They never repeat: no shift moves one onto
+          itself [19, Section 10.3]. So the walk is on the whole plane, starting
+          at the cell nearest the tiling's point of five-fold symmetry, and the
+          page builds the tiling as the walk reaches farther out, up to 160
+          side lengths from that point each way; the walk stops when it gets
+          near there. The cells are the tiles, or for P2 and P3 the corners. A
+          pentagon of P1 in the notch of a star or a boat shares two sides with
+          it but is one neighbor, not two: the corner between those sides
+          touches no other tile, so the two cells really meet along one bent
+          side. The walk still comes back infinitely often. Whether a walk is
+          recurrent depends only on what the graph looks like from far away:
+          two connected graphs with bounded degrees that are roughly isometric
+          (distances in one are distances in the other up to constant factors
+          and an added constant) are both recurrent or both transient
+          [22, Section 2.6]. On a Penrose tiling the number of steps between
+          two cells is, in that sense, the distance between their middles (the
+          tiles come in finitely many shapes), so its graph is roughly
+          isometric to <span class="tex">\mathbb{Z}^2</span>, which is
+          recurrent [8].
         </p>
         <p><strong>References</strong></p>
         <ol class="references">
@@ -454,6 +480,12 @@
             <em>Journal of Functional Analysis</em> 159 (1998), 664&ndash;689.</li>
           <li>R. Lyons, Y. Peres, <em>Probability on Trees and Networks</em>,
             Cambridge University Press, 2016.</li>
+          <li>R. Penrose, &ldquo;The role of aesthetics in pure and applied
+            mathematical research&rdquo;, <em>Bull. Inst. Math. Appl.</em> 10
+            (1974), 266&ndash;271.</li>
+          <li>R. Penrose, &ldquo;Pentaplexity: a class of non-periodic tilings
+            of the plane&rdquo;, <em>Math. Intelligencer</em> 2 (1979),
+            32&ndash;37.</li>
         </ol>
         </div>
       </section>
@@ -469,9 +501,10 @@
        (they also typeset the formulas, so they come after KaTeX), the
        second thread's run loop and random numbers, charts, colors,
        domains, the picture's view (moving and zooming it), the tilings by
-       regular polygons, clicking and dragging the picture and the Lattice
-       options, and the convex hull and the holes. Then the walk (it runs
-       in a second thread), then this page's code. -->
+       regular polygons and the Penrose tilings, clicking and dragging the
+       picture and the Lattice options, and the convex hull and the
+       holes. Then the walk (it runs in a second thread), then this
+       page's code. -->
   <script src="../../js/sim-page.js"></script>
   <script src="../../js/sim-worker.js"></script>
   <script src="../../js/sim-charts.js"></script>
@@ -479,6 +512,7 @@
   <script src="../../js/sim-domains.js"></script>
   <script src="../../js/sim-view.js"></script>
   <script src="../../js/sim-tilings.js"></script>
+  <script src="../../js/sim-penrose.js"></script>
   <script src="../../js/sim-controls.js"></script>
   <script src="../../js/sim-shape.js"></script>
   <script src="random-walk-rule.js"></script>

@@ -19,7 +19,11 @@
      each step goes to one of the cell's neighbors, all equally likely
      (no weights), and a site is cell z of the tiling's block (x, y). Its
      distances, hull and holes go by the middles and polygons of the
-     cells, in side lengths.
+     cells, in side lengths. On a Penrose tiling (js/sim-penrose.js),
+     which never repeats, the block is one patch around the middle, so
+     a site is always cell z of block (0, 0); the patch grows as the
+     walk goes farther out, up to PENROSE_PLANE_MOST from the middle,
+     where the walk stops.
 
    Random numbers (coupling). Step n uses one uniform number u_n in
    (0, 1), made from the seed and n only (seededUniform,
@@ -40,11 +44,10 @@
      the range R_n: how many different sites have been visited
      how many times the walk has come back to the origin
      each site's first visit (bornAt), for the holes and the colors
-     for the convex hull, only the sites that could be on it:
-       1D the lowest and highest site; 2D the lowest and highest site
-       of each column x; 3D the lowest and highest z over each (x, y);
-       on another tiling, the lowest and highest y for each (x, z)
-       (those cells' middles lie on one line, in the block's step b)
+     for the convex hull: 1D the lowest and highest site; 2D the hull
+     itself, kept up to date (growingHull, js/sim-shape.js); 3D only
+     the sites that could be on it, the lowest and highest z over each
+     (x, y)
 
    The file has these parts, with no drawing and no buttons:
      1. newWalk(options): the walk itself. The check page
@@ -70,8 +73,9 @@
 //   weights  one weight per direction (2, 4 or 6 numbers, at least 0,
 //            not all 0), in the order at the top of this file
 //   tiling   2D only, and only for another tiling than the squares: the
-//            tiling's repeating block (uprightBlock, js/sim-tilings.js).
-//            Then the weights are left out.
+//            tiling's repeating block (uprightBlock, js/sim-tilings.js), or
+//            a Penrose tiling's plane (penrosePlane, js/sim-penrose.js),
+//            which the walk grows. Then the weights are left out.
 //   seed     the seed (any text)
 // It returns an object whose step() moves the walker once, and whose
 // fields say where it has been (see the end of this function).
@@ -101,7 +105,9 @@ function newWalk(options) {
     maxDistance: 0,             // max over k <= n of |S_k|
     returns: 0,                 // how many k in 1..n have S_k = 0
     lowest: 0, highest: 0,      // 1D: the lowest and highest site visited
-    columns: new Map(),         // 2D: "x,z" -> [lowest y, highest y] (z is 0 on squares); 3D: "x,y" -> [lowest z, highest z]
+    hull: dim === 2 ? growingHull() : null,   // 2D: the hull of the visited sites
+    columns: new Map(),         // 3D: "x,y" -> [lowest z, highest z]
+    atEdge: false,              // on a Penrose tiling: the walk has reached the edge of its plane
     siteX: siteX, siteY: siteY, siteZ: siteZ, bornAt: bornAt,
     step: step,
     placeOf: placeOf,
@@ -127,11 +133,12 @@ function newWalk(options) {
     if (dim === 1) {
       w.lowest = Math.min(w.lowest, x);
       w.highest = Math.max(w.highest, x);
+    } else if (dim === 2) {
+      w.hull.add(placeOf(x, y, z));
     } else {
-      const columnKey = dim === 2 ? x + "," + z : x + "," + y, height = dim === 2 ? y : z;
-      const column = w.columns.get(columnKey);
-      if (!column) w.columns.set(columnKey, [height, height]);
-      else { column[0] = Math.min(column[0], height); column[1] = Math.max(column[1], height); }
+      const column = w.columns.get(x + "," + y);
+      if (!column) w.columns.set(x + "," + y, [z, z]);
+      else { column[0] = Math.min(column[0], z); column[1] = Math.max(column[1], z); }
     }
   }
 
@@ -144,10 +151,24 @@ function newWalk(options) {
   }
 
   // On another tiling: to one of the cell's neighbors, all equally
-  // likely, neighbor number floor(u * how many) of its list "next".
+  // likely, neighbor number floor(u * how many) of its list from
+  // cellNeighbors (js/sim-domains.js), kept for each cell once made.
+  const neighbors = [];
   function moveOnTiling(u) {
-    const next = tiling.cells[w.z].next, [z, dx, dy] = next[Math.floor(u * next.length)];
+    const near = neighbors[w.z] || (neighbors[w.z] = cellNeighbors(tiling.cells[w.z]));
+    const [z, dx, dy] = near[Math.floor(u * near.length)];
     w.x += dx; w.y += dy; w.z = z;
+  }
+
+  // On a Penrose tiling: can the walk go on from where it is? Its plane
+  // must hold every cell within 8 of it (so the cells it can step to,
+  // and the window the holes look at, 5 past the visited cells, are
+  // there: js/sim-shape.js), and grows if it doesn't; it can't past
+  // PENROSE_PLANE_MOST (js/sim-penrose.js).
+  function planeReaches() {
+    if (!tiling || !tiling.finite) return true;
+    const [x, y] = tiling.cells[w.z].middle;
+    return penroseReach(tiling, x, y, 8);
   }
 
   // |S_n|: how far the walker is from where it started (on another
@@ -159,8 +180,10 @@ function newWalk(options) {
   }
 
   // One step: move as u_n says (see the top of this file), then update
-  // the numbers and note the site.
+  // the numbers and note the site. At the edge of a Penrose tiling's
+  // plane, nothing happens.
   function step() {
+    if (w.atEdge || !planeReaches()) { w.atEdge = true; return; }
     const n = w.steps + 1, u = random.uniform(n);
     if (tiling) moveOnTiling(u); else moveOnGrid(u);
     w.steps = n;
@@ -170,6 +193,7 @@ function newWalk(options) {
     visit(w.x, w.y, w.z, n);
   }
 
+  planeReaches();
   visit(0, 0, 0, 0);
   return w;
 }
@@ -200,16 +224,10 @@ function cutsOf(weights, count) {
 // 2D: the convex hull of the visited sites (the smallest convex set
 // holding them, its sides straight lines between sites; on another
 // tiling, between the middles of the cells): its corners, perimeter and
-// area. Only the lowest and highest site of each column can be a
-// corner, so only those go to convexHull (js/sim-shape.js).
+// area. The walk keeps it up to date as it goes (growingHull,
+// js/sim-shape.js).
 function walkHull(w) {
-  const points = [];
-  for (const [key, [low, high]] of w.columns) {
-    const [x, z] = key.split(",").map(Number);
-    points.push(w.placeOf(x, low, z));
-    if (high > low) points.push(w.placeOf(x, high, z));
-  }
-  const corners = convexHull(points);
+  const corners = w.hull.corners();
   return { corners: corners, perimeter: polygonPerimeter(corners), area: polygonArea(corners) };
 }
 
@@ -231,10 +249,12 @@ function hullCandidates3D(w) {
    3. THE WALK IN A SECOND THREAD
    ---------------------------------------------------------------------
    The page sends:
-     { type: "setup", run, dim, weights, tiling, seed, steps }
+     { type: "setup", run, dim, weights, tiling, seed, steps, cellsKnown }
          a new walk (newWalk's options), walked at once to "steps"
          steps with the same seed (so changing a weight keeps the step
-         you were at)
+         you were at). On a Penrose tiling the walk is on this thread's
+         plane of it (kept from walk to walk while the tiling stays the
+         same), and the page already has its cells up to cellsKnown.
      { type: "play", speed }   "speed" steps per second
                                (Infinity = as fast as possible)
      { type: "pause" }
@@ -244,7 +264,8 @@ function hullCandidates3D(w) {
    The worker answers with "state" messages: the numbers for the
    Statistics box (on another tiling, with "place": where the walker's
    cell's middle is), the samples for the charts, and the sites visited
-   since its last message (the page keeps them all). Each carries its
+   since its last message (the page keeps them all), and on a Penrose
+   tiling the plane's cells the page doesn't have yet. Each carries its
    run number, so the page can ignore leftovers from an older run.
    ===================================================================== */
 function walkWorker() {
@@ -264,6 +285,9 @@ function walkWorker() {
   // 2D: the holes (holeHistory, js/sim-shape.js). Worked out again for
   // each message, but while playing at most a fifth of the time.
   let holes = null, holesStep = -1, holesFree = 0;
+  // On a Penrose tiling: its plane (penrosePlane, js/sim-penrose.js),
+  // and how many of the plane's cells the page has.
+  let plane = null, cellsSent = 0;
 
   // Start again from the origin, and walk to "steps" steps.
   function setup(steps) {
@@ -273,7 +297,9 @@ function walkWorker() {
     frontierSteps = []; frontierValues = []; frontierNext = 1;
     holes = null; holesStep = -1;
     try {
-      walk = newWalk(options);
+      const finite = options.tiling && options.tiling.finite;
+      if (finite) { plane = penrosePlane(plane, options.tiling); cellsSent = options.cellsKnown; }
+      walk = newWalk(finite ? Object.assign({}, options, { tiling: plane }) : options);
     } catch (error) {
       walk = null;
       problem = error.message;
@@ -284,7 +310,7 @@ function walkWorker() {
     while (walk.steps < steps && !isDone()) oneStep();
   }
 
-  function isDone() { return walk !== null && walk.steps >= MAX_STEPS; }
+  function isDone() { return walk !== null && (walk.steps >= MAX_STEPS || walk.atEdge); }
 
   function oneStep() {
     if (!walk || isDone()) return;
@@ -352,7 +378,7 @@ function walkWorker() {
       steps: w.steps, x: w.x, y: w.y, z: w.z, place: w.tiling ? w.placeOf(w.x, w.y, w.z) : null,
       distance: w.distance, maxDistance: w.maxDistance, range: w.siteX.length, returns: w.returns,
       lowest: w.lowest, highest: w.highest,
-      atMax: isDone(),
+      atMax: w.steps >= MAX_STEPS, atEdge: w.atEdge,
       traceSteps: Float64Array.from(trace.times),
       traceDistance: Float64Array.from(lists.distance),
       traceMaxDistance: Float64Array.from(lists.maxDistance),
@@ -360,6 +386,10 @@ function walkWorker() {
       traceReturns: Float64Array.from(lists.returns),
     };
     addNewSites(message);
+    if (w.tiling && w.tiling.finite && plane.cells.length > cellsSent) {
+      message.planeCells = planeCellsFrom(plane, cellsSent);
+      cellsSent = plane.cells.length;
+    }
     if (w.dim === 1) addNewPath(message);
     if (w.dim === 2) { addShape2D(message); addHoles(message); }
     if (w.dim === 3) message.hullPoints = Float64Array.from(hullCandidates3D(w));
