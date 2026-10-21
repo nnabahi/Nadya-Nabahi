@@ -96,7 +96,6 @@ const ZOOM_CELLS = 60;
 
 // A sim's ball (section 7), drawn by drawBall:
 const BALL_HEIGHT = 480;           // the picture's height, in screen pixels
-const BALL_OUTSIDE = "#ecebe7";    // the plane around the ball
 const BALL_WHITE_DOT = "#d8d5ce";  // white cells, as dots in the spread-out tree (white dots wouldn't show)
 
 
@@ -849,7 +848,7 @@ function drawBall(dv, ball, colorOf) {
       function (v) { const c = colorOf(v); return c === "#ffffff" ? BALL_WHITE_DOT : c; });
   }
   const pen = diskPen(dv, height);
-  drawDiskFrame(dv, pen, height, BALL_OUTSIDE, UNDER_COLOR);
+  drawDiskFrame(dv, pen, height, OUTSIDE_CELLS, UNDER_COLOR);   // (js/sim-colors.js)
   drawOnDisk(dv, pen, diskGraph(dv), ball.n, function (v) { return ballPlace(ball, v); }, colorOf);
   return pen;
 }

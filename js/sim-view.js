@@ -98,6 +98,11 @@ const MAX_ZOOM = 8;               // ... but always allowed to zoom in at least 
 const MIN_CELL_PIXELS = 2;        // but zoomed out, cells stay at least this big
 const ZOOM_STEP = 1.5;            // how much one click on + or − zooms
 
+// Cells smaller than this (in pixels) get no lines between colors, and
+// sims with such lines give cells this big a whole number of pixels
+// each (makeView), so the lines sit exactly on the cell edges.
+const SMALLEST_BORDERED_CELL = 4;
+
 
 // A new view for "canvas". "redraw" is the page's function that draws
 // the picture again. Two extras, both optional:

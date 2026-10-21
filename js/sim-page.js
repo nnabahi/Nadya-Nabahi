@@ -8,6 +8,9 @@
      byId(id)                         the element with that id="..."
      checked(name)                    which radio button of a group is ticked
      showMessage(text)                a line of text under the picture
+     swatch(color)                    a small square of a color, as HTML
+     colorRow(color, label, cells)    a row of a statistics table, with a swatch
+     colorShareRows(names, ...)       a coloring's table: cells, share, regions
      readWhole(id, lo, hi, fallback)  a whole number typed in a box
      startWorker(fn, helpers)         run a function in a second thread
      runInWorker(fn, helpers, show)   a sim's second thread, with its runs
@@ -44,6 +47,28 @@ function checked(name) { return document.querySelector('input[name="' + name + '
 // Show a line of text in the page's <p id="sim-message">, e.g. if the
 // sim can't start. An empty text clears it.
 function showMessage(text) { byId("sim-message").textContent = text; }
+
+// A small square of a color ("#rrggbb"), as HTML, to go before a
+// color's name in a table or a list.
+function swatch(color) { return '<span class="swatch-small" style="background:' + color + '"></span>'; }
+
+// One row of a statistics table, as HTML: a color's swatch and label,
+// then the other cells.
+function colorRow(color, label, cells) {
+  return "<tr><td>" + swatch(color) + label + "</td><td>" + cells.join("</td><td>") + "</td></tr>";
+}
+
+// The rows of a coloring's table, one per color c (drawn in names[c]):
+// its number, c + first; how many of the "total" cells have it, and
+// their share; and how many regions (connected pieces) it has.
+function colorShareRows(names, first, counts, total, regions) {
+  let rows = "";
+  names.forEach(function (name, c) {
+    rows += colorRow(name, c + first, [counts[c].toLocaleString(), (100 * counts[c] / total).toFixed(1) + "%",
+                                       regions[c].toLocaleString()]);
+  });
+  return rows;
+}
 
 // A whole number from a box, kept between lo and hi (else "fallback").
 // The box is updated to show the number actually used.

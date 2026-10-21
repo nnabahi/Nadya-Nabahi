@@ -44,8 +44,6 @@ const DEFAULTS = { width: 24, height: 24, neighbors: 4, colors: 6, seed: "1" };
 const MAX_COLORS = 100;           // the most colors allowed
 const MAX_SIDE = 250;             // the biggest box or torus is 100 x 100
 const MAX_PICTURE_HEIGHT = 600;   // in screen pixels
-const BORDER = "#1e1e1e";         // the lines between colors
-const OUTSIDE = "#ecebe7";        // around a custom domain (cells not in it)
 const TRACE_POINTS = 4000;        // the most points each chart over time keeps (section 6)
 
 // Hyperbolic plane or tree: the ball's default radius R, its largest
@@ -263,7 +261,7 @@ const view = makeView(simCanvas, drawSoon);   // where the picture goes, and how
 // the plane has been moved (js/sim-hyperbolic.js). The view above zooms
 // and slides its pictures too.
 const disk = makeDiskView(simCanvas, view, function () { domains.show(); });
-const outsideRGB = hexToRGB(OUTSIDE);
+const outsideRGB = hexToRGB(OUTSIDE_CELLS);
 
 function drawColoring() {
   if (!domain || !colors || simCanvas.hidden) return;
@@ -277,7 +275,7 @@ function drawColoring() {
   const paint = colorNames.map(function (name, c) { return hexToRGB(shade(c)); });
   const shown = film ? film.shown : colors;
   paintDomain(view, pen, domain, function (v) { return shown[v]; },
-    function (c) { return paint[c]; }, outsideRGB, BORDER, 0);
+    function (c) { return paint[c]; }, outsideRGB, CELL_LINES, 0);
   if (film) drawFilm(pen);
 }
 
@@ -288,7 +286,7 @@ function drawColoring() {
 function drawOnGraph() {
   const paint = colorNames.map(function (name, c) { return shade(c); });
   const pen = drawBall(disk, domain, function (v) { return paint[colors[v]]; });
-  if (disk.picture !== "spread") drawBallBorders(disk, pen, domain, function (v) { return colors[v]; }, BORDER);
+  if (disk.picture !== "spread") drawBallBorders(disk, pen, domain, function (v) { return colors[v]; }, CELL_LINES);
 }
 
 window.addEventListener("resize", drawSoon);
@@ -873,8 +871,7 @@ function startFrom(start) {
   highlighted = -1;                       // a new start shows every color
   byId("set-colors").max = byId("colors-slider").max = Math.min(MAX_COLORS, domain.n);
   N = showN(start ? start.names.length : N);
-  colorNames = start ? start.names : [];
-  for (let c = colorNames.length; c < N; c++) colorNames.push(defaultColor(c, N));
+  colorNames = start ? start.names : defaultColors(N);
   restart();
 }
 

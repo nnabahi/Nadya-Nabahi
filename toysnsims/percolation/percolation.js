@@ -52,12 +52,9 @@ const DEFAULTS = KIND === "site"
 
 const MAX_SIDE = KIND === "site" ? 400 : 300;   // the biggest box or torus
 const MAX_PICTURE_HEIGHT = 600;   // in screen pixels
-const BORDER = "#1e1e1e";         // lines between clusters
 const CLOSED = "#ffffff";         // closed cells (site), or cells with no open edge (bond)
 const OPEN = "#5d6370";           // open cells in the "open or closed" colors
 const OTHERS = "#c9ccd3";         // the other clusters in the "largest cluster" colors
-const OUTSIDE = "#ecebe7";        // around a custom domain (cells not in it)
-const SMALLEST_BORDERED_CELL = 4; // cells smaller than this (in pixels) get no border lines
 const SMALLEST_EDGE_CELL = 6;     // bond: cells at least this big are drawn as dots and edges
 
 // Hyperbolic plane or tree: the ball's default radius R, its largest
@@ -179,7 +176,7 @@ function colorOfName(k) {
 // How the cluster with root r is colored (r = -1: a closed cell), as
 // [red, green, blue], with the Colors menu.
 const closedRGB = hexToRGB(CLOSED), openRGB = hexToRGB(OPEN), othersRGB = hexToRGB(OTHERS);
-const accentRGB = hexToRGB(CHART_LINE), outsideRGB = hexToRGB(OUTSIDE);
+const accentRGB = hexToRGB(CHART_LINE), outsideRGB = hexToRGB(OUTSIDE_CELLS);
 function rgbOfRoot(r) {
   if (r === -1 || (KIND === "bond" && result.name[r] === -1)) return closedRGB;
   const mode = byId("colors").value;
@@ -247,7 +244,7 @@ function drawPicture() {
     // Squares or polygons (paintDomain, js/sim-view.js). Each cell's
     // group is its cluster's root (-1 for white), so in site percolation
     // the lines go between clusters.
-    paintDomain(view, pen, domain, groupOf, rgbOfRoot, outsideRGB, KIND === "site" ? BORDER : null, SMALLEST_BORDERED_CELL);
+    paintDomain(view, pen, domain, groupOf, rgbOfRoot, outsideRGB, KIND === "site" ? CELL_LINES : null, SMALLEST_BORDERED_CELL);
   }
   pen.restore();
 }
@@ -284,7 +281,7 @@ function drawEdges(pen) {
     for (let i = 0; i < cols; i++) {
       const v = cells[k * cols + i];
       if (v === -1) {               // not in the domain
-        pen.fillStyle = OUTSIDE;
+        pen.fillStyle = OUTSIDE_CELLS;
         pen.fillRect(squareLeft(view, view.firstI + i), squareTop(view, view.firstK + k), size + 1, size + 1);
         continue;
       }
@@ -405,7 +402,7 @@ function drawOnBall() {
   if (start !== null) {
     pen.beginPath();
     pen.arc(start.x, start.y, Math.max(4, Math.min(12, 0.5 * start.size)), 0, 2 * Math.PI);
-    pen.strokeStyle = BORDER;
+    pen.strokeStyle = CELL_LINES;
     pen.lineWidth = 2;
     pen.stroke();
   }

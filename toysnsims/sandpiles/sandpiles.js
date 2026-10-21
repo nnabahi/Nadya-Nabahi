@@ -52,7 +52,6 @@ const MAX_GRAINS = 1000000;       // the most grains in the center pile
 const GRAINS_SLIDER_MAX = 5000;   // the slider's starting max (its max box and the n box can go higher)
 const MAX_HEIGHT_SETTING = 50;    // "Random: up to" and "Full: height" go up to this
 const MAX_PICTURE_HEIGHT = 600;   // in screen pixels
-const OUTSIDE = "#ecebe7";        // around a custom domain (cells not on the table)
 const SINK = "#555555";           // the sink cell
 const THIN_LINES = "rgba(0, 0, 0, 0.15)";   // the lines between big cells
 const NUMBER_MIN_CELL = 16;       // cells at least this big (in pixels) show their number
@@ -358,7 +357,7 @@ function drawPile() {
 function drawSquarePile(screen, valueOf, rgbOf) {
   const sinkColor = hexToRGB(SINK);
   const cellOf = paintCells(view, screen, domain, function (v) { return v; },
-    function (v) { return sinks.includes(v) ? sinkColor : rgbOf(v); }, hexToRGB(OUTSIDE));
+    function (v) { return sinks.includes(v) ? sinkColor : rgbOf(v); }, hexToRGB(OUTSIDE_CELLS));
   const cols = view.cols, rows = view.rows, size = view.cell;     // (paintCells works these out)
   if (size < NUMBER_MIN_CELL) return;
 
@@ -394,7 +393,7 @@ function drawSquarePile(screen, valueOf, rgbOf) {
 function drawTilingPile(screen, valueOf, rgbOf) {
   const sinkColor = hexToRGB(SINK);
   paintDomain(view, screen, domain, function (v) { return v; },
-    function (v) { return sinks.includes(v) ? sinkColor : rgbOf(v); }, hexToRGB(OUTSIDE),
+    function (v) { return sinks.includes(v) ? sinkColor : rgbOf(v); }, hexToRGB(OUTSIDE_CELLS),
     THIN_LINES, NUMBER_MIN_CELL / 2);
   for (const { sx, sy } of screenCopies(view, domain)) {
     for (let v = 0; v < domain.n; v++) {
@@ -548,7 +547,7 @@ function draw3D(valueOf, showTopples) {
     x: x, y: y, height: height, width: width, kind: kind, floor: floor,
     shape: blockShape(), corners: cells, stretch: 1, fixedSize: true,
     color: function (k, tallestStack, top) { return showTopples ? colorOfTopples(k, most) : colorOfHeight(k, top); },
-    empty: colorOfHeight(0, mostThreshold), ground: hexToRGB(OUTSIDE),
+    empty: colorOfHeight(0, mostThreshold), ground: hexToRGB(OUTSIDE_CELLS),
     lines: lines, lineColor: hexToRGB(SINK),
   });
 }

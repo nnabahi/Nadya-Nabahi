@@ -765,8 +765,7 @@ function updateStats() {
     const count = cy.nodes(".cell[color = " + c + "]").length;
     if (count === 0) continue;
     const item = document.createElement("li");
-    item.innerHTML = '<span class="swatch-small" style="background:' + palette[c] + '"></span>' +
-                     "color " + c + ": " + count;
+    item.innerHTML = swatch(palette[c]) + "color " + c + ": " + count;   // (js/sim-page.js)
     list.appendChild(item);
   }
   tellSim();   // inside a sim, send it the new drawing (section 11)

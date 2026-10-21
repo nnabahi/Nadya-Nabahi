@@ -56,11 +56,7 @@ const MAX_WEIGHT_SLIDER = 5;      // the weight sliders go from 0 to 5 (the boxe
 const MAX_TILE_SIDE = 20;         // tiles at most 20 x 20
 const WORK_LIMIT = 200000;        // search steps per move before it is skipped (see the chain)
 const MAX_PICTURE_HEIGHT = 600;   // in screen pixels
-const BORDER = "#1e1e1e";         // the lines around tiles
-const GAP = "#ffffff";            // empty cells
-const OUTSIDE = "#ecebe7";        // around a custom domain (cells not in it)
 const DISK = "#d0312d";           // the outline of the last move's disk
-const SMALLEST_BORDERED_CELL = 4; // cells smaller than this (in pixels) get no border lines
 
 // The speeds on the Speed slider, in moves per second. Infinity means
 // "as fast as the computer can". The default is slow, so you can watch
@@ -174,7 +170,7 @@ function classColors() {
   const scheme = colorScheme(byId("color-by").value);
   const colors = [];
   for (let c = 0; c < 2 * placements.orientW.length; c++) colors.push(defaultColor(scheme.of(c), scheme.count));
-  colors.push(GAP);
+  colors.push(NO_COLOR);   // empty cells (js/sim-colors.js)
   return colors.map(hexToRGB);
 }
 
@@ -239,7 +235,7 @@ function drawPacking() {
 
   // 1. Size the canvas and place the picture's box (js/sim-view.js).
   const pen = fitPicture(view, d, MAX_PICTURE_HEIGHT);
-  const outside = hexToRGB(OUTSIDE);
+  const outside = hexToRGB(OUTSIDE_CELLS);
 
   // The mix of the class colors for "Average over time".
   const averageRGB = function (v) {
@@ -259,7 +255,7 @@ function drawPacking() {
     else {
       paintLattice(view, pen, d, highlightCSS(highlight, function (v) { return css(colors[classOf(owner[v], classes)]); }),
                    cellSize(view) >= SMALLEST_BORDERED_CELL ? function (v) { return owner[v]; } : null,
-                   BORDER);
+                   CELL_LINES);
     }
   } else if (average) {
     // 2. "Average over time": each cell is its own group (paintCells,
@@ -277,7 +273,7 @@ function drawPacking() {
     // 3. The lines around the tiles: between two squares covered by
     //    different tiles (so two empty cells side by side get no line,
     //    and the domain's edge always gets one).
-    if (view.cell >= SMALLEST_BORDERED_CELL) drawBorders(view, pen, tileOn, BORDER);
+    if (view.cell >= SMALLEST_BORDERED_CELL) drawBorders(view, pen, tileOn, CELL_LINES);
   }
 
   // 4. The disk. Its center is (i, k) from the top left of the picture's
@@ -427,15 +423,14 @@ function showStats() {
   byId("stat-region").textContent = s.moves ? (s.regionTotal / tried).toFixed(1) : "";
   byId("stat-choices").textContent = s.moves ? (s.choicesTotal / used).toFixed(2) : "";
 
-  const c = coverCounts(s);
+  // One row per tile, and one for the gaps (colorRow, js/sim-page.js).
+  const c = coverCounts(s), names = defaultColors(tiles.length);
+  const cellsAndShare = function (cells) { return cells.toLocaleString() + " (" + (100 * cells / domain.n).toFixed(1) + "%)"; };
   let rows = "";
   tiles.forEach(function (t, k) {
-    rows += '<tr><td><span class="swatch-small" style="background:' + defaultColor(k, tiles.length) + '"></span>' +
-      tileName(t) + "</td><td>" + c.count[k].toLocaleString() + "</td><td>" +
-      c.cells[k].toLocaleString() + " (" + (100 * c.cells[k] / domain.n).toFixed(1) + "%)</td></tr>";
+    rows += colorRow(names[k], tileName(t), [c.count[k].toLocaleString(), cellsAndShare(c.cells[k])]);
   });
-  rows += '<tr><td><span class="swatch-small" style="background:' + GAP + '"></span>gaps</td><td></td><td>' +
-    c.empty.toLocaleString() + " (" + (100 * c.empty / domain.n).toFixed(1) + "%)</td></tr>";
+  rows += colorRow(NO_COLOR, "gaps", ["", cellsAndShare(c.empty)]);
   byId("tile-stats").innerHTML = rows;
   drawCoverChart();
   drawClustersChart();
@@ -455,7 +450,7 @@ function drawClustersChart() {
 // the cells, from 0 to 1, against the number of moves.
 function drawCoverChart() {
   if (trace.moves.length < 2) { chartPen(byId("cover-chart")); return; }
-  const lineColors = tiles.map(function (t, k) { return defaultColor(k, tiles.length); }).concat([CHART_TEXT]);
+  const lineColors = defaultColors(tiles.length).concat([CHART_TEXT]);
   const series = lineColors.map(function (color, k) {
     return { points: trace.moves.map(function (m, i) { return [m, trace.shares[i][k]]; }), color: color };
   });
@@ -564,10 +559,10 @@ function useLattice() {
    weight goes to or from 0 (that adds or removes the tile: a restart).
    ===================================================================== */
 function showTileRows() {
+  const names = defaultColors(tiles.length);
   let html = "";
   tiles.forEach(function (t, k) {
-    html += '<div class="option-row"><span class="swatch-small" style="background:' +
-      defaultColor(k, tiles.length) + '"></span>' +
+    html += '<div class="option-row">' + swatch(names[k]) +
       '<input type="number" min="1" max="' + MAX_TILE_SIDE + '" step="1" value="' + t.w + '" data-tile="' + k + '" data-side="w">' +
       ' &times; <input type="number" min="1" max="' + MAX_TILE_SIDE + '" step="1" value="' + t.h + '" data-tile="' + k + '" data-side="h">' +
       (tiles.length > 1 ? ' <button class="tool-button" data-remove="' + k + '" title="Remove this tile">Remove</button>' : "") +

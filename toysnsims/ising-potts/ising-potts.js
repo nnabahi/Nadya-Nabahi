@@ -45,9 +45,6 @@ const MAX_BETA = 3;               // the beta slider goes from 0 to this
 const MAX_FIELD = 1;              // the h slider goes from -MAX_FIELD to MAX_FIELD
 const MAX_SIDE = 400;             // the biggest box or torus
 const MAX_PICTURE_HEIGHT = 600;   // in screen pixels
-const BORDER = "#1e1e1e";         // the lines between colors
-const OUTSIDE = "#ecebe7";        // around a custom domain (cells not in it)
-const SMALLEST_BORDERED_CELL = 4; // cells smaller than this (in pixels) get no border lines
 
 // Hyperbolic plane or tree: the ball's default radius R, its largest
 // R, and the most cells it may have (a ball of a hyperbolic tiling grows
@@ -70,7 +67,6 @@ let q = DEFAULTS.q;            // number of colors
 let beta = DEFAULTS.beta;      // inverse temperature
 let h = DEFAULTS.h;            // the field (pushes cells toward color 1)
 let colorNames = [];           // colorNames[k] = how color k is drawn, e.g. "#f2735a"
-let colorRGB = [];             // the same as [red, green, blue], 0 .. 255
 
 let latest = null;             // the latest message from the chain (section 2 of ising-potts-chain.js)
 const highlight = newHighlight();   // the clicked cell, whose domain is highlighted (js/sim-highlight.js)
@@ -114,7 +110,7 @@ const player = connectPlay(sim, SPEEDS, DEFAULT_SPEED, "sweep", "sweeps", restar
    One square per cell in its color (one polygon, on another tiling),
    and a dark line where two colors meet when the cells are big enough
    to see. The view (js/sim-view.js) says where the picture goes and
-   which cells show, and paints them (paintDomain).
+   which cells show, and paintColoring (js/sim-highlight.js) paints them.
    On a hyperbolic tiling or tree, each cell is drawn in its color in
    the disk, the half-plane or (a tree) spread out in rings (drawBall,
    js/sim-hyperbolic.js).
@@ -131,7 +127,6 @@ const view = makeView(simCanvas, drawSoon, 0, SMALLEST_BORDERED_CELL);
 // the plane has been moved (js/sim-hyperbolic.js). The view above zooms
 // and slides its pictures too.
 const disk = makeDiskView(simCanvas, view, function () { domains.show(); });
-const outsideRGB = hexToRGB(OUTSIDE);
 
 // A clicked cell's domain stands out: every other cell fades
 // (js/sim-highlight.js; the click is in section 5).
@@ -141,12 +136,11 @@ function drawColoring() {
   findHighlight(highlight, domain, colors);
   byId("highlight-info").textContent = highlightText(highlight, "domain", function (k) { return "color " + (k + 1); });
   if (domains.kind === "graph") {
-    drawBall(disk, domain, highlightCSS(highlight, function (v) { return colorNames[colors[v]]; }));
+    drawBall(disk, domain, coloringCSS(highlight, colors, colorNames));
     return;
   }
   const pen = fitPicture(view, domain, MAX_PICTURE_HEIGHT);
-  paintDomain(view, pen, domain, highlightGroups(highlight, function (v) { return colors[v]; }, q),
-              highlightRGB(function (k) { return colorRGB[k]; }, q), outsideRGB, BORDER, SMALLEST_BORDERED_CELL);
+  paintColoring(view, pen, domain, colors, colorNames, highlight);
   pen.restore();
 }
 
@@ -203,13 +197,7 @@ function showStats() {
   const pieces = countPieces(domain, s.colors, q);
   byId("stat-domains").textContent = pieces.reduce(function (a, b) { return a + b; }, 0).toLocaleString();
 
-  let rows = "";
-  for (let k = 0; k < q; k++) {
-    rows += '<tr><td><span class="swatch-small" style="background:' + colorNames[k] + '"></span>' + (k + 1) +
-      '</td><td>' + s.counts[k].toLocaleString() + '</td><td>' + (100 * s.counts[k] / n).toFixed(1) +
-      '%</td><td>' + pieces[k].toLocaleString() + '</td></tr>';
-  }
-  byId("color-rows").innerHTML = rows;
+  byId("color-rows").innerHTML = colorShareRows(colorNames, 1, s.counts, n, pieces);   // (js/sim-page.js)
 
   // The share of each color over time, of agreeing pairs, and the
   // number of domains of each color (js/sim-charts.js).
@@ -276,9 +264,7 @@ const showField = connectSliderAndBox("h-slider", "h-box", setField);
 // q colors, each drawn in the old site's colors.
 function makeColors(value) {
   q = showQ(value);
-  colorNames = [];
-  for (let k = 0; k < q; k++) colorNames.push(defaultColor(k, q));
-  colorRGB = colorNames.map(hexToRGB);
+  colorNames = defaultColors(q);
   byId("ising-note").textContent = q === 2 ? "q = 2 is the Ising model." : "";
 }
 

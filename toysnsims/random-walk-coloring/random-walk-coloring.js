@@ -44,18 +44,12 @@ const DEFAULTS = { width: 64, height: 64, neighbors: 4, walkers: 2, seed: "1" };
 const MAX_WALKERS = 30;           // the most walkers allowed
 const MAX_SIDE = 300;             // the biggest box or torus is 300 x 300
 const MAX_PICTURE_HEIGHT = 600;   // in screen pixels
-const BORDER = "#1e1e1e";         // the lines between colors
-const UNCOLORED = "#ffffff";      // cells no walker has reached yet
-const OUTSIDE = "#ecebe7";        // around a custom domain (cells not in it)
-const SMALLEST_BORDERED_CELL = 4; // cells smaller than this (in pixels) get no border lines
 const PAD = 8;                    // room above and below the picture, so walkers at the edge show
 
 // Hyperbolic plane or tree: the ball's default radius R, its largest
 // R, and the most cells it may have (a ball of a hyperbolic tiling grows
-// exponentially with R), and the color of an uncolored cell in the
-// spread-out picture (white dots wouldn't show there).
+// exponentially with R).
 const BALL = { R: 5, most: 20, cells: 20000 };
-const UNCOLORED_DOT = "#c9c6bf";
 
 // The speeds on the Speed slider, in steps per second (one step = one
 // unit of time, in both models). Infinity means "as fast as the
@@ -73,7 +67,6 @@ let domain = null;              // the domain graph (js/sim-domains.js), or a ba
 let N = DEFAULTS.walkers;       // number of walkers
 let starts = [];                // starts[i] = the cell walker i starts on
 let colorNames = [];            // colorNames[i] = how color i is drawn, e.g. "#f2735a"
-let colorRGB = [];              // the same colors as [red, green, blue], 0..255
 let showWalkers = true;         // the "Show walkers" box
 
 
@@ -252,7 +245,6 @@ const view = makeView(simCanvas, drawSoon, PAD, SMALLEST_BORDERED_CELL);
 // the plane has been moved (js/sim-hyperbolic.js). The view above zooms
 // and slides its pictures too.
 const disk = makeDiskView(simCanvas, view, function () { domains.show(); });
-const outsideRGB = hexToRGB(OUTSIDE), blankRGB = hexToRGB(UNCOLORED);
 
 // A clicked cell's region stands out: every other cell fades
 // (js/sim-highlight.js; the click is in section 6).
@@ -265,12 +257,10 @@ function drawColoring() {
   const colors = latest.colors;
   const pen = fitPicture(view, domain, MAX_PICTURE_HEIGHT);
 
-  // The cells, each in its color (-1: not reached yet), with lines
+  // The cells, each in its color (white: not reached yet), with lines
   // between different colors when cells are big enough to see
-  // (the outside counts as a color of its own).
-  paintDomain(view, pen, domain, highlightGroups(highlight, function (v) { return colors[v]; }, N),
-    highlightRGB(function (c) { return c === -1 ? blankRGB : colorRGB[c]; }, N), outsideRGB, BORDER, SMALLEST_BORDERED_CELL);
-
+  // (paintColoring, js/sim-highlight.js).
+  paintColoring(view, pen, domain, colors, colorNames, highlight);
   pen.restore();                       // no longer cut off at the picture's box, so
   if (showWalkers) drawWalkers(pen);   // walkers on the edge show whole
 }
@@ -279,9 +269,7 @@ function drawColoring() {
 // rest of the tiling (or tree) in thin gray (drawBall,
 // js/sim-hyperbolic.js), and the walkers on top.
 function drawOnGraph() {
-  const colors = latest.colors;
-  const blank = disk.picture === "spread" ? UNCOLORED_DOT : UNCOLORED;
-  const pen = drawBall(disk, domain, highlightCSS(highlight, function (v) { return colors[v] === -1 ? blank : colorNames[colors[v]]; }));
+  const pen = drawBall(disk, domain, coloringCSS(highlight, latest.colors, colorNames));
   if (showWalkers) drawWalkers(pen);
 }
 
@@ -303,7 +291,7 @@ function ringAngle(ring, k) {
 
 function drawRing() {
   const ring = ringShape(), colors = latest.colors;
-  const colorOf = highlightCSS(highlight, function (v) { return colors[v] === -1 ? UNCOLORED : colorNames[colors[v]]; });
+  const colorOf = coloringCSS(highlight, colors, colorNames);
   const pen = sharpPen(simCanvas, ring.w, ring.h);
   view.top = 0;   // pointerSpot then gives plain canvas positions
 
@@ -325,7 +313,7 @@ function drawRing() {
   }
 
   // Lines between different colors, across the band, and the band's two edges.
-  pen.strokeStyle = BORDER;
+  pen.strokeStyle = CELL_LINES;
   pen.lineWidth = 1;
   for (let v = 0; v < domain.n; v++) {
     const k = domain.x[v] - domain.xmin;
@@ -443,10 +431,10 @@ function drawWalkers(pen) {
       pen.beginPath();
       pen.arc(spot.x, spot.y, r + 1.5, 0, 2 * Math.PI);
       pen.lineWidth = 1;
-      pen.strokeStyle = BORDER;
+      pen.strokeStyle = CELL_LINES;
       pen.stroke();
       if (r >= 9) {
-        pen.fillStyle = BORDER;
+        pen.fillStyle = CELL_LINES;
         pen.fillText(String(i + 1), spot.x, spot.y + 1);
       }
     }
@@ -609,7 +597,7 @@ function showStats() {
   drawAreasChart(regions);
   // Perimeter against area, only on the 2D page (on a line or ring
   // every region's perimeter is 0, 1 or 2).
-  if (byId("perimeter-chart")) perimeterChart(byId("perimeter-chart"), regions, colorNames, BORDER);
+  if (byId("perimeter-chart")) perimeterChart(byId("perimeter-chart"), regions, colorNames, CELL_LINES);
 }
 
 // One row per color: cells, number of regions, largest region.
@@ -622,10 +610,9 @@ function showColorRows(regions) {
   });
   let rows = "";
   for (let c = 0; c < N; c++) {
-    rows += '<tr><td><span class="swatch-small" style="background:' + colorNames[c] + '"></span>' +
-      (c + 1) + '</td><td>' + latest.sizes[c] + '</td><td>' + count[c] + '</td><td>' + largest[c] + '</td></tr>';
+    rows += colorRow(colorNames[c], c + 1, [latest.sizes[c].toLocaleString(), count[c].toLocaleString(), largest[c].toLocaleString()]);
   }
-  byId("color-rows").innerHTML = rows;
+  byId("color-rows").innerHTML = rows;   // (colorRow, js/sim-page.js)
 }
 
 // The number of cells of each color, over time. The walkers send these
@@ -706,9 +693,7 @@ const showN = connectSliderAndBox("walkers-slider", "set-walkers", setWalkerCoun
 function setWalkerCount(value) {
   N = showN(value);
   starts = defaultStarts(domain, N);
-  colorNames = [];
-  for (let c = 0; c < N; c++) colorNames.push(defaultColor(c, N));
-  colorRGB = colorNames.map(hexToRGB);
+  colorNames = defaultColors(N);
   restart();
 }
 

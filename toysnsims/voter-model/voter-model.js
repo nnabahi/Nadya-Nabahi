@@ -54,9 +54,6 @@ const PRESETS = {
 const MAX_Q = 12;                 // the most opinions
 const MAX_SIDE = 400;             // the biggest box or torus
 const MAX_PICTURE_HEIGHT = 600;   // in screen pixels
-const BORDER = "#1e1e1e";         // the lines between opinions
-const OUTSIDE = "#ecebe7";        // around a custom domain (cells not in it)
-const SMALLEST_BORDERED_CELL = 4; // cells smaller than this (in pixels) get no border lines
 
 // Hyperbolic plane or tree: the ball's default radius R, its largest
 // R, and the most cells it may have (a ball of a hyperbolic tiling grows
@@ -80,7 +77,6 @@ let noise = DEFAULTS.noise;    // eps: the chance of a uniformly random opinion
 let rule = null;               // g as a compiled math.js formula
 let sliders = {};              // the sliders' numbers, by letter: { value, min, max, step }
 let colorNames = [];           // colorNames[c] = how opinion c is drawn, e.g. "#f2735a"
-let colorRGB = [];             // the same as [red, green, blue], 0 .. 255
 
 let latest = null;             // the latest message from the worker (section 2 of voter-model-chain.js)
 const highlight = newHighlight();   // the clicked cell, whose domain is highlighted (js/sim-highlight.js)
@@ -186,7 +182,8 @@ const player = connectPlay(sim, SPEEDS, DEFAULT_SPEED, "unit of time", "units of
    One square per cell in its opinion's color (one polygon, on another
    tiling), and a dark line where two opinions meet when the cells are
    big enough to see. The view (js/sim-view.js) says where the picture
-   goes and which cells show, and paints them (paintDomain).
+   goes and which cells show, and paintColoring (js/sim-highlight.js)
+   paints them.
    On a hyperbolic tiling or tree, each cell is drawn in its opinion's
    color in the disk, the half-plane or (a tree) spread out in rings
    (drawBall, js/sim-hyperbolic.js).
@@ -205,7 +202,6 @@ const view = makeView(simCanvas, drawSoon, 0, SMALLEST_BORDERED_CELL);
 // the plane has been moved (js/sim-hyperbolic.js). The view above zooms
 // and slides its pictures too.
 const disk = makeDiskView(simCanvas, view, function () { domains.show(); });
-const outsideRGB = hexToRGB(OUTSIDE);
 
 function drawColoring() {
   if (!latest || simCanvas.hidden) return;
@@ -213,12 +209,11 @@ function drawColoring() {
   findHighlight(highlight, domain, colors);
   byId("highlight-info").textContent = highlightText(highlight, "domain", function (c) { return "opinion " + (c + 1); });
   if (domains.kind === "graph") {
-    drawBall(disk, domain, highlightCSS(highlight, function (v) { return colorNames[colors[v]]; }));
+    drawBall(disk, domain, coloringCSS(highlight, colors, colorNames));
     return;
   }
   const pen = fitPicture(view, domain, MAX_PICTURE_HEIGHT);
-  paintDomain(view, pen, domain, highlightGroups(highlight, function (v) { return colors[v]; }, q),
-              highlightRGB(function (k) { return colorRGB[k]; }, q), outsideRGB, BORDER, SMALLEST_BORDERED_CELL);
+  paintColoring(view, pen, domain, colors, colorNames, highlight);
   pen.restore();
 }
 
@@ -266,13 +261,7 @@ function showStats() {
   byId("stat-consensus").textContent = s.consensusTime === null ? "not yet" : "at time " + s.consensusTime.toLocaleString();
   showMessage(s.frozen ? "Consensus: one opinion everywhere, and with this rule nothing can change it." : "");
 
-  let rows = "";
-  for (let c = 0; c < q; c++) {
-    rows += '<tr><td><span class="swatch-small" style="background:' + colorNames[c] + '"></span>' + (c + 1) +
-      '</td><td>' + s.counts[c].toLocaleString() + '</td><td>' + (100 * s.counts[c] / n).toFixed(1) +
-      '%</td><td>' + pieces[c].toLocaleString() + '</td></tr>';
-  }
-  byId("color-rows").innerHTML = rows;
+  byId("color-rows").innerHTML = colorShareRows(colorNames, 1, s.counts, n, pieces);   // (js/sim-page.js)
 
   // The share of each opinion over time, of disagreeing pairs, and the
   // number of domains of each opinion (js/sim-charts.js).
@@ -334,9 +323,7 @@ const showNoise = connectSliderAndBox("noise-slider", "noise-box", setNoise);
 // q opinions, each drawn in the old site's colors.
 function makeColors(value) {
   q = showQ(value);
-  colorNames = [];
-  for (let c = 0; c < q; c++) colorNames.push(defaultColor(c, q));
-  colorRGB = colorNames.map(hexToRGB);
+  colorNames = defaultColors(q);
 }
 
 // A new q, from its slider or box: restarts.

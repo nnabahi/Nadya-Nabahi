@@ -70,12 +70,11 @@ const NEIGHBORHOODS = {
 };
 
 // The colors of the states: 0 white and 1 black (as in Wolfram's
-// pictures), then the old site's colors (defaultColor, js/sim-colors.js).
+// pictures), then the old site's colors (defaultColors, js/sim-colors.js).
 // EMPTY is where the 1D picture has no row yet. In the charts, state 0
 // is drawn in CHART_ZERO instead of white, so its line shows.
 const EMPTY = "#e4e2dc";
 const CHART_ZERO = "#b8b5ad";
-const BORDER = "#1e1e1e";          // around the dots of the perimeter chart
 
 // The speeds on the Speed slider, in steps per second. Infinity means
 // "as fast as the computer can". The default is slow, so you can watch.
@@ -451,9 +450,7 @@ function newPicture() {
 
 // The colors of b states.
 function setColors() {
-  colorNames = ["#ffffff", "#000000"];
-  for (let s = 2; s < b; s++) colorNames.push(defaultColor(s - 2, b - 2));
-  colorNames.length = b;
+  colorNames = ["#ffffff", "#000000"].concat(defaultColors(b - 2));
   colorRGB = colorNames.map(hexToRGB);
 }
 
@@ -554,13 +551,7 @@ function showStats() {
   // One row per state: cells (now), share, clusters (in the picture).
   const clusters = new Array(b).fill(0);
   for (const c of regions.color) clusters[c]++;
-  let rows = "";
-  for (let c = 0; c < b; c++) {
-    rows += '<tr><td><span class="swatch-small" style="background:' + colorNames[c] + '; border: 1px solid ' + CHART_ZERO + '"></span>' + c +
-      '</td><td>' + s.counts[c].toLocaleString() + '</td><td>' + (100 * s.counts[c] / cells).toFixed(1) +
-      '%</td><td>' + clusters[c].toLocaleString() + '</td></tr>';
-  }
-  byId("state-rows").innerHTML = rows;
+  byId("state-rows").innerHTML = colorShareRows(colorNames, 0, s.counts, cells, clusters);   // (js/sim-page.js)
 
   // The share of each state over time, and the interface.
   const onTape = dim === 1 ? " on the tape" : "";
@@ -578,7 +569,7 @@ function showStats() {
   // The clusters' areas (powerOfTwoBars, js/sim-charts.js), and
   // perimeter against area (perimeterChart).
   powerOfTwoBars(byId("areas-chart"), powerOfTwoBins(regions.areas), "clusters");
-  perimeterChart(byId("perimeter-chart"), regions, colorNames, BORDER);
+  perimeterChart(byId("perimeter-chart"), regions, colorNames, CELL_LINES);
 }
 
 
