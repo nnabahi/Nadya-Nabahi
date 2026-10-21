@@ -59,6 +59,7 @@
      cornersOf(d, v)          the corners of a cell that is a polygon
      cellCorners(...)         the corners of a triangle or hexagon cell
      cellMiddle(d, v)         the middle of a cell, in the picture
+     cellMiddles(d)           ... every cell's middle, as a list
      cellRadius(d, v)         how far a cell's middle is from its sides
      cellSpots(d)             where the cells are, in whole numbers (for starts)
      pictureBox(d)            the box around the domain's picture
@@ -400,6 +401,15 @@ function cellMiddle(d, v) {
   let u = 0, w = 0;
   for (const c of corners) { u += c[0]; w += c[1]; }
   return [u / corners.length, w / corners.length];
+}
+
+// The middle of every cell of domain d (cellMiddle), as a list, worked
+// out once per domain and kept.
+function cellMiddles(d) {
+  if (d.middles) return d.middles;
+  d.middles = [];
+  for (let v = 0; v < d.n; v++) d.middles.push(cellMiddle(d, v));
+  return d.middles;
 }
 
 // How far the middle of cell v of domain d is from the nearest of its

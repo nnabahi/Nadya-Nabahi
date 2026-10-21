@@ -68,8 +68,11 @@
      paintDomain(...)            whichever of these fits the domain's cells
      screenCopies, nearScreen    where the polygons go on the screen (and on a
                                  torus, each copy of the picture that shows)
+     cellLinesPath, cellDotsPath lines between neighbors' middles, and dots on
+                                 middles (a tree, a walk), on every copy
      zoomBy, slideCells, resetView   zoom around a point, move; back to the start
      cellUnder, cellAtEvent      the cell under the pointer
+     floorOf3D(d, kind, disk, keep)  where the cells stand on the 3D floor
    Moving, zooming and clicking either kind of picture:
      connectZoomControls(view, reset, ...)   the wheel and the + / − / Reset buttons
      connectWheel(view)          ... just the wheel (a chart's time, js/sim-charts.js)
@@ -487,6 +490,64 @@ function nearScreen(view, x, y) {
   return x >= view.left - margin && x <= view.left + view.width + margin && y >= -margin && y <= view.height + margin;
 }
 
+// Lines from the middle of a cell of domain d to the middle of a
+// neighbor, after fitPicture, on every copy of the picture that shows
+// (screenCopies), as one path to stroke (or several, for several
+// colors). addLines(line) calls line(v, w) once for each line, from
+// cell v to its neighbor w. On a torus the line goes to the copy of w
+// nearest v, so a line across the torus's edge doesn't cross the whole
+// picture. (A spanning tree, or a walk: Connected Coloring, Uniform
+// Spanning Tree.) Also sets view.cell.
+function cellLinesPath(view, d, addLines) {
+  const middles = cellMiddles(d), steps = d.wrap ? torusSteps(d) : null;   // (js/sim-domains.js)
+  const ends = [];
+  addLines(function (v, w) { ends.push(v, w); });
+  const path = new Path2D();
+  for (const { sx, sy } of screenCopies(view, d)) {
+    for (let k = 0; k < ends.length; k += 2) {
+      const a = middles[ends[k]], x = sx(a[0]), y = sy(a[1]);
+      if (!nearScreen(view, x, y)) continue;
+      const b = nearestCopy(middles[ends[k + 1]], a, steps);
+      path.moveTo(x, y);
+      path.lineTo(sx(b[0]), sy(b[1]));
+    }
+  }
+  return path;
+}
+
+// Dots "radius" pixels big on the middles of the cells "cells" of
+// domain d, on every copy of the picture that shows, as one path to
+// fill. (A root, or the head of a walk.)
+function cellDotsPath(view, d, cells, radius) {
+  const middles = cellMiddles(d), path = new Path2D();
+  for (const { sx, sy } of screenCopies(view, d)) {
+    for (const v of cells) {
+      const x = sx(middles[v][0]), y = sy(middles[v][1]);
+      if (!nearScreen(view, x, y)) continue;
+      path.moveTo(x + radius, y);
+      path.arc(x, y, radius, 0, 2 * Math.PI);
+    }
+  }
+  return path;
+}
+
+// The copy of the point p nearest the point "from", on a torus that
+// repeats by the two steps "steps" (torusSteps; null off a torus: p
+// itself).
+function nearestCopy(p, from, steps) {
+  if (!steps) return p;
+  const [across, up] = steps;
+  let best = p, far = Infinity;
+  for (let a = -1; a <= 1; a++) {
+    for (let b = -1; b <= 1; b++) {
+      const q = [p[0] + a * across[0] + b * up[0], p[1] + a * across[1] + b * up[1]];
+      const d = Math.hypot(q[0] - from[0], q[1] - from[1]);
+      if (d < far) { far = d; best = q; }
+    }
+  }
+  return best;
+}
+
 // The copies of domain d's picture that show, as the shift [du, dw] of
 // each: off a torus just the picture itself; on a torus every copy that
 // reaches into the screen, shifted by whole steps of torusSteps
@@ -597,6 +658,75 @@ function cellUnder(view, d, spot) {
 // (ballCellAt, js/sim-hyperbolic.js); otherwise the cell of domain d.
 function cellAtEvent(view, disk, d, onGraph, event) {
   return onGraph ? ballCellAt(disk, d, event) : cellUnder(view, d, pointerSpot(view, event));
+}
+
+
+// Where the cells of domain d stand on the 3D view's floor (drawStacks,
+// js/sim-3d.js), for the cells with keep(v) true (every cell if "keep"
+// is left out). "kind" is the domain's kind (domains.kind,
+// js/sim-controls.js), and "disk" the disk view, for a ball of a
+// hyperbolic tiling or tree. Returns what drawStacks wants about the
+// floor, for each stack i:
+//   cells[i]        the cell stack i stands on
+//   x, y, width     where its middle is, and how wide it is
+//   corners         its corners, for blocks in the shape of the cell
+//   floor, lines    the floor, and the sides of a tiling's cells on it
+//   shape           the blocks: in the shape of the cells (a square's is
+//                   a cube), or coins on a tree, whose sites are points
+// On a ball, each cell stands where the disk picture puts it, as big as
+// it looks there (diskStack, js/sim-hyperbolic.js), and cells too small
+// to see are left out. On a tiling, the floor is the picture's box
+// (drawStacks counts a box of cells from the middle of its first one to
+// the middle of its last, so half a side length comes off each end).
+// A drawn domain stands on its own cells. (Sandpiles, Uniform Spanning
+// Tree.)
+function floorOf3D(d, kind, disk, keep) {
+  const f = { cells: [], x: [], y: [], width: [], corners: [], floor: null, lines: null, shape: "cubes" };
+  const add = function (v, x, y, width, corners) {
+    f.cells.push(v); f.x.push(x); f.y.push(y); f.width.push(width); f.corners.push(corners);
+  };
+  if (kind === "graph") {
+    const unit = diskFloorUnit(disk);
+    for (let v = 0; v < d.n; v++) {
+      if (keep && !keep(v)) continue;
+      const stack = diskStack(disk, seenFrom(disk, ballPlace(d, v)), unit);
+      if (stack) add(v, stack.x, stack.y, stack.width, stack.corners);
+    }
+    f.floor = { disk: unit };
+    f.shape = isTree(disk.spec) ? "coins" : "tiles";
+  } else if (d.lattice) {
+    for (let v = 0; v < d.n; v++) {
+      if (keep && !keep(v)) continue;
+      const [u, w] = cellMiddle(d, v);
+      add(v, u, w, 2 * cellRadius(d, v), cornersOf(d, v));
+    }
+    const box = pictureBox(d);
+    f.floor = { xmin: box.left + 0.5, xmax: box.right - 0.5, ymin: box.bottom + 0.5, ymax: box.top - 0.5 };
+    f.lines = tilingLines(d);
+    f.shape = "tiles";
+  } else {
+    for (let v = 0; v < d.n; v++) if (!keep || keep(v)) add(v, d.x[v], d.y[v], 1, null);
+    f.floor = kind === "custom" ? { x: d.x, y: d.y } : { xmin: d.xmin, xmax: d.xmax, ymin: d.ymin, ymax: d.ymax };
+  }
+  return f;
+}
+
+// The sides of a tiling's cells, as lines on the 3D floor: [x1, y1, x2,
+// y2, ...], each side once (from the cell with the smaller number, or
+// on the domain's edge). Worked out once per domain, and kept.
+function tilingLines(d) {
+  if (d.floorLines) return d.floorLines;
+  const sides = latticeSides(d), lines = [];
+  for (let v = 0; v < d.n; v++) {
+    const corners = cornersOf(d, v);
+    corners.forEach(function (c, k) {
+      if (sides[v][k] > v) return;
+      const next = corners[(k + 1) % corners.length];
+      lines.push(c[0], c[1], next[0], next[1]);
+    });
+  }
+  d.floorLines = lines;
+  return lines;
 }
 
 

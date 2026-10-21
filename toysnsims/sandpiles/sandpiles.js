@@ -490,80 +490,22 @@ function showPictureKind() {
   drawSoon();
 }
 
-// The stacks: valueOf(v) blocks on cell v (sink cells left out). Each
-// stack's kind is its threshold, so its blocks get the colors of a cell
-// that topples there.
+// The stacks: valueOf(v) blocks on cell v (sink cells left out), each
+// standing where floorOf3D (js/sim-view.js) puts its cell. Each stack's
+// kind is its threshold, so its blocks get the colors of a cell that
+// topples there.
 function draw3D(valueOf, showTopples) {
   if (!three.view) return;
-  const d = domain, x = [], y = [], height = [], width = [], kind = [], cells = [];
-  let floor, lines;
-  if (domains.kind === "graph") {
-    // Each cell where the disk picture puts it, as big as it looks there
-    // (diskStack, js/sim-hyperbolic.js). drawStacks gives every block the
-    // same size, so the stacks farthest out fit.
-    const unit = diskFloorUnit(disk);
-    for (let v = 0; v < d.n; v++) {
-      if (sinks.includes(v)) continue;
-      const stack = diskStack(disk, seenFrom(disk, ballPlace(d, v)), unit);
-      if (!stack) continue;                    // too small to see
-      x.push(stack.x); y.push(stack.y); height.push(valueOf(v)); width.push(stack.width); kind.push(threshold[v]);
-      cells.push(stack.corners);
-    }
-    floor = { disk: unit };
-  } else if (d.lattice) {
-    for (let v = 0; v < d.n; v++) {
-      if (sinks.includes(v)) continue;
-      const [u, w] = cellMiddle(d, v);
-      x.push(u); y.push(w); height.push(valueOf(v)); width.push(2 * cellRadius(d, v)); kind.push(threshold[v]);
-      cells.push(cornersOf(d, v));
-    }
-    // The floor is the picture's box (one big flat box: drawStacks counts
-    // a box of cells from the middle of its first one to the middle of its
-    // last, so half a side length comes off each end).
-    const box = pictureBox(d);
-    floor = { xmin: box.left + 0.5, xmax: box.right - 0.5, ymin: box.bottom + 0.5, ymax: box.top - 0.5 };
-    lines = tilingLines(d);
-  } else {
-    for (let v = 0; v < d.n; v++) {
-      if (sinks.includes(v)) continue;
-      x.push(d.x[v]); y.push(d.y[v]); height.push(valueOf(v)); width.push(1); kind.push(threshold[v]);
-    }
-    // A box or torus stands on one flat box; a custom table on its own cells.
-    floor = domains.kind === "custom" ? { x: d.x, y: d.y } : { xmin: d.xmin, xmax: d.xmax, ymin: d.ymin, ymax: d.ymax };
-  }
+  const f = floorOf3D(domain, domains.kind, disk, function (v) { return !sinks.includes(v); });
+  const height = f.cells.map(valueOf), kind = f.cells.map(function (v) { return threshold[v]; });
   const most = height.reduce(function (a, b) { return Math.max(a, b); }, 1);   // (a long list can't be spread into Math.max)
   three.code.drawStacks(three.view, {
-    x: x, y: y, height: height, width: width, kind: kind, floor: floor,
-    shape: blockShape(), corners: cells, stretch: 1, fixedSize: true,
+    x: f.x, y: f.y, height: height, width: f.width, kind: kind, floor: f.floor,
+    shape: f.shape, corners: f.corners, stretch: 1, fixedSize: true,
     color: function (k, tallestStack, top) { return showTopples ? colorOfTopples(k, most) : colorOfHeight(k, top); },
     empty: colorOfHeight(0, mostThreshold), ground: hexToRGB(OUTSIDE_CELLS),
-    lines: lines, lineColor: hexToRGB(SINK),
+    lines: f.lines, lineColor: hexToRGB(SINK),
   });
-}
-
-// The 3D view's blocks: each in the shape of its cell (cubes on the
-// square grid), except on a tree, whose sites are points: coins.
-function blockShape() {
-  if (domains.kind === "graph") return isTree(disk.spec) ? "coins" : "tiles";
-  return domain.lattice ? "tiles" : "cubes";
-}
-
-// The sides of a tiling's cells, as lines on the 3D floor: [x1, y1, x2,
-// y2, ...], each side once (from the cell with the smaller number, or
-// on the table's edge). Worked out once per table, and kept.
-function tilingLines(d) {
-  if (d.floorLines) return d.floorLines;
-  const sides = latticeSides(d), lines = [];
-  for (let v = 0; v < d.n; v++) {
-    const corners = cornersOf(d, v);
-    corners.forEach(function (c, k) {
-      if (sides[v][k] > v) return;
-      const next = corners[(k + 1) % corners.length];
-      lines.push(c[0], c[1], next[0], next[1]);
-    });
-  }
-  d.floorLines = lines;
-  return lines;
 }
 
 // The View option.

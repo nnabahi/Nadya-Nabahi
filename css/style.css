@@ -937,6 +937,22 @@ a.card:hover {
   position: relative;
 }
 
+/* A key under a picture colored by a number (Uniform Spanning Tree): the
+   lowest number, a strip of the colors (its background is set by the
+   page's code), and the highest number, on one row. */
+.color-key {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  font-size: 0.85rem;
+}
+.color-key-strip {
+  flex: 1;
+  height: 10px;
+  border-radius: 2px;
+}
+
 /* The drawing surface for a simulation fills the width of its box.
    The ">" means "a canvas directly inside the .sim-picture box" only,
    so this rule leaves alone canvases that libraries (like Cytoscape or

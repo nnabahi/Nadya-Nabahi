@@ -52,6 +52,8 @@
      startPlaneDrag, dragPlane            dragging across the plane
      ballFromOptions, makeBall, ballPlace the ball of R steps a sim runs on, and its cells' places
      drawBall, ballSpot                   drawing it, one color per cell
+     ballLinesPath, ballDotsPath          lines between neighbors' middles, and dots on
+                                          middles (a tree, a walk)
      ballCellUnder, ballCellAt            the cell of the ball under the pointer
      showGraphPresets, readGraphOptions   the Graph options on the page
 
@@ -857,6 +859,50 @@ function drawBall(dv, ball, colorOf) {
   drawDiskFrame(dv, pen, height, OUTSIDE_CELLS, UNDER_COLOR);   // (js/sim-colors.js)
   drawOnDisk(dv, pen, diskGraph(dv), ball.n, function (v) { return ballPlace(ball, v); }, colorOf);
   return pen;
+}
+
+// Lines between the middles of neighboring cells of the ball, after
+// drawBall, as one path to stroke (or several, for several colors).
+// addLines(line) calls line(i, j) once for each line, from cell i to
+// its neighbor j. In the disk and the half-plane each line goes through
+// the middle of the side the two cells share (two lines of traceSpoke,
+// so it is a hyperbolic straight line); spread out, it is straight.
+// Lines between cells that are both off the screen are left out. (A
+// spanning tree, or a walk: Uniform Spanning Tree.)
+function ballLinesPath(dv, ball, addLines) {
+  const path = new Path2D(), spread = dv.picture === "spread";
+  const facing = spread ? null : ballSides(ball, dv.spec.p);
+  // The entry of ball.nbr from cell i to its neighbor j.
+  const entry = function (i, j) {
+    for (let e = ball.first[i]; e < ball.first[i + 1]; e++) if (ball.nbr[e] === j) return e;
+    return -1;
+  };
+  addLines(function (i, j) {
+    if (spread) {
+      const [xi, yi] = spreadSpot(dv, ball.depth[i], ball.angle[i]), [xj, yj] = spreadSpot(dv, ball.depth[j], ball.angle[j]);
+      path.moveTo(xi, yi);
+      path.lineTo(xj, yj);
+      return;
+    }
+    const A = seenFrom(dv, ballPlace(ball, i)), B = seenFrom(dv, ballPlace(ball, j));
+    if (!onScreen(dv, ...motionApply(A, 0, 0)) && !onScreen(dv, ...motionApply(B, 0, 0))) return;
+    traceSpoke(dv, path, A, facing[entry(i, j)]);
+    traceSpoke(dv, path, B, facing[entry(j, i)]);
+  });
+  return path;
+}
+
+// Dots "radius" pixels big on the middles of the cells "cells" of the
+// ball, after drawBall, as one path to fill (those on the screen).
+function ballDotsPath(dv, ball, cells, radius) {
+  const path = new Path2D();
+  for (const v of cells) {
+    const spot = ballSpot(dv, ball, v);
+    if (!spot) continue;
+    path.moveTo(spot.x + radius, spot.y);
+    path.arc(spot.x, spot.y, radius, 0, 2 * Math.PI);
+  }
+  return path;
 }
 
 // Where the middle of cell v of the ball is on the screen, as

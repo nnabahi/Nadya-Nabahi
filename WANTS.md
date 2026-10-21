@@ -338,8 +338,25 @@ are under Site Percolation and the FK loops under Ising & Potts.
   359 (2007) 767-787. Talks: W. Werner, E. Aïdékon (nested loops),
   S. Watson (CLE(4)).
 
-## Uniform spanning tree and forest (being planned in its own thread)
+## Uniform Spanning Tree
 
+From nadya's Lyons and Peres figures (plan:
+/mnt/project-files/spanning-tree/plan.md, in the project's files).
+
+- **The forest**: the wired uniform spanning forest, the boundary glued
+  into one root (Fig 10.2, distances to the outer boundary in 3D).
+  Wilson's algorithm already takes several roots (newWilson,
+  js/sim-spanning.js). nadya, 2026-10-21: "forget the forest for now".
+- **Net turns** (Fig 2.5): left turns minus right turns along the tree
+  path from a fixed cell (planar pictures only).
+- **The Peano curve** (Fig 4.11): the curve around the tree, its hue
+  showing progress along it (planar pictures only).
+- **Square tilings** (Figs 9.4, 9.5): Brooks, Smith, Stone and Tutte's
+  squares from a unit current, in a rectangle (corner to corner) or a
+  cylinder (middle to boundary). Linked to the tree by Kirchhoff: the
+  current through an edge is the chance the tree path crosses it
+  forward minus backward. nadya: net turns, the Peano curve and the
+  square tilings go together, later.
 - **Talks to read for it** (talks: F. Viklund, M. Kozdron, R. Kenyon,
   A. Nachmias, M. Barlow, L. Dumaz, L. Addario-Berry): the chance that
   loop-erased random walk uses a given edge (C. Beneš, G. Lawler and
