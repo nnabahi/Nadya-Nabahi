@@ -117,7 +117,7 @@ function restart() {
   sim.setup({
     domain: domain, tiles: tiles,
     rotations: byId("rotations").checked, gaps: byId("gaps").checked,
-    meanRadius: readRadius(), sizeLimit: readWhole("set-limit", 1, 1e9, DEFAULTS.limit),
+    meanRadius: Number(byId("set-radius").value), sizeLimit: readWhole("set-limit", 1, 1e9, DEFAULTS.limit),
     workLimit: WORK_LIMIT, seed: byId("seed").value, heat: showingAverage(),
   });
 }
@@ -126,7 +126,7 @@ function restart() {
 // not where it ends up, so they are sent without restarting.
 function sendMoveSettings() {
   sim.send({
-    type: "settings", meanRadius: readRadius(),
+    type: "settings", meanRadius: Number(byId("set-radius").value),
     sizeLimit: readWhole("set-limit", 1, 1e9, DEFAULTS.limit),
   });
 }
@@ -138,13 +138,6 @@ function sendWeights() {
   sim.send({ type: "weights", weights: tiles.map(function (t) { return t.weight; }) });
 }
 
-function readRadius() {
-  let r = Number(byId("set-radius").value);
-  if (!isFinite(r) || r <= 0) r = DEFAULTS.radius;
-  r = Math.min(Math.max(r, 0.1), 20);
-  byId("set-radius").value = r;
-  return r;
-}
 
 // Play / Pause, Step, Restart and the Speed slider (connectPlay,
 // js/sim-page.js). player.playing is true while the sim plays.
@@ -661,16 +654,10 @@ byId("set-lattice").addEventListener("change", useLattice);
 byId("rotations").addEventListener("change", restart);
 byId("gaps").addEventListener("change", function () { showGapsInfo(); restart(); });
 
-// The move: the radius slider and number box move together, and the
-// chain carries on with the new value while you drag, like a Desmos slider.
-byId("radius-slider").addEventListener("input", function () {
-  byId("set-radius").value = this.value;
-  sendMoveSettings();
-});
-byId("set-radius").addEventListener("change", function () {
-  byId("radius-slider").value = readRadius();
-  sendMoveSettings();
-});
+// The move: the radius slider and number box move together
+// (connectSliderAndBox, js/sim-page.js), and the chain carries on with
+// the new value while you drag, like a Desmos slider.
+const showRadius = connectSliderAndBox("radius-slider", "set-radius", function (r) { showRadius(r); sendMoveSettings(); });
 byId("set-limit").addEventListener("change", sendMoveSettings);
 byId("show-disk").addEventListener("change", drawSoon);
 
@@ -696,7 +683,7 @@ byId("set-order").value = DEFAULTS.order;
 byId("set-order").max = MAX_ORDER;
 byId("set-side").value = DEFAULTS.side;
 byId("set-side").max = MAX_SIDE_HEXAGON;
-byId("set-radius").value = byId("radius-slider").value = DEFAULTS.radius;
+showRadius(DEFAULTS.radius);
 byId("set-limit").value = DEFAULTS.limit;
 byId("seed").value = DEFAULTS.seed;
 showGapsInfo();

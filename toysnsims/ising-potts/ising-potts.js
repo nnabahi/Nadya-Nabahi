@@ -266,10 +266,16 @@ function showCritical() {
   byId("critical-v").textContent = critical[2] ? ", where " + critical[2] : "";
 }
 
+// q, beta and h: each slider and its box move together
+// (connectSliderAndBox, js/sim-page.js), and the chain follows beta and
+// h live while you drag, like a Desmos slider.
+const showQ = connectSliderAndBox("q-slider", "q-box", setQ);
+const showBeta = connectSliderAndBox("beta-slider", "beta-box", setBeta);
+const showField = connectSliderAndBox("h-slider", "h-box", setField);
+
 // q colors, each drawn in the old site's colors.
 function makeColors(value) {
-  q = Math.min(Math.max(Math.round(value) || 2, 2), MAX_Q);
-  byId("q-box").value = byId("q-slider").value = q;
+  q = showQ(value);
   colorNames = [];
   for (let k = 0; k < q; k++) colorNames.push(defaultColor(k, q));
   colorRGB = colorNames.map(hexToRGB);
@@ -283,29 +289,18 @@ function setQ(value) {
   restart();
 }
 
-// beta and h: the slider and the box move together, and the chain
-// follows live while you drag, like a Desmos slider.
+// New beta or h: the chain carries on with it.
 function setBeta(value) {
-  beta = Math.min(Math.max(Number(value) || 0, 0), MAX_BETA);
-  byId("beta-slider").value = beta;
-  byId("beta-box").value = Number(beta.toFixed(4));
+  beta = showBeta(value);
   sendParams();
   drawSoon();
 }
 function setField(value) {
-  h = Math.min(Math.max(Number(value) || 0, -MAX_FIELD), MAX_FIELD);
-  byId("h-slider").value = h;
-  byId("h-box").value = Number(h.toFixed(3));
+  h = showField(value);
   sendParams();
 }
 
-byId("q-slider").addEventListener("input", function () { setQ(this.value); });
-byId("q-box").addEventListener("change", function () { setQ(this.value); });
-byId("beta-slider").addEventListener("input", function () { setBeta(this.value); });
-byId("beta-box").addEventListener("change", function () { setBeta(this.value); });
 byId("beta-critical").addEventListener("click", function () { setBeta(criticalBeta()[1]); });
-byId("h-slider").addEventListener("input", function () { setField(this.value); });
-byId("h-box").addEventListener("change", function () { setField(this.value); });
 for (const radio of document.querySelectorAll('input[name="dynamics"]')) radio.addEventListener("change", sendParams);
 byId("start").addEventListener("change", restart);
 
@@ -319,8 +314,8 @@ byId("q-box").max = byId("q-slider").max = MAX_Q;
 byId("beta-box").max = byId("beta-slider").max = MAX_BETA;
 byId("h-box").min = byId("h-slider").min = -MAX_FIELD;
 byId("h-box").max = byId("h-slider").max = MAX_FIELD;
-byId("beta-slider").value = byId("beta-box").value = beta;
-byId("h-slider").value = byId("h-box").value = h;
+showBeta(beta);
+showField(h);
 byId("seed").value = DEFAULTS.seed;
 makeColors(DEFAULTS.q);
 domains.useTicked();    // the torus ticked on the page, and the first run

@@ -601,19 +601,17 @@ function showCritical() {
    10. CONNECTING THE BUTTONS ON THE PAGE
    ===================================================================== */
 
+// p: the slider and the box move together (connectSliderAndBox,
+// js/sim-page.js), and the picture follows live while you drag, like a
+// Desmos slider.
+const showP = connectSliderAndBox("p-slider", "p-box", setP);
+
 // A new p, from the slider, the box, Play or Step.
 function setP(value) {
-  p = Math.min(Math.max(Number(value) || 0, 0), 1);
-  byId("p-slider").value = p;
-  byId("p-box").value = Number(p.toFixed(4));
+  p = showP(value);
   computeClusters();
 }
 
-
-// p: the slider and the box move together, and the picture follows
-// live while you drag, like a Desmos slider.
-byId("p-slider").addEventListener("input", function () { setP(this.value); });
-byId("p-box").addEventListener("change", function () { setP(this.value); });
 byId("p-critical").addEventListener("click", function () { setP(criticalPoint()); });
 
 // Colors.
@@ -626,5 +624,5 @@ connectSeed(function () { clearHighlight(highlight); newNumbers(); });
 // --- Start ------------------------------------------------------------
 fillDomainOptions(DEFAULTS, MAX_SIDE, BALL);
 byId("seed").value = DEFAULTS.seed;
-byId("p-slider").value = byId("p-box").value = p;
+showP(p);
 domains.useTicked();

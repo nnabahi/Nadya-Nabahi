@@ -219,13 +219,14 @@ const sim = runInWorker(pileWorker, [newPile, startHeights, middleCell, centerCe
   drawSoon();
 });
 
-// The start, from the boxes on the page.
+// The start, from the boxes on the page. (The ones with a slider always
+// hold a good number: section 9.)
 function startSettings() {
   return {
     kind: byId("start-kind").value,
-    grains: readWhole("set-grains", 0, MAX_GRAINS, DEFAULTS.grains),
-    most: readWhole("set-most", 0, MAX_HEIGHT_SETTING, DEFAULTS.most),
-    height: readWhole("set-full", 0, MAX_HEIGHT_SETTING, DEFAULTS.full),
+    grains: Number(byId("set-grains").value),
+    most: Number(byId("set-most").value),
+    height: Number(byId("set-full").value),
     value: readWhole("set-value", -1000, 1000, DEFAULTS.value),
     slope: readWhole("set-slope", -1000, 1000, DEFAULTS.slope),
   };
@@ -851,17 +852,14 @@ function showStartChoice() {
   byId("start-help").textContent = (domains.kind === "graph" && START_HELP_BALL[kind]) || START_HELP[kind];
 }
 
-// Start: the kind, and its numbers. A slider and its number box move
-// together, and the pile restarts (paused) live while you drag, like a
-// Desmos slider.
+// Start: the kind, and its numbers (restart reads them from their
+// boxes). A slider and its number box move together (connectSliderAndBox,
+// js/sim-page.js), and the pile restarts (paused) live while you drag,
+// like a Desmos slider.
 byId("start-kind").addEventListener("change", function () { showStartChoice(); restart(); });
-function pairSliderAndBox(sliderId, boxId) {
-  byId(sliderId).addEventListener("input", function () { byId(boxId).value = this.value; restart(); });
-  byId(boxId).addEventListener("change", function () { byId(sliderId).value = this.value; restart(); });
-}
-pairSliderAndBox("grains-slider", "set-grains");
-pairSliderAndBox("most-slider", "set-most");
-pairSliderAndBox("full-slider", "set-full");
+const showGrains = connectSliderAndBox("grains-slider", "set-grains", function (n) { showGrains(n); restart(); });
+const showMost = connectSliderAndBox("most-slider", "set-most", function (n) { showMost(n); restart(); });
+const showFull = connectSliderAndBox("full-slider", "set-full", function (n) { showFull(n); restart(); });
 byId("set-value").addEventListener("change", function () { restart(); });
 byId("set-slope").addEventListener("change", function () { restart(); });
 
@@ -903,12 +901,12 @@ connectSeed(function () { restart(); });
 fillDomainOptions(DEFAULTS, MAX_SIDE, BALL);
 byId("start-kind").value = DEFAULTS.start;
 addRangeBoxes(byId("grains-slider"), 0, GRAINS_SLIDER_MAX);   // min and max boxes (js/sim-page.js)
-byId("set-grains").value = byId("grains-slider").value = DEFAULTS.grains;
 byId("set-grains").max = MAX_GRAINS;
-byId("set-most").value = byId("most-slider").value = DEFAULTS.most;
-byId("set-full").value = byId("full-slider").value = DEFAULTS.full;
 byId("set-most").max = byId("most-slider").max = MAX_HEIGHT_SETTING;
 byId("set-full").max = byId("full-slider").max = MAX_HEIGHT_SETTING;
+showGrains(DEFAULTS.grains);
+showMost(DEFAULTS.most);
+showFull(DEFAULTS.full);
 byId("set-value").value = DEFAULTS.value;
 byId("set-slope").value = DEFAULTS.slope;
 byId("seed").value = DEFAULTS.seed;

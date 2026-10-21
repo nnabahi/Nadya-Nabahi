@@ -606,11 +606,14 @@ function usePreset(which) {
   restart(false);
 }
 
+// b: the slider and the box move together (connectSliderAndBox,
+// js/sim-page.js).
+const showB = connectSliderAndBox("b-slider", "b-box", changeB);
+
 // b states: the box and the slider, the colors, and the largest fixed
 // edge state. Doesn't restart: the caller does.
 function setB(value) {
-  b = Math.min(Math.max(Math.round(value) || 2, 2), MAX_B);
-  byId("b-box").value = byId("b-slider").value = b;
+  b = showB(value);
   byId("edge-state").max = b - 1;
   setColors();
 }
@@ -628,8 +631,6 @@ function changeB(value) {
   readRule();
   restart(true);
 }
-byId("b-slider").addEventListener("input", function () { changeB(this.value); });
-byId("b-box").addEventListener("change", function () { changeB(this.value); });
 
 // The rule number: every change made while typing (once it reads), the
 // slider, and the Random rule button.

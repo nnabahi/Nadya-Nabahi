@@ -871,12 +871,10 @@ byId("tool-back").addEventListener("click", function () {
 function startFrom(start) {
   drawnStart = start ? start.colorOf : null;
   highlighted = -1;                       // a new start shows every color
-  const most = Math.min(MAX_COLORS, domain.n);
-  N = start ? start.names.length : Math.min(Math.max(N, 2), most);
+  byId("set-colors").max = byId("colors-slider").max = Math.min(MAX_COLORS, domain.n);
+  N = showN(start ? start.names.length : N);
   colorNames = start ? start.names : [];
   for (let c = colorNames.length; c < N; c++) colorNames.push(defaultColor(c, N));
-  byId("set-colors").max = byId("colors-slider").max = most;
-  byId("set-colors").value = byId("colors-slider").value = N;
   restart();
 }
 
@@ -889,14 +887,15 @@ function showStartInfo() {
     "with each color in one piece).";
 }
 
-// N: the slider and the number box move together, and the chain restarts
-// live while you drag, like a Desmos slider.
+// N: the slider and the number box move together (connectSliderAndBox,
+// js/sim-page.js), and the chain restarts live while you drag, like a
+// Desmos slider. (startFrom shows N, kept to the colors the domain can
+// have.)
+const showN = connectSliderAndBox("colors-slider", "set-colors", setColorCount);
 function setColorCount(value) {
-  N = Math.round(value) || 2;
+  N = value;
   startFrom(null);     // a new N always uses the automatic start
 }
-byId("colors-slider").addEventListener("input", function () { setColorCount(Number(this.value)); });
-byId("set-colors").addEventListener("change", function () { setColorCount(Number(this.value)); });
 
 
 // Seed: the same seed gives the same run every time.

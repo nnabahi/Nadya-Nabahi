@@ -325,10 +325,15 @@ function ballWithStripes() {
    9. CONNECTING THE BUTTONS ON THE PAGE
    ===================================================================== */
 
+// q and the noise: each slider and its box move together
+// (connectSliderAndBox, js/sim-page.js), and the chain follows the noise
+// live while you drag, like a Desmos slider.
+const showQ = connectSliderAndBox("q-slider", "q-box", setQ);
+const showNoise = connectSliderAndBox("noise-slider", "noise-box", setNoise);
+
 // q opinions, each drawn in the old site's colors.
 function makeColors(value) {
-  q = Math.min(Math.max(Math.round(value) || 2, 2), MAX_Q);
-  byId("q-box").value = byId("q-slider").value = q;
+  q = showQ(value);
   colorNames = [];
   for (let c = 0; c < q; c++) colorNames.push(defaultColor(c, q));
   colorRGB = colorNames.map(hexToRGB);
@@ -340,18 +345,12 @@ function setQ(value) {
   restart();
 }
 
-// The noise: the slider and the box move together, live.
+// A new noise: the chain carries on with it.
 function setNoise(value) {
-  noise = Math.min(Math.max(Number(value) || 0, 0), 1);
-  byId("noise-slider").value = noise;
-  byId("noise-box").value = Number(noise.toFixed(4));
+  noise = showNoise(value);
   sendParams();
 }
 
-byId("q-slider").addEventListener("input", function () { setQ(this.value); });
-byId("q-box").addEventListener("change", function () { setQ(this.value); });
-byId("noise-slider").addEventListener("input", function () { setNoise(this.value); });
-byId("noise-box").addEventListener("change", function () { setNoise(this.value); });
 byId("start").addEventListener("change", restart);
 
 // The rule: a preset, or g typed by hand (then the menu says "your own").
@@ -370,7 +369,7 @@ connectSeed(restart);
 // --- Start ------------------------------------------------------------
 fillDomainOptions(DEFAULTS, MAX_SIDE, BALL);
 byId("q-box").max = byId("q-slider").max = MAX_Q;
-byId("noise-slider").value = byId("noise-box").value = noise;
+showNoise(noise);
 byId("seed").value = DEFAULTS.seed;
 fillPreset("voter");
 makeColors(DEFAULTS.q);

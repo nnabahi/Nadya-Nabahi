@@ -19,6 +19,7 @@
      speedText(speed, one, many)      "5 moves per second", for the Speed slider
      addRangeBoxes(slider, lo, hi, ...)  "min" and "max" boxes at a slider's ends
      connectSpeedSlider(id, speeds, ...) a Speed slider with those boxes
+     connectSliderAndBox(slider, box, set)   a number's slider and box, moving together
      connectPlay(runner, ...)         Play / Pause, Step, Restart and Speed
      connectSeed(onChange)            the Seed box and its New seed button
      pictureHeight(normal)            how tall to draw the picture (taller
@@ -232,6 +233,27 @@ function connectSpeedSlider(id, speeds, startSpeed, onChange) {
   slider.value = startSpeed === Infinity ? slider.max : startSpeed;
   slider.addEventListener("input", read);
   read();
+}
+
+// A number set by a slider and the number box beside it, which move
+// together like a Desmos slider: dragging the slider, or typing in the
+// box (once it is done), calls set(value) with the new number. Returns
+// show(value), for "set" to call first: it keeps the number between
+// the box's min and max (the box may reach past the slider's ends),
+// whole if the box's step is whole, shows it in both (the box with at
+// most 4 decimals), and returns it.
+function connectSliderAndBox(sliderId, boxId, set) {
+  const slider = byId(sliderId), box = byId(boxId);
+  slider.addEventListener("input", function () { set(slider.value); });
+  box.addEventListener("change", function () { set(box.value); });
+  return function show(value) {
+    const lo = box.min === "" ? -Infinity : Number(box.min), hi = box.max === "" ? Infinity : Number(box.max);
+    let v = Math.min(Math.max(Number(value) || 0, lo), hi);
+    if (Number.isInteger(Number(box.step))) v = Math.round(v);
+    slider.value = v;
+    box.value = Number(v.toFixed(4));
+    return v;
+  };
 }
 
 // A sim's second thread, as the page sees it. The worker is made from

@@ -697,10 +697,14 @@ function useLine() {
    9. CONNECTING THE BUTTONS ON THE PAGE
    ===================================================================== */
 
+// N: the slider and the number box move together (connectSliderAndBox,
+// js/sim-page.js), and the run restarts live while you drag, like a
+// Desmos slider.
+const showN = connectSliderAndBox("walkers-slider", "set-walkers", setWalkerCount);
+
 // N walkers, in the default start, with their colors. Restarts.
 function setWalkerCount(value) {
-  N = Math.min(Math.max(Math.round(value) || 1, 1), MAX_WALKERS);
-  byId("set-walkers").value = byId("walkers-slider").value = N;
+  N = showN(value);
   starts = defaultStarts(domain, N);
   colorNames = [];
   for (let c = 0; c < N; c++) colorNames.push(defaultColor(c, N));
@@ -716,10 +720,6 @@ for (const radio of document.querySelectorAll('input[name="model"]')) {
   });
 }
 
-// N: the slider and the number box move together, and the run restarts
-// live while you drag, like a Desmos slider.
-byId("walkers-slider").addEventListener("input", function () { setWalkerCount(Number(this.value)); });
-byId("set-walkers").addEventListener("change", function () { setWalkerCount(Number(this.value)); });
 byId("default-start").addEventListener("click", function () { setWalkerCount(N); });
 byId("show-walkers").addEventListener("change", function () {
   showWalkers = this.checked;
