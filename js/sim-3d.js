@@ -267,6 +267,10 @@ function toThree(rgb) {
 //               tiling under a mountain: a list [x1, y1, x2, y2, ...],
 //               one line from (x1, y1) to (x2, y2) and so on, and their
 //               color [r, g, b]
+//   topLines, topLineColor   (optional) lines over the tops of the
+//               stacks, e.g. a path: a list [x1, y1, h1, x2, y2, h2, ...],
+//               one line from (x1, y1) at the top of h1 blocks to (x2, y2)
+//               at the top of h2 blocks, and so on, and their color
 //
 // Heights: a block starts out as tall as a cell of width 1 is wide (a
 // cube; on a round floor, as tall as the shared width). Once the
@@ -364,6 +368,7 @@ export function drawStacks(view3d, stacks) {
   }
   floorMesh.instanceMatrix.needsUpdate = floorMesh.instanceColor.needsUpdate = true;
   drawLines(view3d, stacks.lines || NO_LINES, stacks.lineColor);
+  drawTopLines(view3d, stacks.topLines || NO_LINES, block, stacks.topLineColor);
   fitWorld(view3d, floor, across, stacks.fixedSize ? 0 : tallest * block);
   render(view3d);
 }
@@ -387,18 +392,11 @@ function fitWorld(view3d, floor, across, tall) {
                             scale * (floor.ymin + floor.ymax) / 2);
 }
 
-// The thin lines on the floor, just above it. three.js draws them as
-// "LineSegments": a list of points, joined two by two. They are built
-// again only when the list of lines is a new one.
+// The thin lines on the floor, just above it. They are built again only
+// when the list of lines is a new one.
 const NO_LINES = [];
 function drawLines(view3d, lines, rgb) {
-  if (!view3d.lines) {
-    view3d.lines = new THREE.LineSegments(new THREE.BufferGeometry(), new THREE.LineBasicMaterial());
-    view3d.lines.frustumCulled = false;
-    view3d.world.add(view3d.lines);
-  }
-  const segments = view3d.lines;
-  segments.visible = lines.length > 0;
+  const segments = lineSegments(view3d, "lines", lines.length > 0, rgb);
   if (segments.userData.from === lines) return;
   segments.userData.from = lines;
   const points = new Float32Array(3 * lines.length / 2);    // (x, height, z) for each end
@@ -407,10 +405,43 @@ function drawLines(view3d, lines, rgb) {
     points[3 * k + 1] = 0.002;
     points[3 * k + 2] = -lines[2 * k + 1];
   }
+  setPoints(segments, points);
+}
+
+// The lines over the tops of the stacks (topLines, in drawStacks), each
+// block "block" tall. They are built again every time, since the
+// blocks' height changes as the stacks grow.
+function drawTopLines(view3d, lines, block, rgb) {
+  const segments = lineSegments(view3d, "topLines", lines.length > 0, rgb);
+  const points = new Float32Array(lines.length);            // (x, height, z) for each end
+  for (let k = 0; k < lines.length / 3; k++) {
+    points[3 * k] = lines[3 * k];
+    points[3 * k + 1] = lines[3 * k + 2] * block + 0.01;
+    points[3 * k + 2] = -lines[3 * k + 1];
+  }
+  setPoints(segments, points);
+}
+
+// The view's lines called "name" (made the first time), shown or not,
+// in the color rgb (if given). three.js draws them as "LineSegments":
+// a list of points, joined two by two.
+function lineSegments(view3d, name, show, rgb) {
+  if (!view3d[name]) {
+    view3d[name] = new THREE.LineSegments(new THREE.BufferGeometry(), new THREE.LineBasicMaterial());
+    view3d[name].frustumCulled = false;
+    view3d.world.add(view3d[name]);
+  }
+  const segments = view3d[name];
+  segments.visible = show;
+  if (rgb) segments.material.color.setRGB(rgb[0] / 255, rgb[1] / 255, rgb[2] / 255, THREE.SRGBColorSpace);
+  return segments;
+}
+
+// New points for some lines: (x, height, z) for each end.
+function setPoints(segments, points) {
   segments.geometry.dispose();
   segments.geometry = new THREE.BufferGeometry();
   segments.geometry.setAttribute("position", new THREE.BufferAttribute(points, 3));
-  if (rgb) segments.material.color.setRGB(rgb[0] / 255, rgb[1] / 255, rgb[2] / 255, THREE.SRGBColorSpace);
 }
 
 // The smallest box { xmin, xmax, ymin, ymax } around the floor.

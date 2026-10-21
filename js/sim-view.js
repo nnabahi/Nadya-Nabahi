@@ -72,6 +72,7 @@
                                  middles (a tree, a walk), on every copy
      zoomBy, slideCells, resetView   zoom around a point, move; back to the start
      cellUnder, cellAtEvent      the cell under the pointer
+     floorOf3D(d, kind, disk, keep)  where the cells stand on the 3D floor
    Moving, zooming and clicking either kind of picture:
      connectZoomControls(view, reset, ...)   the wheel and the + / − / Reset buttons
      connectWheel(view)          ... just the wheel (a chart's time, js/sim-charts.js)
@@ -657,6 +658,75 @@ function cellUnder(view, d, spot) {
 // (ballCellAt, js/sim-hyperbolic.js); otherwise the cell of domain d.
 function cellAtEvent(view, disk, d, onGraph, event) {
   return onGraph ? ballCellAt(disk, d, event) : cellUnder(view, d, pointerSpot(view, event));
+}
+
+
+// Where the cells of domain d stand on the 3D view's floor (drawStacks,
+// js/sim-3d.js), for the cells with keep(v) true (every cell if "keep"
+// is left out). "kind" is the domain's kind (domains.kind,
+// js/sim-controls.js), and "disk" the disk view, for a ball of a
+// hyperbolic tiling or tree. Returns what drawStacks wants about the
+// floor, for each stack i:
+//   cells[i]        the cell stack i stands on
+//   x, y, width     where its middle is, and how wide it is
+//   corners         its corners, for blocks in the shape of the cell
+//   floor, lines    the floor, and the sides of a tiling's cells on it
+//   shape           the blocks: in the shape of the cells (a square's is
+//                   a cube), or coins on a tree, whose sites are points
+// On a ball, each cell stands where the disk picture puts it, as big as
+// it looks there (diskStack, js/sim-hyperbolic.js), and cells too small
+// to see are left out. On a tiling, the floor is the picture's box
+// (drawStacks counts a box of cells from the middle of its first one to
+// the middle of its last, so half a side length comes off each end).
+// A drawn domain stands on its own cells. (Sandpiles, Uniform Spanning
+// Tree.)
+function floorOf3D(d, kind, disk, keep) {
+  const f = { cells: [], x: [], y: [], width: [], corners: [], floor: null, lines: null, shape: "cubes" };
+  const add = function (v, x, y, width, corners) {
+    f.cells.push(v); f.x.push(x); f.y.push(y); f.width.push(width); f.corners.push(corners);
+  };
+  if (kind === "graph") {
+    const unit = diskFloorUnit(disk);
+    for (let v = 0; v < d.n; v++) {
+      if (keep && !keep(v)) continue;
+      const stack = diskStack(disk, seenFrom(disk, ballPlace(d, v)), unit);
+      if (stack) add(v, stack.x, stack.y, stack.width, stack.corners);
+    }
+    f.floor = { disk: unit };
+    f.shape = isTree(disk.spec) ? "coins" : "tiles";
+  } else if (d.lattice) {
+    for (let v = 0; v < d.n; v++) {
+      if (keep && !keep(v)) continue;
+      const [u, w] = cellMiddle(d, v);
+      add(v, u, w, 2 * cellRadius(d, v), cornersOf(d, v));
+    }
+    const box = pictureBox(d);
+    f.floor = { xmin: box.left + 0.5, xmax: box.right - 0.5, ymin: box.bottom + 0.5, ymax: box.top - 0.5 };
+    f.lines = tilingLines(d);
+    f.shape = "tiles";
+  } else {
+    for (let v = 0; v < d.n; v++) if (!keep || keep(v)) add(v, d.x[v], d.y[v], 1, null);
+    f.floor = kind === "custom" ? { x: d.x, y: d.y } : { xmin: d.xmin, xmax: d.xmax, ymin: d.ymin, ymax: d.ymax };
+  }
+  return f;
+}
+
+// The sides of a tiling's cells, as lines on the 3D floor: [x1, y1, x2,
+// y2, ...], each side once (from the cell with the smaller number, or
+// on the domain's edge). Worked out once per domain, and kept.
+function tilingLines(d) {
+  if (d.floorLines) return d.floorLines;
+  const sides = latticeSides(d), lines = [];
+  for (let v = 0; v < d.n; v++) {
+    const corners = cornersOf(d, v);
+    corners.forEach(function (c, k) {
+      if (sides[v][k] > v) return;
+      const next = corners[(k + 1) % corners.length];
+      lines.push(c[0], c[1], next[0], next[1]);
+    });
+  }
+  d.floorLines = lines;
+  return lines;
 }
 
 
