@@ -153,15 +153,15 @@ From Scott Sheffield's work, nadya 2026-10-21.
 
 ## Random planar maps (new sim)
 
-From Scott Sheffield's work (the animations from his ICM talk "What is a
-random surface?"), nadya 2026-10-21.
+The first two are from Scott Sheffield's work (the animations from his ICM
+talk "What is a random surface?"), nadya 2026-10-21.
 
-- **Exact sampling**: a uniform planar map with a marked spanning tree is
+- **Tree-weighted maps, exact sampling**: a uniform planar map with a marked spanning tree is
   encoded by a hamburger-cheeseburger word, a walk in the quarter plane.
   R. Mullin, "On the enumeration of tree-rooted maps", Canad. J. Math. 19
   (1967) 174-183; S. Sheffield, "Quantum gravity and inventory
   accumulation", Ann. Probab. 44 (2016) 3804-3848.
-- **Drawing it**: the Tutte embedding is one large linear solve (E. Gwynne,
+- **Tree-weighted maps, drawing them**: the Tutte embedding is one large linear solve (E. Gwynne,
   J. Miller and S. Sheffield, "The Tutte embedding of the mated-CRT map
   converges to Liouville quantum gravity", Ann. Probab. 49 (2021)
   1677-1717). His spherical Smith embedding is a square tiling, like
