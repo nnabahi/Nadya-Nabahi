@@ -195,30 +195,26 @@ function runVersion(test, versionName, moves, every, results, whenDone) {
       ", p = " + p.toPrecision(2) + " &rarr; " +
       (finished ? "<span class='" + (right ? "check-pass'>looks right" : "check-fail'>NOT right") + "</span>"
                 : "running...");
-    drawBars(canvas, seen, expected);
+    drawRatioBars(canvas, seen, expected);
     if (!finished) setTimeout(chunk, 0);
     else whenDone();
   })();
 }
 
 // One bar per packing: seen / expected (expected is a list, one number
-// per packing). The line marks 1.
-function drawBars(canvas, seen, expected) {
-  const pen = chartPen(canvas);
-  const width = canvas.clientWidth, height = canvas.clientHeight;
-  const top = 2;   // the tallest bar drawn is 2 (twice as often as it should be)
-  const barWidth = width / seen.length;
-  pen.fillStyle = CHART_LINE;
-  seen.forEach(function (s, i) {
-    const ratio = expected[i] > 0 ? Math.min(s / expected[i], top) : 0;
-    const h = ratio / top * (height - 12);
-    pen.fillRect(i * barWidth, height - h, Math.max(barWidth - 1, 1), h);
+// per packing), from 0 to 2 (twice as often as it should be; taller
+// bars are cut off there). The line marks 1.
+function drawRatioBars(canvas, seen, expected) {
+  const bars = seen.map(function (s, i) {
+    return { from: i + 0.5, to: i + 1.5, value: expected[i] > 0 ? s / expected[i] : 0 };
   });
-  const y1 = height - (height - 12) / top;
+  const frame = barChart(canvas, bars, { from: 0.5, to: seen.length + 0.5, whole: true, word: "packing" },
+                         { from: 0, to: 2 });
+  const pen = frame.pen, y1 = Math.round(frame.sy(1)) + 0.5;
   pen.strokeStyle = CHART_TEXT;
-  pen.beginPath(); pen.moveTo(0, y1); pen.lineTo(width, y1); pen.stroke();
-  pen.fillStyle = CHART_TEXT;
-  pen.fillText("1 = as often as it should be", 4, y1 - 3);
+  pen.beginPath(); pen.moveTo(frame.left, y1); pen.lineTo(frame.right, y1); pen.stroke();
+  pen.textBaseline = "bottom";
+  pen.fillText("1 = as often as it should be", frame.left + 4, y1 - 3);
 }
 
 // nadya's move from tiling_mcmc.py (mixingstep), for comparison:

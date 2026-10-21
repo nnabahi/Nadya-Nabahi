@@ -716,32 +716,26 @@ function showStats() {
 // than 8). On a tiling whose cells topple at different heights, a
 // height has no one color (section 3), so the bars are all one color.
 function drawHeightsChart() {
-  const canvas = byId("heights-chart");
-  const pen = chartPen(canvas);
-  const w = canvas.clientWidth, h = canvas.clientHeight;
   const lastBar = Math.max(HEIGHT_BARS, mostThreshold);  // the "8+" bar
-  const bars = lastBar + 1;
-  const counts = new Array(bars).fill(0);
+  const counts = new Array(lastBar + 1).fill(0);
   for (let v = 0; v < domain.n; v++) {
     if (sinks.includes(v)) continue;
     counts[Math.min(latest.heights[v], lastBar)]++;
   }
-  const most = Math.max(1, ...counts);
-  const top = 14, bottom = h - 14, barWidth = w / bars;
+  const bars = counts.map(function (count, b) {
+    return { from: b - 0.5, to: b + 0.5, value: count, border: CHART_TEXT,
+             color: sameThreshold === null ? CHART_LINE : rgbToHex(colorOfHeight(b, sameThreshold)) };
+  });
+  const frame = barChart(byId("heights-chart"), bars,
+    { from: -0.5, to: lastBar + 0.5, whole: true, word: "height",
+      text: function (b) { return b < lastBar ? String(b) : lastBar + "+"; } },
+    { from: 0, to: Math.max(1, ...counts), round: true, whole: true });
+  // Each bar's count, just above it.
+  const pen = frame.pen;
   pen.textAlign = "center";
-  pen.strokeStyle = CHART_TEXT;
-  pen.lineWidth = 0.5;
+  pen.textBaseline = "bottom";
   counts.forEach(function (count, b) {
-    const barHeight = count === 0 ? 0 : Math.max(1, (bottom - top) * count / most);
-    const left = b * barWidth + 2, width = Math.max(1, barWidth - 4);
-    pen.fillStyle = sameThreshold === null ? CHART_LINE : rgbToHex(colorOfHeight(b, sameThreshold));
-    pen.fillRect(left, bottom - barHeight, width, barHeight);
-    pen.strokeRect(left, bottom - barHeight, width, barHeight);
-    pen.fillStyle = CHART_TEXT;
-    pen.textBaseline = "bottom";
-    pen.fillText(count.toLocaleString(), (b + 0.5) * barWidth, bottom - barHeight - 1);
-    pen.textBaseline = "top";
-    pen.fillText(b < lastBar ? String(b) : lastBar + "+", (b + 0.5) * barWidth, bottom + 2);
+    pen.fillText(shortLabel(count), frame.sx(b), Math.max(TEXT_HEIGHT, frame.sy(count) - 1));
   });
 }
 
@@ -757,38 +751,23 @@ function drawHeightsChart() {
 // (as many as its most common group).
 function drawTimelineChart() {
   const canvas = byId("timeline-chart");
-  const pen = chartPen(canvas);
   const columns = latest.timeline, width = latest.timelineWidth;
   byId("timeline-info").textContent = latest.avalancheCount === 0
     ? "Start from an empty table, tick the storm (with \"Wait until stable\") and press Play " +
       "to watch the pile turn critical."
     : "Across: storm grains, " + width.toLocaleString() + (width === 1 ? " grain" : " grains") +
       " per column. Up: avalanche sizes, from 1 topple. Darkest: the most common size in that column.";
-  if (columns.length === 0) return;
-  const w = canvas.clientWidth, h = canvas.clientHeight;
-  const left = 40, up = 4, bottom = h - 16;
   const rows = latest.avalancheBins.length - 1;   // groups 1, 2, ... (not 0)
-  if (rows < 1) return;
-  const colWidth = (w - left) / Math.max(columns.length, 20), rowHeight = (bottom - up) / rows;
-  columns.forEach(function (column, c) {
-    const most = Math.max(0, ...column.slice(1));
-    column.forEach(function (count, b) {
-      if (b === 0 || count === 0) return;
-      pen.fillStyle = rgbToHex(colorOfTopples(count, most));
-      pen.fillRect(left + c * colWidth, bottom - b * rowHeight, Math.ceil(colWidth), Math.ceil(rowHeight));
-    });
-  });
-  // Labels: some of the sizes on the left, the grains along the bottom.
-  pen.fillStyle = CHART_TEXT;
-  pen.textAlign = "right";
-  pen.textBaseline = "middle";
-  const every = Math.ceil(rows / Math.max(1, Math.floor((bottom - up) / 14)));
-  for (let b = 1; b <= rows; b += every) pen.fillText((2 ** (b - 1)).toLocaleString(), left - 4, bottom - (b - 0.5) * rowHeight);
-  pen.textBaseline = "bottom";
-  pen.textAlign = "left";
-  pen.fillText("0", left, h);
-  pen.textAlign = "right";
-  pen.fillText("grain " + latest.avalancheCount.toLocaleString(), left + columns.length * colWidth, h);
+  if (columns.length === 0 || rows < 1) { chartPen(canvas); return; }
+  // At least 20 columns wide, so the first few don't fill the chart.
+  const shownColumns = Math.max(columns.length, 20);
+  const mosts = columns.map(function (column) { return Math.max(0, ...column.slice(1)); });
+  function colorAt(c, r) {          // row r is group r + 1
+    const count = c < columns.length ? columns[c][r + 1] || 0 : 0;
+    return count === 0 ? null : colorOfTopples(count, mosts[c]);
+  }
+  heatChart(canvas, shownColumns, rows, colorAt, { from: 0, to: shownColumns * width, word: "grain" },
+            { from: 0.5, to: rows + 0.5, whole: true, text: function (b) { return shortLabel(Math.pow(2, b - 1), Math.pow(2, b - 1)); } });
 }
 
 // Avalanche sizes on logarithmic scales: for each group b >= 1, a dot at
@@ -797,49 +776,16 @@ function drawTimelineChart() {
 // fraction of avalanches of each size in the group, on average. A power
 // law is a straight line.
 function drawAvalancheChart() {
-  const canvas = byId("avalanche-chart");
-  const pen = chartPen(canvas);
   const bins = latest.avalancheBins, total = latest.avalancheCount;
   const sized = total - (bins[0] || 0);       // grains that toppled something
   byId("avalanche-info").textContent = total === 0 ? ""
     : total.toLocaleString() + " grains dropped so far; " + sized.toLocaleString() + " of them set off an avalanche. " +
       "Both scales are logarithmic, so a power law shows as a straight line.";
-  const dots = [];                            // [log10 size, log10 fraction]
+  const dots = [];                            // [size, fraction]
   for (let b = 1; b < bins.length; b++) {
-    if (bins[b] > 0) dots.push([(b - 1) * Math.log10(2), Math.log10(bins[b] / 2 ** (b - 1) / sized)]);
+    if (bins[b] > 0) dots.push([2 ** (b - 1), bins[b] / 2 ** (b - 1) / sized]);
   }
-  if (dots.length < 2) return;
-  const w = canvas.clientWidth, h = canvas.clientHeight;
-  const left = 44, up = 6, bottom = h - 16;
-  const xTop = Math.max(1, Math.ceil(dots[dots.length - 1][0]));
-  let yLow = 0;
-  for (const dot of dots) yLow = Math.min(yLow, Math.floor(dot[1]));
-  const sx = function (lx) { return left + (w - left - 8) * lx / xTop; };
-  const sy = function (ly) { return up + (bottom - up) * ly / yLow; };   // 0 (a fraction of 1) at the top
-  // The powers of 10 on both axes.
-  pen.textBaseline = "middle";
-  pen.textAlign = "right";
-  const yEvery = Math.ceil(-yLow / 5);
-  for (let k = 0; k >= yLow; k -= yEvery) pen.fillText(k === 0 ? "1" : "1e" + k, left - 4, sy(k));
-  pen.textBaseline = "bottom";
-  pen.textAlign = "center";
-  for (let k = 0; k <= xTop; k++) {
-    pen.textAlign = k === xTop ? "right" : "center";   // the last one stays inside the chart
-    pen.fillText(Math.pow(10, k).toLocaleString(), k === xTop ? w : sx(k), h);
-  }
-  pen.beginPath();
-  dots.forEach(function (dot, k) {
-    if (k === 0) pen.moveTo(sx(dot[0]), sy(dot[1])); else pen.lineTo(sx(dot[0]), sy(dot[1]));
-  });
-  pen.strokeStyle = CHART_LINE;
-  pen.lineWidth = 1.5;
-  pen.stroke();
-  pen.fillStyle = CHART_LINE;
-  for (const dot of dots) {
-    pen.beginPath();
-    pen.arc(sx(dot[0]), sy(dot[1]), 3, 0, 2 * Math.PI);
-    pen.fill();
-  }
+  logLogChart(byId("avalanche-chart"), [{ points: dots }, { points: dots, dots: true, radius: 3 }], "topples", "");
 }
 
 
