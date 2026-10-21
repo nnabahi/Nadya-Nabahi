@@ -218,7 +218,7 @@ const view = makeView(simCanvas, drawSoon);
 function drawPicture() {
   if (!heights) return;                    // nothing worked out yet
   if (show3D) { draw3D(); return; }
-  const pen = fitPicture(view, domain, pictureHeight(PICTURE_HEIGHT));
+  const pen = fitPicture(view, domain, PICTURE_HEIGHT);
   const heatmap = byId("show-heatmap").checked;
   paintCells(view, pen, domain,
     function (v) { return isNaN(heights[v]) ? -1 : Math.round(255 * heights[v]); },

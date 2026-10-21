@@ -492,21 +492,13 @@ window.addEventListener("resize", function () {
 });
 
 // The color of height h (h = 1, 2, ...) when the tallest stack is
-// "highest" blocks tall. Height 1 is always the darkest color (dark
-// blue), and the colors run up to red at the tallest height, so the
-// scale stretches upward as the mountain grows. (Going down the
-// mountain, the hue goes from 0 (red) to 225 (blue), and the color
-// gets darker on the way.) The same colors are used in every view: a site seen from above
-// has the color of the top block of its stack. Returns [red, green,
-// blue], each 0..255.
+// "highest" blocks tall, as [red, green, blue] (heatColor, js/sim-colors.js).
+// Height 1 is always the darkest color (dark blue), and the colors run
+// up to red at the tallest height, so the scale stretches upward as the
+// mountain grows. The same colors are used in every view: a site seen
+// from above has the color of the top block of its stack.
 function heightColor(h, highest) {
-  // t is 1 at height 1 (the bottom: dark blue) and 0 at the tallest (red).
-  const t = highest <= 1 ? 1 : (highest - h) / (highest - 1);
-  const hue = 225 * t, saturation = 0.7, value = 0.9 - 0.55 * t;
-  // The usual HSV -> RGB recipe.
-  const c = value * saturation, k = hue / 60, x = c * (1 - Math.abs((k % 2) - 1)), m = value - c;
-  const rgb = k < 1 ? [c, x, 0] : k < 2 ? [x, c, 0] : k < 3 ? [0, c, x] : k < 4 ? [0, x, c] : k < 5 ? [x, 0, c] : [c, 0, x];
-  return rgb.map(function (part) { return Math.round(255 * (part + m)); });
+  return heatColor(highest <= 1 ? 0 : (h - 1) / (highest - 1));
 }
 
 // The x and y range of the picture, { xmin, xmax, ymin, ymax }: a
@@ -612,7 +604,7 @@ function drawGrid() {
 
   // Paint the squares, only inside the picture's box (paintCells draws
   // from the top of the box), then a thin frame around the box.
-  const pen = placePicture(pictureBox(gridSites));
+  const pen = fitPicture(view, gridSites, PICTURE_HEIGHT, true);
   const empty = hexToRGB(EMPTY), highest = Math.max(s.maxHeight, 1);
   paintCells(view, pen, gridSites, function (i) { return s.height[i]; },
              function (h) { return h === 0 ? empty : heightColor(h, highest); }, hexToRGB(OUTSIDE));
@@ -632,7 +624,7 @@ const HOLE_GROUP = -1;     // the holes' cells' group, for their color
 function drawTiling() {
   const s = latest;
   shownSites = shownCells(s, byId("show-holes").checked);
-  const pen = placePicture(pictureBox(shownSites));
+  const pen = fitPicture(view, shownSites, PICTURE_HEIGHT, true);
   const empty = hexToRGB(EMPTY), hole = hexToRGB(HOLE), highest = Math.max(s.maxHeight, 1);
   paintDomain(view, pen, shownSites,
     function (v) { return v < s.height.length ? s.height[v] : HOLE_GROUP; },
@@ -660,30 +652,6 @@ function shownCells(s, withHoles) {
   const box = s.setup.box;
   if (box) { shown.pictureBox = pictureBox(box); shown.wrap = box.wrap; }
   return shown;
-}
-
-// Place the 2D picture of a box { left, right, bottom, top } (in side
-// lengths): as big as fits in the canvas (which always has the same
-// size), in the middle of it. The view remembers where, in screen
-// pixels: "left", "top", "width" and "height" of the box, and "size",
-// the size of a cell (a side length) when the whole picture fits (zoom
-// 1). Returns the pen, drawing from the top of the box and cut off at
-// the box; pen.restore() lifts the cut-off.
-function placePicture(box) {
-  const across = box.right - box.left, down = box.top - box.bottom;
-  const cssWidth = simCanvas.clientWidth, height = pictureHeight(PICTURE_HEIGHT);
-  view.size = Math.min(cssWidth / across, height / down);
-  view.width = Math.round(view.size * across);
-  view.height = Math.round(view.size * down);
-  view.left = Math.round((cssWidth - view.width) / 2);
-  view.top = Math.round((height - view.height) / 2);
-  const pen = sharpPen(simCanvas, cssWidth, height);
-  pen.translate(0, view.top);
-  pen.save();
-  pen.beginPath();
-  pen.rect(view.left, 0, view.width, view.height);
-  pen.clip();
-  return pen;
 }
 
 // A thin frame around the picture's box.

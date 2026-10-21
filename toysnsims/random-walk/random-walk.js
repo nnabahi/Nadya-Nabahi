@@ -405,7 +405,7 @@ function drawDot(pen, x, y, r) {
 // on top.
 function drawGrid() {
   const s = latest, shown = shownBox();
-  const pen = fitPicture(view, shown, pictureHeight(PICTURE_HEIGHT));
+  const pen = fitPicture(view, shown, PICTURE_HEIGHT);
   paintCells(view, pen, shown, ageGroup, function (k) { return AGE_COLORS[k]; }, hexToRGB(BACKGROUND));
   if (byId("show-holes").checked && s.holes) shadeSquares(view, pen, shown, s.holes.cells, HOLE);
   // Where the middle of site (x, y) is on the canvas.
@@ -441,7 +441,7 @@ function gridSite(x, y) {
 // the walker on top, as on the square grid.
 function drawTiling() {
   const s = latest, shown = shownTiling(s);
-  const pen = fitPicture(view, shown, pictureHeight(PICTURE_HEIGHT));
+  const pen = fitPicture(view, shown, PICTURE_HEIGHT);
   paintDomain(view, pen, shown,
     function (v) { return v < sites ? ageGroup(v) : HOLE_GROUP; },
     function (k) { return k === HOLE_GROUP ? hexToRGB(HOLE) : AGE_COLORS[k]; },

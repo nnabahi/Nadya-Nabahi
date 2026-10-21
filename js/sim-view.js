@@ -180,23 +180,26 @@ function showZoomButtons(view) {
 // at most maxHeight pixels tall), in the middle. Sizes the canvas to
 // match, and returns its pen, ready to draw in screen pixels (y = 0 is
 // "top" pixels down) and cut off ("clipped") at the picture's box.
-// pen.restore() lifts the cut-off. In the full screen popup
-// (js/sim-page.js), the canvas is as tall as the popup instead, with the
-// picture in the middle of it.
-function fitPicture(view, d, maxHeight) {
+// pen.restore() lifts the cut-off. With "fixed" true, the canvas is
+// always maxHeight tall, with the picture in the middle of it (for a
+// picture that changes shape as it grows, so the page below it doesn't
+// jump). In the full screen popup (js/sim-page.js), the canvas is as
+// tall as the popup instead, with the picture in the middle of it.
+function fitPicture(view, d, maxHeight, fixed) {
   const canvas = view.canvas;
   const box = pictureBox(d);                    // (js/sim-domains.js)
   const across = box.right - box.left, down = box.top - box.bottom;
   const cssWidth = canvas.clientWidth;
   const popup = pictureHeight(0);               // 0 when the popup isn't open
-  if (popup > 0) maxHeight = popup - 2 * view.margin;
+  const tallest = popup > 0 ? popup : fixed ? maxHeight : 0;   // the canvas's height, if it is fixed
+  if (tallest > 0) maxHeight = tallest - 2 * view.margin;
   view.size = Math.min(cssWidth / across, maxHeight / down);
   if (view.size >= view.wholeCells) view.size = Math.floor(view.size);
   view.width = Math.round(view.size * across);
   view.height = Math.round(view.size * down);
   view.left = Math.round((cssWidth - view.width) / 2);
-  view.top = popup > 0 ? Math.round((popup - view.height) / 2) : view.margin;
-  const tall = popup > 0 ? popup : view.height + 2 * view.top;
+  view.top = tallest > 0 ? Math.round((tallest - view.height) / 2) : view.margin;
+  const tall = tallest > 0 ? tallest : view.height + 2 * view.top;
 
   const pen = sharpPen(canvas, cssWidth, tall);   // (js/sim-page.js)
   pen.translate(0, view.top);
