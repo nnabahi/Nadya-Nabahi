@@ -22,6 +22,7 @@ and, on the check pages, [jStat](https://jstat.github.io) (statistics).
 | `resume-and-publications.html` | Resume & Publications |
 | `toysnsims.html` | Toys n' Sims: a list of all simulations |
 | `css/style.css` | The single stylesheet for every page |
+| `js/site.js` | The top bar's links, written once for every page, and `fillBlocks`, which fills a page's placeholders with shared pieces of HTML |
 | `js/writing.js` | Sorts the posts on `writing.html` newest first, turns their Markdown into formatted text with math, and adds the giscus comment box to an open post |
 | `js/genre-filter.js` | Sorts the cards on `toysnsims.html` A to Z (the graph tool pinned first), builds the genre buttons and hides/shows cards |
 | `help/gomjau-hogg.html` | Help page: how to write a tiling as a GomJau-Hogg code (linked from the Lattice code box), with `gomjau-hogg.js` for its "Try a code" box |
@@ -83,7 +84,7 @@ a link back to the sim.
 
 - **Change colors or fonts:** edit section 1 at the top of `css/style.css`.
 - **Add a page:** copy an existing page, then add its link to the top bar
-  on *every* page (the top bar is copied into each file).
+  in `js/site.js` (every page's top bar comes from there).
 - **Add a sim:**
   1. Copy the page of the sim closest to the new one (like
      `toysnsims/random-walk-coloring/random-walk-coloring.html`) into a new
