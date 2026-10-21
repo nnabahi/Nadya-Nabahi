@@ -470,7 +470,7 @@ function setColors() {
        (in 1D, the same spot of the picture). Clicking the cluster
        again, or outside the cells, shows everything again.
    ===================================================================== */
-connectPicture(view, null, null, clickCell, "pointer");
+connectPicture(view, { onClick: clickCell });
 
 function clickCell(event) {
   if (!latest) return;

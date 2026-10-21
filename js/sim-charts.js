@@ -710,7 +710,7 @@ function chartZoom(canvas, redraw) {
 
   canvas.classList.add("scrollable");
   connectWheel(zoom);
-  connectPicture(zoom, null, null);
+  connectPicture(zoom);
   canvas.addEventListener("dblclick", function () { zoom.from = zoom.to = null; redraw(); });
   return zoom;
 }

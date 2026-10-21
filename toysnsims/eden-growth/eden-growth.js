@@ -718,7 +718,7 @@ function framePicture(pen) {
    when you change the tile or the domain or go back with "Go to step";
    Restart and a new seed forget them.
    ===================================================================== */
-connectPicture(view, disk, function () { return dim === "graph"; }, clickAt);
+connectPicture(view, { disk: disk, onGraph: function () { return dim === "graph"; }, onClick: clickAt });
 
 function clickAt(event) {
   if (!haveMountain() || tool.isOpen) return;

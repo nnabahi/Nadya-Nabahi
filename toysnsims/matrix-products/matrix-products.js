@@ -270,7 +270,7 @@ const plane = makePlaneView(simCanvas, oncePerFrame(draw), {
   reset: function () { following[viewKind] = true; },
   onMove: function () { following[viewKind] = false; },
 });
-connectPicture(plane, null, null);
+connectPicture(plane);
 let pen = null;
 
 // The dots to draw: { red: [[x, y], ...], blue: [...] }, plus how many

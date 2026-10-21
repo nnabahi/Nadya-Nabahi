@@ -281,7 +281,7 @@ const simCanvas = byId("sim-canvas");
 const drawSoon = oncePerFrame(function () { drawWalk(); showStats(); });
 
 const view = makeView(simCanvas, drawSoon);      // where the picture goes, and the 2D picture's zoom (js/sim-view.js)
-connectPicture(view, null, null);   // drag and pinch the 2D picture (js/sim-view.js)
+connectPicture(view);   // drag and pinch the 2D picture (js/sim-view.js)
 window.addEventListener("resize", function () {
   if (view3d) sim3d.setHeight(view3d, pictureHeight(PICTURE_HEIGHT));
   drawSoon();

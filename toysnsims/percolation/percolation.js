@@ -423,9 +423,10 @@ window.addEventListener("resize", drawSoon);
    instead, and two fingers slide and zoom the picture; a click works
    the same.
    ===================================================================== */
-connectPicture(view, disk, function () { return domains.kind === "graph"; }, function (event) {
-  clickCell(cellAtEvent(view, disk, domain, domains.kind === "graph", event));
-}, "pointer");
+connectPicture(view, {
+  disk: disk, onGraph: function () { return domains.kind === "graph"; },
+  onClick: function (event) { clickCell(cellAtEvent(view, disk, domain, domains.kind === "graph", event)); },
+});
 
 function clickCell(v) {
   clickHighlight(highlight, v, clusterGroups());

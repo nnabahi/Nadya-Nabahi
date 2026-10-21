@@ -203,7 +203,7 @@ function newSample() {
    units; the boxes and the axis numbers show the real values.
    ===================================================================== */
 const plane = makePlaneView(simCanvas, oncePerFrame(draw), { reset: showStartView, axes: true, onMove: showViewBoxes });
-connectPicture(plane, null, null);
+connectPicture(plane);
 let pen = null;
 
 // log scale or not: the drawn height of a value y, and back.

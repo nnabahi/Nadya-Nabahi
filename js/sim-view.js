@@ -39,10 +39,9 @@
    last section).
 
    Either way, the page connects the picture's pointer events with
-   connectPicture (which also tells a click from a drag). A page that
-   drags other things too, like the random walk coloring sim's walkers,
-   passes them on to pressPointer, movePointer and releasePointer
-   itself.
+   connectPicture (which also tells a click from a drag, and lets a
+   press pick up something on the picture instead, like the random walk
+   coloring sim's walkers).
 
    The page's HTML puts the canvas and the zoom buttons in one box (on
    pages with the hyperbolic plane or tree, "Back to the start" and
@@ -80,7 +79,7 @@
      pressPointer, movePointer, releasePointer   dragging and pinching
      pointerSpot(view, event)    where the pointer is on the picture
      makeClickTracker()          is a press a click or a drag?
-     connectPicture(view, disk, onGraph, onClick, cursor)   all of these at once
+     connectPicture(view, options)   all of these at once
    The plane:
      makePlaneView(...)          a new view of the plane
      sizePlane(plane, height)    size the canvas
@@ -595,9 +594,9 @@ function cellUnder(view, d, spot) {
 
 // The cell under a pointer event on the picture (-1: none): with
 // "onGraph" (a hyperbolic tiling or tree), the cell of ball d
-// (ballCellUnder, js/sim-hyperbolic.js); otherwise the cell of domain d.
+// (ballCellAt, js/sim-hyperbolic.js); otherwise the cell of domain d.
 function cellAtEvent(view, disk, d, onGraph, event) {
-  return onGraph ? ballCellUnder(disk, d, event) : cellUnder(view, d, pointerSpot(view, event));
+  return onGraph ? ballCellAt(disk, d, event) : cellUnder(view, d, pointerSpot(view, event));
 }
 
 
@@ -728,16 +727,28 @@ function makeClickTracker() {
   };
 }
 
-// Connect the picture of "view" (its canvas). "disk" is the page's disk
-// view (js/sim-hyperbolic.js), or null on a page with no hyperbolic
-// plane or tree, and onGraph() says whether the picture shows one right
-// now. onClick(event) (optional) gets every click, with its pointer
-// event. "cursor" (optional) is the mouse cursor over the picture, for
-// example "pointer" (a pointing hand) where a click does something; it
-// turns into a closed hand ("grabbing") while the picture is pressed.
-function connectPicture(view, disk, onGraph, onClick, cursor) {
-  const canvas = view.canvas;
+// Connect the picture of "view" (its canvas). The options, all optional:
+//   disk, onGraph   on a page with the hyperbolic plane or tree, the
+//                   page's disk view (js/sim-hyperbolic.js), and
+//                   onGraph(), whether the picture shows one right now
+//   onClick(event)  gets every click, with its pointer event
+//   grab            something on the picture that a press picks up and
+//                   drags instead of moving the picture (Random Walk
+//                   Coloring's walkers): grab.press(event) says whether
+//                   this press picks it up (asked only while nothing
+//                   else is pressed), grab.move(event) follows that
+//                   pointer, and grab.release() lets go. Such a press
+//                   is never a click.
+// The mouse cursor says what a press does: an open hand ("grab") where
+// something can be picked up, a pointing hand ("pointer") where a click
+// does something, and a closed hand ("grabbing") while pressed.
+// (Otherwise, css/style.css shows the hands on a picture that can move.)
+function connectPicture(view, options) {
+  options = options || {};
+  const canvas = view.canvas, disk = options.disk || null, grab = options.grab || null;
+  const cursor = grab ? "grab" : options.onClick ? "pointer" : null;
   const clicks = makeClickTracker();
+  let grabbed = null;     // the pointer that picked up the grab (its id), or null
   // (On phones, a finger on a picture that can move drags it instead of
   // scrolling the page: "touch-action: none" in css/style.css.)
 
@@ -745,20 +756,31 @@ function connectPicture(view, disk, onGraph, onClick, cursor) {
   // across the plane.
   function startDrag() {
     if (!disk) return;
-    if (onGraph()) startPlaneDrag(disk);
+    if (options.onGraph()) startPlaneDrag(disk);
     else disk.dragFrom = null;
+  }
+  function showCursor() {
+    if (cursor) canvas.style.cursor = clicks.isPressed() ? "grabbing" : cursor;
   }
 
   canvas.addEventListener("pointerdown", function (event) {
     clicks.press(event);
-    pressPointer(view, event);
+    if (grab && grabbed === null && view.pointers.size === 0 && grab.press(event)) {
+      grabbed = event.pointerId;
+      canvas.setPointerCapture(event.pointerId);   // keep getting moves even off the canvas
+    } else {
+      pressPointer(view, event);
+    }
     startDrag();
+    showCursor();
   });
 
   canvas.addEventListener("pointermove", function (event) {
-    if (cursor) canvas.style.cursor = clicks.isPressed() ? "grabbing" : cursor;
+    showCursor();
     if (!clicks.move(event)) return;
-    if (disk && disk.dragFrom && view.pointers.has(event.pointerId)) {
+    if (event.pointerId === grabbed) {
+      grab.move(event);
+    } else if (disk && disk.dragFrom && view.pointers.has(event.pointerId)) {
       view.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });   // where a second finger starts from
       dragPlane(disk, event.clientX, event.clientY);
       view.redraw();
@@ -770,9 +792,12 @@ function connectPicture(view, disk, onGraph, onClick, cursor) {
   function release(event, mayClick) {
     const isClick = clicks.release(event);
     if (isClick === null) return;
+    const wasGrab = grabbed !== null;
+    if (event.pointerId === grabbed) { grabbed = null; grab.release(); }
     releasePointer(view, event);
     startDrag();
-    if (mayClick && isClick && onClick) onClick(event);
+    showCursor();
+    if (mayClick && isClick && !wasGrab && options.onClick) options.onClick(event);
   }
   canvas.addEventListener("pointerup", function (event) { release(event, true); });
   canvas.addEventListener("pointercancel", function (event) { release(event, false); });
@@ -790,7 +815,7 @@ function connectPicture(view, disk, onGraph, onClick, cursor) {
    on its own). A page makes one for its canvas, and connects it like a
    picture of cells:
      const plane = makePlaneView(simCanvas, drawSoon, options);
-     connectPicture(plane, null, null, onClick);
+     connectPicture(plane, { onClick: onClick });
    and each time it draws the whole picture:
      const pen = sizePlane(plane, height);       // size the canvas
      drawPlaneGrid(plane, pen);                  // the grid, axes and numbers

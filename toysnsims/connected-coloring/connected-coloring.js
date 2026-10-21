@@ -326,11 +326,14 @@ function showHighlightInfo() {
 
 // Dragging, zooming and clicking the picture: a click highlights the
 // color under it.
-connectPicture(view, disk, function () { return domains.kind === "graph"; }, function (event) {
-  if (!colors || film) return;
-  const v = cellAtEvent(view, disk, domain, domains.kind === "graph", event);
-  if (v === -1) { if (highlighted !== -1) highlight(-1); }   // outside the cells: show every color
-  else highlight(colors[v]);
+connectPicture(view, {
+  disk: disk, onGraph: function () { return domains.kind === "graph"; },
+  onClick: function (event) {
+    if (!colors || film) return;
+    const v = cellAtEvent(view, disk, domain, domains.kind === "graph", event);
+    if (v === -1) { if (highlighted !== -1) highlight(-1); }   // outside the cells: show every color
+    else highlight(colors[v]);
+  },
 });
 
 

@@ -324,9 +324,11 @@ const player = connectPlay(attempts, SPEEDS, START_SPEED, "attempt", "attempts",
    small to see before.
    ===================================================================== */
 const plane = makePlaneView(simCanvas, oncePerFrame(drawAll), { whole: function () { return windowBox; } });
-connectPicture(plane, null, null, function (event) {
-  const spot = pointerSpot(plane, event);
-  clickAt(pointX(plane, spot.x), pointY(plane, spot.y));
+connectPicture(plane, {
+  onClick: function (event) {
+    const spot = pointerSpot(plane, event);
+    clickAt(pointX(plane, spot.x), pointY(plane, spot.y));
+  },
 });
 let pen = null;
 

@@ -160,11 +160,14 @@ window.addEventListener("resize", drawSoon);
    as the chain runs. Clicking the domain again, or outside the cells,
    shows everything again.
    ===================================================================== */
-connectPicture(view, disk, function () { return domains.kind === "graph"; }, function (event) {
-  if (!latest) return;
-  clickHighlight(highlight, cellAtEvent(view, disk, domain, domains.kind === "graph", event), latest.colors);
-  drawSoon();
-}, "pointer");
+connectPicture(view, {
+  disk: disk, onGraph: function () { return domains.kind === "graph"; },
+  onClick: function (event) {
+    if (!latest) return;
+    clickHighlight(highlight, cellAtEvent(view, disk, domain, domains.kind === "graph", event), latest.colors);
+    drawSoon();
+  },
+});
 
 
 /* =====================================================================

@@ -304,7 +304,9 @@ window.addEventListener("resize", drawSoon);
        which follows that cell as the chain runs. Clicking the cluster
        again, or outside the cells, shows everything again.
    ===================================================================== */
-connectPicture(view, null, null, function (event) {
+connectPicture(view, { onClick: clickCell });
+
+function clickCell(event) {
   if (!domain) return;
   const v = cellUnder(view, domain, pointerSpot(view, event));
   if (checked("click") === "highlight") {
@@ -315,7 +317,7 @@ connectPicture(view, null, null, function (event) {
   if (v < 0) return;
   const middle = cellMiddle(domain, v);   // (js/sim-domains.js)
   sim.send({ type: "click", x: middle[0], y: middle[1] });
-});
+}
 
 
 /* =====================================================================

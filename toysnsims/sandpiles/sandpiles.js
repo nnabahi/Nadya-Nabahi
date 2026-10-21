@@ -637,10 +637,10 @@ function tilingCellName(v) {
   return domain.tiling.corners ? "corner" : cell.name || POLYGON_NAMES[cell.corners.length];
 }
 
-connectPicture(view, disk, function () { return domains.kind === "graph"; }, function (event) {
-  clickCell(domains.kind === "graph" ? ballCellAt(disk, domain, event)
-                                   : cellUnder(view, domain, pointerSpot(view, event)));
-}, "grab");
+connectPicture(view, {
+  disk: disk, onGraph: function () { return domains.kind === "graph"; },
+  onClick: function (event) { clickCell(cellAtEvent(view, disk, domain, domains.kind === "graph", event)); },
+});
 
 
 /* =====================================================================

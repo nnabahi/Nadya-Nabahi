@@ -463,13 +463,10 @@ window.addEventListener("resize", drawSoon);
    highlights the clicked cell's region (js/sim-highlight.js), which
    follows that cell as the walkers color more cells. Clicking the
    region again, or outside the cells, shows everything again.
-   "Pointer" events cover the mouse, a pen and fingers alike.
+   connectPicture (js/sim-view.js) does all of this, with the walkers
+   as the things a press can pick up.
    ===================================================================== */
 let dragWalker = -1;          // the walker being dragged, or -1
-let walkerPointer = -1;       // the pointer dragging it
-const clicks = makeClickTracker();   // is a press a click? (js/sim-view.js)
-// (On phones, a finger on the picture drags instead of scrolling the
-// page: "touch-action: none" in css/style.css.)
 
 // The walker under the pointer (the one drawn on top), or -1. Only
 // before the run has started, while paused.
@@ -483,76 +480,35 @@ function walkerUnder(spot) {
   return -1;
 }
 
-// The "hand" cursor: open, or closed while something is dragged.
-// (Everything here can be dragged: a walker, or the picture.)
-function showCursor() {
-  simCanvas.style.cursor = (dragWalker >= 0 || view.pointers.size > 0) ? "grabbing" : "grab";
-}
-
-// A press on a walker drags the walker. Anywhere else, the pointer
-// moves the picture (pressPointer and the rest are in js/sim-view.js).
-// On a hyperbolic tiling or tree, one pointer drags across the plane
-// instead (startPlaneDrag and dragPlane, js/sim-hyperbolic.js), and two
-// fingers slide and zoom the picture.
-simCanvas.addEventListener("pointerdown", function (event) {
-  clicks.press(event);
-  if (dragWalker < 0 && view.pointers.size === 0) {
-    dragWalker = walkerUnder(pointerSpot(view, event));   // a walker, if there's one under the pointer
-    if (dragWalker >= 0) {
-      walkerPointer = event.pointerId;
-      simCanvas.setPointerCapture(event.pointerId);   // keep getting moves even off the canvas
-    }
-  }
-  if (dragWalker < 0) pressPointer(view, event);
-  startDrag();
-  showCursor();
-});
-
 // The cell under the pointer, on any picture (-1: none).
 function cellUnderPointer(event) {
   return domains.kind === "ring" ? ringCellUnder(pointerSpot(view, event))
                                : cellAtEvent(view, disk, domain, domains.kind === "graph", event);
 }
 
-simCanvas.addEventListener("pointermove", function (event) {
-  clicks.move(event);
-  if (dragWalker >= 0 && event.pointerId === walkerPointer) {
-    const cell = cellUnderPointer(event);
-    if (cell !== -1 && cell !== starts[dragWalker]) {
-      starts[dragWalker] = cell;
-      restart();
-    }
-  } else if (disk.dragFrom && view.pointers.has(event.pointerId)) {
-    view.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });   // where a second finger starts from
-    dragPlane(disk, event.clientX, event.clientY);
-    drawSoon();
-  } else {
-    movePointer(view, event);
-  }
-  showCursor();
-});
-
-function stopDragging(event) {
-  const isClick = clicks.release(event) && event.type === "pointerup";
-  const onWalker = dragWalker >= 0;
-  if (event.pointerId === walkerPointer) { dragWalker = -1; walkerPointer = -1; }
-  releasePointer(view, event);
-  startDrag();
-  showCursor();
-  if (isClick && !onWalker && latest) {
+connectPicture(view, {
+  disk: disk, onGraph: function () { return domains.kind === "graph"; },
+  onClick: function (event) {
+    if (!latest) return;
     clickHighlight(highlight, cellUnderPointer(event), latest.colors);
     drawSoon();
-  }
-}
-
-// On a hyperbolic tiling or tree, exactly one pointer pressed drags
-// across the plane.
-function startDrag() {
-  if (domains.kind === "graph") startPlaneDrag(disk);
-  else disk.dragFrom = null;
-}
-simCanvas.addEventListener("pointerup", stopDragging);
-simCanvas.addEventListener("pointercancel", stopDragging);
+  },
+  grab: {
+    press: function (event) {
+      dragWalker = walkerUnder(pointerSpot(view, event));   // a walker, if there's one under the pointer
+      return dragWalker >= 0;
+    },
+    // It snaps to the cell under the pointer.
+    move: function (event) {
+      const cell = cellUnderPointer(event);
+      if (cell !== -1 && cell !== starts[dragWalker]) {
+        starts[dragWalker] = cell;
+        restart();
+      }
+    },
+    release: function () { dragWalker = -1; },
+  },
+});
 
 
 /* =====================================================================
