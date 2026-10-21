@@ -967,6 +967,8 @@ canvas.scrollable.dragging {
   cursor: grab;
 }
 
+/* The zoom buttons in the picture's top right corner (js/sim-view.js
+   puts them there), and the 3D view's "Reset view". */
 .zoom-buttons {
   position: absolute;
   top: 8px;
@@ -1004,13 +1006,6 @@ canvas.scrollable.dragging {
 
 .sim-picture.with-history .zoom-buttons {
   right: 24px;
-}
-
-/* The "Slide" button (hyperbolic pictures, js/sim-hyperbolic.js) comes
-   right after "Back to the start" and is hidden whenever that one is,
-   so the sim pages only show or hide "Back to the start". */
-#disk-reset[hidden] + #disk-slide {
-  display: none;
 }
 
 /* The full screen button (addFullScreenButton in js/sim-page.js) sits

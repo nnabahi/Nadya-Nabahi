@@ -269,6 +269,7 @@ const placeOf = {};           // view kind -> where it was left: { cx, cy, ux, u
 const plane = makePlaneView(simCanvas, oncePerFrame(draw), {
   reset: function () { following[viewKind] = true; },
   onMove: function () { following[viewKind] = false; },
+  resetTitle: "Fit the picture to the dots, and keep following them", resetWord: "Fit",
 });
 connectPicture(plane);
 let pen = null;

@@ -155,7 +155,7 @@ function connectDomains(page) {
     }
     if (offers("graph")) {
       byId("graph-rows").hidden = !onGraph;
-      byId("disk-reset").hidden = !onGraph || page.disk.picture === "spread";   // (with the zoom buttons)
+      showDiskButtons(page.disk, onGraph && page.disk.picture !== "spread");
     }
     if (page.show) page.show();
   };

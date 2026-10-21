@@ -43,17 +43,14 @@
    press pick up something on the picture instead, like the random walk
    coloring sim's walkers).
 
-   The page's HTML puts the canvas and the zoom buttons in one box (on
-   pages with the hyperbolic plane or tree, "Back to the start" and
-   "Slide" join the zoom buttons: js/sim-hyperbolic.js):
+   The page's HTML puts the canvas in a box:
      <div class="sim-picture">
        <canvas id="sim-canvas"></canvas>
-       <div class="zoom-buttons" id="zoom-buttons" hidden>
-         <button class="tool-button" id="zoom-in" title="Zoom in">+</button>
-         <button class="tool-button" id="zoom-out" title="Zoom out">&minus;</button>
-         <button class="tool-button" id="zoom-reset" title="Show the whole picture once again">Reset</button>
-       </div>
      </div>
+   and the view puts the zoom buttons in the box's top right corner (on
+   pages with the hyperbolic plane or tree, "Back to the start" and
+   "Slide" join them: js/sim-hyperbolic.js). The full screen button in
+   its top left corner comes from js/sim-page.js.
 
    Contents:
      makeView(...)               a new view of cells (with the wheel and buttons)
@@ -74,7 +71,7 @@
      zoomBy, slideCells, resetView   zoom around a point, move; back to the start
      cellUnder, cellAtEvent      the cell under the pointer
    Moving, zooming and clicking either kind of picture:
-     connectZoomControls(view, reset)   the wheel and the + / − / Reset buttons
+     connectZoomControls(view, reset, ...)   the wheel and the + / − / Reset buttons
      connectWheel(view)          ... just the wheel (a chart's time, js/sim-charts.js)
      pressPointer, movePointer, releasePointer   dragging and pinching
      pointerSpot(view, event)    where the pointer is on the picture
@@ -147,7 +144,7 @@ function makeView(canvas, redraw, top, wholeCells) {
   // moves a picture of cells.
   view.slide = function (dx, dy) { slideCells(view, dx, dy); };
   view.zoomAt = function (factor, x, y) { zoomBy(view, factor, x - view.left, y); };
-  connectZoomControls(view, function () { resetView(view); });
+  connectZoomControls(view, function () { resetView(view); }, "Show the whole picture once again");
   return view;
 }
 
@@ -168,7 +165,7 @@ function useTorus(view, on, movable) {
 
 // The + / − / Reset buttons show whenever the picture can move.
 function showZoomButtons(view) {
-  byId("zoom-buttons").hidden = !view.movable || view.canvas.hidden;
+  view.zoomButtons.hidden = !view.movable || view.canvas.hidden;
 }
 
 
@@ -628,13 +625,19 @@ function cellAtEvent(view, disk, d, onGraph, event) {
 
 const CLICK_DISTANCE = 5;     // a press that moves less than this (in pixels) is a click, not a drag
 
-// The mouse wheel and the + / − / Reset buttons. + and − zoom around
-// the middle, and reset() goes back to the start, and draws.
-function connectZoomControls(view, reset) {
+// The mouse wheel, and the + / − / Reset buttons, put in the top right
+// corner of the canvas's box (as view.zoomButtons). + and − zoom around
+// the middle, and Reset calls reset(), which goes back to the start and
+// draws. "title" is Reset's tooltip, and "word" its word if not "Reset".
+function connectZoomControls(view, reset, title, word) {
   connectWheel(view);
-  byId("zoom-in").addEventListener("click", function () { zoomMiddle(view, ZOOM_STEP); });
-  byId("zoom-out").addEventListener("click", function () { zoomMiddle(view, 1 / ZOOM_STEP); });
-  byId("zoom-reset").addEventListener("click", reset);
+  view.zoomButtons = document.createElement("div");
+  view.zoomButtons.className = "zoom-buttons";
+  view.zoomButtons.append(
+    toolButton("+", function () { zoomMiddle(view, ZOOM_STEP); }, "Zoom in"),
+    toolButton("−", function () { zoomMiddle(view, 1 / ZOOM_STEP); }, "Zoom out"),
+    toolButton(word || "Reset", reset, title));
+  view.canvas.parentElement.appendChild(view.zoomButtons);
 }
 
 // The mouse wheel zooms around the pointer, as in Desmos. So does a
@@ -837,6 +840,9 @@ function connectPicture(view, options) {
      axes       true: the mouse wheel over an axis scales just that axis
                 (the axis turns light blue under the pointer)
      onMove()   (optional) called after each move or zoom by hand
+     resetTitle what the Reset button does, for its tooltip (e.g.
+                "Show all of S once again")
+     resetWord  (optional) the Reset button's word, if not "Reset"
    Like Desmos, the grid has light gray lines at nice steps (1, 2 or 5
    times a power of 10), black axes, and numbers along them.
    ===================================================================== */
@@ -866,7 +872,7 @@ function makePlaneView(canvas, redraw, options) {
   connectZoomControls(plane, function () {
     if (plane.whole) showWhole(plane, plane.whole()); else options.reset();
     plane.redraw();
-  });
+  }, options.resetTitle, options.resetWord);
   if (options.axes) connectAxes(plane);
   return plane;
 }

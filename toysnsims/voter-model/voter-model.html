@@ -31,16 +31,6 @@
              (js/sim-view.js). -->
         <div class="sim-picture">
           <canvas id="sim-canvas"></canvas>
-          <div class="zoom-buttons" id="zoom-buttons" hidden>
-            <button class="tool-button" id="zoom-in" title="Zoom in">+</button>
-            <button class="tool-button" id="zoom-out" title="Zoom out">&minus;</button>
-            <button class="tool-button" id="zoom-reset" title="Show the whole picture once again">Reset</button>
-            <!-- On a hyperbolic tiling or tree's disk or half-plane: put the start back in the middle. -->
-            <button class="tool-button" id="disk-reset" title="Put the start back in the middle" hidden>Back to the start</button>
-            <!-- ... and "Slide": dragging there slides the whole picture instead (js/sim-hyperbolic.js).
-                 It shows and hides with "Back to the start" (section 8 of css/style.css). -->
-            <button class="tool-button" id="disk-slide" title="Drag to slide the whole picture, instead of moving around the plane">Slide</button>
-          </div>
         </div>
 
         <!-- Shown instead of the picture while you draw a custom domain:

@@ -323,7 +323,9 @@ const player = connectPlay(attempts, SPEEDS, START_SPEED, "attempt", "attempts",
    than a pixel are skipped, so zooming in shows tiles that were too
    small to see before.
    ===================================================================== */
-const plane = makePlaneView(simCanvas, oncePerFrame(drawAll), { whole: function () { return windowBox; } });
+const plane = makePlaneView(simCanvas, oncePerFrame(drawAll), {
+  whole: function () { return windowBox; }, resetTitle: "Show all of S once again",
+});
 connectPicture(plane, {
   onClick: function (event) {
     const spot = pointerSpot(plane, event);

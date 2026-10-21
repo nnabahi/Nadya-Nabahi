@@ -8,6 +8,7 @@
      byId(id)                         the element with that id="..."
      checked(name)                    which radio button of a group is ticked
      showMessage(text)                a line of text under the picture
+     toolButton(label, onClick, title)   a small button, made in the code
      swatch(color)                    a small square of a color, as HTML
      colorRow(color, label, cells)    a row of a statistics table, with a swatch
      colorShareRows(names, ...)       a coloring's table: cells, share, regions
@@ -47,6 +48,18 @@ function checked(name) { return document.querySelector('input[name="' + name + '
 // Show a line of text in the page's <p id="sim-message">, e.g. if the
 // sim can't start. An empty text clears it.
 function showMessage(text) { byId("sim-message").textContent = text; }
+
+// A small button (class "tool-button") with the words "label", that
+// calls onClick() when clicked; "title", if given, shows when the mouse
+// rests on it. For buttons the code makes, like the zoom buttons.
+function toolButton(label, onClick, title) {
+  const button = document.createElement("button");
+  button.className = "tool-button";
+  button.textContent = label;
+  if (title) button.title = title;
+  button.addEventListener("click", onClick);
+  return button;
+}
 
 // A small square of a color ("#rrggbb"), as HTML, to go before a
 // color's name in a table or a list.
@@ -497,8 +510,8 @@ function pictureHeight(normal) {
 
 // Put the full screen button on the picture's box "box".
 function addFullScreenButton(box) {
-  const button = document.createElement("button");
-  button.className = "tool-button full-screen-button";
+  const button = toolButton("", function () { popUp(poppedPicture !== box); });
+  button.classList.add("full-screen-button");
   const backdrop = document.createElement("div");    // the dimmed page around the popup
   backdrop.className = "picture-backdrop";
   backdrop.hidden = true;
@@ -523,7 +536,6 @@ function addFullScreenButton(box) {
     window.dispatchEvent(new Event("resize"));           // the sim draws the picture at its new size
   }
 
-  button.addEventListener("click", function () { popUp(poppedPicture !== box); });
   backdrop.addEventListener("click", function () { popUp(false); });
   document.addEventListener("keydown", function (event) {
     if (event.key === "Escape" && poppedPicture === box) popUp(false);

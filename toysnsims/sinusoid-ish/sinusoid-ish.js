@@ -202,7 +202,10 @@ function newSample() {
    so huge and small lobes both show. The plane's y is in these drawn
    units; the boxes and the axis numbers show the real values.
    ===================================================================== */
-const plane = makePlaneView(simCanvas, oncePerFrame(draw), { reset: showStartView, axes: true, onMove: showViewBoxes });
+const plane = makePlaneView(simCanvas, oncePerFrame(draw), {
+  reset: showStartView, axes: true, onMove: showViewBoxes,
+  resetTitle: "Back to x from -10 to 10, same unit in both directions",
+});
 connectPicture(plane);
 let pen = null;
 

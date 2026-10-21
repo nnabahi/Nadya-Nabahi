@@ -783,7 +783,7 @@ function showPictureKind() {
   const in3D = (dim !== 1 && show3D);
   simCanvas.hidden = tool.isOpen || in3D;
   byId("sim-3d").hidden = byId("view3d-buttons").hidden = tool.isOpen || !in3D;
-  byId("disk-reset").hidden = dim !== "graph" || disk.picture === "spread";   // with the zoom buttons
+  showDiskButtons(disk, dim === "graph" && disk.picture !== "spread");
   byId("picture-row").hidden = in3D || dim !== "graph";
   byId("view-rows").hidden = (dim === 1);
   byId("stretch-row").hidden = byId("view3d-help").hidden = !in3D;

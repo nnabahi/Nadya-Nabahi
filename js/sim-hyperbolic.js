@@ -42,6 +42,7 @@
    picture, and how far the plane has been moved. Then it calls
      diskShape, diskGraph, isTree         the graph's first cell, the graph itself, is it a tree?
      backToStart                          put the start back in the middle
+     showDiskButtons                      show or hide "Back to the start" and "Slide"
      diskPen, drawDiskFrame, drawOnDisk   the disk or the half-plane
      drawUnder                            the whole tiling (or tree), in gray
      drawBallBorders                      lines between colors on a tiling
@@ -105,15 +106,13 @@ const BALL_WHITE_DOT = "#d8d5ce";  // white cells, as dots in the spread-out tre
 
 // Everything one picture of a graph needs. "canvas" is the canvas it is
 // drawn on, and "view" the page's view of it (makeView, js/sim-view.js),
-// which zooms and slides the picture. Also connects the page's buttons
-// for these pictures:
-//   "Drawn in"           (radio buttons name="picture") picks the
-//                        picture; a new one starts unzoomed, and
-//                        onPicture() (the page's) shows the options
-//                        that fit it
-//   "Back to the start"  (id "disk-reset") puts the start back in the
-//                        middle
-//   "Slide"              (id "disk-slide") switches what dragging does
+// which zooms and slides the picture. Also connects the page's "Drawn
+// in" radio buttons (name="picture"), which pick the picture (a new one
+// starts unzoomed, and onPicture(), the page's, shows the options that
+// fit it), and adds two buttons after the zoom buttons, hidden until
+// the page shows them (showDiskButtons):
+//   "Back to the start"  puts the start back in the middle
+//   "Slide"              switches what dragging does
 function makeDiskView(canvas, view, onPicture) {
   const dv = {
     canvas: canvas,
@@ -134,13 +133,20 @@ function makeDiskView(canvas, view, onPicture) {
       resetView(view);
     });
   }
-  byId("disk-reset").addEventListener("click", function () { backToStart(dv); view.redraw(); });
-  const slide = byId("disk-slide");
-  slide.addEventListener("click", function () {
+  const slide = toolButton("Slide", function () {
     dv.slide = !dv.slide;
     slide.classList.toggle("selected", dv.slide);   // looks pressed while on
-  });
+  }, "Drag to slide the whole picture, instead of moving around the plane");
+  dv.buttons = [toolButton("Back to the start", function () { backToStart(dv); view.redraw(); },
+                           "Put the start back in the middle"), slide];
+  view.zoomButtons.append(...dv.buttons);
+  showDiskButtons(dv, false);
   return dv;
+}
+
+// Show "Back to the start" and "Slide" (on), or hide them.
+function showDiskButtons(dv, on) {
+  for (const button of dv.buttons) button.hidden = !on;
 }
 
 // Whether a graph is a tree.
