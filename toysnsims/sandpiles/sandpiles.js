@@ -594,8 +594,7 @@ byId("view3d-reset").addEventListener("click", function () { if (view3d) sim3d.r
    The picture can also be moved and zoomed, as in the coloring sims
    (and like a graph in Desmos): drag to move, mouse wheel or pinch to
    zoom, and the + / − / Reset buttons. A press that hardly moves counts
-   as a click, a longer one as a drag (connectPicture,
-   js/sim-controls.js).
+   as a click, a longer one as a drag (connectPicture, js/sim-view.js).
    On a hyperbolic tiling or tree, one pointer drags across the plane
    instead, and two fingers slide and zoom the picture.
    ===================================================================== */

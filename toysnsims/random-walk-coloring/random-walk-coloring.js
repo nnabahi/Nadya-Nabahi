@@ -479,7 +479,7 @@ window.addEventListener("resize", drawSoon);
    ===================================================================== */
 let dragWalker = -1;          // the walker being dragged, or -1
 let walkerPointer = -1;       // the pointer dragging it
-const clicks = makeClickTracker();   // is a press a click? (js/sim-controls.js)
+const clicks = makeClickTracker();   // is a press a click? (js/sim-view.js)
 // (On phones, a finger on the picture drags instead of scrolling the
 // page: "touch-action: none" in css/style.css.)
 

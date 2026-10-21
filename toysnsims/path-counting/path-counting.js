@@ -292,7 +292,7 @@ function vectorLines() {
 }
 
 // Click a point to move the line through it (the picture still drags
-// and zooms as in the other sims: connectPicture, js/sim-controls.js).
+// and zooms as in the other sims: connectPicture, js/sim-view.js).
 connectPicture(view, null, null, function (event) {
   const v = cellUnder(view, domain, pointerSpot(view, event));
   if (v < 0) return;

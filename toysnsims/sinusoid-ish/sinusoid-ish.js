@@ -14,8 +14,8 @@
      8. Connecting the buttons
    It uses the shared helpers in js/sim-page.js (byId, showMessage,
    ...), the charts and number labels in js/sim-charts.js (histogram,
-   niceNumber, ...) and the formula reading and sliders in
-   js/formulas.js.
+   niceNumber, ...), the plane picture in js/sim-view.js (makePlaneView,
+   ...) and the formula reading and sliders in js/formulas.js.
 
    Everything runs right here, in the page's own thread. One sample
    takes a few thousandths of a second, so the graph follows a slider
@@ -72,7 +72,6 @@ let N = 300;                  // roots on each side of 0
 let seed = "1";
 let uniforms = null;          // the fixed random numbers for this seed and N
 let roots = null;             // the current sample's roots, smallest first
-let view = { xmin: -10, xmax: 10, ymin: -4, ymax: 4 };   // the part of the plane shown (section 5)
 
 // Many samples (section 7).
 let samples = 0;
@@ -189,66 +188,48 @@ function newSample() {
 /* =====================================================================
    5. DRAWING THE GRAPH, MOVING AND SCALING
    ---------------------------------------------------------------------
-   Like Desmos: a white background, light gray grid lines, black axes
-   with numbers, and f drawn by working it out at every pixel column.
-   The picture shows x from view.xmin to view.xmax and y from
-   view.ymin to view.ymax. It starts with the same unit in both
-   directions and never rescales itself to fit f:
+   Like Desmos: a white background, the grid (light gray lines, black
+   axes with numbers), and f drawn by working it out at every pixel
+   column. The picture is a plane view (makePlaneView, js/sim-view.js).
+   It starts with the same unit in both directions and never rescales
+   itself to fit f:
      - drag to move (both directions),
      - scroll to zoom both directions together,
      - scroll while the pointer is over an axis (it turns light blue)
        to scale just that axis,
      - or type the ranges in the Picture boxes.
    With "log scale", every curve y is drawn as sign(y) log10(1 + |y|),
-   so huge and small lobes both show. view.ymin and view.ymax are in
-   these drawn units; the boxes and the axis numbers show the real
-   values.
+   so huge and small lobes both show. The plane's y is in these drawn
+   units; the boxes and the axis numbers show the real values.
    ===================================================================== */
-let pen = null, width = 0, height = 0;
-let hoverAxis = null;           // "x" or "y" while the pointer is over that axis
-const AXIS_REACH = 10;          // how close (pixels) the pointer must be to an axis
-const AXIS_HOVER_COLOR = "#bfe0ff";   // light blue
+const plane = makePlaneView(simCanvas, oncePerFrame(draw), { reset: showStartView, axes: true, onMove: showViewBoxes });
+connectPicture(plane, null, null);
+let pen = null;
 
 // log scale or not: the drawn height of a value y, and back.
 function squash(y) { return byId("log-scale").checked ? Math.sign(y) * Math.log10(1 + Math.abs(y)) : y; }
 function unsquash(v) { return byId("log-scale").checked ? Math.sign(v) * (Math.pow(10, Math.abs(v)) - 1) : v; }
 
-// Screen pixel of x and of a drawn height v.
-function px(x) { return (x - view.xmin) / (view.xmax - view.xmin) * width; }
-function py(v) { return (view.ymax - v) / (view.ymax - view.ymin) * height; }
-
-function sizeCanvas() {
-  const oldWidth = width, oldHeight = height;
-  width = simCanvas.clientWidth;
-  height = pictureHeight(PICTURE_HEIGHT);         // taller in the full screen popup (js/sim-page.js)
-  pen = sharpPen(simCanvas, width, height);
-
-  // Keep the scale (units per pixel) when the picture changes size:
-  // a bigger picture shows more, it doesn't stretch.
-  if (oldWidth > 0 && oldHeight > 0) {
-    const grow = function (a, b, factor) { const c = (a + b) / 2, h = (b - a) / 2 * factor; return [c - h, c + h]; };
-    [view.xmin, view.xmax] = grow(view.xmin, view.xmax, width / oldWidth);
-    [view.ymin, view.ymax] = grow(view.ymin, view.ymax, height / oldHeight);
-    showViewBoxes();
-  }
-}
+// (Taller in the full screen popup: pictureHeight, in js/sim-page.js.)
+function sizeCanvas() { pen = sizePlane(plane, pictureHeight(PICTURE_HEIGHT)); }
 
 // The starting view: x from -10 to 10, y centered on 0 with the same
 // unit as x.
-function resetView() {
-  if (!pen) sizeCanvas();
-  const half = (DEFAULT_VIEW.xmax - DEFAULT_VIEW.xmin) / 2 * height / width;
-  setView({ xmin: DEFAULT_VIEW.xmin, xmax: DEFAULT_VIEW.xmax, ymin: squash(-half), ymax: squash(half) });
+function showStartView() {
+  const half = (DEFAULT_VIEW.xmax - DEFAULT_VIEW.xmin) / 2 * plane.height / plane.width;
+  showPlaneBox(plane, { xmin: DEFAULT_VIEW.xmin, xmax: DEFAULT_VIEW.xmax, ymin: squash(-half), ymax: squash(half) });
+  showViewBoxes();
 }
 
 function draw() {
   if (!roots) return;
-  if (!pen || simCanvas.clientWidth !== width) sizeCanvas();
+  sizeCanvas();
+  const box = planeBox(plane);
 
   // The x of each pixel column, and f there.
   const xs = [], fs = [];
-  for (let i = 0; i <= width; i++) {
-    const x = view.xmin + (view.xmax - view.xmin) * i / width;
+  for (let i = 0; i <= plane.width; i++) {
+    const x = pointX(plane, i);
     xs.push(x);
     fs.push(fValue(x, roots));
   }
@@ -262,22 +243,23 @@ function draw() {
   }
   curves.push([fs, COLOR_F, false]);                 // f last, so it is on top
 
-  // Background, grid and axes.
+  // Background, grid and axes. In log scale the line at height y
+  // stands for the value sign(y)(10^|y| - 1).
   pen.fillStyle = "#ffffff";
-  pen.fillRect(0, 0, width, height);
-  drawGrid();
+  pen.fillRect(0, 0, plane.width, plane.height);
+  drawPlaneGrid(plane, pen, function (y) { return shortLabel(unsquash(y)); });
 
   // The curves. A value too big to draw is clamped a picture's height
   // off the picture, so the line still leaves through the edge.
-  const span = view.ymax - view.ymin;
+  const span = box.ymax - box.ymin;
   for (const [values, color, dashed] of curves) {
     pen.strokeStyle = color;
     pen.lineWidth = dashed ? 1.5 : 2;
     pen.setLineDash(dashed ? [6, 5] : []);
     pen.beginPath();
     values.forEach(function (y, i) {
-      const v = isFinite(y) ? Math.max(view.ymin - span, Math.min(view.ymax + span, squash(y))) : 0;
-      if (i === 0) pen.moveTo(i, py(v)); else pen.lineTo(i, py(v));
+      const v = isFinite(y) ? Math.max(box.ymin - span, Math.min(box.ymax + span, squash(y))) : 0;
+      if (i === 0) pen.moveTo(i, pixelY(plane, v)); else pen.lineTo(i, pixelY(plane, v));
     });
     pen.stroke();
   }
@@ -287,9 +269,9 @@ function draw() {
   if (byId("show-roots").checked) {
     pen.fillStyle = COLOR_ROOT;
     for (const r of roots) {
-      if (r < view.xmin || r > view.xmax) continue;
+      if (r < box.xmin || r > box.xmax) continue;
       pen.beginPath();
-      pen.arc(px(r), py(0), 3, 0, 2 * Math.PI);
+      pen.arc(pixelX(plane, r), pixelY(plane, 0), 3, 0, 2 * Math.PI);
       pen.fill();
     }
   }
@@ -297,7 +279,7 @@ function draw() {
   // Warn if the window reaches near the last roots, where the cut-off
   // product is no longer close to the real f.
   const reach = Math.min(-roots[0], roots[roots.length - 1]);
-  const far = Math.max(Math.abs(view.xmin), Math.abs(view.xmax));
+  const far = Math.max(Math.abs(box.xmin), Math.abs(box.xmax));
   showMessage(far > reach / 3
     ? "The picture reaches close to the last of the " + N + " roots on each side, so it is less accurate " +
       "there. Raise N, or zoom in."
@@ -325,60 +307,6 @@ function integralMinusAverage(xs, fs) {
   return F.map(function (v) { return v - average; });
 }
 
-// Where the axes are drawn: at 0, or kept just inside the edge when 0
-// is off the picture (so the numbers stay visible, as in Desmos).
-function xAxisRow() { return Math.min(height - 1, Math.max(0, Math.round(py(0)))); }
-function yAxisColumn() { return Math.min(width - 1, Math.max(0, Math.round(px(0)))); }
-
-// Grid lines at "nice" steps (1, 2 or 5 times a power of 10), light
-// gray, with numbers along the axes; the axes themselves in black.
-// Both directions get grid lines about as far apart on the screen.
-function drawGrid() {
-  const xStep = niceStep((view.xmax - view.xmin) / 10);
-  const yStep = niceStep((view.ymax - view.ymin) / (10 * height / width));
-  const xLines = [], yLines = [];
-  for (let x = Math.ceil(view.xmin / xStep) * xStep; x <= view.xmax; x += xStep) xLines.push(x);
-  for (let y = Math.ceil(view.ymin / yStep) * yStep; y <= view.ymax; y += yStep) yLines.push(y);
-
-  pen.lineWidth = 1;
-  pen.strokeStyle = "#e6e6e6";
-  pen.beginPath();
-  for (const x of xLines) { pen.moveTo(Math.round(px(x)) + 0.5, 0); pen.lineTo(Math.round(px(x)) + 0.5, height); }
-  for (const y of yLines) { pen.moveTo(0, Math.round(py(y)) + 0.5); pen.lineTo(width, Math.round(py(y)) + 0.5); }
-  pen.stroke();
-
-  // The axis under the pointer: a light blue band, so it is clear that
-  // scrolling now scales only that axis.
-  const row = xAxisRow(), column = yAxisColumn();
-  pen.fillStyle = AXIS_HOVER_COLOR;
-  if (hoverAxis === "x") pen.fillRect(0, row - AXIS_REACH / 2, width, AXIS_REACH);
-  if (hoverAxis === "y") pen.fillRect(column - AXIS_REACH / 2, 0, AXIS_REACH, height);
-
-  pen.strokeStyle = "#000000";
-  pen.beginPath();
-  if (view.ymin <= 0 && view.ymax >= 0) { pen.moveTo(0, row + 0.5); pen.lineTo(width, row + 0.5); }
-  if (view.xmin <= 0 && view.xmax >= 0) { pen.moveTo(column + 0.5, 0); pen.lineTo(column + 0.5, height); }
-  pen.stroke();
-
-  // Numbers: under the x axis, and next to the y axis (each kept inside
-  // the picture).
-  pen.fillStyle = "#555555";
-  pen.font = "11px sans-serif";
-  const labelRow = Math.min(height - 4, row + 13);
-  for (const x of xLines) {
-    if (Math.abs(x) < xStep / 2) continue;
-    const label = shortLabel(x, xStep);
-    pen.fillText(label, px(x) - pen.measureText(label).width / 2, labelRow);
-  }
-  for (const y of yLines) {
-    if (Math.abs(y) < yStep / 2) continue;
-    // In log scale the line at height y stands for the value sign(y)(10^|y| - 1).
-    const label = shortLabel(unsquash(y));
-    const labelColumn = Math.min(width - pen.measureText(label).width - 4, column + 4);
-    pen.fillText(label, labelColumn, py(y) - 3);
-  }
-}
-
 function showLegend() {
   const parts = ["solid: f"];
   if (byId("show-sine").checked) parts.push("dashed: the sine wave with the same first root and mean gap");
@@ -388,76 +316,21 @@ function showLegend() {
   byId("legend").textContent = parts.join(" · ");
 }
 
-// Show the view "next" (any of xmin, xmax, ymin, ymax), and update the boxes.
+// Show the part of the plane "next" (any of xmin, xmax, ymin, ymax, in
+// drawn units), and update the boxes.
 function setView(next) {
-  const v = Object.assign({}, view, next);
-  if (!(v.xmax > v.xmin && v.ymax > v.ymin)) return;
-  view = v;
+  if (!showPlaneBox(plane, next)) return;
   showViewBoxes();
   draw();
 }
 
 function showViewBoxes() {
-  byId("view-xmin").value = Number(view.xmin.toPrecision(4));
-  byId("view-xmax").value = Number(view.xmax.toPrecision(4));
-  byId("view-ymin").value = Number(unsquash(view.ymin).toPrecision(4));
-  byId("view-ymax").value = Number(unsquash(view.ymax).toPrecision(4));
+  const box = planeBox(plane);
+  byId("view-xmin").value = Number(box.xmin.toPrecision(4));
+  byId("view-xmax").value = Number(box.xmax.toPrecision(4));
+  byId("view-ymin").value = Number(unsquash(box.ymin).toPrecision(4));
+  byId("view-ymax").value = Number(unsquash(box.ymax).toPrecision(4));
 }
-
-// Scale by "factor" (below 1 zooms in) around the point (x, v) on the
-// screen: axis "x", "y", or both when axis is null.
-function zoomAround(x, v, factor, axis) {
-  const next = {};
-  if (axis !== "y") { next.xmin = x + (view.xmin - x) * factor; next.xmax = x + (view.xmax - x) * factor; }
-  if (axis !== "x") { next.ymin = v + (view.ymin - v) * factor; next.ymax = v + (view.ymax - v) * factor; }
-  setView(next);
-}
-
-// Which axis (if any) is under the pointer at (left, top) on the picture.
-function axisNear(left, top) {
-  const toX = Math.abs(top - xAxisRow()), toY = Math.abs(left - yAxisColumn());
-  if (Math.min(toX, toY) > AXIS_REACH) return null;
-  return toX <= toY ? "x" : "y";
-}
-
-// Dragging moves the picture. "Pointer" events cover the mouse, a pen
-// and a finger alike. Without a drag, moving the pointer only checks
-// whether it is over an axis.
-let dragFrom = null;
-simCanvas.addEventListener("pointerdown", function (event) {
-  dragFrom = { x: event.clientX, y: event.clientY, view: Object.assign({}, view) };
-  simCanvas.setPointerCapture(event.pointerId);
-});
-simCanvas.addEventListener("pointermove", function (event) {
-  if (!dragFrom) {
-    const axis = axisNear(event.offsetX, event.offsetY);
-    if (axis !== hoverAxis) {
-      hoverAxis = axis;
-      simCanvas.style.cursor = axis === "x" ? "ew-resize" : axis === "y" ? "ns-resize" : "";
-      draw();
-    }
-    return;
-  }
-  const from = dragFrom.view;
-  const dx = (event.clientX - dragFrom.x) / width * (from.xmax - from.xmin);
-  const dy = (event.clientY - dragFrom.y) / height * (from.ymax - from.ymin);
-  setView({ xmin: from.xmin - dx, xmax: from.xmax - dx, ymin: from.ymin + dy, ymax: from.ymax + dy });
-});
-simCanvas.addEventListener("pointerup", function () { dragFrom = null; });
-simCanvas.addEventListener("pointercancel", function () { dragFrom = null; });
-simCanvas.addEventListener("pointerleave", function () {
-  if (hoverAxis) { hoverAxis = null; simCanvas.style.cursor = ""; draw(); }
-});
-
-// The mouse wheel (or a two-finger pinch on a touchpad) zooms around
-// the point under the pointer: scroll down to zoom out, up to zoom in.
-// Over an axis it scales only that axis.
-simCanvas.addEventListener("wheel", function (event) {
-  event.preventDefault();          // don't scroll the page too
-  const x = view.xmin + (view.xmax - view.xmin) * event.offsetX / width;
-  const v = view.ymax - (view.ymax - view.ymin) * event.offsetY / height;
-  zoomAround(x, v, Math.pow(1.0015, event.deltaY), hoverAxis);
-}, { passive: false });
 
 
 /* =====================================================================
@@ -582,10 +455,6 @@ for (const side of ["xmin", "xmax", "ymin", "ymax"]) {
               ymin: squash(Number(byId("view-ymin").value)), ymax: squash(Number(byId("view-ymax").value)) });
   });
 }
-const middle = function () { return [(view.xmin + view.xmax) / 2, (view.ymin + view.ymax) / 2]; };
-byId("zoom-in").addEventListener("click", function () { zoomAround(...middle(), 1 / 1.5, null); });
-byId("zoom-out").addEventListener("click", function () { zoomAround(...middle(), 1.5, null); });
-byId("zoom-reset").addEventListener("click", resetView);
 // Turning log scale on or off keeps the same real y range (the boxes
 // still hold it), only drawn the new way.
 byId("log-scale").addEventListener("change", function () {
@@ -597,7 +466,7 @@ for (const id of ["show-sine", "show-roots", "show-F", "show-derivative"]) {
 
 byId("set-a").addEventListener("change", function () { showSampleStats(); restartSamples(); });
 byId("hist-mode").addEventListener("change", showHistograms);
-window.addEventListener("resize", function () { sizeCanvas(); draw(); showHistograms(); });
+window.addEventListener("resize", function () { draw(); showViewBoxes(); showHistograms(); });
 
 // Start: slowly random gaps [1, 1 + δ] with δ = 0.1, seed 1, paused at
 // a low speed. The libraries come from the internet; without them the
@@ -609,7 +478,8 @@ if (!window.math || !Math.seedrandom) {
   byId("seed").value = seed;
   byId("set-n").value = N;
   byId("set-a").value = 10;
-  resetView();
+  sizeCanvas();
+  showStartView();
   byId("preset").value = "slowly";
   usePreset("slowly");
 }

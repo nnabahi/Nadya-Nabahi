@@ -418,7 +418,7 @@ window.addEventListener("resize", drawSoon);
    6. MOVING, ZOOMING AND CLICKING A CLUSTER
    ---------------------------------------------------------------------
    Drag to move, mouse wheel or pinch to zoom, and the + / − / Reset
-   buttons (connectPicture, js/sim-controls.js). A press that hardly
+   buttons (connectPicture, js/sim-view.js). A press that hardly
    moves is a click instead: clicking a cell in a cluster highlights
    that cluster (the others fade), and it stays highlighted as p changes
    and it grows. Clicking it again, or a white cell, clears it.

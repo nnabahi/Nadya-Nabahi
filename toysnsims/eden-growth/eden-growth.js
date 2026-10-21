@@ -15,10 +15,10 @@
        runs in a second thread (a "Web Worker"), and draws every
        mountain it sends back, with the statistics.
    Small helpers used by every sim page (byId, readWhole, ...) are in
-   js/sim-page.js, the charts in js/sim-charts.js, moving, zooming and
-   painting the 2D picture in js/sim-view.js (shared with the coloring
-   sims), the hull and holes in js/sim-shape.js (shared with Random
-   Walk), the graph tool and clicking the picture in js/sim-controls.js,
+   js/sim-page.js, the charts in js/sim-charts.js, moving, zooming,
+   clicking and painting the 2D picture in js/sim-view.js (shared with
+   the coloring sims), the hull and holes in js/sim-shape.js (shared
+   with Random Walk), the graph tool in js/sim-controls.js,
    the hyperbolic pictures in js/sim-hyperbolic.js, the tilings in
    js/sim-tilings.js, and the 3D view in js/sim-3d.js.
 
@@ -703,7 +703,7 @@ function framePicture(pen) {
      mouse wheel, or pinch        zoom in or out, around the pointer
      the + / − / Reset buttons    zoom in, zoom out, show it all again
    The code for all of it is shared with the other sims
-   (connectPicture, js/sim-controls.js, and js/sim-view.js).
+   (connectPicture, js/sim-view.js, and js/sim-view.js).
    On a graph the pictures zoom the same way. In the disk and the
    half-plane, though, dragging with the mouse (or one finger) moves you
    across the plane instead (section 6d); two fingers still slide and

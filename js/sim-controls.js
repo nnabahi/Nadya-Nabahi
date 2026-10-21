@@ -6,7 +6,6 @@
      - the Domain options: Box, Torus, Custom (drawn in the graph tool),
        and on most sims "Hyperbolic plane or tree";
      - the graph tool itself, shown inside the page for Custom;
-     - a picture you can drag, zoom and click;
      - a clickable grid of cells for picking a set of offsets (the random
        mountain's tile, the cellular automata's neighborhood).
    Each sim used to have its own copy of the code for these. Now they
@@ -33,11 +32,7 @@
           listenToTool(frame, useDrawing)   the drawings it sends
           showToolStatus(problem, good, buttons)   the line that checks them
           atLeastTwoCells(drawing)          the usual check of a drawing
-     3. Dragging, zooming and clicking the picture
-          makeClickTracker()                is a press a click or a drag?
-          connectPicture(view, disk, onGraph, onClick, cursor)
-          cellAtEvent(view, disk, d, onGraph, event)   the cell under the pointer
-     4. The clickable grid of offsets
+     3. The clickable grid of offsets
           offsetKey(t), offsetText(t)       an offset's name, and as shown
           showOffsetGrid(grid, dim, reach, offsets, setOffsets, center)
    ===================================================================== */
@@ -440,109 +435,7 @@ function atLeastTwoCells(drawing) {
 
 
 /* =====================================================================
-   3. DRAGGING, ZOOMING AND CLICKING THE PICTURE
-   ---------------------------------------------------------------------
-   The view (js/sim-view.js) moves and zooms the picture:
-     drag                             move it
-     mouse wheel, or pinch            zoom in or out, around the pointer
-     the + / − / Reset buttons        zoom in, zoom out, show it all again
-   On a hyperbolic tiling or tree, in the disk or the half-plane, one
-   pointer drags across the plane instead (startPlaneDrag and dragPlane,
-   js/sim-hyperbolic.js), and two fingers slide and zoom the picture.
-   A press that hardly moves, with one pointer, is a click instead.
-   ("Pointer" events cover the mouse, a pen and fingers alike.)
-   ===================================================================== */
-
-const CLICK_DISTANCE = 5;     // a press that moves less than this (in pixels) is a click, not a drag
-
-// Telling a click from a drag: call press, move and release with each
-// pointer event on the picture; release(event) says whether the press
-// that just ended was a click (one pointer, which hardly moved).
-function makeClickTracker() {
-  const pressed = new Set();    // the pointers pressed on the picture (their ids)
-  let pressedAt = null;         // where the first of them went down
-  let dragged = false;          // true once it moved too far (or two fingers came down): not a click
-  return {
-    isPressed: function () { return pressed.size > 0; },
-    press: function (event) {
-      if (pressed.size === 0) { pressedAt = { x: event.clientX, y: event.clientY }; dragged = false; }
-      pressed.add(event.pointerId);
-      if (pressed.size > 1) dragged = true;           // two fingers: a pinch, not a click
-    },
-    // Returns false for a pointer that isn't pressed on the picture.
-    move: function (event) {
-      if (!pressed.has(event.pointerId)) return false;
-      if (Math.hypot(event.clientX - pressedAt.x, event.clientY - pressedAt.y) >= CLICK_DISTANCE) dragged = true;
-      return true;
-    },
-    // Returns null for a pointer that wasn't pressed on the picture.
-    release: function (event) {
-      if (!pressed.delete(event.pointerId)) return null;
-      return pressed.size === 0 && !dragged;
-    },
-  };
-}
-
-// Connect the picture of "view" (its canvas). "disk" is the page's disk
-// view (js/sim-hyperbolic.js), or null on a page with no hyperbolic
-// plane or tree, and onGraph() says whether the picture shows one right
-// now. onClick(event) (optional) gets every click, with its pointer
-// event. "cursor" (optional) is the mouse cursor over the picture, for
-// example "pointer" (a pointing hand) where a click does something; it
-// turns into a closed hand ("grabbing") while the picture is pressed.
-function connectPicture(view, disk, onGraph, onClick, cursor) {
-  const canvas = view.canvas;
-  const clicks = makeClickTracker();
-  // (On phones, a finger on a picture that can move drags it instead of
-  // scrolling the page: "touch-action: none" in css/style.css.)
-
-  // On a hyperbolic tiling or tree, exactly one pointer pressed drags
-  // across the plane.
-  function startDrag() {
-    if (!disk) return;
-    if (onGraph()) startPlaneDrag(disk);
-    else disk.dragFrom = null;
-  }
-
-  canvas.addEventListener("pointerdown", function (event) {
-    clicks.press(event);
-    pressPointer(view, event);
-    startDrag();
-  });
-
-  canvas.addEventListener("pointermove", function (event) {
-    if (cursor) canvas.style.cursor = clicks.isPressed() ? "grabbing" : cursor;
-    if (!clicks.move(event)) return;
-    if (disk && disk.dragFrom && view.pointers.has(event.pointerId)) {
-      view.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });   // where a second finger starts from
-      dragPlane(disk, event.clientX, event.clientY);
-      view.redraw();
-    } else {
-      movePointer(view, event);
-    }
-  });
-
-  function release(event, mayClick) {
-    const isClick = clicks.release(event);
-    if (isClick === null) return;
-    releasePointer(view, event);
-    startDrag();
-    if (mayClick && isClick && onClick) onClick(event);
-  }
-  canvas.addEventListener("pointerup", function (event) { release(event, true); });
-  canvas.addEventListener("pointercancel", function (event) { release(event, false); });
-}
-
-// The cell under a pointer event on the picture (-1: none): with
-// "onGraph" (a hyperbolic tiling or tree), the cell of ball d
-// (ballCellUnder, js/sim-hyperbolic.js); otherwise the cell of domain d
-// (cellUnder, js/sim-view.js).
-function cellAtEvent(view, disk, d, onGraph, event) {
-  return onGraph ? ballCellUnder(disk, d, event) : cellUnder(view, d, pointerSpot(view, event));
-}
-
-/* =====================================================================
-   4. THE CLICKABLE GRID OF OFFSETS
+   3. THE CLICKABLE GRID OF OFFSETS
    ---------------------------------------------------------------------
    As on the old site: a grid of small cells around a cell in the middle.
    An "offset" says where a cell is from the middle one: [x] in 1D, or

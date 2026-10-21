@@ -304,7 +304,7 @@ window.addEventListener("resize", drawSoon);
    color again. The highlight stays on while the chain runs.
 
    A press that barely moves is a click; one that moves further drags
-   the picture, as before (connectPicture, js/sim-controls.js). On a
+   the picture, as before (connectPicture, js/sim-view.js). On a
    hyperbolic tiling or tree, one pointer drags across the plane, and
    two fingers slide and zoom the picture.
    ===================================================================== */

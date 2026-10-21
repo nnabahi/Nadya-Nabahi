@@ -1,37 +1,48 @@
 /* =====================================================================
-   sim-view.js  —  where a sim's picture goes, and moving and zooming it
+   sim-view.js  —  a sim's picture: where it goes, and moving, zooming
+                   and clicking it
    ---------------------------------------------------------------------
-   The sims draw their domain (js/sim-domains.js) as one square per
-   cell (or one polygon, for triangles, hexagons and other tilings), in
-   a box in the middle of their canvas, as big as fits. The picture can
-   also be moved and zoomed, like a graph in Desmos, to see the small
-   details:
+   Every sim's picture can be moved and zoomed like a graph in Desmos,
+   to see the small details:
      drag it                          move it
      mouse wheel, or pinch            zoom in or out, around the pointer
-     the + / − / Reset buttons        zoom in, zoom out, show it all again
-   On a box (or a drawn region) the picture zooms in down to single
-   cells, and can't be zoomed out past the whole box, or moved off it.
-   On a torus (or a region drawn on one) it can also be zoomed out, and
-   then the torus shows several times side by side.
-
+     the + / − / Reset buttons        zoom in, zoom out, back to the start
+     click it (without dragging)      whatever the sim does with a click
    This file does all of that for every sim, so it is written once. A
    sim page makes one "view" for its canvas: an object that remembers
-   where the picture is, and how far it is moved and zoomed.
+   where the picture is, and how far it is moved and zoomed. There are
+   two kinds.
+
+   CELLS. Most sims draw their domain (js/sim-domains.js) as one square
+   per cell (or one polygon, for triangles, hexagons and other tilings),
+   in a box in the middle of their canvas, as big as fits:
      const view = makeView(simCanvas, drawSoon);
    Each time the page draws, it asks the view where things go:
      const pen = fitPicture(view, domain, maxHeight);   // size the canvas
      const shown = paintCells(view, pen, domain, ...);  // paint the squares that show
      drawBorders(view, pen, shown, color);              // lines between colors
    (paintDomain does both, or paints polygons on a tiling instead; to
-   paint the squares itself, cellsShown says which cell is on
-   each, and squareLeft and squareTop where it goes). Its pointer events
-   go to pressPointer, movePointer and releasePointer: connectPicture
-   (js/sim-controls.js) does that, and a page that drags other things
-   too, like the random walk sim's walkers, does it itself. It calls
-   useTorus when the domain changes. (A picture that shouldn't move at
-   all, like Eden Growth's 1D side view, passes movable = false
-   to useTorus.) pointerSpot and cellUnder say which cell is under the
-   pointer (to click a cell, or drop a walker on it).
+   paint the squares itself, cellsShown says which cell is on each, and
+   squareLeft and squareTop where it goes). It calls useTorus when the
+   domain changes. On a box (or a drawn region) the picture zooms in
+   down to single cells, and can't be zoomed out past the whole box, or
+   moved off it. On a torus (or a region drawn on one) it can also be
+   zoomed out, and then the torus shows several times side by side. (A
+   picture that shouldn't move at all, like Eden Growth's 1D side view,
+   passes movable = false to useTorus.) pointerSpot and cellUnder say
+   which cell is under the pointer (to click a cell, or drop a walker on
+   it).
+
+   THE PLANE. Sinusoid-ish, Matrix Products and Sequential Continuous
+   Tiling draw points of the plane instead: a graph, a cloud of dots,
+   tiles of every size, on a grid like Desmos's (makePlaneView, the
+   last section).
+
+   Either way, the page connects the picture's pointer events with
+   connectPicture (which also tells a click from a drag). A page that
+   drags other things too, like the random walk coloring sim's walkers,
+   passes them on to pressPointer, movePointer and releasePointer
+   itself.
 
    The page's HTML puts the canvas and the zoom buttons in one box (on
    pages with the hyperbolic plane or tree, "Back to the start" and
@@ -46,7 +57,7 @@
      </div>
 
    Contents:
-     makeView(...)               a new view (with the wheel and buttons)
+     makeView(...)               a new view of cells (with the wheel and buttons)
      useTorus(view, on, movable) a new domain: a torus or not, and movable or not
      showZoomButtons(view)       show the buttons when the picture can move
      fitPicture(view, d, ...)    place the picture and size the canvas
@@ -61,9 +72,22 @@
      paintDomain(...)            whichever of these fits the domain's cells
      screenCopies, nearScreen    where the polygons go on the screen (and on a
                                  torus, each copy of the picture that shows)
-     zoomBy, resetView           zoom around a point; back to the start
+     zoomBy, slideCells, resetView   zoom around a point, move; back to the start
+     cellUnder, cellAtEvent      the cell under the pointer
+   Moving, zooming and clicking either kind of picture:
+     connectZoomControls(view, reset)   the wheel and the + / − / Reset buttons
      pressPointer, movePointer, releasePointer   dragging and pinching
-     pointerSpot, cellUnder      the cell under the pointer
+     pointerSpot(view, event)    where the pointer is on the picture
+     makeClickTracker()          is a press a click or a drag?
+     connectPicture(view, disk, onGraph, onClick, cursor)   all of these at once
+   The plane:
+     makePlaneView(...)          a new view of the plane
+     sizePlane(plane, height)    size the canvas
+     pixelX, pixelY              where the point (x, y) is on the screen
+     pointX, pointY              ... and back
+     planeBox, showPlaneBox      the part of the plane shown; show another part
+     showWhole(plane, box, margin)   show all of a box
+     drawPlaneGrid(plane, pen)   the grid, the axes and their numbers
    ===================================================================== */
 
 
@@ -114,27 +138,11 @@ function makeView(canvas, redraw, top, wholeCells) {
     pointers: new Map(),      // the pointers pressed on the picture: id -> {x, y}
   };
 
-  // The mouse wheel zooms around the pointer, as in Desmos. So does a
-  // pinch on a trackpad, which the browser reports as the wheel with the
-  // Ctrl key held (and small steps, so it counts for more).
-  canvas.addEventListener("wheel", function (event) {
-    if (!view.movable) return;
-    event.preventDefault();                              // don't scroll the page
-    const pixels = event.deltaY * (event.deltaMode === 1 ? 16 : 1);   // some mice count lines
-    const box = canvas.getBoundingClientRect();
-    zoomBy(view, Math.exp(-pixels * (event.ctrlKey ? 0.01 : 0.002)),
-           event.clientX - box.left - view.left, event.clientY - box.top - view.top);
-  }, { passive: false });   // "passive: false" lets preventDefault stop the page scrolling
-
-  // The + / − / Reset buttons. + and − zoom around the middle.
-  byId("zoom-in").addEventListener("click", function () {
-    zoomBy(view, ZOOM_STEP, view.width / 2, view.height / 2);
-  });
-  byId("zoom-out").addEventListener("click", function () {
-    zoomBy(view, 1 / ZOOM_STEP, view.width / 2, view.height / 2);
-  });
-  byId("zoom-reset").addEventListener("click", function () { resetView(view); });
-
+  // How the shared moving code (section "Moving, zooming and clicking")
+  // moves a picture of cells.
+  view.slide = function (dx, dy) { slideCells(view, dx, dy); };
+  view.zoomAt = function (factor, x, y) { zoomBy(view, factor, x - view.left, y); };
+  connectZoomControls(view, function () { resetView(view); });
   return view;
 }
 
@@ -515,7 +523,7 @@ function latticeSides(d) {
 
 
 /* ---------------------------------------------------------------------
-   Moving and zooming
+   Moving and zooming the cells
    --------------------------------------------------------------------- */
 
 // Zoom by "factor" (2 = twice as close) around the point (px, py), in
@@ -535,7 +543,14 @@ function zoomBy(view, factor, px, py) {
   view.scroll.x += px / after - px / before;
   view.scroll.y += py / after - py / before;
   keepInBox(view);
-  view.redraw();
+}
+
+// Move the picture by (dx, dy) screen pixels.
+function slideCells(view, dx, dy) {
+  const size = cellSize(view);
+  view.scroll.x += dx / size;
+  view.scroll.y += dy / size;
+  keepInBox(view);
 }
 
 // Off a torus, the picture can't be moved off its box: an edge of the
@@ -551,18 +566,84 @@ function keepInBox(view) {
   view.scroll.y = Math.min(0, Math.max(shownDown - down, view.scroll.y));
 }
 
-// Back to the whole box or torus, once, as at the start.
+// Back to the whole box or torus, once, as at the start, and draw it.
 function resetView(view) {
   view.zoom = 1;
   view.scroll = { x: 0, y: 0 };
   view.redraw();
 }
 
+// The cell of domain d under a spot (from pointerSpot), or -1 if there
+// is none: off the picture, or outside a drawn domain.
+function cellUnder(view, d, spot) {
+  if (spot.x < view.left || spot.x >= view.left + view.width || spot.y < 0 || spot.y >= view.height) return -1;
+  if (d.lattice) {   // triangles or hexagons: the point of the picture under the spot
+    const box = pictureBox(d);
+    return cellAtPoint(d, box.left + (spot.x - view.left) / view.cell - view.scroll.x,
+                       box.top - (spot.y / view.cell - view.scroll.y));
+  }
+  const i = Math.floor((spot.x - view.left) / view.cell - view.scroll.x);   // its square (i, k)
+  const k = Math.floor(spot.y / view.cell - view.scroll.y);
+  return cellAt(d, d.xmin + i, d.ymax - k);
+}
+
+// The cell under a pointer event on the picture (-1: none): with
+// "onGraph" (a hyperbolic tiling or tree), the cell of ball d
+// (ballCellUnder, js/sim-hyperbolic.js); otherwise the cell of domain d.
+function cellAtEvent(view, disk, d, onGraph, event) {
+  return onGraph ? ballCellUnder(disk, d, event) : cellUnder(view, d, pointerSpot(view, event));
+}
+
+
+/* =====================================================================
+   MOVING, ZOOMING AND CLICKING EITHER KIND OF PICTURE
+   ---------------------------------------------------------------------
+   Each kind of view says how its picture moves, with two functions
+   (makeView and makePlaneView give them):
+     view.slide(dx, dy)          move it by (dx, dy) screen pixels
+     view.zoomAt(factor, x, y)   zoom by "factor" (2: twice as close)
+                                 around the point (x, y) of the screen
+   (in screen pixels as pointerSpot gives them; neither draws). The
+   rest is the same for both, so it is written once, here.
+
+   With one pointer down, the picture follows it; with two fingers, it
+   follows the point between them, and zooms as they spread apart or
+   pinch together. A press that hardly moves, with one pointer, is a
+   click instead. On a hyperbolic tiling or tree, in the disk or the
+   half-plane, one pointer drags across the plane instead (startPlaneDrag
+   and dragPlane, js/sim-hyperbolic.js), and two fingers slide and zoom
+   the picture. ("Pointer" events cover the mouse, a pen and fingers
+   alike.)
+   ===================================================================== */
+
+const CLICK_DISTANCE = 5;     // a press that moves less than this (in pixels) is a click, not a drag
+
+// The mouse wheel and the + / − / Reset buttons. The wheel zooms around
+// the pointer, as in Desmos. So does a pinch on a trackpad, which the
+// browser reports as the wheel with the Ctrl key held (and small steps,
+// so it counts for more). + and − zoom around the middle, and reset()
+// goes back to the start, and draws.
+function connectZoomControls(view, reset) {
+  view.canvas.addEventListener("wheel", function (event) {
+    if (!view.movable) return;
+    event.preventDefault();                              // don't scroll the page
+    const pixels = event.deltaY * (event.deltaMode === 1 ? 16 : 1);   // some mice count lines
+    const spot = pointerSpot(view, event);
+    view.zoomAt(Math.exp(-pixels * (event.ctrlKey ? 0.01 : 0.002)), spot.x, spot.y);
+    view.redraw();
+  }, { passive: false });   // "passive: false" lets preventDefault stop the page scrolling
+  byId("zoom-in").addEventListener("click", function () { zoomMiddle(view, ZOOM_STEP); });
+  byId("zoom-out").addEventListener("click", function () { zoomMiddle(view, 1 / ZOOM_STEP); });
+  byId("zoom-reset").addEventListener("click", reset);
+}
+
+function zoomMiddle(view, factor) {
+  view.zoomAt(factor, view.left + view.width / 2, view.height / 2);
+  view.redraw();
+}
+
 // Moving the picture with the mouse or fingers: the page passes its
-// pointer events on to these three. ("Pointer" events cover the mouse,
-// a pen and fingers alike.) With one finger (or the mouse) down, the
-// picture follows it. With two fingers, it follows the point between
-// them and zooms as they spread apart or pinch together.
+// pointer events on to these three (connectPicture does).
 function pressPointer(view, event) {
   if (!view.movable) return;
   view.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
@@ -575,13 +656,10 @@ function movePointer(view, event) {
   const before = middleOfPointers(view);
   view.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
   const after = middleOfPointers(view);
-  const size = cellSize(view);
-  view.scroll.x += (after.x - before.x) / size;
-  view.scroll.y += (after.y - before.y) / size;
-  keepInBox(view);
+  view.slide(after.x - before.x, after.y - before.y);
   if (view.pointers.size >= 2 && before.apart > 0) {
-    const box = view.canvas.getBoundingClientRect();
-    zoomBy(view, after.apart / before.apart, after.x - box.left - view.left, after.y - box.top - view.top);
+    const spot = spotAt(view, after.x, after.y);
+    view.zoomAt(after.apart / before.apart, spot.x, spot.y);
   }
   view.redraw();
 }
@@ -601,22 +679,313 @@ function middleOfPointers(view) {
 }
 
 // Where the pointer of a pointer event is, in screen pixels: x from the
-// canvas's left side, y from the top of the picture ("top" pixels down).
-function pointerSpot(view, event) {
+// canvas's left side, y from the top of the picture ("top" pixels down;
+// a plane's picture fills its canvas).
+function pointerSpot(view, event) { return spotAt(view, event.clientX, event.clientY); }
+
+function spotAt(view, clientX, clientY) {
   const box = view.canvas.getBoundingClientRect();
-  return { x: event.clientX - box.left, y: event.clientY - box.top - view.top };
+  return { x: clientX - box.left, y: clientY - box.top - view.top };
 }
 
-// The cell of domain d under a spot (from pointerSpot), or -1 if there
-// is none: off the picture, or outside a drawn domain.
-function cellUnder(view, d, spot) {
-  if (spot.x < view.left || spot.x >= view.left + view.width || spot.y < 0 || spot.y >= view.height) return -1;
-  if (d.lattice) {   // triangles or hexagons: the point of the picture under the spot
-    const box = pictureBox(d);
-    return cellAtPoint(d, box.left + (spot.x - view.left) / view.cell - view.scroll.x,
-                       box.top - (spot.y / view.cell - view.scroll.y));
-  }
-  const i = Math.floor((spot.x - view.left) / view.cell - view.scroll.x);   // its square (i, k)
-  const k = Math.floor(spot.y / view.cell - view.scroll.y);
-  return cellAt(d, d.xmin + i, d.ymax - k);
+// Telling a click from a drag: call press, move and release with each
+// pointer event on the picture; release(event) says whether the press
+// that just ended was a click (one pointer, which hardly moved).
+function makeClickTracker() {
+  const pressed = new Set();    // the pointers pressed on the picture (their ids)
+  let pressedAt = null;         // where the first of them went down
+  let dragged = false;          // true once it moved too far (or two fingers came down): not a click
+  return {
+    isPressed: function () { return pressed.size > 0; },
+    press: function (event) {
+      if (pressed.size === 0) { pressedAt = { x: event.clientX, y: event.clientY }; dragged = false; }
+      pressed.add(event.pointerId);
+      if (pressed.size > 1) dragged = true;           // two fingers: a pinch, not a click
+    },
+    // Returns false for a pointer that isn't pressed on the picture.
+    move: function (event) {
+      if (!pressed.has(event.pointerId)) return false;
+      if (Math.hypot(event.clientX - pressedAt.x, event.clientY - pressedAt.y) >= CLICK_DISTANCE) dragged = true;
+      return true;
+    },
+    // Returns null for a pointer that wasn't pressed on the picture.
+    release: function (event) {
+      if (!pressed.delete(event.pointerId)) return null;
+      return pressed.size === 0 && !dragged;
+    },
+  };
 }
+
+// Connect the picture of "view" (its canvas). "disk" is the page's disk
+// view (js/sim-hyperbolic.js), or null on a page with no hyperbolic
+// plane or tree, and onGraph() says whether the picture shows one right
+// now. onClick(event) (optional) gets every click, with its pointer
+// event. "cursor" (optional) is the mouse cursor over the picture, for
+// example "pointer" (a pointing hand) where a click does something; it
+// turns into a closed hand ("grabbing") while the picture is pressed.
+function connectPicture(view, disk, onGraph, onClick, cursor) {
+  const canvas = view.canvas;
+  const clicks = makeClickTracker();
+  // (On phones, a finger on a picture that can move drags it instead of
+  // scrolling the page: "touch-action: none" in css/style.css.)
+
+  // On a hyperbolic tiling or tree, exactly one pointer pressed drags
+  // across the plane.
+  function startDrag() {
+    if (!disk) return;
+    if (onGraph()) startPlaneDrag(disk);
+    else disk.dragFrom = null;
+  }
+
+  canvas.addEventListener("pointerdown", function (event) {
+    clicks.press(event);
+    pressPointer(view, event);
+    startDrag();
+  });
+
+  canvas.addEventListener("pointermove", function (event) {
+    if (cursor) canvas.style.cursor = clicks.isPressed() ? "grabbing" : cursor;
+    if (!clicks.move(event)) return;
+    if (disk && disk.dragFrom && view.pointers.has(event.pointerId)) {
+      view.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });   // where a second finger starts from
+      dragPlane(disk, event.clientX, event.clientY);
+      view.redraw();
+    } else {
+      movePointer(view, event);
+    }
+  });
+
+  function release(event, mayClick) {
+    const isClick = clicks.release(event);
+    if (isClick === null) return;
+    releasePointer(view, event);
+    startDrag();
+    if (mayClick && isClick && onClick) onClick(event);
+  }
+  canvas.addEventListener("pointerup", function (event) { release(event, true); });
+  canvas.addEventListener("pointercancel", function (event) { release(event, false); });
+}
+
+
+/* =====================================================================
+   THE PLANE
+   ---------------------------------------------------------------------
+   Sinusoid-ish, Matrix Products and Sequential Continuous Tiling draw
+   points of the plane, not cells: a graph, a cloud of dots, tiles of
+   every size. Their picture is a "plane view". It fills its canvas, and
+   shows the point (cx, cy) in its middle, with ux screen pixels per
+   unit across and uy per unit up (the same, unless an axis was scaled
+   on its own). A page makes one for its canvas, and connects it like a
+   picture of cells:
+     const plane = makePlaneView(simCanvas, drawSoon, options);
+     connectPicture(plane, null, null, onClick);
+   and each time it draws the whole picture:
+     const pen = sizePlane(plane, height);       // size the canvas
+     drawPlaneGrid(plane, pen);                  // the grid, axes and numbers
+     ... pixelX(plane, x), pixelY(plane, y) ...  // where the point (x, y) goes
+   The options:
+     whole()    the box { xmin, xmax, ymin, ymax } that is the whole
+                picture (Sequential Continuous Tiling: all of S). The
+                plane starts out showing all of it, and Reset shows it
+                again (so does the page, with showWhole, when the whole
+                changes). Zooming stays between PLANE_ZOOM_OUT and
+                PLANE_ZOOM_IN times that, and when the canvas changes
+                size, the picture grows or shrinks with it.
+     reset()    on a plane with no whole, what Reset does (the plane
+                then draws again). When its canvas changes size, the
+                scale stays: a bigger picture shows more, as in Desmos.
+     axes       true: the mouse wheel over an axis scales just that axis
+                (the axis turns light blue under the pointer)
+     onMove()   (optional) called after each move or zoom by hand
+   Like Desmos, the grid has light gray lines at nice steps (1, 2 or 5
+   times a power of 10), black axes, and numbers along them.
+   ===================================================================== */
+
+const GRID_PIXELS = 60;       // the grid lines are at least about this far apart, in pixels
+const PLANE_ZOOM_OUT = 0.1;   // a plane with a whole zooms out to a tenth of it...
+const PLANE_ZOOM_IN = 1e6;    // ... and in a million times
+const AXIS_REACH = 10;        // how close (in pixels) the pointer must be to an axis to scale just it
+const PLANE_COLORS = { lines: "#e6e6e6", axes: "#000000", numbers: "#555555", hover: "#bfe0ff" };
+
+function makePlaneView(canvas, redraw, options) {
+  const plane = {
+    canvas: canvas,
+    redraw: redraw,
+    whole: options.whole || null,
+    width: 0, height: 0,          // the canvas's size in screen pixels, from the last sizePlane
+    left: 0, top: 0,              // (the picture fills the canvas)
+    cx: 0, cy: 0, ux: 1, uy: 1,   // the point in the middle, and pixels per unit across and up
+    hoverAxis: null,              // "x" or "y" while the pointer is over that axis (with "axes")
+    movable: true,
+    pointers: new Map(),          // the pointers pressed on the picture: id -> {x, y}
+  };
+  const moved = options.onMove || function () {};
+  plane.slide = function (dx, dy) { slidePlane(plane, dx, dy); moved(); };
+  plane.zoomAt = function (factor, x, y) { zoomPlane(plane, factor, x, y); moved(); };
+  connectZoomControls(plane, function () {
+    if (plane.whole) showWhole(plane, plane.whole()); else options.reset();
+    plane.redraw();
+  });
+  if (options.axes) connectAxes(plane);
+  return plane;
+}
+
+// Size the canvas: as wide as the page lets it, "height" pixels tall.
+// Returns its pen, ready to draw in screen pixels. The point in the
+// middle stays where it is, and so does the scale (on a plane with a
+// whole, the zoom; the first time, it shows the whole).
+function sizePlane(plane, height) {
+  const before = plane.whole ? fitUnit(plane, plane.whole(), 1) : 0;   // 0 before the first time
+  plane.width = plane.canvas.clientWidth;
+  plane.height = height;
+  if (plane.whole) {
+    if (before > 0) {
+      const grow = fitUnit(plane, plane.whole(), 1) / before;
+      plane.ux *= grow;
+      plane.uy *= grow;
+    } else {
+      showWhole(plane, plane.whole());
+    }
+  }
+  return sharpPen(plane.canvas, plane.width, height);   // (js/sim-page.js)
+}
+
+// Where the point (x, y) of the plane is on the screen, in screen
+// pixels from the canvas's top left; and the point at the screen pixel
+// (sx, sy).
+function pixelX(plane, x) { return plane.width / 2 + (x - plane.cx) * plane.ux; }
+function pixelY(plane, y) { return plane.height / 2 - (y - plane.cy) * plane.uy; }
+function pointX(plane, sx) { return plane.cx + (sx - plane.width / 2) / plane.ux; }
+function pointY(plane, sy) { return plane.cy - (sy - plane.height / 2) / plane.uy; }
+
+// The part of the plane shown: { xmin, xmax, ymin, ymax }.
+function planeBox(plane) {
+  return { xmin: pointX(plane, 0), xmax: pointX(plane, plane.width),
+           ymin: pointY(plane, plane.height), ymax: pointY(plane, 0) };
+}
+
+// Show another part of the plane: "part" has any of xmin, xmax, ymin
+// and ymax (the others stay). Returns false, and shows the same part,
+// if they don't make a box.
+function showPlaneBox(plane, part) {
+  const b = Object.assign(planeBox(plane), part);
+  if (!(b.xmax > b.xmin && b.ymax > b.ymin && isFinite(b.xmax - b.xmin) && isFinite(b.ymax - b.ymin))) return false;
+  plane.cx = (b.xmin + b.xmax) / 2;
+  plane.cy = (b.ymin + b.ymax) / 2;
+  plane.ux = plane.width / (b.xmax - b.xmin);
+  plane.uy = plane.height / (b.ymax - b.ymin);
+  return true;
+}
+
+// Show all of "box" in the middle, as big as fits, with the same unit
+// across and up, and "margin" times as much room as it needs (1 when
+// left out; 1.15: 15% more). A box that is a single point shows 2 units
+// across.
+function showWhole(plane, box, margin) {
+  const unit = fitUnit(plane, box, margin || 1);
+  plane.cx = (box.xmin + box.xmax) / 2;
+  plane.cy = (box.ymin + box.ymax) / 2;
+  plane.ux = plane.uy = isFinite(unit) ? unit : plane.width / 2;
+}
+
+// The most pixels per unit that still show all of "box", with "margin".
+function fitUnit(plane, box, margin) {
+  return Math.min(plane.width / (margin * (box.xmax - box.xmin)), plane.height / (margin * (box.ymax - box.ymin)));
+}
+
+// Move the picture by (dx, dy) screen pixels.
+function slidePlane(plane, dx, dy) {
+  plane.cx -= dx / plane.ux;
+  plane.cy += dy / plane.uy;
+}
+
+// Zoom by "factor" (2: twice as close) around the screen point (x, y):
+// the point of the plane there stays there. Over an axis
+// (plane.hoverAxis), just that axis.
+function zoomPlane(plane, factor, x, y) {
+  const px = pointX(plane, x), py = pointY(plane, y);
+  if (plane.whole) {
+    const unit = fitUnit(plane, plane.whole(), 1);
+    factor = Math.min(Math.max(plane.ux * factor, PLANE_ZOOM_OUT * unit), PLANE_ZOOM_IN * unit) / plane.ux;
+  }
+  if (plane.hoverAxis !== "y") plane.ux *= factor;
+  if (plane.hoverAxis !== "x") plane.uy *= factor;
+  plane.cx = px - (x - plane.width / 2) / plane.ux;
+  plane.cy = py + (y - plane.height / 2) / plane.uy;
+}
+
+// Where the axes are drawn: at 0, or kept just inside the edge when 0
+// is off the picture (so their numbers still show, as in Desmos).
+function axisRow(plane) { return Math.min(plane.height - 1, Math.max(0, Math.round(pixelY(plane, 0)))); }
+function axisColumn(plane) { return Math.min(plane.width - 1, Math.max(0, Math.round(pixelX(plane, 0)))); }
+
+// While no pointer is pressed, the axis under the pointer (if any) is
+// the one the wheel scales: it turns light blue, and the cursor shows
+// which way it stretches.
+function connectAxes(plane) {
+  plane.canvas.addEventListener("pointermove", function (event) {
+    if (plane.pointers.size > 0) return;
+    const spot = pointerSpot(plane, event);
+    const toX = Math.abs(spot.y - axisRow(plane)), toY = Math.abs(spot.x - axisColumn(plane));
+    hoverOverAxis(plane, Math.min(toX, toY) > AXIS_REACH ? null : toX <= toY ? "x" : "y");
+  });
+  plane.canvas.addEventListener("pointerleave", function () { hoverOverAxis(plane, null); });
+}
+
+function hoverOverAxis(plane, axis) {
+  if (axis === plane.hoverAxis) return;
+  plane.hoverAxis = axis;
+  plane.canvas.style.cursor = axis === "x" ? "ew-resize" : axis === "y" ? "ns-resize" : "";
+  plane.redraw();
+}
+
+// The grid, like Desmos's: light gray lines at nice steps, at least
+// about GRID_PIXELS apart; the axis the wheel scales (with "axes"), in
+// light blue; black axes; and numbers along them, kept inside the
+// picture (none at 0, where the axes cross, or cut off at the top).
+// yText(y) writes the number for the line at height y (shortLabel when
+// left out).
+function drawPlaneGrid(plane, pen, yText) {
+  const box = planeBox(plane), width = plane.width, height = plane.height;
+  const xStep = niceStep(GRID_PIXELS / plane.ux), yStep = niceStep(GRID_PIXELS / plane.uy);
+  const xs = multiplesOf(xStep, box.xmin, box.xmax), ys = multiplesOf(yStep, box.ymin, box.ymax);
+  const row = axisRow(plane), column = axisColumn(plane);
+
+  pen.lineWidth = 1;
+  pen.strokeStyle = PLANE_COLORS.lines;
+  pen.beginPath();
+  for (const x of xs) lineDown(pen, Math.round(pixelX(plane, x)), height);
+  for (const y of ys) lineAcross(pen, Math.round(pixelY(plane, y)), width);
+  pen.stroke();
+
+  pen.fillStyle = PLANE_COLORS.hover;
+  if (plane.hoverAxis === "x") pen.fillRect(0, row - AXIS_REACH / 2, width, AXIS_REACH);
+  if (plane.hoverAxis === "y") pen.fillRect(column - AXIS_REACH / 2, 0, AXIS_REACH, height);
+
+  pen.strokeStyle = PLANE_COLORS.axes;
+  pen.beginPath();
+  if (box.ymin <= 0 && box.ymax >= 0) lineAcross(pen, row, width);
+  if (box.xmin <= 0 && box.xmax >= 0) lineDown(pen, column, height);
+  pen.stroke();
+
+  pen.fillStyle = PLANE_COLORS.numbers;
+  pen.font = "11px sans-serif";
+  const numbersRow = Math.min(height - 4, Math.max(12, row + 13));
+  for (const x of xs) {
+    if (Math.abs(x) < xStep / 2) continue;
+    const label = shortLabel(x, xStep);
+    pen.fillText(label, pixelX(plane, x) - pen.measureText(label).width / 2, numbersRow);
+  }
+  for (const y of ys) {
+    const sy = pixelY(plane, y);
+    if (Math.abs(y) < yStep / 2 || sy < 14) continue;
+    const label = yText ? yText(y) : shortLabel(y, yStep);
+    pen.fillText(label, Math.min(width - pen.measureText(label).width - 4, Math.max(2, column + 4)), sy - 3);
+  }
+}
+
+// A line 1 pixel wide down the screen at pixel column x, or across it at
+// pixel row y. (The + 0.5 puts it right on a column or row of pixels, so
+// it looks crisp.)
+function lineDown(pen, x, height) { pen.moveTo(x + 0.5, 0); pen.lineTo(x + 0.5, height); }
+function lineAcross(pen, y, width) { pen.moveTo(0, y + 0.5); pen.lineTo(width, y + 0.5); }

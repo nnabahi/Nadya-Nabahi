@@ -462,7 +462,7 @@ function setColors() {
    7. MOVING, ZOOMING AND CLICKING THE PICTURE
    ---------------------------------------------------------------------
    Drag to move, mouse wheel or pinch to zoom, and the + / − / Reset
-   buttons (connectPicture, js/sim-controls.js). What a click on a cell
+   buttons (connectPicture, js/sim-view.js). What a click on a cell
    does is picked under the picture:
      - it changes the cell's state to the next one (b - 1 goes back to
        0), and the run starts again from there, as "Your drawing". In 1D
@@ -473,7 +473,7 @@ function setColors() {
        (in 1D, the same spot of the picture). Clicking the cluster
        again, or outside the cells, shows everything again.
    ===================================================================== */
-connectPicture(view, null, function () { return false; }, clickCell, "pointer");
+connectPicture(view, null, null, clickCell, "pointer");
 
 function clickCell(event) {
   if (!latest) return;

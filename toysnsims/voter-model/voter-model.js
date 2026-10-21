@@ -229,7 +229,7 @@ window.addEventListener("resize", drawSoon);
    6. MOVING AND ZOOMING
    ---------------------------------------------------------------------
    Drag to move, mouse wheel or pinch to zoom, and the + / − / Reset
-   buttons (connectPicture, js/sim-controls.js). On a torus it also
+   buttons (connectPicture, js/sim-view.js). On a torus it also
    zooms out, showing the torus several times side by side.
    On a hyperbolic tiling or tree, one pointer drags across the plane
    instead, and two fingers slide and zoom the picture.

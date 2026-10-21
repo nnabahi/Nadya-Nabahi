@@ -14,8 +14,8 @@
      7. Connecting the buttons
    It uses the shared helpers in js/sim-page.js (byId, showMessage,
    ...), the charts and number labels in js/sim-charts.js (histogram,
-   niceNumber, ...), and the formula reading and sliders in
-   js/formulas.js.
+   niceNumber, ...), the plane picture in js/sim-view.js (makePlaneView,
+   ...), and the formula reading and sliders in js/formulas.js.
 
    Everything runs right here, in the page's own thread. A step of 2000
    runs takes well under a thousandth of a second for fixed matrices,
@@ -256,31 +256,22 @@ const player = connectPlay(stepping, SPEEDS, START_SPEED, "step", "steps", resta
    5. THE PICTURE
    ---------------------------------------------------------------------
    Like Desmos: a white background, light gray grid lines, black axes
-   with numbers. The cloud and the one-run views are the plane, with the
-   same scale on both axes; the histogram has its own x range.
+   with numbers. The picture is a plane view (makePlaneView,
+   js/sim-view.js): the cloud and the one-run views are the plane, with
+   the same scale on both axes; the histogram uses only its x.
 
    "Following": the picture fits itself to the dots after every step,
-   until you drag or zoom; the Fit button turns following back on.
+   until you drag or zoom; the Fit button turns following back on. Each
+   view keeps its own place, and whether it follows.
    ===================================================================== */
-let pen = null, width = 0, height = 0;
-
-// The plane's view: its center, and how many units one pixel is.
-let plane = { cx: 0.5, cy: 0.5, perPixel: 0.01 };
-// The histogram's view: the x range shown.
-let line = { xmin: 0, xmax: 1 };
 let following = { cloud: true, trajectory: true, histogram: true };
-
-function sizeCanvas() {
-  width = simCanvas.clientWidth;
-  height = pictureHeight(Math.min(width, MOST_PIXELS_TALL));   // taller in the full screen popup (js/sim-page.js)
-  pen = sharpPen(simCanvas, width, height);
-}
-
-// Where a point of the plane is on the screen, and back.
-function px(x) { return width / 2 + (x - plane.cx) / plane.perPixel; }
-function py(y) { return height / 2 - (y - plane.cy) / plane.perPixel; }
-function planeX(sx) { return plane.cx + (sx - width / 2) * plane.perPixel; }
-function planeY(sy) { return plane.cy - (sy - height / 2) * plane.perPixel; }
+const placeOf = {};           // view kind -> where it was left: { cx, cy, ux, uy }
+const plane = makePlaneView(simCanvas, oncePerFrame(draw), {
+  reset: function () { following[viewKind] = true; },
+  onMove: function () { following[viewKind] = false; },
+});
+connectPicture(plane, null, null);
+let pen = null;
 
 // The dots to draw: { red: [[x, y], ...], blue: [...] }, plus how many
 // could not be drawn (too big or too small for the computer at this
@@ -322,9 +313,10 @@ function histogramValues() {
 
 function draw() {
   if (!cloud) return;
-  if (!pen || simCanvas.clientWidth !== width) sizeCanvas();
+  // (Taller in the full screen popup: pictureHeight, in js/sim-page.js.)
+  pen = sizePlane(plane, pictureHeight(Math.min(simCanvas.clientWidth, MOST_PIXELS_TALL)));
   pen.fillStyle = "#ffffff";
-  pen.fillRect(0, 0, width, height);
+  pen.fillRect(0, 0, plane.width, plane.height);
   byId("show-t").textContent = cloud.t;
 
   let lost;
@@ -336,8 +328,8 @@ function draw() {
   } else {
     const dots = viewKind === "cloud" ? cloudDots() : trajectoryDots();
     lost = dots.lost;
-    if (following[viewKind]) fitPlane(dots.red.concat(dots.blue));
-    drawPlaneGrid();
+    if (following[viewKind]) fitDots(dots.red.concat(dots.blue));
+    drawPlaneGrid(plane, pen);
     if (viewKind === "trajectory") {
       drawPath(dots.red, COLOR_RED);
       drawPath(dots.blue, COLOR_BLUE);
@@ -350,7 +342,7 @@ function draw() {
     const size = viewKind === "cloud" ? 2 : 4;
     for (const [list, color, s] of [[dots.red, COLOR_RED, size + 2], [dots.blue, COLOR_BLUE, size]]) {
       pen.fillStyle = color;
-      for (const p of list) pen.fillRect(px(p[0]) - s / 2, py(p[1]) - s / 2, s, s);
+      for (const p of list) pen.fillRect(pixelX(plane, p[0]) - s / 2, pixelY(plane, p[1]) - s / 2, s, s);
     }
     pen.globalAlpha = 1;
   }
@@ -365,23 +357,21 @@ function draw() {
 // Fit the plane to the dots. With many dots, the outer 1% on each side
 // is left out, so one far-away dot can't shrink everything else to a
 // speck.
-function fitPlane(points) {
+function fitDots(points) {
   if (points.length === 0) return;
-  const xs = points.map(function (p) { return p[0]; });
-  const ys = points.map(function (p) { return p[1]; });
-  const [x0, x1] = middleRange(xs), [y0, y1] = middleRange(ys);
-  plane.cx = (x0 + x1) / 2;
-  plane.cy = (y0 + y1) / 2;
-  plane.perPixel = 1.15 * Math.max((x1 - x0) / width, (y1 - y0) / height);
-  if (!(plane.perPixel > 0)) plane.perPixel = 2 / width;   // everything at one point
+  const [x0, x1] = middleRange(points.map(function (p) { return p[0]; }));
+  const [y0, y1] = middleRange(points.map(function (p) { return p[1]; }));
+  showWhole(plane, { xmin: x0, xmax: x1, ymin: y0, ymax: y1 }, 1.15);
 }
 
+// Fit the histogram's x range to the values (also leaving out the
+// outer 1%).
 function fitLine(values) {
-  if (values.length === 0) { line = { xmin: 0, xmax: 1 }; return; }
+  if (values.length === 0) { showPlaneBox(plane, { xmin: 0, xmax: 1 }); return; }
   let [lo, hi] = middleRange(values);
   if (!(hi > lo)) { lo -= 0.5; hi += 0.5; }
   const pad = 0.04 * (hi - lo);
-  line = { xmin: lo - pad, xmax: hi + pad };
+  showPlaneBox(plane, { xmin: lo - pad, xmax: hi + pad });
 }
 
 // The smallest and largest value, leaving out the outer 1% on each side
@@ -392,43 +382,6 @@ function middleRange(values) {
   return [sorted[cut], sorted[sorted.length - 1 - cut]];
 }
 
-// Grid lines at "nice" steps, black axes, and numbers along the axes.
-function drawPlaneGrid() {
-  const step = niceStep(plane.perPixel * 90);          // about every 90 pixels
-  const left = planeX(0), right = planeX(width), bottom = planeY(height), top = planeY(0);
-  pen.lineWidth = 1;
-  pen.strokeStyle = "#e6e6e6";
-  pen.beginPath();
-  for (let x = Math.ceil(left / step) * step; x <= right; x += step) {
-    pen.moveTo(Math.round(px(x)) + 0.5, 0); pen.lineTo(Math.round(px(x)) + 0.5, height);
-  }
-  for (let y = Math.ceil(bottom / step) * step; y <= top; y += step) {
-    pen.moveTo(0, Math.round(py(y)) + 0.5); pen.lineTo(width, Math.round(py(y)) + 0.5);
-  }
-  pen.stroke();
-
-  pen.strokeStyle = "#000000";
-  pen.beginPath();
-  pen.moveTo(0, Math.round(py(0)) + 0.5); pen.lineTo(width, Math.round(py(0)) + 0.5);
-  pen.moveTo(Math.round(px(0)) + 0.5, 0); pen.lineTo(Math.round(px(0)) + 0.5, height);
-  pen.stroke();
-
-  // Numbers next to the axes; if an axis is off the picture, at the edge.
-  pen.fillStyle = "#555555";
-  pen.font = "11px sans-serif";
-  const xAxisAt = Math.max(12, Math.min(height - 4, py(0) + 13));
-  const yAxisAt = Math.max(2, Math.min(width - 40, px(0) + 4));
-  for (let x = Math.ceil(left / step) * step; x <= right; x += step) {
-    if (Math.abs(x) < step / 2) continue;
-    const label = shortLabel(x, step);
-    pen.fillText(label, px(x) - pen.measureText(label).width / 2, xAxisAt);
-  }
-  for (let y = Math.ceil(bottom / step) * step; y <= top; y += step) {
-    if (Math.abs(y) < step / 2 || py(y) < 14) continue;     // no number cut off at the top
-    pen.fillText(shortLabel(y, step), yAxisAt, py(y) - 3);
-  }
-}
-
 // The one-run view joins its dots in order, with a thin line.
 function drawPath(points, color) {
   if (points.length < 2) return;
@@ -437,7 +390,7 @@ function drawPath(points, color) {
   pen.lineWidth = 1;
   pen.beginPath();
   points.forEach(function (p, i) {
-    if (i === 0) pen.moveTo(px(p[0]), py(p[1])); else pen.lineTo(px(p[0]), py(p[1]));
+    if (i === 0) pen.moveTo(pixelX(plane, p[0]), pixelY(plane, p[1])); else pen.lineTo(pixelX(plane, p[0]), pixelY(plane, p[1]));
   });
   pen.stroke();
   pen.globalAlpha = 1;
@@ -447,6 +400,7 @@ function drawPath(points, color) {
 // is the typed one, or 1/200 of the range shown, so zooming in shows
 // finer and finer detail (the D13 dust has detail at every size).
 function drawHistogram(values) {
+  const line = planeBox(plane), width = plane.width, height = plane.height;
   const typed = Number(byId("hist-bin").value);
   const span = line.xmax - line.xmin;
   const binWidth = typed > 0 ? typed : span / 200;
@@ -459,19 +413,20 @@ function drawHistogram(values) {
   const biggest = Math.max(1, ...counts);
 
   const bottom = height - 18, top = 16;
-  const sx = function (x) { return (x - line.xmin) / span * width; };
 
-  // Light grid lines at nice x steps, with numbers under them.
-  const step = niceStep(span / 8);
-  pen.strokeStyle = "#e6e6e6";
+  // Light grid lines at nice x steps, as on the plane, with numbers
+  // under them.
+  const step = niceStep(GRID_PIXELS / plane.ux);
+  pen.strokeStyle = PLANE_COLORS.lines;
   pen.lineWidth = 1;
-  pen.fillStyle = "#555555";
+  pen.fillStyle = PLANE_COLORS.numbers;
   pen.font = "11px sans-serif";
   pen.beginPath();
-  for (let x = Math.ceil(line.xmin / step) * step; x <= line.xmax; x += step) {
-    pen.moveTo(Math.round(sx(x)) + 0.5, top); pen.lineTo(Math.round(sx(x)) + 0.5, bottom);
+  for (const x of multiplesOf(step, line.xmin, line.xmax)) {
+    const at = pixelX(plane, x);
+    pen.moveTo(Math.round(at) + 0.5, top); pen.lineTo(Math.round(at) + 0.5, bottom);
     const label = shortLabel(x, step);
-    pen.fillText(label, sx(x) - pen.measureText(label).width / 2, height - 4);
+    pen.fillText(label, at - pen.measureText(label).width / 2, height - 4);
   }
   pen.stroke();
 
@@ -479,15 +434,15 @@ function drawHistogram(values) {
   for (let i = 0; i < bins; i++) {
     if (counts[i] === 0) continue;
     const barHeight = Math.max(1, (bottom - top) * counts[i] / biggest);
-    const x0 = sx(line.xmin + i * binWidth), x1 = sx(line.xmin + (i + 1) * binWidth);
+    const x0 = pixelX(plane, line.xmin + i * binWidth), x1 = pixelX(plane, line.xmin + (i + 1) * binWidth);
     pen.fillRect(x0, bottom - barHeight, Math.max(1, x1 - x0 - (x1 - x0 > 3 ? 1 : 0)), barHeight);
   }
 
-  pen.strokeStyle = "#000000";
+  pen.strokeStyle = PLANE_COLORS.axes;
   pen.beginPath();
-  pen.moveTo(0, bottom + 0.5); pen.lineTo(width, bottom + 0.5);
+  lineAcross(pen, bottom, width);
   pen.stroke();
-  pen.fillStyle = "#555555";
+  pen.fillStyle = PLANE_COLORS.numbers;
   pen.fillText("tallest bar: " + biggest.toLocaleString() + " runs; bin width " + shortLabel(binWidth), 44, 12);   // right of the full screen button
 }
 
@@ -507,59 +462,16 @@ function showLegend() {
   byId("legend").textContent = text;
 }
 
-// Show or hide the options that belong to one view.
+// Show the view "kind" where it was left, and the options that belong
+// to it.
 function setViewKind(kind) {
+  placeOf[viewKind] = { cx: plane.cx, cy: plane.cy, ux: plane.ux, uy: plane.uy };
   viewKind = kind;
+  Object.assign(plane, placeOf[kind]);       // (nothing the first time: it follows the dots)
   byId("histogram-options").hidden = kind !== "histogram";
   byId("trajectory-options").hidden = kind !== "trajectory";
   draw();
 }
-
-// Dragging moves the picture. "Pointer" events cover the mouse, a pen
-// and a finger alike. Dragging or zooming stops the following.
-let dragFrom = null;
-simCanvas.addEventListener("pointerdown", function (event) {
-  dragFrom = { x: event.clientX, y: event.clientY, plane: Object.assign({}, plane), line: Object.assign({}, line) };
-  simCanvas.setPointerCapture(event.pointerId);
-});
-simCanvas.addEventListener("pointermove", function (event) {
-  if (!dragFrom) return;
-  following[viewKind] = false;
-  const dx = event.clientX - dragFrom.x, dy = event.clientY - dragFrom.y;
-  if (viewKind === "histogram") {
-    const shift = dx / width * (dragFrom.line.xmax - dragFrom.line.xmin);
-    line = { xmin: dragFrom.line.xmin - shift, xmax: dragFrom.line.xmax - shift };
-  } else {
-    plane.cx = dragFrom.plane.cx - dx * plane.perPixel;
-    plane.cy = dragFrom.plane.cy + dy * plane.perPixel;
-  }
-  draw();
-});
-simCanvas.addEventListener("pointerup", function () { dragFrom = null; });
-simCanvas.addEventListener("pointercancel", function () { dragFrom = null; });
-
-// Zoom by "factor" (below 1 zooms in) around the screen point (sx, sy):
-// the point under it stays put.
-function zoomAround(sx, sy, factor) {
-  following[viewKind] = false;
-  if (viewKind === "histogram") {
-    const x = line.xmin + (line.xmax - line.xmin) * sx / width;
-    line = { xmin: x + (line.xmin - x) * factor, xmax: x + (line.xmax - x) * factor };
-  } else {
-    const x = planeX(sx), y = planeY(sy);
-    plane.perPixel *= factor;
-    plane.cx = x - (sx - width / 2) * plane.perPixel;
-    plane.cy = y + (sy - height / 2) * plane.perPixel;
-  }
-  draw();
-}
-
-// The mouse wheel (or a two-finger pinch on a touchpad) zooms around
-// the point under the pointer.
-simCanvas.addEventListener("wheel", function (event) {
-  event.preventDefault();          // don't scroll the page too
-  zoomAround(event.offsetX, event.offsetY, Math.pow(1.0015, event.deltaY));
-}, { passive: false });
 
 
 /* =====================================================================
@@ -646,10 +558,7 @@ byId("set-run").addEventListener("change", function () {
   replay();
 });
 
-byId("zoom-in").addEventListener("click", function () { zoomAround(width / 2, height / 2, 1 / 1.5); });
-byId("zoom-out").addEventListener("click", function () { zoomAround(width / 2, height / 2, 1.5); });
-byId("zoom-reset").addEventListener("click", function () { following[viewKind] = true; draw(); });
-window.addEventListener("resize", function () { sizeCanvas(); draw(); showStats(); });
+window.addEventListener("resize", function () { draw(); showStats(); });
 
 // Start: your D13, 2000 runs, seed 1, at t = 0, paused at a low speed.
 // The libraries come from the internet; without them the toy can't run.

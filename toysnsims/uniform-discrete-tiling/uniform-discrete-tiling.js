@@ -328,7 +328,7 @@ window.addEventListener("resize", drawSoon);
    6. MOVING AND ZOOMING THE PICTURE
    ---------------------------------------------------------------------
    The code is shared with the other sims (connectPicture,
-   js/sim-controls.js, and js/sim-view.js): drag to move, mouse wheel or
+   js/sim-view.js): drag to move, mouse wheel or
    pinch to zoom, and the + / − / Reset buttons.
 
    A click (a press that hardly moves) does what is picked under the

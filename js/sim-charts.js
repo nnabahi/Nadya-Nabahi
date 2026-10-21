@@ -12,6 +12,7 @@
      2. Axes: the numbers along a chart's sides
           chartFrame(canvas, x, y)   a chart with two numbered axes
           shortLabel(v, step)        a number short enough for an axis
+          multiplesOf(step, from, to)   where the ticks (or grid lines) go
      3. Drawing inside the axes
           drawSeries(frame, series)  lines or dots
           drawBars(frame, bars)      bars, one color or stacked
@@ -183,12 +184,17 @@ function linearTicks(axis, step) {
     axis.from = Math.floor(axis.from / step + 1e-9) * step;
     axis.to = Math.ceil(axis.to / step - 1e-9) * step;
   }
-  const ticks = [];
-  for (let k = Math.ceil(axis.from / step - 1e-9); k * step <= axis.to + 1e-9 * step; k++) {
-    const v = Number((k * step).toPrecision(12));   // 0.30000000000000004 -> 0.3
-    ticks.push({ at: v, text: axis.text(v, step) });
+  return multiplesOf(step, axis.from, axis.to).map(function (v) { return { at: v, text: axis.text(v, step) }; });
+}
+
+// The multiples of "step" from "from" to "to" (also the grid lines of
+// a plane picture, js/sim-view.js).
+function multiplesOf(step, from, to) {
+  const list = [];
+  for (let k = Math.ceil(from / step - 1e-9); k * step <= to + 1e-9 * step; k++) {
+    list.push(Number((k * step).toPrecision(12)));   // 0.30000000000000004 -> 0.3
   }
-  return ticks;
+  return list;
 }
 
 // The choices for a log axis, densest first: 1, 2, 5 in each power of
