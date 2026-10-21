@@ -48,6 +48,7 @@
 const siteColors = getComputedStyle(document.documentElement);
 const CHART_TEXT = siteColors.getPropertyValue("--color-text-muted").trim();   // numbers and labels
 const CHART_LINE = siteColors.getPropertyValue("--color-accent").trim();       // lines and bars
+const CHART_GRID = siteColors.getPropertyValue("--color-grid").trim();         // the light lines across
 
 // Get a chart canvas ready (sharpPen, js/sim-page.js) and return its
 // "pen" (what draws on it), set up for small gray text.
@@ -64,7 +65,9 @@ function chartPen(canvas) {
    ---------------------------------------------------------------------
    Every chart is drawn in a "frame": the plot in the middle, with
    numbered ticks up its left side (the y axis) and along its bottom
-   (the x axis). An axis is an object with these keys (only "from" and
+   (the x axis), and a thin light line across the plot at each y tick,
+   under the chart, so a value anywhere (the newest, at the right end,
+   too) can be read against the numbers on the left. An axis is an object with these keys (only "from" and
    "to" are needed):
      from, to   the numbers at its two ends
      scale      "linear" (the default); "log": 1, 10, 100, ... evenly
@@ -238,12 +241,17 @@ function ticksFit(ticks, axis, pixels, sizeOf) {
   return true;
 }
 
-// The two axis lines, a small mark at each tick with its number, and
-// the axes' words. An x number stays right of the y numbers and left of
+// The light lines across at the y ticks, the two axis lines, a small
+// mark at each tick with its number, and the axes' words. An x number stays right of the y numbers and left of
 // the x axis' word (one that would run into the word is left out).
 function chartAxes(frame, x, xTicks, y, yTicks) {
   const pen = frame.pen;
   pen.save();
+  pen.fillStyle = CHART_GRID;
+  for (const t of yTicks) {
+    const at = Math.round(frame.sy(t.at));
+    if (at < frame.bottom) pen.fillRect(frame.left, at, frame.right - frame.left, 1);   // (the x axis is at the bottom)
+  }
   pen.strokeStyle = pen.fillStyle = CHART_TEXT;
   pen.lineWidth = 1;
   pen.beginPath();
