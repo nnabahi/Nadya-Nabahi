@@ -50,9 +50,9 @@
         the browser.
      2. voterWorker(): runs it in a second thread (a "Web Worker") for
         the sim page, voter-model.js, so the page never freezes.
-        startWorker (js/sim-page.js) starts it, with newVoter,
-        voterStart, the run loop and trace (js/sim-worker.js) and the
-        domain counting (countPieces, js/sim-domains.js) copied in.
+        runInWorker (js/sim-page.js) starts it, with newVoter,
+        voterStart, the trace (js/sim-worker.js) and the domain
+        counting (countPieces, js/sim-domains.js) copied in.
    ===================================================================== */
 
 
@@ -175,29 +175,25 @@ function voterStart(n, xs, q, kind, random) {
 /* =====================================================================
    2. THE WORKER: RUNNING IT IN A SECOND THREAD
    ---------------------------------------------------------------------
-   The page sends:
-     { type: "setup", run, n, first, nbr, x, q, table, noise, start, seed }
-                                   a new run from the start
-     { type: "params", table, noise }   a new g or eps; the run carries on
-     { type: "play", speed }       run "speed" units of time per second
-                                   (Infinity = as fast as possible)
-     { type: "pause" }
-     { type: "step" }              one unit of time
-   The worker answers with "state" messages: the opinions and the
-   numbers for the Statistics box, each with its run number, so
-   the page can ignore leftovers from an older run. It stops by itself at consensus (one opinion everywhere) when that
-   can never change: no noise, and g(0) = 0, so no cell ever takes an
-   opinion none of its neighbors hold.
+   It talks to the page the way every sim's worker does (serveRun,
+   js/sim-worker.js). Its own messages:
+     setup    { n, first, nbr, x, q, table, noise, start, seed }
+              a new run from the start
+     params   { table, noise }   a new g or eps; the run carries on
+   One step is one unit of time. It reports the opinions and the
+   numbers for the Statistics box. The run is done (and pauses by
+   itself) at consensus (one opinion everywhere) when that can never
+   change: no noise, and g(0) = 0, so no cell ever takes an opinion
+   none of its neighbors hold.
    ===================================================================== */
 function voterWorker() {
   // seedrandom adds Math.seedrandom(seed). The version number is fixed
   // so an update can never change the sim by surprise.
   importScripts("https://cdn.jsdelivr.net/npm/seedrandom@3.0.5/seedrandom.min.js");
 
-  let voter = null, run = 0, time = 0, consensusTime = null;
+  let voter = null, time = 0, consensusTime = null;
   let graph = null;          // the domain's cells and neighbors, for counting its domains
   let trace = null;          // the run so far, for the charts over time (keepSample, js/sim-worker.js)
-  let lastReported = -1;     // the time of the last state sent to the page
 
   // A sample for the charts. The domains (connected pieces of one
   // opinion) of each opinion are counted only when a sample is due
@@ -220,51 +216,37 @@ function voterWorker() {
   }
 
   function setup(m) {
-    run = m.run;
     graph = { n: m.n, first: m.first, nbr: m.nbr };
     const colors = voterStart(m.n, m.x, m.q, m.start, new Math.seedrandom(m.seed + " start"));
     voter = newVoter({ n: m.n, first: m.first, nbr: m.nbr, q: m.q, table: m.table, noise: m.noise,
                        colors: colors, random: new Math.seedrandom(m.seed + " clocks") });
     time = 0;
-    lastReported = -1;
     consensusTime = consensus() ? 0 : null;
     trace = newTrace();
     takeSample();
   }
 
   function oneUnit() {
-    if (frozen()) return;
     voter.unitOfTime();
     time++;
     if (consensusTime === null && consensus()) consensusTime = time;
     takeSample();
   }
 
-  // Play, Pause and Speed: the run loop (js/sim-worker.js). It stops by
-  // itself once the run is frozen.
-  const loop = makeRunLoop(oneUnit, report, frozen);
-
-  self.onmessage = function (event) {
-    const m = event.data;
-    // Before the first setup there is nothing to run. (The page sends no
-    // setup while it has no rule g, e.g. if math.js didn't load.)
-    if (m.type !== "setup" && !voter) return;
-    if (m.type === "setup") { loop.pause(); setup(m); report(); }
-    else if (m.type === "params") { voter.table = m.table; voter.noise = m.noise; lastReported = -1; report(); }
-    else if (m.type === "play") loop.play(m.speed);
-    else if (m.type === "pause") loop.pause();
-    else if (m.type === "step") { oneUnit(); report(); }
-  };
-
-  function report() {
-    if (time === lastReported) return;   // nothing new to show
-    lastReported = time;
+  function report(send) {
     const colors = voter.colors.slice();
-    self.postMessage({
-      type: "state", run: run, time: time, colors: colors, counts: voter.counts.slice(),
+    send({
+      time: time, colors: colors, counts: voter.counts.slice(),
       agree: voter.agree, pairs: voter.pairs, consensusTime: consensusTime, frozen: frozen(),
       traceTimes: Float64Array.from(trace.times), traceDisagree: Float64Array.from(trace.lists.disagree),
       traceCounts: Int32Array.from(trace.lists.counts), tracePieces: Int32Array.from(trace.lists.pieces),
-    }, [colors.buffer]);   // hand the copy over instead of copying again
+    }, [colors.buffer]);
   }
+
+  serveRun({
+    setup: setup, steps: oneUnit, isDone: frozen, report: report,
+    messages: {
+      params: function (m) { voter.table = m.table; voter.noise = m.noise; },
+    },
+  });
 }

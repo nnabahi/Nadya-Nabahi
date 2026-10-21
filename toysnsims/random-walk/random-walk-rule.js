@@ -57,10 +57,10 @@
         (js/sim-shape.js).
      3. walkWorker(): runs a walk in a second thread (a "Web Worker")
         for the sim page, random-walk.js, so the page never freezes.
-        startWorker (js/sim-page.js) starts it, with newWalk, the run
-        loop, trace and random numbers (js/sim-worker.js), the hull,
-        holes and outer boundary (js/sim-shape.js) and blockStart
-        (js/sim-domains.js) copied in.
+        runInWorker (js/sim-page.js) starts it, with newWalk, the trace
+        and random numbers (js/sim-worker.js), the hull, holes and outer
+        boundary (js/sim-shape.js) and blockStart (js/sim-domains.js)
+        copied in.
    ===================================================================== */
 
 
@@ -248,31 +248,27 @@ function hullCandidates3D(w) {
 /* =====================================================================
    3. THE WALK IN A SECOND THREAD
    ---------------------------------------------------------------------
-   The page sends:
-     { type: "setup", run, dim, weights, tiling, seed, steps, cellsKnown }
+   It talks to the page the way every sim's worker does (serveRun,
+   js/sim-worker.js). Its own messages:
+     setup  { dim, weights, tiling, seed, steps, cellsKnown }
          a new walk (newWalk's options), walked at once to "steps"
          steps with the same seed (so changing a weight keeps the step
          you were at). On a Penrose tiling the walk is on this thread's
          plane of it (kept from walk to walk while the tiling stays the
          same), and the page already has its cells up to cellsKnown.
-     { type: "play", speed }   "speed" steps per second
-                               (Infinity = as fast as possible)
-     { type: "pause" }
-     { type: "step" }          one step
-     { type: "goto", steps }   jump to that step (back or forward)
+     goto   { steps }    jump to that step (back or forward)
 
-   The worker answers with "state" messages: the numbers for the
-   Statistics box (on another tiling, with "place": where the walker's
-   cell's middle is), the samples for the charts, and the sites visited
-   since its last message (the page keeps them all), and on a Penrose
-   tiling the plane's cells the page doesn't have yet. Each carries its
-   run number, so the page can ignore leftovers from an older run.
+   It reports the numbers for the Statistics box (on another tiling,
+   with "place": where the walker's cell's middle is), the samples for
+   the charts, and the sites visited since its last report (the page
+   keeps them all), and on a Penrose tiling the plane's cells the page
+   doesn't have yet. The run is done (and pauses by itself) at the step
+   limit, or when the walk reaches the edge of a Penrose plane.
    ===================================================================== */
 function walkWorker() {
   const MAX_STEPS = 2000000;    // two million steps at most
   let options = null;           // the latest setup message
   let walk = null;              // from newWalk() (part 1)
-  let run = 0;
   let problem = "";             // e.g. "At least one weight must be above 0."
   let trace = null;             // the run so far, for the charts over time (newTrace, js/sim-worker.js)
   let sitesSent = 0;            // the sites the page already has
@@ -310,10 +306,11 @@ function walkWorker() {
     while (walk.steps < steps && !isDone()) oneStep();
   }
 
-  function isDone() { return walk !== null && (walk.steps >= MAX_STEPS || walk.atEdge); }
+  // The run can't go on: there is no walk (the setup had a problem),
+  // the step limit, or the edge of a Penrose plane.
+  function isDone() { return walk === null || walk.steps >= MAX_STEPS || walk.atEdge; }
 
   function oneStep() {
-    if (!walk || isDone()) return;
     walk.step();
     if (walk.dim === 1) path.push(walk.x);
     if (walk.dim === 2 && walk.steps >= frontierNext) keepFrontier();
@@ -339,42 +336,31 @@ function walkWorker() {
     keepSample(trace, w.steps, values);
   }
 
-  // Play, Pause and Speed: the run loop (js/sim-worker.js).
-  const loop = makeRunLoop(oneStep, report, isDone);
-
-  self.onmessage = function (event) {
-    const message = event.data;
-    if (message.type === "setup") {
+  const loop = serveRun({
+    setup: function (message) {
       options = message;
-      run = message.run;
       setup(message.steps);
-      report();
-    } else if (message.type === "play") {
-      loop.play(message.speed);
-    } else if (message.type === "pause") {
-      loop.pause();
-      report();
-    } else if (message.type === "step") {
-      oneStep();
-      report();
-    } else if (message.type === "goto") {
-      if (walk && message.steps < walk.steps) setup(message.steps);
-      else while (walk && walk.steps < message.steps && !isDone()) oneStep();
-      report();
-    }
-  };
+    },
+    steps: oneStep, isDone: isDone, report: report,
+    messages: {
+      goto: function (message) {
+        if (walk && message.steps < walk.steps) setup(message.steps);
+        else while (!isDone() && walk.steps < message.steps) oneStep();
+      },
+    },
+  });
 
   // Send the page the numbers, the charts' samples, and the sites (and
-  // in 1D the positions) new since the last message.
-  function report() {
+  // in 1D the positions) new since the last report.
+  function report(send) {
     const w = walk;
     if (!w) {
-      self.postMessage({ type: "state", run: run, problem: problem });
+      send({ problem: problem });
       return;
     }
     const lists = trace.lists;
     const message = {
-      type: "state", run: run, problem: "", dim: w.dim,
+      problem: "", dim: w.dim,
       steps: w.steps, x: w.x, y: w.y, z: w.z, place: w.tiling ? w.placeOf(w.x, w.y, w.z) : null,
       distance: w.distance, maxDistance: w.maxDistance, range: w.siteX.length, returns: w.returns,
       lowest: w.lowest, highest: w.highest,
@@ -393,7 +379,7 @@ function walkWorker() {
     if (w.dim === 1) addNewPath(message);
     if (w.dim === 2) { addShape2D(message); addHoles(message); }
     if (w.dim === 3) message.hullPoints = Float64Array.from(hullCandidates3D(w));
-    self.postMessage(message);
+    send(message);
   }
 
   // The sites new since the last message: site numbers sitesFrom on.

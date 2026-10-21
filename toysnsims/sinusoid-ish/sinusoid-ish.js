@@ -19,8 +19,8 @@
 
    Everything runs right here, in the page's own thread. One sample
    takes a few thousandths of a second, so the graph follows a slider
-   live; Play works in small batches between screen refreshes, so the
-   page never freezes.
+   live; Play works in small batches (the run loop every sim uses), so
+   the page never freezes.
    ===================================================================== */
 
 
@@ -77,8 +77,6 @@ let view = { xmin: -10, xmax: 10, ymin: -4, ymax: 4 };   // the part of the plan
 // Many samples (section 7).
 let samples = 0;
 let collected = { areas: [], offsets: [], peaks: [], logders: [] };
-let playing = false;
-let speed = START_SPEED;
 
 
 /* =====================================================================
@@ -179,7 +177,7 @@ function newSample() {
   } catch (problem) {
     byId("set-message").textContent = problem.message;
     law = null;                          // nothing to sample until the set is fixed
-    setPlaying(false);
+    player.setPlaying(false);
     return;
   }
   draw();
@@ -506,11 +504,14 @@ function showSampleStats() {
    ---------------------------------------------------------------------
    Sample k uses the seed "seed:k", with the same model, set, sliders
    and N, and adds every lobe with both roots in [-A, A] to the
-   histograms (as in nadya's randfuncsagain.py). Play runs samples
-   between screen refreshes, at most about 12 thousandths of a second
-   each time, so the page stays smooth.
+   histograms (as in nadya's randfuncsagain.py). Play adds samples at
+   the Speed slider's speed, on the run loop every sim uses
+   (makeRunLoop, js/sim-worker.js), and redraws the histograms at most
+   every quarter of a second while it plays.
    ===================================================================== */
+// Back to no samples, paused.
 function restartSamples() {
+  player.setPlaying(false);
   samples = 0;
   collected = { areas: [], offsets: [], peaks: [], logders: [] };
   showHistograms();
@@ -528,30 +529,13 @@ function addSample() {
   if (model !== "mirror") collected.logders.push(logDerivative(0, sample));
 }
 
-let lastFrame = 0, owed = 0, lastCharts = 0;
-function playFrame(time) {
-  if (!playing) return;
-  if (lastFrame > 0) {
-    owed += speed * Math.min(0.1, (time - lastFrame) / 1000);
-    const started = performance.now();
-    while (owed >= 1 && samples < MOST_SAMPLES && performance.now() - started < 12) {
-      addSample();
-      owed--;
-    }
-    owed = Math.min(owed, speed);     // don't pile up work if the computer is slow
-  }
-  lastFrame = time;
-  if (time - lastCharts > 250) { lastCharts = time; showHistograms(); }
-  if (samples >= MOST_SAMPLES) { setPlaying(false); showHistograms(); return; }
-  requestAnimationFrame(playFrame);
-}
+const sampling = makeRunLoop(addSample,
+  notTooOften(250, function () { return sampling.playing; }, showHistograms),
+  function () { return law === null || samples >= MOST_SAMPLES; });   // nothing (more) to sample
 
-function setPlaying(on) {
-  playing = on && law !== null;
-  showPlaying(playing);   // js/sim-page.js
-  lastFrame = 0; owed = 0;
-  if (playing) requestAnimationFrame(playFrame);
-}
+// Play / Pause, Step, Restart and the Speed slider (connectPlay,
+// js/sim-page.js).
+const player = connectPlay(sampling, SPEEDS, START_SPEED, "sample", "samples", restartSamples);
 
 function showHistograms() {
   byId("samples-heading").textContent = "Many samples: " + samples.toLocaleString() + " so far, " +
@@ -617,16 +601,6 @@ for (const id of ["show-sine", "show-roots", "show-F", "show-derivative"]) {
 }
 
 byId("set-a").addEventListener("change", function () { showSampleStats(); restartSamples(); });
-byId("play").addEventListener("click", function () { setPlaying(!playing); });
-byId("step").addEventListener("click", function () {
-  setPlaying(false);
-  if (law) { addSample(); showHistograms(); }
-});
-byId("restart").addEventListener("click", function () { setPlaying(false); restartSamples(); });
-connectSpeedSlider("speed", SPEEDS, START_SPEED, function (newSpeed) {
-  speed = newSpeed;
-  byId("speed-label").textContent = speedText(speed, "sample", "samples");
-});
 byId("hist-mode").addEventListener("change", showHistograms);
 window.addEventListener("resize", function () { sizeCanvas(); draw(); showHistograms(); });
 

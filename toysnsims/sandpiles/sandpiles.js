@@ -96,11 +96,7 @@ let customNeighbors = 4;        // the graph tool's neighbors for it
 // plane has been moved are in "disk", section 5.)
 let ballSteps = null;
 
-let playing = false;            // it starts paused; Play sets it going
-let speed = DEFAULT_SPEED;
 let stormRate = DEFAULT_STORM_RATE;
-let run = 0;                    // counts restarts, so leftovers from an older run are ignored
-let playId = 0;                 // counts presses of Play and Pause (see section 4)
 let show3D = false;             // the 3D view instead of the view from above (section 5b)
 
 // The latest message from the pile: the heights, the topples at every
@@ -218,25 +214,13 @@ function textColorOn(rgb) {
    4. RUNNING THE PILE
    ---------------------------------------------------------------------
    The pile is the function pileWorker() in sandpiles-pile.js.
-   startWorker (js/sim-page.js) runs it in a second thread, a "Web
+   runInWorker (js/sim-page.js) runs it in a second thread, a "Web
    Worker", so the page never freezes, with the toppling rule copied in.
    ===================================================================== */
-const worker = startWorker(pileWorker, [newPile, startHeights, middleCell, centerCell]);
-
-worker.onmessage = function (event) {
-  const message = event.data;
-  if (message.type !== "state" || message.run !== run) return;   // from an older run
+const sim = runInWorker(pileWorker, [newPile, startHeights, middleCell, centerCell], function (message) {
   latest = message;
-  // It stopped by itself (the pile is stable). Only a report sent after
-  // the page's last Play counts, not one that was already on its way.
-  if (playing && !message.playing && message.playId === playId) setPlaying(false);
   drawSoon();
-};
-
-worker.onerror = function () {
-  showMessage("The sandpile couldn't start. It loads one small library (seedrandom) from the " +
-              "internet, so check the connection and reload the page.");
-};
+});
 
 // The start, from the boxes on the page.
 function startSettings() {
@@ -253,15 +237,12 @@ function startSettings() {
 // Start again from the start, with the current table, sink cells,
 // settings and seed. It pauses: press Play to watch it topple.
 function restart() {
-  run++;
   latest = null;
-  if (playing) setPlaying(false);
   showMessage("");
   lastNote = "";
-  worker.postMessage({
-    type: "setup", run: run,
+  sim.setup({
     domain: pileTable(domain), threshold: threshold, sinks: sinks,
-    start: startSettings(), seed: byId("seed").value,
+    start: startSettings(), seed: byId("seed").value, settings: runSettings(),
   });
 }
 
@@ -282,24 +263,24 @@ function pileTable(d) {
   return table;
 }
 
-// Tell the pile the settings of the Run and Storm boxes.
-function sendSettings() {
-  worker.postMessage({
-    type: "settings",
+// The settings of the Run and Storm boxes (the speed goes with Play).
+function runSettings() {
+  return {
     rounds: checked("order") === "rounds",
-    speed: speed,
     storm: byId("storm").checked,
     stormRate: stormRate,
     stormWait: byId("storm-wait").checked,
     stayOn: byId("stay-on").checked,
-  });
+  };
 }
+function sendSettings() { sim.send({ type: "settings", settings: runSettings() }); }
 
-function setPlaying(on) {
-  playing = on;
-  playId++;
-  worker.postMessage({ type: on ? "play" : "pause", id: playId });
-  showPlaying(on);
+// Play / Pause, Step, Restart and the Speed slider (connectPlay,
+// js/sim-page.js), in topples or rounds.
+const player = connectPlay(sim, SPEEDS, DEFAULT_SPEED, "topple", "topples", restart);
+function showSpeedUnits() {
+  const what = checked("order") === "rounds" ? "round" : "topple";
+  player.setUnits(what, what + "s");
 }
 
 
@@ -629,14 +610,14 @@ function clickCell(v) {
     // Make it a sink cell, or a normal cell again. The pile keeps its
     // grains (the worker's changeSinks, sandpiles-pile.js).
     sinks = sinks.includes(v) ? sinks.filter(function (s) { return s !== v; }) : sinks.concat([v]);
-    worker.postMessage({ type: "sinks", sinks: sinks });
+    sim.send({ type: "sinks", sinks: sinks });
   } else if (sinks.includes(v)) {
     showMessage("This is a sink cell: it eats every grain it gets.");
   } else if (mode === "topple") {
     if (latest.heights[v] < threshold[v]) {
       showMessage("This cell has " + latest.heights[v] + " grains; it needs " + threshold[v] + " to topple.");
     } else {
-      worker.postMessage({ type: "topple", cell: v });
+      sim.send({ type: "topple", cell: v });
     }
   } else if (mode === "info") {
     const name = domainKind === "graph"
@@ -647,7 +628,7 @@ function clickCell(v) {
                 latest.odometer[v].toLocaleString() + " times so far" +
                 (domain.lattice ? "; it topples at " + threshold[v] + " grains." : "."));
   } else {
-    worker.postMessage({ type: "add", cell: v, grains: mode === "add" ? 1 : -1 });
+    sim.send({ type: "add", cell: v, grains: mode === "add" ? 1 : -1 });
   }
 }
 
@@ -706,7 +687,7 @@ function showStats() {
   lastNote = note;
 
   const stayOn = byId("stay-on").checked;
-  byId("play").disabled = s.stable && !byId("storm").checked && !stayOn && !playing;   // nothing can happen
+  byId("play").disabled = s.stable && !byId("storm").checked && !stayOn && !player.playing;   // nothing can happen
   byId("step").disabled = s.stable && !byId("storm").checked;
   byId("jump").disabled = s.stable;
   byId("undo").disabled = !s.canUndo;
@@ -807,8 +788,8 @@ function drawAvalancheChart() {
    ===================================================================== */
 const tool = makeCustomTool({
   view: view,
-  isPlaying: function () { return playing; },
-  setPlaying: setPlaying,
+  isPlaying: function () { return player.playing; },
+  setPlaying: player.setPlaying,
   check: function (drawing) {
     const cells = drawing.graph.vertices.length;
     return cells === 0 ? ["Paint the table first.", ""] : ["", cells + " cells, " + drawing.grid.neighbors + " neighbors."];
@@ -918,34 +899,19 @@ byId("set-value").addEventListener("change", function () { restart(); });
 byId("set-slope").addEventListener("change", function () { restart(); });
 
 // Add the identity of this table to the pile (then it topples as usual).
-byId("add-identity").addEventListener("click", function () { worker.postMessage({ type: "identity" }); });
+byId("add-identity").addEventListener("click", function () { sim.send({ type: "identity" }); });
 
-// Play / Pause, Step, Undo, Jump, Restart.
-byId("play").addEventListener("click", function () { setPlaying(!playing); });
-byId("step").addEventListener("click", function () {
-  if (playing) setPlaying(false);
-  worker.postMessage({ type: "step" });
-});
+// Undo and Jump (Play, Step and Restart: connectPlay, section 4).
 byId("undo").addEventListener("click", function () {
-  if (playing) setPlaying(false);
-  worker.postMessage({ type: "undo" });
+  if (player.playing) player.setPlaying(false);
+  sim.send({ type: "undo" });
 });
-byId("jump").addEventListener("click", function () { worker.postMessage({ type: "jump" }); });
-byId("restart").addEventListener("click", function () { restart(); });
+byId("jump").addEventListener("click", function () { sim.send({ type: "jump" }); });
 
-// One at a time or rounds; speed; the storm.
+// One at a time or rounds; the storm.
 for (const radio of document.querySelectorAll('input[name="order"]')) {
-  radio.addEventListener("change", function () { sendSettings(); showSpeed(); });
+  radio.addEventListener("change", function () { sendSettings(); showSpeedUnits(); });
 }
-function showSpeed() {
-  const what = checked("order") === "rounds" ? "round" : "topple";
-  byId("speed-label").textContent = speedText(speed, what, what + "s");
-}
-connectSpeedSlider("speed", SPEEDS, DEFAULT_SPEED, function (newSpeed) {
-  speed = newSpeed;
-  showSpeed();
-  sendSettings();
-});
 connectSpeedSlider("storm-rate", STORM_RATES, DEFAULT_STORM_RATE, function (newRate) {
   stormRate = newRate;
   byId("storm-label").textContent = speedText(stormRate, "grain", "grains");
@@ -981,6 +947,5 @@ byId("set-value").value = DEFAULTS.value;
 byId("set-slope").value = DEFAULTS.slope;
 byId("seed").value = DEFAULTS.seed;
 showStartChoice();
-sendSettings();
+showSpeedUnits();
 useBox();
-setPlaying(false);   // paused: press Play to watch it topple

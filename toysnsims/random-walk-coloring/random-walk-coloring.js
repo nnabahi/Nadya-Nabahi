@@ -81,7 +81,6 @@ let colorNames = [];            // colorNames[i] = how color i is drawn, e.g. "#
 let colorRGB = [];              // the same colors as [red, green, blue], 0..255
 let showWalkers = true;         // the "Show walkers" box
 
-let run = 0;                    // counts restarts, so leftovers from an older run are ignored
 
 // The latest message from the walkers: the colors, where the walkers
 // are, and the numbers (see section 5 of random-walk-coloring-walk.js).
@@ -198,43 +197,28 @@ function spreadThroughRegion(d, count, firstCell) {
    4. RUNNING THE WALKERS
    ---------------------------------------------------------------------
    The walkers are the function walkWorker() in
-   random-walk-coloring-walk.js, with the run loop and the trace
-   (js/sim-worker.js), and countPieces with the search behind it
-   (js/sim-domains.js), copied in. startWorker (js/sim-page.js) runs it in
-   a second thread, a "Web Worker", so the page never freezes.
+   random-walk-coloring-walk.js, with the trace (js/sim-worker.js),
+   and countPieces with the search behind it (js/sim-domains.js),
+   copied in. runInWorker (js/sim-page.js) runs it in a second thread,
+   a "Web Worker", so the page never freezes.
    ===================================================================== */
-const worker = startWorker(walkWorker, [makeRunLoop, newTrace, keepSample, countPieces, findRegions, spreadRegion]);
+const sim = runInWorker(walkWorker, [newTrace, keepSample, countPieces, findRegions, spreadRegion],
+                        function (message) { latest = message; drawSoon(); });
 
-worker.onmessage = function (event) {
-  const message = event.data;
-  if (message.type !== "state" || message.run !== run) return;   // from an older run
-  latest = message;
-  if (message.done && player.playing) player.setPlaying(false);
-  drawSoon();
-};
-
-worker.onerror = function () {
-  showMessage("The walkers couldn't start. They load one small library (seedrandom) from the " +
-              "internet, so check the connection and reload the page.");
-};
-
-// Start again from the starting cells, with the current domain, model
-// and seed.
+// A new run (paused) from the starting cells, with the current domain,
+// model and seed.
 function restart() {
-  run++;
   latest = null;
   showMessage("");
-  worker.postMessage({
-    type: "setup", run: run,
+  sim.setup({
     n: domain.n, first: domain.first, nbr: domain.nbr,
     starts: Int32Array.from(starts), model: model, seed: byId("seed").value,
   });
-  player.carryOn();
 }
 
 // Play / Pause, Step, Restart and the Speed slider (connectPlay,
 // js/sim-page.js). player.playing is true while the sim plays.
-const player = connectPlay(worker, SPEEDS, DEFAULT_SPEED, "step", "steps", restart);
+const player = connectPlay(sim, SPEEDS, DEFAULT_SPEED, "step", "steps", restart);
 
 
 /* =====================================================================
@@ -805,5 +789,4 @@ fillDomainOptions(DEFAULTS, MAX_SIDE, BALL);
 if (byId("set-tiling")) fillLatticeMenu();   // (the 1D page has no Lattice options)
 byId("set-walkers").max = byId("walkers-slider").max = MAX_WALKERS;
 byId("seed").value = DEFAULTS.seed;
-useBox();
-player.setPlaying(false);   // paused: drag the walkers, then press Play
+useBox();   // paused: drag the walkers, then press Play

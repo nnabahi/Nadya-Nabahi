@@ -62,7 +62,6 @@ const DEFAULT_SPEED = 10;
    ===================================================================== */
 
 let dim = 2;                 // 1, 2 or 3
-let run = 0;                 // counts restarts, so leftovers from an older run are ignored
 
 // The latest message from the walk (see part 3 of random-walk-rule.js):
 // the numbers and the charts' samples.
@@ -174,22 +173,20 @@ function showWeights() {
    4. RUNNING THE WALK
    ---------------------------------------------------------------------
    The walk is walkWorker() in random-walk-rule.js, with newWalk(), its
-   shape, the run loop, the trace and the random numbers
-   (js/sim-worker.js), the hull, holes and outer boundary
-   (js/sim-shape.js), blockStart and cellNeighbors (js/sim-domains.js)
-   and what grows a Penrose tiling's plane (js/sim-penrose.js) copied
-   in.
-   startWorker (js/sim-page.js) runs it in a second thread, so the page
-   never freezes.
+   shape, the trace and the random numbers (js/sim-worker.js), the
+   hull, holes and outer boundary (js/sim-shape.js), blockStart and
+   cellNeighbors (js/sim-domains.js) and what grows a Penrose tiling's
+   plane (js/sim-penrose.js) copied in.
+   runInWorker (js/sim-page.js) runs it in a second thread, so the page
+   never freezes, and hands each report to showWalk.
    ===================================================================== */
-const worker = startWorker(walkWorker,
-  [newWalk, cutsOf, walkHull, hullCandidates3D, makeRunLoop, newTrace, keepSample, seededUniform, blockStart, cellNeighbors,
+const sim = runInWorker(walkWorker,
+  [newWalk, cutsOf, walkHull, hullCandidates3D, newTrace, keepSample, seededUniform, blockStart, cellNeighbors,
    convexHull, growingHull, polygonArea, polygonPerimeter, holeHistory, bettiOverTime, frontierLength,
-   cellWindow, squareWindow, tilingWindow, finiteWindow].concat(penroseHelpers()));
+   cellWindow, squareWindow, tilingWindow, finiteWindow].concat(penroseHelpers()),
+  showWalk);
 
-worker.onmessage = function (event) {
-  const message = event.data;
-  if (message.type !== "state" || message.run !== run) return;   // from an older run
+function showWalk(message) {
   if (message.problem) {
     latest = null;
     showMessage(message.problem);
@@ -203,7 +200,7 @@ worker.onmessage = function (event) {
               message.atEdge ? "The walk has reached the edge of the part of this tiling the page builds (" +
                                PENROSE_PLANE_MOST + " side lengths from the middle each way), so it stops here." : "");
   drawSoon();
-};
+}
 
 // Add the sites (and in 1D the positions) new in this message to the
 // page's lists. A message starting from site 0 is a fresh walk (on the
@@ -244,23 +241,21 @@ function biggerGrid(x, y, upTo) {
   return bigger;
 }
 
-// Send the walk to the worker. keepStep: walk to the step we are at
+// Start the walk again, paused. keepStep: walk to the step we are at
 // (so changing a weight keeps the step).
 function restart(keepStep) {
-  run++;
   const tiling = tilingNow(), finite = Boolean(tiling && tiling.finite);
   if (finite) mirror = penroseMirror(mirror, tiling);
   runTiling = finite ? mirror : tiling;
-  worker.postMessage({
-    type: "setup", run: run, dim: dim, weights: weights(), tiling: tiling, seed: byId("seed").value,
+  sim.setup({
+    dim: dim, weights: weights(), tiling: tiling, seed: byId("seed").value,
     steps: (keepStep && haveWalk()) ? latest.steps : 0, cellsKnown: finite ? mirror.cells.length : 0,
   });
-  player.carryOn();
 }
 
 // Play / Pause, Step, Restart and the Speed slider (connectPlay,
-// js/sim-page.js). player.playing is true while the sim plays.
-const player = connectPlay(worker, SPEEDS, DEFAULT_SPEED, "step", "steps", function () { restart(false); });
+// js/sim-page.js).
+connectPlay(sim, SPEEDS, DEFAULT_SPEED, "step", "steps", function () { restart(false); });
 
 
 /* =====================================================================
@@ -695,7 +690,7 @@ for (const radio of document.querySelectorAll("input[name=against]")) radio.addE
 
 // Go to step.
 byId("goto").addEventListener("click", function () {
-  worker.postMessage({ type: "goto", steps: readWhole("goto-steps", 0, 2000000, 0) });
+  sim.send({ type: "goto", steps: readWhole("goto-steps", 0, 2000000, 0) });
 });
 
 // Seed: the same seed gives the same walk every time.
@@ -707,4 +702,3 @@ byId("seed").value = DEFAULT_SEED;
 byId("goto-steps").value = 10000;
 fillLatticeMenu();            // the square grid
 setDimension(2);              // 2D by default
-player.setPlaying(false);     // paused: press Play

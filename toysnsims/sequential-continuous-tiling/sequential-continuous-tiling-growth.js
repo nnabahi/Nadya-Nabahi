@@ -879,31 +879,31 @@ function packingCore() {
    ---------------------------------------------------------------------
    The sim page (sequential-continuous-tiling.js) turns this function into a "Web
    Worker", together with packingCore() above, so the work never freezes
-   the page. They talk by messages:
-
-   page -> worker
-     { type: "setup", run, S, T, f, values, seed, clicks, target }
+   the page. It talks to the page the way every sim's worker does
+   (serveRun, js/sim-worker.js), one step being one attempt, but it
+   plays by itself: whenever fewer attempts are done than the page asks
+   for ("target", the n box), its run loop works on toward it, as fast
+   as it can, and stops there. The page's own Play raises n. Its own
+   messages:
+     setup  { S, T, f, values, seed, clicks, target }
          S, T, f: the typed formulas, already tidied by readTree (in
          js/formulas.js) and written out with every "*" shown (S or T
          can also be a curve { x, y }, both formulas in t); values:
          the sliders, e.g. { s: 0.5 }; clicks: the centers you clicked
-         ({ n: [x, y] }). Starts again from no tiles, and works until
-         "target" attempts are done.
-     { type: "target", target }       work until this many attempts
-     { type: "click", x, y, at }      a clicked center, as attempt at + 1
-                                      (only if exactly "at" are done)
-   worker -> page
-     { type: "ready", run, info, segments, shapeX, shapeY }
-         after a setup: facts about S and T (info.window is the box
-         around S, which the picture shows), the edge of S (4 numbers
-         per segment) and T's polygon (128 corners), for drawing.
-     { type: "clicked", run, placed, ready, x, y, at }   did the clicked tile fit?
-     { type: "tiles", run, attempts, ceilingMisses, cx, cy, r, parent, generation, attempt }
-         the tiles placed since the last message (all tiles of one run
-         arrive in order), and how many attempts are done.
-     { type: "error", run, message }  the formulas couldn't be used
-   "run" numbers each setup, so the page can ignore messages from an
-   older one.
+         ({ n: [x, y] }). Starts again from no tiles, and works toward
+         "target" attempts: for at most FIRST_PICTURE milliseconds
+         before its first report, so that report already shows (most
+         of) the new picture, and the rest after it.
+     target { target }      work until this many attempts are done
+     click  { x, y, at }    a clicked center, as attempt at + 1 (only if
+                            exactly "at" are done and asked for)
+   It reports the tiles placed since its last report (all tiles of one
+   run arrive in order) and how many attempts are done; in a run's
+   first report also facts about S and T (info.window is the box around
+   S, which the picture shows), the edge of S (4 numbers per segment)
+   and T's polygon (128 corners), for drawing; after a click, "clicked":
+   did the clicked tile fit? If the formulas couldn't be used, it
+   reports only the problem.
    ===================================================================== */
 
 function packingWorker() {
@@ -913,7 +913,13 @@ function packingWorker() {
   importScripts("https://cdn.jsdelivr.net/npm/mathjs@15.2.0/lib/browser/math.js");
   importScripts("https://cdn.jsdelivr.net/npm/seedrandom@3.0.5/lib/alea.min.js");
 
-  let core = null, run = 0, target = 0, sent = 0, working = false;
+  const FIRST_PICTURE = 250;   // milliseconds of attempts before a setup's first report (at most)
+  let core = null;             // the packing (packingCore), or null if the formulas couldn't be used
+  let problem = "";            // why they couldn't
+  let target = 0;              // the attempts the page asks for
+  let sent = 0;                // the tiles the page already has
+  let shapes = null;           // for a run's first report: S and T, as the page draws them
+  let clicked = null;          // for the report after a click: the click's answer
 
   // A typed shape (S or T) as a function of (x, y) that gives true or
   // false. It comes in three kinds:
@@ -1014,69 +1020,78 @@ function packingWorker() {
     };
   }
 
-  // Do attempts for about 40 milliseconds, send the new tiles, and come
-  // back (through setTimeout, so new messages from the page get in).
-  function work() {
-    if (!core) { working = false; return; }
-    const start = performance.now();
-    while (core.attempts < target && performance.now() - start < 40) core.attempt();
-    const t = core.tiles, count = t.count;
-    if (count > sent || core.attempts >= target) {
-      postMessage({
-        type: "tiles", run: run, attempts: core.attempts, ceilingMisses: core.ceilingMisses,
-        cx: t.cx.slice(sent, count), cy: t.cy.slice(sent, count), r: t.r.slice(sent, count),
-        parent: t.parent.slice(sent, count), generation: t.generation.slice(sent, count),
-        attempt: t.attempt.slice(sent, count),
+  // A new packing from the page's formulas, worked toward the target
+  // for at most FIRST_PICTURE milliseconds.
+  function setup(m) {
+    target = m.target;
+    sent = 0;
+    core = shapes = clicked = null;
+    try {
+      const packing = packingCore();
+      const key = windowKey(m.S, m.values);
+      const info = packing.setup({
+        inS: readShape(m.S, m.values, "S"),
+        inT: readShape(m.T, m.values, "T"),
+        density: number(m.f, m.values),
+        window: key === lastWindow.key ? lastWindow.window : undefined,
+        seed: m.seed,
+        makeRandom: alea,
+        clicks: m.clicks,
       });
-      sent = count;
+      core = packing;
+      lastWindow = { key: key, window: info.window };
+      // T's polygon, 128 of its corners, for drawing.
+      const shape = packing.shape, shapeX = [], shapeY = [];
+      for (let k = 0; k < shape.px.length; k += shape.px.length / 128) { shapeX.push(shape.px[k]); shapeY.push(shape.py[k]); }
+      shapes = { info: info, segments: packing.segments.flat(), shapeX: shapeX, shapeY: shapeY };
+    } catch (error) {
+      problem = error.message;
+      return;
     }
-    if (core.attempts < target) setTimeout(work, 0);
-    else working = false;
-  }
-  function startWorking() {
-    if (!working) { working = true; setTimeout(work, 0); }
+    const until = performance.now() + FIRST_PICTURE;
+    while (!isDone() && performance.now() < until) core.attempt();
   }
 
-  onmessage = function (event) {
-    const m = event.data;
-    if (m.type === "setup") {
-      run = m.run;
-      target = m.target;
-      sent = 0;
-      core = null;
-      try {
-        const packing = packingCore();
-        const key = windowKey(m.S, m.values);
-        const info = packing.setup({
-          inS: readShape(m.S, m.values, "S"),
-          inT: readShape(m.T, m.values, "T"),
-          density: number(m.f, m.values),
-          window: key === lastWindow.key ? lastWindow.window : undefined,
-          seed: m.seed,
-          makeRandom: alea,
-          clicks: m.clicks,
-        });
-        core = packing;
-        lastWindow = { key: key, window: info.window };
-        // T's polygon, 128 of its corners, for drawing.
-        const shape = packing.shape, shapeX = [], shapeY = [];
-        for (let k = 0; k < shape.px.length; k += shape.px.length / 128) { shapeX.push(shape.px[k]); shapeY.push(shape.py[k]); }
-        postMessage({ type: "ready", run: run, info: info, segments: packing.segments.flat(), shapeX: shapeX, shapeY: shapeY });
-        startWorking();
-      } catch (error) {
-        postMessage({ type: "error", run: run, message: error.message });
-      }
-    } else if (m.type === "target") {
-      target = m.target;
-      startWorking();
-    } else if (m.type === "click") {
-      // Only when the worker is exactly at attempt "at" (the page then
-      // asks for the next attempt). Otherwise the page starts a new setup.
-      const ready = core && core.attempts === m.at && target === m.at;
-      const placed = ready && core.addClick(m.x, m.y);
-      if (placed) target = m.at + 1;
-      postMessage({ type: "clicked", run: run, placed: placed, ready: ready, x: m.x, y: m.y, at: m.at });
-      if (placed) startWorking();
+  // Nothing to do: the target is reached (or there is no packing).
+  function isDone() { return core === null || core.attempts >= target; }
+
+  // A clicked center, as attempt at + 1: only when the packing is
+  // exactly at attempt "at" (otherwise the page starts a new setup).
+  function click(m) {
+    const ready = core !== null && core.attempts === m.at && target === m.at;
+    const placed = ready && core.addClick(m.x, m.y);
+    if (placed) target = m.at + 1;
+    clicked = { placed: placed, ready: ready, x: m.x, y: m.y, at: m.at };
+  }
+
+  // After a setup and a new target, the run loop works on toward the
+  // target (loop.play stops at once if it is reached).
+  const loop = serveRun({
+    setup: function (message) { setup(message); loop.play(Infinity); },
+    steps: function () { core.attempt(); },
+    isDone: isDone,
+    report: report,
+    messages: {
+      target: function (message) { target = message.target; loop.play(Infinity); },
+      click: click,
+    },
+  });
+
+  // Send the page the new tiles and the counts, with the run's shapes
+  // the first time, and a click's answer after a click.
+  function report(send) {
+    if (!core) {
+      send({ problem: problem });
+      return;
     }
-  };
+    const t = core.tiles, count = t.count;
+    send(Object.assign({
+      attempts: core.attempts, ceilingMisses: core.ceilingMisses,
+      cx: t.cx.slice(sent, count), cy: t.cy.slice(sent, count), r: t.r.slice(sent, count),
+      parent: t.parent.slice(sent, count), generation: t.generation.slice(sent, count),
+      attempt: t.attempt.slice(sent, count), clicked: clicked,
+    }, shapes));
+    sent = count;
+    shapes = clicked = null;
+  }
 }

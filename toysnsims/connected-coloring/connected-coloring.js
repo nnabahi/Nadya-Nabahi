@@ -83,7 +83,6 @@ let colorNames = [];           // colorNames[c] = how color c is drawn, e.g. "#c
 let drawnStart = null;         // your own starting coloring, or null for the automatic one
 let startShape = "";           // what the start was: "rectangles", "blocks" or "yours"
 
-let run = 0;                   // counts restarts, so leftovers from an older run are ignored
 
 // The latest coloring and numbers from the chain.
 let colors = null;             // colors[v] = color of cell v
@@ -190,19 +189,14 @@ function compactStart(d, count) {
 /* =====================================================================
    4. RUNNING THE CHAIN
    ---------------------------------------------------------------------
-   The chain is the function chainWorker() in connected-coloring-chain.js,
-   with the run loop (js/sim-worker.js) copied in. startWorker
-   (js/sim-page.js) runs it in a second thread, a "Web Worker", so the
-   page never freezes.
+   The chain is the function chainWorker() in connected-coloring-chain.js.
+   runInWorker (js/sim-page.js) runs it in a second thread, a "Web
+   Worker", so the page never freezes. Watching each move, a message
+   carries the move's film, shown first (section 5c).
    ===================================================================== */
-const worker = startWorker(chainWorker, [makeRunLoop]);
-
-worker.onmessage = function (event) {
-  const message = event.data;
-  if (message.type !== "state" || message.run !== run) return;   // from an older run
-  if (message.film && watching) { startFilm(message); return; }   // shown first (section 5c)
-  useMessage(message);
-};
+const sim = runInWorker(chainWorker, [], function (message) {
+  if (message.film && watching) startFilm(message); else useMessage(message);
+});
 
 // Show the coloring and numbers of a message from the chain.
 function useMessage(message) {
@@ -212,15 +206,9 @@ function useMessage(message) {
   drawSoon();
 }
 
-worker.onerror = function () {
-  showMessage("The chain couldn't start. It loads one small library (seedrandom) from the " +
-              "internet, so check the connection and reload the page.");
-};
-
-// Start the chain again from the start coloring, with the current
-// domain, N and seed.
+// Start the chain again (paused) from the start coloring, with the
+// current domain, N and seed.
 function restart() {
-  run++;
   film = null;                            // a move being watched is dropped (section 5c)
   if (drawnStart) startShape = "yours";
   colors = drawnStart ? drawnStart.slice() : automaticStart(domain, N);
@@ -233,19 +221,15 @@ function restart() {
   traceZoom.from = traceZoom.to = null;   // the charts show the whole new run
   alphaZoom.from = alphaZoom.to = null;
   latest = null;
-  worker.postMessage({
-    type: "setup", run: run,
-    n: domain.n, first: domain.first, nbr: domain.nbr,
-    colors: colors, N: N, seed: byId("seed").value,
-  });
-  player.carryOn();
+  sim.setup({ n: domain.n, first: domain.first, nbr: domain.nbr, colors: colors, N: N, seed: byId("seed").value,
+              watch: watching });
   showStartInfo();
   drawSoon();
 }
 
 // Play / Pause, Step, Restart and the Speed slider (connectPlay,
 // js/sim-page.js). player.playing is true while the sim plays.
-const player = connectPlay(worker, SPEEDS, DEFAULT_SPEED, "move", "moves", restart);
+const player = connectPlay(sim, SPEEDS, DEFAULT_SPEED, "move", "moves", restart);
 
 
 /* =====================================================================
@@ -383,8 +367,8 @@ connectPicture(view, disk, function () { return domainKind === "graph"; }, funct
    "film" and waits for "next" before making another one, so the moves
    are the same ones as without watching. The Steps slider sets how
    many steps of the walk show per second; Pause stops in the middle of
-   a move, and Step shows one whole move. Not on a hyperbolic tiling or
-   tree (yet).
+   a move, and Step shows one whole move (the rest of the move being
+   shown, if any). Not on a hyperbolic tiling or tree (yet).
    ===================================================================== */
 let watching = false;          // is "Watch each move" ticked?
 let watchSpeed = DEFAULT_WATCH_SPEED;   // steps of the walk per second
@@ -394,7 +378,7 @@ let film = null;               // the move being shown, or null
 function startFilm(message) {
   if (film) useMessage(film.message);
   const log = message.film;
-  if (!log.pair) { useMessage(message); worker.postMessage({ type: "next" }); return; }   // nothing to show
+  if (!log.pair) { useMessage(message); sim.send({ type: "next" }); return; }   // nothing to show
   film = {
     message: message,
     pair: log.pair, walks: log.walks, root: log.root, cut: log.cut,
@@ -412,6 +396,11 @@ function startFilm(message) {
   showFilmInfo();
   requestAnimationFrame(playFilm);
 }
+
+// Step, while a move is being shown (paused in the middle of it), shows
+// the rest of that move. (The chain makes no new move until this one
+// has been shown.)
+byId("step").addEventListener("click", function () { if (film) film.stepping = true; });
 
 // How long a stop is: STOP seconds, shorter when the walk is fast.
 function stopTime() { return Math.max(0.15, Math.min(STOP, 40 / watchSpeed)); }
@@ -446,7 +435,7 @@ function runFilm(seconds) {
     const message = film.message;
     film = null;
     useMessage(message);
-    worker.postMessage({ type: "next" });
+    sim.send({ type: "next" });
     return;
   }
   showFilmInfo();
@@ -595,7 +584,7 @@ function setWatching(on) {
   byId("watch").checked = on;
   byId("watch-options").hidden = !on;
   if (!on && film) { const message = film.message; film = null; useMessage(message); }
-  worker.postMessage({ type: "watch", on: on });
+  sim.send({ type: "watch", on: on });
   showHighlightInfo();
   drawSoon();
 }
@@ -809,9 +798,9 @@ function checkDrawing(drawing) {
   return ["", start.used.length + " colors, each one connected piece."];
 }
 
-// Step 2 -> "Done": start from your coloring, in the tool's colors. It
-// carries on running only if it was running before the tool opened.
-// Cancel: back to whatever was running before.
+// Step 2 -> "Done": start from your coloring, in the tool's colors
+// (paused, like every new start). Cancel: back to whatever was running
+// before.
 const tool = makeCustomTool({
   view: view,
   isPlaying: function () { return player.playing; },
@@ -823,7 +812,6 @@ const tool = makeCustomTool({
     const start = drawnColoring();
     const names = start.used.map(function (c) { return drawing.palette[c]; });
     useDomain("custom", customDomain, start.colorOf, names);
-    tool.carryOn();
   },
   cancel: function () { showDomainChoice(); drawSoon(); },
 });
@@ -846,12 +834,10 @@ function drawnColoring() {
 }
 
 // Step 1 -> "Use automatic start": the region, with the automatic start.
-// (It carries on running only if it was running before the tool opened.)
 byId("use-auto").addEventListener("click", function () {
   customDomain = drawnDomain(tool.drawing.graph, tool.drawing.grid);
   tool.close();
   useDomain("custom", customDomain, null, null);
-  tool.carryOn();
 });
 
 // Step 1 -> "Draw my own start": lock the region and go to step 2.
@@ -895,26 +881,21 @@ function useDomain(kind, d, start, names) {
 }
 
 // The box or torus from the boxes on the page. (Choosing one while the
-// graph tool is open closes it, and carries on running if it was
-// running before the tool opened.)
+// graph tool is open closes it.)
 function useBox() {
-  const toolWasOpen = tool.isOpen;
-  if (toolWasOpen) tool.close();
+  if (tool.isOpen) tool.close();
   const d = boxFromOptions(2, MAX_SIDE, DEFAULTS);
   useDomain(d.wrap ? "torus" : "box", d, null, null);
-  if (toolWasOpen) tool.carryOn();
 }
 
 // A ball of a hyperbolic tiling or a tree, from the options on the
 // page (ballFromOptions, js/sim-hyperbolic.js), with the start cell in
 // the middle of the picture.
 function useGraph() {
-  const toolWasOpen = tool.isOpen;
-  if (toolWasOpen) tool.close();
+  if (tool.isOpen) tool.close();
   const ball = ballFromOptions(disk, BALL);
   if (ball === null) { showDomainChoice(); return; }
   useDomain("graph", ball, null, null);
-  if (toolWasOpen) tool.carryOn();
 }
 
 // Show the options that fit the domain in use, and tick its radio button.
@@ -954,4 +935,3 @@ fillDomainOptions(DEFAULTS, MAX_SIDE, BALL);
 fillLatticeMenu();
 byId("seed").value = DEFAULTS.seed;
 useBox();
-player.setPlaying(false);   // paused: press Play to start

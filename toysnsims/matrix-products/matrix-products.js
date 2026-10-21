@@ -19,8 +19,8 @@
 
    Everything runs right here, in the page's own thread. A step of 2000
    runs takes well under a thousandth of a second for fixed matrices,
-   so the cloud follows a slider live; Play works in small batches
-   between screen refreshes, so the page never freezes.
+   so the cloud follows a slider live; Play works in small batches (the
+   run loop every sim uses), so the page never freezes.
 
    How a slider stays live (the Desmos feel): when anything about the
    matrices changes, every run goes back to t = 0 and is stepped again,
@@ -70,8 +70,6 @@ let shownRun = 1;
 let trajectory = [];
 
 let viewKind = "cloud";   // "cloud", "histogram" or "trajectory"
-let playing = false;
-let speed = START_SPEED;
 
 
 /* =====================================================================
@@ -207,8 +205,10 @@ function remember() {
 }
 
 // Go back to t = 0 (a new cloud if N or the seed changed) and step
-// again up to wantedT, with the same random numbers.
+// again up to wantedT, with the same random numbers. Like a restart,
+// it pauses.
 function replay() {
+  player.setPlaying(false);
   if (!model) return;
   if (!cloud || cloud.runs !== runs || cloud.seed !== seed) {
     cloud = newCloud(model, runs, seed);
@@ -229,36 +229,27 @@ function replay() {
 // refresh, with whatever the latest numbers are.
 const replaySoon = oncePerFrame(replay);
 
-let lastFrame = 0, owed = 0, lastStats = 0;
-function playFrame(time) {
-  if (!playing) return;
-  let stepped = false;
-  if (lastFrame > 0) {
-    owed += speed * Math.min(0.1, (time - lastFrame) / 1000);
-    const started = performance.now();
-    while (owed >= 1 && cloud.t < tMax && performance.now() - started < 12) {
-      stepOnce();
-      owed--;
-      stepped = true;
-    }
-    owed = Math.min(owed, speed);     // don't pile up work if the computer is slow
-  }
-  lastFrame = time;
+// Play and Step: one step of every run at a time, at the Speed
+// slider's speed, on the run loop every sim uses (makeRunLoop,
+// js/sim-worker.js), up to "Stop at t". The statistics are redrawn at
+// most every quarter of a second while it plays.
+function playStep() {
+  stepOnce();
   wantedT = cloud.t;
-  if (stepped) {
-    draw();
-    if (time - lastStats > 250) { lastStats = time; showStats(); }
-  }
-  if (cloud.t >= tMax) { setPlaying(false); showStats(); return; }
-  requestAnimationFrame(playFrame);
+}
+const showStatsSlowly = notTooOften(250, function () { return stepping.playing; }, showStats);
+const stepping = makeRunLoop(playStep, function () { draw(); showStatsSlowly(); },
+  function () { return cloud === null || cloud.t >= tMax; });
+
+// Restart: back to t = 0, paused.
+function restart() {
+  wantedT = 0;
+  replay();
 }
 
-function setPlaying(on) {
-  playing = on && model !== null && cloud !== null;
-  showPlaying(playing);   // js/sim-page.js
-  lastFrame = 0; owed = 0;
-  if (playing) requestAnimationFrame(playFrame);
-}
+// Play / Pause, Step, Restart and the Speed slider (connectPlay,
+// js/sim-page.js).
+const player = connectPlay(stepping, SPEEDS, START_SPEED, "step", "steps", restart);
 
 
 /* =====================================================================
@@ -634,25 +625,6 @@ byId("add-matrix").addEventListener("click", function () {
   matrices.push({ entries: ["1", "0", "0", "1"], weight: "" });
   buildMatrixRows();
   typedByHand();
-});
-
-byId("play").addEventListener("click", function () { setPlaying(!playing); });
-byId("step").addEventListener("click", function () {
-  setPlaying(false);
-  if (!cloud) return;
-  stepOnce();
-  wantedT = cloud.t;
-  draw();
-  showStats();
-});
-byId("restart").addEventListener("click", function () {
-  setPlaying(false);
-  wantedT = 0;
-  replay();
-});
-connectSpeedSlider("speed", SPEEDS, START_SPEED, function (newSpeed) {
-  speed = newSpeed;
-  byId("speed-label").textContent = speedText(speed, "step", "steps");
 });
 
 byId("set-tmax").addEventListener("change", function () { tMax = readWhole("set-tmax", 1, 5000, START_TMAX); });

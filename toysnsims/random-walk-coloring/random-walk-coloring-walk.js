@@ -55,14 +55,14 @@
    The whole thing is one function, walkWorker(). The sim page
    (random-walk-coloring.js) turns it into a "Web Worker": a second
    thread, so the page never freezes. The page and the worker talk by
-   sending each other messages (section 5).
+   sending each other messages (section 5), as every sim's do.
 
    The file is split into numbered sections, all inside walkWorker():
      1. The state of the walkers
      2. Claiming cells
      3. One step of each model
      4. The run so far, for the plots over time
-     5. Messages from the page, and the run loop
+     5. Messages from the page
    ===================================================================== */
 
 function walkWorker() {
@@ -93,7 +93,6 @@ function walkWorker() {
   let orderRandom = null;  // random numbers for the random orders
   let clockRandom = null;  // random numbers for the clocks
   let order = null;        // the walkers in a random order (section 2)
-  let run = 0;             // which run this is (the page numbers them)
 
   function setup(message) {
     n = message.n;
@@ -101,7 +100,6 @@ function walkWorker() {
     nbr = message.nbr;
     N = message.starts.length;
     model = message.model;
-    run = message.run;
     const seed = String(message.seed);
 
     walkerRandom = [];
@@ -187,7 +185,6 @@ function walkWorker() {
      unit of time, in which each walker moves once on average.
      =================================================================== */
   function oneStep() {
-    if (colored === n) return;            // finished
     moveOn();
     takeSample();
   }
@@ -236,47 +233,18 @@ function walkWorker() {
 
 
   /* ===================================================================
-     5. MESSAGES FROM THE PAGE, AND THE RUN LOOP
+     5. MESSAGES FROM THE PAGE
      -------------------------------------------------------------------
-     The page sends:
-       { type: "setup", run, n, first, nbr, starts, model, seed }   a new run
-       { type: "play", speed }    run "speed" steps per second
-                                  (Infinity = as fast as possible)
-       { type: "pause" }
-       { type: "step" }           one step
-     The worker answers with "state" messages: the colors, where the
-     walkers are, and the numbers for the Statistics box. Each one
-     carries its run number, so the page can ignore leftovers from an
-     older run. It stops by itself when every cell is colored. Play,
-     Pause and Speed are the run loop makeRunLoop (js/sim-worker.js).
+     The worker talks to the page the way every sim's worker does
+     (serveRun, js/sim-worker.js). Its setup is
+       { n, first, nbr, starts, model, seed }   a new run
+     It reports the colors, where the walkers are, and the numbers for
+     the Statistics box. The run is done (and pauses by itself) when
+     every cell is colored.
      =================================================================== */
-  const loop = makeRunLoop(oneStep, report, function () { return colored === n; });
-  let lastReported = -1;   // the time last sent to the page
-
-  self.onmessage = function (event) {
-    const message = event.data;
-    if (message.type === "setup") {
-      loop.pause();
-      setup(message);
-      report();
-    } else if (message.type === "play") {
-      loop.play(message.speed);
-    } else if (message.type === "pause") {
-      loop.pause();
-    } else if (message.type === "step") {
-      oneStep();
-      report();
-    }
-  };
-
-  // Send the colors, the walkers and the numbers to the page.
-  function report() {
-    if (time === lastReported && time > 0) return;   // nothing new to show
-    lastReported = time;
+  function report(send) {
     const colorCopy = color.slice(), positionCopy = position.slice();
-    self.postMessage({
-      type: "state",
-      run: run,
+    send({
       colors: colorCopy,
       positions: positionCopy,
       sizes: sizes.slice(),
@@ -290,6 +258,8 @@ function walkWorker() {
       traceInterface: Int32Array.from(trace.lists.interfaceEdges),
       traceSizes: Int32Array.from(trace.lists.sizes),
       traceRegions: Int32Array.from(trace.lists.regions),
-    }, [colorCopy.buffer, positionCopy.buffer]);   // hand the copies over instead of copying again
+    }, [colorCopy.buffer, positionCopy.buffer]);
   }
+
+  serveRun({ setup: setup, steps: oneStep, isDone: function () { return colored === n; }, report: report });
 }

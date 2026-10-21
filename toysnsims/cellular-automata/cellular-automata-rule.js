@@ -50,9 +50,9 @@
         browser.
      2. automatonWorker(): runs it in a second thread (a "Web Worker")
         for the sim page, cellular-automata.js, so the page never
-        freezes. startWorker (js/sim-page.js) starts it, with
-        newAutomaton, automatonStart, stateHash and the run loop and
-        trace (js/sim-worker.js) copied in.
+        freezes. runInWorker (js/sim-page.js) starts it, with
+        newAutomaton, automatonStart, stateHash and the trace
+        (js/sim-worker.js) copied in.
    ===================================================================== */
 
 
@@ -213,9 +213,10 @@ function stateHash(cells) {
 /* =====================================================================
    2. THE WORKER: RUNNING IT IN A SECOND THREAD
    ---------------------------------------------------------------------
-   The page sends:
-     { type: "setup", run, dim, width, height, rows, b, offsets, table,
-       edge, edgeState, start, drawn, seed, mode, toStep, look, links }
+   It talks to the page the way every sim's worker does (serveRun,
+   js/sim-worker.js). Its own messages:
+     setup  { dim, width, height, rows, b, offsets, table, edge,
+              edgeState, start, drawn, seed, mode, toStep, look, links }
                          a new run from the start. "links" are the
                          tape's or grid's cells as a domain, with 4
                          and with 8 neighbors ({ 4: ..., 8: ... }), for
@@ -228,17 +229,12 @@ function stateHash(cells) {
                          that step at once (a changed rule shows the
                          same moment of the run), for at most about a
                          second of work. "look" is as below.
-     { type: "look", last }    1D: show the rows up to step "last" (to
-                               scroll back through the run), or the
-                               newest ones as they come (last = null)
-     { type: "play", speed }   run "speed" steps per second
-                               (Infinity = as fast as possible)
-     { type: "pause" }
-     { type: "step" }          one step
-   The worker answers with "state" messages: the cells, in 1D the
-   picture (the tape over time), and the numbers for the Statistics box,
-   each with its run number, so the page can ignore leftovers
-   from an older run.
+     look   { last }     1D: show the rows up to step "last" (to scroll
+                         back through the run), or the newest ones as
+                         they come (last = null)
+   It reports the cells, in 1D the picture (the tape over time), and
+   the numbers for the Statistics box. In 1D fill mode the run is done
+   (and pauses by itself) once the picture is full.
    ===================================================================== */
 function automatonWorker() {
   // seedrandom adds Math.seedrandom(seed). The version number is fixed
@@ -250,7 +246,7 @@ function automatonWorker() {
   const MAX_HISTORY = 20000000;    // 1D: keep at most this many cells of old rows (the oldest go first)
 
   let m = null;               // the setup message
-  let auto = null, run = 0, time = 0;
+  let auto = null, time = 0;
   let history = [];           // 1D: every row so far (the tape at each step), from step "oldest" on
   let oldest = 0;
   let look = null;            // 1D: the last step to show, or null for the newest
@@ -258,7 +254,6 @@ function automatonWorker() {
   let repeat = null;          // { first, period } once the run comes back to an earlier state
   let trace = null;           // the run so far, for the charts over time (keepSample, js/sim-worker.js)
   let counts = null, interface4 = 0, interface8 = 0;
-  let lastReported = -1;
 
   // The statistics of the current tape or grid: the cells in each
   // state, and the interface: neighbor pairs in different states, side
@@ -342,13 +337,11 @@ function automatonWorker() {
 
   function setup(message) {
     m = message;
-    run = m.run;
     const cells = automatonStart(m.start, m.width, m.height, m.b, m.drawn, new Math.seedrandom(m.seed + " start"));
     auto = newAutomaton({ width: m.width, height: m.height, offsets: m.offsets, table: m.table, b: m.b,
                           edge: m.edge, edgeState: m.edgeState, cells: cells,
                           random: new Math.seedrandom(m.seed + " edges") });
     time = 0;
-    lastReported = -1;
     repeat = null;
     seen = new Map();
     trace = newTrace();
@@ -364,7 +357,6 @@ function automatonWorker() {
   }
 
   function oneStep() {
-    if (isDone()) return;
     auto.step();
     time++;
     keepRow();
@@ -373,25 +365,10 @@ function automatonWorker() {
     takeSample();
   }
 
-  // Play, Pause and Speed: the run loop (js/sim-worker.js). It stops by
-  // itself once the picture is full in fill mode.
-  const loop = makeRunLoop(oneStep, report, isDone);
-
-  self.onmessage = function (event) {
-    const message = event.data;
-    if (message.type === "setup") { loop.pause(); setup(message); report(); }
-    else if (message.type === "play") loop.play(message.speed);
-    else if (message.type === "pause") loop.pause();
-    else if (message.type === "step") { oneStep(); report(); }
-    else if (message.type === "look") { look = message.last; lastReported = -1; report(); }
-  };
-
-  function report() {
-    if (time === lastReported) return;   // nothing new to show
-    lastReported = time;
+  function report(send) {
     const shown = m.dim === 1 ? makePicture() : null;
-    self.postMessage({
-      type: "state", run: run, time: time, cells: auto.cells.slice(),
+    send({
+      time: time, cells: auto.cells.slice(),
       picture: shown && shown.picture, shownFirst: shown && shown.first, shownLast: shown && shown.last,
       oldest: oldest, done: isDone(),
       counts: counts.slice(), interface4: interface4, interface8: interface8,
@@ -402,4 +379,11 @@ function automatonWorker() {
       tracePieces4: Int32Array.from(trace.lists.pieces4), tracePieces8: Int32Array.from(trace.lists.pieces8),
     });
   }
+
+  serveRun({
+    setup: setup, steps: oneStep, isDone: isDone, report: report,
+    messages: {
+      look: function (message) { look = message.last; },
+    },
+  });
 }

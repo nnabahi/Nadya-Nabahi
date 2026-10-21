@@ -15,10 +15,11 @@
      8. Pointing at a tile
      8b. Click to add a tile
      9. Connecting the buttons
-   It uses the shared helpers in js/sim-page.js (byId, startWorker,
-   ...), the charts in js/sim-charts.js (logLogChart,
-   barChart), the old site's colors in js/sim-colors.js (defaultColor)
-   and the formula reading and sliders in js/formulas.js.
+   It uses the shared helpers in js/sim-page.js (byId, runInWorker,
+   connectPlay, ...), the run loop in js/sim-worker.js, the charts in
+   js/sim-charts.js (logLogChart, barChart), the old site's colors in
+   js/sim-colors.js (defaultColor) and the formula reading and sliders
+   in js/formulas.js.
    ===================================================================== */
 
 
@@ -56,11 +57,6 @@ const MAX_PICTURE_HEIGHT = 700;   // pixels
    2. THE STATE OF THE PAGE
    ===================================================================== */
 const simCanvas = byId("sim-canvas");
-let worker = null;
-let run = 0;                  // numbers each setup sent to the worker
-let setupBusy = false;        // a setup is being worked on by the worker
-let setupWaiting = false;     // another one is wanted after it
-let fresh = false;            // a new setup's tiles are coming in, but the old picture still shows
 let clicks = {};              // attempt n -> [x, y]: centers you clicked (section 8b)
 
 let sliders = {};             // letter -> { value, min, max, step }
@@ -83,9 +79,6 @@ let shown = 0;                // tiles drawn: tiles 0 .. shown-1
 let children = [];            // children[k] among the shown tiles
 let edgeChildren = 0;
 let coveredArea = 0, biggestGeneration = 0, biggestDegree = 0;
-
-let playing = false;
-let speed = START_SPEED;
 
 
 /* =====================================================================
@@ -201,98 +194,67 @@ function drawPreview() {
    4. TALKING TO THE WORKER
    ---------------------------------------------------------------------
    The worker is made from packingWorker() and packingCore() (both in
-   sequential-continuous-tiling-growth.js). A setup takes the worker a moment
-   (it traces the edge of S), so while one is being worked on, newer
-   changes wait, and only the latest is sent after it.
+   sequential-continuous-tiling-growth.js); runInWorker (js/sim-page.js)
+   runs it in a second thread. It works toward n attempts by itself and
+   reports the new tiles as they come.
 
-   To keep dragging a slider smooth, the old picture stays up while the
-   new tiles come in ("fresh"), and the new picture replaces it in one
-   go, once the worker has caught up with n (or after FRESH_WAIT
-   milliseconds, if n is so big that catching up takes a while). Only
-   then is the next waiting change sent. So the picture never flashes
-   empty and fills back in.
+   A setup takes the worker a moment (it traces the edge of S, then
+   works toward n for at most a quarter of a second before it reports),
+   so while one is being worked on, newer changes wait, and only the
+   latest is sent after it. Its first report replaces the old picture
+   in one go, so dragging a slider never flashes the picture empty and
+   fills it back in.
    ===================================================================== */
-function startTheWorker() {
-  try {
-    worker = startWorker(packingWorker, [packingCore]);
-  } catch (error) {
-    showMessage("The sim couldn't start a second thread in this browser.");
+const sim = runInWorker(packingWorker, [packingCore], function (message) {
+  if (message.problem) {
+    byId("formula-message").textContent = "Problem: " + message.problem;
     return;
   }
-  worker.onmessage = fromWorker;
-  worker.onerror = function () {
-    showMessage("The sim couldn't start. It loads two small libraries (math.js and seedrandom) " +
-                "from cdn.jsdelivr.net; check the internet connection and reload.");
-  };
-}
+  if (message.info) useShapes(message);     // a new run's first report
+  keepTiles(message);
+  if (message.info) drawAll(); else drawNew();
+  if (message.clicked) clickedBack(message.clicked);
+});
 
-const FRESH_WAIT = 250;
-
+// A new packing from the formulas, sliders, clicks and seed. Like a
+// restart, it pauses.
 function sendSetup() {
-  if (!worker || !formulas) return;
-  if (setupBusy) { setupWaiting = true; return; }
-  setupBusy = true;
-  run++;
+  if (!formulas) return;
+  player.setPlaying(false);
   const values = {};
   for (const letter in sliders) values[letter] = sliders[letter].value;
-  worker.postMessage({
-    type: "setup", run: run, S: formulas.S, T: formulas.T, f: formulas.f, values: values,
+  sim.setup({
+    S: formulas.S, T: formulas.T, f: formulas.f, values: values,
     seed: byId("seed").value, clicks: clicks, target: wanted,
   });
 }
 
-function fromWorker(event) {
-  const m = event.data;
-  if (m.run !== run) return;            // from an older setup
-  if (m.type === "error") {
-    byId("formula-message").textContent = "Problem: " + m.message;
-    fresh = false;
-    setupDone();
-  } else if (m.type === "ready") {
-    info = m.info;
-    // A new S: show all of it again (a new T or f keeps your view).
-    if (JSON.stringify(info.window) !== JSON.stringify(windowBox)) { windowBox = info.window; resetZoom(); }
-    segments = m.segments;
-    shapeX = m.shapeX; shapeY = m.shapeY;
-    shapeReach = Math.max(...shapeX.map(function (x, k) { return Math.hypot(x, shapeY[k]); }));
-    tileShape = new Path2D();
-    for (let k = 0; k < shapeX.length; k++) tileShape.lineTo(shapeX[k], shapeY[k]);
-    tileShape.closePath();
-    for (const key in tiles) tiles[key] = key === "count" ? 0 : [];
-    computed = 0;
-    ceilingMisses = 0;
-    byId("formula-message").textContent = info.exactTiles ? "" :
-      "T is not convex and symmetric, so each tile takes longer to place (the result is still exact).";
-    if (info.negativeF) byId("formula-message").textContent += " f is negative somewhere; it counts as 0 there.";
-    drawPreview();
-    fresh = true;                       // keep the old picture until the new one catches up
-    const thisRun = run;
-    setTimeout(function () { if (fresh && run === thisRun) showFresh(); }, FRESH_WAIT);
-  } else if (m.type === "clicked") {
-    clickedBack(m);
-  } else if (m.type === "tiles") {
-    for (const key of ["cx", "cy", "r", "parent", "generation", "attempt"]) {
-      for (const v of m[key]) tiles[key].push(v);
-    }
-    tiles.count = tiles.r.length;
-    computed = m.attempts;
-    ceilingMisses = m.ceilingMisses;
-    if (!fresh) drawNew();
-    else if (computed >= wanted) showFresh();
+// A new run's S and T: their facts, the edge of S and T's polygon. A
+// new S shows all of it again (a new T or f keeps your view).
+function useShapes(m) {
+  info = m.info;
+  if (JSON.stringify(info.window) !== JSON.stringify(windowBox)) { windowBox = info.window; resetZoom(); }
+  segments = m.segments;
+  shapeX = m.shapeX; shapeY = m.shapeY;
+  shapeReach = Math.max(...shapeX.map(function (x, k) { return Math.hypot(x, shapeY[k]); }));
+  tileShape = new Path2D();
+  for (let k = 0; k < shapeX.length; k++) tileShape.lineTo(shapeX[k], shapeY[k]);
+  tileShape.closePath();
+  for (const key in tiles) tiles[key] = key === "count" ? 0 : [];
+  byId("formula-message").textContent = info.exactTiles ? "" :
+    "T is not convex and symmetric, so each tile takes longer to place (the result is still exact).";
+  if (info.negativeF) byId("formula-message").textContent += " f is negative somewhere; it counts as 0 there.";
+  drawPreview();
+}
+
+// The tiles placed since the last report, and how many attempts are done.
+function keepTiles(m) {
+  for (const key of ["cx", "cy", "r", "parent", "generation", "attempt"]) {
+    for (const v of m[key]) tiles[key].push(v);
   }
-}
-
-// Swap in the new picture, all at once.
-function showFresh() {
-  fresh = false;
-  drawAll();
-  setupDone();
-}
-
-// The worker has finished a setup: send the latest waiting change, if any.
-function setupDone() {
-  setupBusy = false;
-  if (setupWaiting) { setupWaiting = false; sendSetup(); }
+  tiles.count = tiles.r.length;
+  computed = m.attempts;
+  ceilingMisses = m.ceilingMisses;
 }
 
 
@@ -303,38 +265,44 @@ function setupDone() {
    The worker works until it has done that many; the picture shows the
    tiles of the attempts done so far. Lowering n just hides the last
    tiles (they are kept, so raising n again is instant).
+   Play raises n by one attempt at a time, at the Speed slider's speed,
+   on the run loop every sim uses (makeRunLoop, js/sim-worker.js), and
+   Step by one attempt. Play stays at most two seconds ahead of the
+   worker, so the picture keeps up, and Pause stops it.
    ===================================================================== */
 function setWanted(n) {
   n = Math.max(0, Math.min(MOST_ATTEMPTS, Math.round(n)));
   const lower = n < wanted;
   wanted = n;
-  byId("set-attempts").value = n;
-  byId("attempts-slider").value = n > 0 ? Math.log10(n) : 0;
-  if (worker && n > computed) worker.postMessage({ type: "target", target: n });
+  showWanted(lower);
+}
+
+// Show n in its box and slider, ask the worker for that many attempts,
+// and draw (all again if n went down: "lower").
+function showWanted(lower) {
+  byId("set-attempts").value = wanted;
+  byId("attempts-slider").value = wanted > 0 ? Math.log10(wanted) : 0;
+  if (wanted > computed) sim.send({ type: "target", target: wanted });
   if (lower) drawAll(); else drawNew();
 }
 
-// Play adds attempts at the chosen speed, once per screen refresh.
-let lastFrame = 0, owed = 0;
-function playFrame(time) {
-  if (!playing) return;
-  if (lastFrame > 0) {
-    owed += speed * Math.min(0.1, (time - lastFrame) / 1000);
-    const whole = Math.floor(owed);
-    owed -= whole;
-    // Don't run far ahead of the worker: the picture can only show what it has done.
-    if (whole > 0 && wanted - computed < 2 * speed) setWanted(wanted + whole);
-  }
-  lastFrame = time;
-  if (wanted >= MOST_ATTEMPTS) setPlaying(false); else requestAnimationFrame(playFrame);
+function oneMoreAttempt() {
+  if (attempts.playing && wanted - computed >= 2 * attempts.speeds[0]) return false;   // wait for the worker
+  wanted++;
+}
+const attempts = makeRunLoop(oneMoreAttempt, function () { showWanted(false); },
+                             function () { return wanted >= MOST_ATTEMPTS; });
+
+// Restart: back to no attempts, paused, forgetting the clicked tiles.
+function restart() {
+  player.setPlaying(false);
+  setWanted(0);
+  if (Object.keys(clicks).length > 0) { clicks = {}; sendSetup(); }
 }
 
-function setPlaying(on) {
-  playing = on;
-  showPlaying(on);   // js/sim-page.js
-  lastFrame = 0; owed = 0;
-  if (on) requestAnimationFrame(playFrame);
-}
+// Play / Pause, Step, Restart and the Speed slider (connectPlay,
+// js/sim-page.js).
+const player = connectPlay(attempts, SPEEDS, START_SPEED, "attempt", "attempts", restart);
 
 
 /* =====================================================================
@@ -403,7 +371,6 @@ function drawTile(k) {
 
 // Start again from an empty picture, and draw every tile that is shown.
 function drawAll() {
-  if (fresh) return;                  // the old picture stays until the new one is ready
   sizeCanvas();
   pen.setTransform(1, 0, 0, 1, 0, 0);
   pen.clearRect(0, 0, simCanvas.width, simCanvas.height);
@@ -424,7 +391,6 @@ function drawAll() {
 
 // Draw the tiles placed since the last drawing, up to attempt "wanted".
 function drawNew() {
-  if (fresh) return;
   if (!tileShape || !pen) return showStatsSoon();
   const degreeColors = byId("color-by").value === "degree";
   while (shown < tiles.count && tiles.attempt[shown] <= wanted) {
@@ -647,7 +613,7 @@ function tileAt(x, y) {
 }
 
 simCanvas.addEventListener("mousemove", function (event) {
-  if (!tileShape || fresh) return;
+  if (!tileShape) return;
   const spot = canvasSpot(event);
   const k = tileAt(pointX(spot.x), pointY(spot.y));
   if (k < 0) { byId("hover-info").textContent = HOVER_HINT; return; }
@@ -675,17 +641,16 @@ const NO_ROOM = "No room for a tile there: that point is inside a tile or outsid
 
 // "redo" is true to skip the quick way (see clickedBack).
 function clickAt(x, y, redo) {
-  if (!worker || fresh || !info) return;
+  if (!info) return;
   if (tileAt(x, y) >= 0) { byId("hover-info").textContent = NO_ROOM; return; }
   if (computed === wanted && !redo) {
     // The usual case: the worker is exactly at attempt n, so it just
     // tries the point as attempt n + 1 (and answers in clickedBack).
-    worker.postMessage({ type: "click", x: x, y: y, at: wanted });
+    sim.send({ type: "click", x: x, y: y, at: wanted });
   } else {
     // n was lowered (or the worker is still catching up): the point
     // becomes attempt n + 1, and the packing is redone from the start.
     clicks[wanted + 1] = [x, y];
-    setPlaying(false);
     setWanted(wanted + 1);
     sendSetup();
   }
@@ -720,17 +685,6 @@ byId("attempts-slider").addEventListener("input", function () {
   const v = Number(byId("attempts-slider").value);
   setWanted(v === 0 ? 0 : Math.pow(10, v));
 });
-byId("play").addEventListener("click", function () { setPlaying(!playing); });
-byId("step").addEventListener("click", function () { setPlaying(false); setWanted(Math.min(wanted, computed) + 1); });
-byId("restart").addEventListener("click", function () {
-  setPlaying(false);
-  setWanted(0);
-  if (Object.keys(clicks).length > 0) { clicks = {}; sendSetup(); }
-});
-connectSpeedSlider("speed", SPEEDS, START_SPEED, function (newSpeed) {
-  speed = newSpeed;
-  byId("speed-label").textContent = speedText(speed, "attempt", "attempts");
-});
 connectSeed(function () { clicks = {}; sendSetup(); });   // js/sim-page.js
 byId("color-by").addEventListener("change", drawAll);
 
@@ -738,5 +692,4 @@ byId("color-by").addEventListener("change", drawAll);
 byId("seed").value = "1";
 byId("preset").value = "gasket";
 setWanted(0);
-startTheWorker();
 usePreset("gasket");

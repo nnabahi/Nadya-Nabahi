@@ -79,8 +79,6 @@ let domain = null;              // the domain (js/sim-domains.js)
 let customDomain = null;        // the last custom domain drawn, if any
 let tiles = [];                 // the tiles: [{ w, h, weight }, ...]
 
-let run = 0;                    // counts restarts, so leftovers from an older run are ignored
-
 let placements = null;          // the chain's list of tile positions (section 1 of the chain)
 let latest = null;              // the latest packing and numbers from the chain
 let trace = null;               // the run so far, for the charts: { moves: [], shares: [], clusters: {...} } (section 7)
@@ -96,52 +94,40 @@ function showingAverage() { return checked("show") === "average"; }
    3. RUNNING THE CHAIN
    ---------------------------------------------------------------------
    The chain is the function tilePacking() in uniform-discrete-tiling-chain.js,
-   with the run loop (js/sim-worker.js) and cellAt, wrap, cellCorners
-   and pointInCell (js/sim-domains.js) copied in. startWorker (js/sim-page.js) runs it
-   in a second thread, a "Web Worker", so the page never freezes.
+   with cellAt, wrap, cellCorners and pointInCell (js/sim-domains.js)
+   copied in. runInWorker (js/sim-page.js) runs it in a second thread, a
+   "Web Worker", so the page never freezes, and hands each report to
+   the function below.
    ===================================================================== */
-const worker = startWorker(tilePacking, [makeRunLoop, wrap, cellAt, cellCorners, pointInCell]);
-
-worker.onmessage = function (event) {
-  const message = event.data;
-  if (message.run !== run) return;   // from an older run
-  if (message.type === "ready") {
+const sim = runInWorker(tilePacking, [wrap, cellAt, cellCorners, pointInCell], function (message) {
+  if (message.placements) {    // a new run's first report
     placements = message.placements;
     showMessage(message.error);
-  } else if (message.type === "state") {
-    latest = message;
-    addToTrace(message);
-    drawSoon();
   }
-};
+  latest = message;
+  addToTrace(message);
+  drawSoon();
+});
 
-worker.onerror = function () {
-  showMessage("The chain couldn't start. It loads one small library (seedrandom) from the " +
-              "internet, so check the connection and reload the page.");
-};
-
-// Start again: a new starting packing, with the current domain, tiles,
-// options and seed.
+// Start again, paused: a new starting packing, with the current domain,
+// tiles, options and seed.
 function restart() {
-  run++;
   latest = null;
   placements = null;
   trace = newTilingTrace();
   showMessage("");
-  worker.postMessage({
-    type: "setup", run: run, domain: domain, tiles: tiles,
+  sim.setup({
+    domain: domain, tiles: tiles,
     rotations: byId("rotations").checked, gaps: byId("gaps").checked,
     meanRadius: readRadius(), sizeLimit: readWhole("set-limit", 1, 1e9, DEFAULTS.limit),
-    workLimit: WORK_LIMIT, seed: byId("seed").value,
+    workLimit: WORK_LIMIT, seed: byId("seed").value, heat: showingAverage(),
   });
-  worker.postMessage({ type: "heat", on: showingAverage() });
-  player.carryOn();
 }
 
 // The mean radius and the refill limit change how fast the chain mixes,
 // not where it ends up, so they are sent without restarting.
 function sendMoveSettings() {
-  worker.postMessage({
+  sim.send({
     type: "settings", meanRadius: readRadius(),
     sizeLimit: readWhole("set-limit", 1, 1e9, DEFAULTS.limit),
   });
@@ -151,7 +137,7 @@ function sendMoveSettings() {
 // Desmos slider. (A weight going to or from 0 changes which tiles are
 // used, so then it restarts instead: see section 9.)
 function sendWeights() {
-  worker.postMessage({ type: "weights", weights: tiles.map(function (t) { return t.weight; }) });
+  sim.send({ type: "weights", weights: tiles.map(function (t) { return t.weight; }) });
 }
 
 function readRadius() {
@@ -164,7 +150,7 @@ function readRadius() {
 
 // Play / Pause, Step, Restart and the Speed slider (connectPlay,
 // js/sim-page.js). player.playing is true while the sim plays.
-const player = connectPlay(worker, SPEEDS, DEFAULT_SPEED, "move", "moves", restart);
+const player = connectPlay(sim, SPEEDS, DEFAULT_SPEED, "move", "moves", restart);
 
 
 /* =====================================================================
@@ -367,7 +353,7 @@ connectPicture(view, null, null, function (event) {
   }
   if (v < 0) return;
   const middle = cellMiddle(domain, v);   // (js/sim-domains.js)
-  worker.postMessage({ type: "click", x: middle[0], y: middle[1] });
+  sim.send({ type: "click", x: middle[0], y: middle[1] });
 });
 
 
@@ -719,11 +705,11 @@ byId("color-by").addEventListener("change", drawSoon);
 for (const radio of document.querySelectorAll('input[name="click"]')) radio.addEventListener("change", drawSoon);
 for (const radio of document.querySelectorAll('input[name="show"]')) {
   radio.addEventListener("change", function () {
-    worker.postMessage({ type: "heat", on: showingAverage() });
+    sim.send({ type: "heat", on: showingAverage() });
     drawSoon();
   });
 }
-byId("reset-average").addEventListener("click", function () { worker.postMessage({ type: "resetHeat" }); });
+byId("reset-average").addEventListener("click", function () { sim.send({ type: "resetHeat" }); });
 
 
 // Seed: the same seed gives the same run every time.
@@ -742,4 +728,3 @@ byId("seed").value = DEFAULTS.seed;
 showGapsInfo();
 usePreset(DEFAULT_PRESET);
 useBox();
-player.setPlaying(false);   // paused: press Play

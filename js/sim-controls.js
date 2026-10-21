@@ -272,8 +272,6 @@ function readTiling() {
 //   tool.isOpen                 is it open?
 //   tool.drawing                the latest drawing (null until it comes)
 //   tool.check()                check the drawing again
-//   tool.carryOn()              play again, if it was playing when the
-//                               tool opened
 //   tool.frame                  the <iframe>
 function makeCustomTool(page) {
   const frame = byId("tool-frame");
@@ -309,8 +307,6 @@ function makeCustomTool(page) {
     showToolStatus(problem, good, page.buttons);
   };
 
-  tool.carryOn = function () { if (wasPlaying) page.setPlaying(true); };
-
   listenToTool(frame, function (drawing) { tool.drawing = drawing; tool.check(); });
 
   byId("tool-done").addEventListener("click", function () {
@@ -321,7 +317,7 @@ function makeCustomTool(page) {
     button.addEventListener("click", function () {
       tool.close();
       page.cancel();
-      tool.carryOn();
+      if (wasPlaying) page.setPlaying(true);
     });
   }
   return tool;

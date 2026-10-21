@@ -5,7 +5,7 @@
    Shared by Eden Growth (the shape and holes of its base) and Random
    Walk (the hull and holes of the cells the walker has visited), and
    by their check pages. A sim's second thread (a "Web Worker") can't
-   see the page's scripts, so a sim hands these functions to startWorker
+   see the page's scripts, so a sim hands these functions to runInWorker
    (js/sim-page.js) in its list of helpers, which copies them in. That
    is also why each one keeps everything it needs inside it.
 

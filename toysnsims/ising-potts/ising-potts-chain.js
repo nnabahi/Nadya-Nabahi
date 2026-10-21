@@ -53,9 +53,9 @@
         the browser.
      2. pottsWorker(): runs a chain in a second thread (a "Web Worker")
         for the sim page, ising-potts.js, so the page never freezes.
-        startWorker (js/sim-page.js) starts it, with newPotts,
-        pottsStart, the run loop and trace (js/sim-worker.js) and the
-        domain counting (countPieces, js/sim-domains.js) copied in.
+        runInWorker (js/sim-page.js) starts it, with newPotts,
+        pottsStart, the trace (js/sim-worker.js) and the domain
+        counting (countPieces, js/sim-domains.js) copied in.
      3. The critical points beta_c known exactly: on the square grid,
         the triangular lattice, the honeycomb and (for q = 2) the
         kagome lattice. The check page tests them too.
@@ -197,27 +197,22 @@ function pottsStart(n, q, kind, random) {
 /* =====================================================================
    2. THE WORKER: RUNNING A CHAIN IN A SECOND THREAD
    ---------------------------------------------------------------------
-   The page sends:
-     { type: "setup", run, n, first, nbr, q, beta, h, dynamics, start, seed }
-                                       a new run from the start
-     { type: "params", beta, h, dynamics }   new settings; the run carries on
-     { type: "play", speed }           run "speed" sweeps per second
-                                       (Infinity = as fast as possible)
-     { type: "pause" }
-     { type: "step" }                  one sweep
-   The worker answers with "state" messages: the colors and the
-   numbers for the Statistics box, each with its run number, so
-   the page can ignore leftovers from an older run.
+   It talks to the page the way every sim's worker does (serveRun,
+   js/sim-worker.js). Its own messages:
+     setup    { n, first, nbr, q, beta, h, dynamics, start, seed }
+              a new run from the start
+     params   { beta, h, dynamics }   new settings; the run carries on
+   One step is one sweep. It reports the colors and the numbers for
+   the Statistics box.
    ===================================================================== */
 function pottsWorker() {
   // seedrandom adds Math.seedrandom(seed). The version number is fixed
   // so an update can never change the sim by surprise.
   importScripts("https://cdn.jsdelivr.net/npm/seedrandom@3.0.5/seedrandom.min.js");
 
-  let chain = null, dynamics = "heat", run = 0, time = 0;
+  let chain = null, dynamics = "heat", time = 0;
   let graph = null;          // the domain's cells and neighbors, for counting its domains
   let trace = null;          // the run so far, for the charts over time (keepSample, js/sim-worker.js)
-  let lastReported = -1;     // the time of the last state sent to the page
 
   // A sample for the charts. The domains (connected pieces of one
   // color) of each color are counted only when a sample is due
@@ -230,7 +225,6 @@ function pottsWorker() {
   }
 
   function setup(m) {
-    run = m.run;
     dynamics = m.dynamics;
     graph = { n: m.n, first: m.first, nbr: m.nbr };
     // The start has its own random numbers, so changing the dynamics
@@ -239,7 +233,6 @@ function pottsWorker() {
     chain = newPotts({ n: m.n, first: m.first, nbr: m.nbr, q: m.q, beta: m.beta, h: m.h,
                        colors: colors, random: new Math.seedrandom(m.seed + " chain") });
     time = 0;
-    lastReported = -1;
     trace = newTrace();
     takeSample();
   }
@@ -250,29 +243,21 @@ function pottsWorker() {
     takeSample();
   }
 
-  // Play, Pause and Speed: the run loop (js/sim-worker.js).
-  const loop = makeRunLoop(oneSweep, report);
-
-  self.onmessage = function (event) {
-    const m = event.data;
-    if (m.type === "setup") { loop.pause(); setup(m); report(); }
-    else if (m.type === "params") { chain.beta = m.beta; chain.h = m.h; dynamics = m.dynamics; }
-    else if (m.type === "play") loop.play(m.speed);
-    else if (m.type === "pause") loop.pause();
-    else if (m.type === "step") { oneSweep(); report(); }
-  };
-
-  function report() {
-    if (time === lastReported) return;   // nothing new to show
-    lastReported = time;
+  function report(send) {
     const colors = chain.colors.slice();
-    self.postMessage({
-      type: "state", run: run, time: time, colors: colors,
-      counts: chain.counts.slice(), agree: chain.agree, pairs: chain.pairs,
+    send({
+      time: time, colors: colors, counts: chain.counts.slice(), agree: chain.agree, pairs: chain.pairs,
       traceTimes: Float64Array.from(trace.times), traceAgree: Float64Array.from(trace.lists.agree),
       traceCounts: Int32Array.from(trace.lists.counts), tracePieces: Int32Array.from(trace.lists.pieces),
-    }, [colors.buffer]);   // hand the copy over instead of copying again
+    }, [colors.buffer]);
   }
+
+  serveRun({
+    setup: setup, steps: oneSweep, report: report,
+    messages: {
+      params: function (m) { chain.beta = m.beta; chain.h = m.h; dynamics = m.dynamics; },
+    },
+  });
 }
 
 

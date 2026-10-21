@@ -10,13 +10,15 @@
      showMessage(text)                a line of text under the picture
      readWhole(id, lo, hi, fallback)  a whole number typed in a box
      startWorker(fn, helpers)         run a function in a second thread
+     runInWorker(fn, helpers, show)   a sim's second thread, with its runs
      keepAlong(kept, more, at)        add numbers a second thread sent to a list
      oncePerFrame(draw)               draw at the next screen refresh
+     notTooOften(gap, busy, draw)     draw at most every "gap" ms while busy
      showPlaying(on)                  the Play button, while it plays
      speedText(speed, one, many)      "5 moves per second", for the Speed slider
      addRangeBoxes(slider, lo, hi, ...)  "min" and "max" boxes at a slider's ends
      connectSpeedSlider(id, speeds, ...) a Speed slider with those boxes
-     connectPlay(worker, ...)         Play / Pause, Step, Restart and Speed
+     connectPlay(runner, ...)         Play / Pause, Step, Restart and Speed
      connectSeed(onChange)            the Seed box and its New seed button
      listenToTool(frame, useDrawing)  the drawing tool inside a sim page,
      showToolStatus(problem, good, buttons)   and the line that checks its drawing
@@ -120,6 +122,19 @@ function oncePerFrame(draw) {
   };
 }
 
+// A function that draws, but while busy() is true at most once every
+// "gap" milliseconds (for charts that take a while to draw, while the
+// sim plays), and every time when it isn't.
+function notTooOften(gap, busy, draw) {
+  let last = -Infinity;
+  return function () {
+    const now = performance.now();
+    if (busy() && now - last < gap) return;
+    last = now;
+    draw();
+  };
+}
+
 // The Play button (id="play") says "Pause" and looks pressed while the
 // sim plays.
 function showPlaying(on) {
@@ -202,42 +217,116 @@ function connectSpeedSlider(id, speeds, startSpeed, onChange) {
   read();
 }
 
-// Play / Pause, Step, Restart and the Speed slider, for a sim whose math
-// runs in a second thread on the shared run loop (makeRunLoop,
-// js/sim-worker.js), which understands "play", "pause" and "step".
+// A sim's second thread, as the page sees it. The worker is made from
+// "fn" and "helpers" as in startWorker; its run loop and its messages
+// are serveRun's (js/sim-worker.js), which is added to the helpers
+// here, with makeRunLoop. show(message) gets each report of the
+// current run, to draw it. Returns "sim":
+//   sim.setup(settings)   a new run from the start, with these settings
+//                         (named values for the worker's setup); a new
+//                         run starts paused
+//   sim.send(message)     one of the sim's own messages (new settings
+//                         that don't restart, a click, ...)
+//   sim.play(speed), sim.pause(), sim.step(), sim.stopped
+//                         for connectPlay, which sets sim.stopped
+// A burst of setups (from a slider being dragged) never piles up: while
+// the worker works on one, only the newest of the later ones waits, and
+// the messages sent after it wait behind it. (A newer setup replaces
+// them too: they were for a run that never starts, and every setup
+// carries all the page's settings.)
+function runInWorker(fn, helpers, show) {
+  const worker = startWorker(fn, [makeRunLoop, serveRun].concat(helpers || []));
+  const sim = { run: 0 };    // counts setups, so leftovers of an older run are skipped
+  let playId = 0;            // counts presses of Play and Pause (see serveRun)
+  let working = 0;           // the run whose setup the worker is working on (0: none)
+  let waiting = [];          // the newest setup not sent yet, and the messages after it
+
+  function post(message) {
+    if (waiting.length) waiting.push(message); else worker.postMessage(message);
+  }
+  function sendWaiting() {
+    if (!waiting.length || working) return;
+    working = waiting[0].run;
+    for (const message of waiting) worker.postMessage(message);
+    waiting = [];
+  }
+
+  sim.setup = function (settings) {
+    sim.run++;
+    waiting = [Object.assign({ type: "setup", run: sim.run }, settings)];
+    sendWaiting();
+    if (sim.stopped) sim.stopped();    // (serveRun pauses it)
+  };
+  sim.send = post;
+  sim.play = function (speed) { post({ type: "play", speed: speed, id: ++playId }); };
+  sim.pause = function () { post({ type: "pause", id: ++playId }); };
+  sim.step = function () { post({ type: "step" }); };
+
+  worker.onmessage = function (event) {
+    const message = event.data;
+    if (message.run === working) { working = 0; sendWaiting(); }
+    if (message.run !== sim.run) return;                        // from an older run
+    if (!message.playing && message.playId === playId && sim.stopped) sim.stopped();   // it paused by itself
+    show(message);
+  };
+  worker.onerror = function () {
+    working = 0;
+    showMessage("The sim couldn't start. It loads small libraries from the internet (cdn.jsdelivr.net), " +
+                "so check the connection and reload the page.");
+  };
+  return sim;
+}
+
+// Play / Pause, Step, Restart and the Speed slider, for a sim's run loop
+// (makeRunLoop, js/sim-worker.js), wherever it runs: "runner" is a sim
+// running in a second thread (runInWorker), or the loop itself, for a
+// sim that runs on the page.
 //   speeds      the Speed slider's slowest and fastest speeds, per
 //               second, ending in Infinity for "as fast as possible"
 //               (connectSpeedSlider); startSpeed is where it starts
 //   one, many   what one step is called, e.g. "sweep" and "sweeps"
-//   restart()   what the Restart button does
-// Returns "player": player.playing is true while the sim plays,
-// player.setPlaying(on) plays or pauses, and player.carryOn() tells a
-// freshly restarted run to play if the sim was playing.
-// (Sandpiles and percolation run differently and have their own.)
-function connectPlay(worker, speeds, startSpeed, one, many, restart) {
+//   restart()   starts the run again from the start, paused (in a
+//               second thread, sim.setup pauses it; on the page,
+//               restart() pauses it itself)
+// Returns "player":
+//   player.playing           true while the sim plays
+//   player.setPlaying(on)    play or pause
+//   player.setUnits(one, many)   new names for a step
+// Step pauses, then makes one step. When the run pauses by itself (it
+// can't go on), the Play button shows it.
+function connectPlay(runner, speeds, startSpeed, one, many, restart) {
   const player = { playing: false };
   let speed = startSpeed;
-  function sendPlay() { worker.postMessage({ type: "play", speed: speed }); }
+
+  function showPlay(on) {
+    player.playing = on;
+    showPlaying(on);
+  }
+  function showSpeed() { byId("speed-label").textContent = speedText(speed, one, many); }
 
   player.setPlaying = function (on) {
-    player.playing = on;
-    if (on) sendPlay(); else worker.postMessage({ type: "pause" });
-    showPlaying(on);
+    showPlay(on);
+    if (on) runner.play(speed); else runner.pause();
   };
-  player.carryOn = function () { if (player.playing) sendPlay(); };
+  player.setUnits = function (newOne, newMany) {
+    one = newOne;
+    many = newMany;
+    showSpeed();
+  };
+  runner.stopped = function () { showPlay(false); };
 
   byId("play").addEventListener("click", function () { player.setPlaying(!player.playing); });
   byId("step").addEventListener("click", function () {
     if (player.playing) player.setPlaying(false);
-    worker.postMessage({ type: "step" });
+    runner.step();
   });
   byId("restart").addEventListener("click", function () { restart(); });
-
   connectSpeedSlider("speed", speeds, startSpeed, function (newSpeed) {
     speed = newSpeed;
-    byId("speed-label").textContent = speedText(speed, one, many);
-    if (player.playing) sendPlay();
+    showSpeed();
+    if (player.playing) runner.play(speed);
   });
+  showPlay(false);    // every sim starts paused
   return player;
 }
 

@@ -116,10 +116,10 @@
 
    HOW IT RUNS
    Everything is inside one function, tilePacking(). The sim page turns
-   it into a "Web Worker" (a second thread, see startWorker in
-   js/sim-page.js), with makeRunLoop (js/sim-worker.js) and cellAt,
-   wrap, cellCorners and pointInCell (js/sim-domains.js) copied in, where it answers messages from
-   the page (section 6). The check page (uniform-discrete-tiling-check.html) calls
+   it into a "Web Worker" (a second thread, see runInWorker in
+   js/sim-page.js), with cellAt, wrap, cellCorners and pointInCell
+   (js/sim-domains.js) copied in, where it answers messages from the
+   page (section 6). The check page (uniform-discrete-tiling-check.html) calls
    tilePacking() directly and uses the functions it hands back.
    The one library used is seedrandom
    (https://github.com/davidbau/seedrandom), for random numbers that
@@ -1054,58 +1054,51 @@ function tilePacking() {
   };
   if (!inWorker) return api;
 
-  const loop = makeRunLoop(oneMove, report);   // Play, Pause and Speed (js/sim-worker.js)
-  let run = 0;               // which run this is (the page numbers them)
   let sendHeat = false;      // does the page want the heat map?
+  let error = "";            // the setup's message ("" if all is well)
+  let newRun = false;        // has the page still to get this run's placements?
 
-  // The messages the page sends:
-  //   setup      start a new run (all of setup()'s settings, plus "run")
-  //   play       run at "speed" moves per second (Infinity: flat out)
-  //   pause, step
+  // It talks to the page the way every sim's worker does (serveRun,
+  // js/sim-worker.js), one step being one move. Its own messages:
+  //   setup      start a new run (all of setup()'s settings, and heat:
+  //              whether to send the heat map)
   //   click      one move with the disk centered at the clicked cell { x, y }
   //   settings   a new meanRadius and sizeLimit, without restarting (they
   //              change how fast the chain mixes, not where it ends up)
+  //   weights    new weights, without restarting
   //   heat       on: true or false, whether to send the heat map
   //   resetHeat  start the heat map's averages again
-  self.onmessage = function (event) {
-    const message = event.data;
-    if (message.type === "setup") {
-      loop.pause();
-      run = message.run;
-      const error = setup(message);
-      self.postMessage({ type: "ready", run: run, error: error, placements: api.placements() });
-      report();
-    } else if (message.type === "play") {
-      loop.play(message.speed);
-    } else if (message.type === "pause") {
-      loop.pause();
-    } else if (message.type === "step") {
-      oneMove();
-      report();
-    } else if (message.type === "click") {
-      oneMove({ x: message.x, y: message.y });
-      report();
-    } else if (message.type === "settings") {
-      meanRadius = message.meanRadius;
-      sizeLimit = message.sizeLimit;
-    } else if (message.type === "weights") {
-      setWeights(message.weights);
-    } else if (message.type === "heat") {
-      sendHeat = message.on;
-      report();
-    } else if (message.type === "resetHeat") {
-      resetHeat();
-      report();
-    }
-  };
+  serveRun({
+    setup: function (message) {
+      sendHeat = message.heat;
+      error = setup(message);
+      newRun = true;
+    },
+    steps: oneMove, report: report,
+    messages: {
+      click: function (message) { oneMove({ x: message.x, y: message.y }); },
+      settings: function (message) {
+        meanRadius = message.meanRadius;
+        sizeLimit = message.sizeLimit;
+      },
+      weights: function (message) { setWeights(message.weights); },
+      heat: function (message) { sendHeat = message.on; },
+      resetHeat: resetHeat,
+    },
+  });
 
-  // Send the packing (who covers each cell) and the numbers to the page.
-  function report() {
-    if (!owner) return;
+  // Send the packing (who covers each cell) and the numbers to the page,
+  // and in a run's first report its placements and the setup's message.
+  function report(send) {
     const copy = owner.slice();
-    const message = { type: "state", run: run, owner: copy, stats: stats() };
+    const message = { owner: copy, stats: stats() };
     const handOver = [copy.buffer];   // handed over instead of copied again
+    if (newRun) {
+      message.placements = api.placements();
+      message.error = error;
+      newRun = false;
+    }
     if (sendHeat) { message.heat = heat(); handOver.push(message.heat.buffer); }
-    self.postMessage(message, handOver);
+    send(message, handOver);
   }
 }

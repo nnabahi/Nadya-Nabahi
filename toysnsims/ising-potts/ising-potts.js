@@ -74,7 +74,6 @@ let h = DEFAULTS.h;            // the field (pushes cells toward color 1)
 let colorNames = [];           // colorNames[k] = how color k is drawn, e.g. "#f2735a"
 let colorRGB = [];             // the same as [red, green, blue], 0 .. 255
 
-let run = 0;                   // counts restarts, so leftovers from an older run are ignored
 let latest = null;             // the latest message from the chain (section 2 of ising-potts-chain.js)
 const highlight = newHighlight();   // the clicked cell, whose domain is highlighted (js/sim-highlight.js)
 
@@ -83,47 +82,32 @@ const highlight = newHighlight();   // the clicked cell, whose domain is highlig
    3. RUNNING THE CHAIN
    ---------------------------------------------------------------------
    The chain is pottsWorker() in ising-potts-chain.js, with newPotts,
-   pottsStart, the run loop and the trace (js/sim-worker.js), and
-   countPieces with the search behind it (js/sim-domains.js) copied
-   in. startWorker (js/sim-page.js) runs it in a second thread, so the
-   page never freezes.
+   pottsStart, the trace (js/sim-worker.js), and countPieces with the
+   search behind it (js/sim-domains.js) copied in. runInWorker
+   (js/sim-page.js) runs it in a second thread, so the page never
+   freezes.
    ===================================================================== */
-const worker = startWorker(pottsWorker, [newPotts, pottsStart, makeRunLoop, newTrace, keepSample,
-                                         countPieces, findRegions, spreadRegion]);
+const sim = runInWorker(pottsWorker, [newPotts, pottsStart, newTrace, keepSample, countPieces, findRegions, spreadRegion],
+                        function (message) { latest = message; drawSoon(); });
 
-worker.onmessage = function (event) {
-  const message = event.data;
-  if (message.type !== "state" || message.run !== run) return;   // from an older run
-  latest = message;
-  drawSoon();
-};
-
-worker.onerror = function () {
-  showMessage("The chain couldn't start. It loads one small library (seedrandom) from the " +
-              "internet, so check the connection and reload the page.");
-};
-
-// Start again from the start, with the current settings and seed.
+// A new run from the start (paused), with the current settings and seed.
 function restart() {
-  run++;
   latest = null;
   showMessage("");
-  worker.postMessage({
-    type: "setup", run: run, n: domain.n, first: domain.first, nbr: domain.nbr,
-    q: q, beta: beta, h: h, dynamics: checked("dynamics"), start: byId("start").value,
-    seed: byId("seed").value,
+  sim.setup({
+    n: domain.n, first: domain.first, nbr: domain.nbr, q: q, beta: beta, h: h,
+    dynamics: checked("dynamics"), start: byId("start").value, seed: byId("seed").value,
   });
-  player.carryOn();
 }
 
 // New beta, h or dynamics: the chain carries on with them.
 function sendParams() {
-  worker.postMessage({ type: "params", beta: beta, h: h, dynamics: checked("dynamics") });
+  sim.send({ type: "params", beta: beta, h: h, dynamics: checked("dynamics") });
 }
 
 // Play / Pause, Step, Restart and the Speed slider (connectPlay,
 // js/sim-page.js). player.playing is true while the sim plays.
-const player = connectPlay(worker, SPEEDS, DEFAULT_SPEED, "sweep", "sweeps", restart);
+const player = connectPlay(sim, SPEEDS, DEFAULT_SPEED, "sweep", "sweeps", restart);
 
 
 /* =====================================================================
@@ -380,4 +364,3 @@ domain = boxDomain(DEFAULTS.width, DEFAULTS.height, DEFAULTS.neighbors, true);
 useTorus(view, true);
 showDomainChoice();
 setQ(DEFAULTS.q);    // sets the colors and starts the first run
-player.setPlaying(false);   // paused: press Play

@@ -126,7 +126,6 @@ let tilingBoxNow = null, tilingBoxFor = "", mirror = null;
 let tile = [];               // the offsets, e.g. [[-1], [1]] or [[1, 0], ...]
 let domainKind = "whole";    // "whole", "box", "torus" or "custom"; on a graph "whole" or "ball"
 let customDomain = null;     // the last custom domain drawn (js/sim-domains.js), if any
-let run = 0;                 // counts restarts, so leftovers from an older run are ignored
 let show3D = false;          // 2D and graphs: the 3D view instead of the view from above (section 6c)
 let blockShape = "tiles";    // the 3D view's blocks: "tiles" (each the shape of its cell) or "coins"
 let stretch = 1;             // the 3D view's Heights: 2^(slider / 2), the slider from -4 (flatter) to 4 (taller)
@@ -382,22 +381,21 @@ function customStart(d) {
    ---------------------------------------------------------------------
    The growth rule is mountainWorker() in eden-growth-rule.js,
    with newMountain(), ballTile(), newGraphMountain(), the hyperbolic
-   tilings and trees, the run loop and the trace (js/sim-worker.js),
-   the hull and holes (js/sim-shape.js) and what grows a Penrose
-   tiling's plane (js/sim-penrose.js) copied in.
-   startWorker (js/sim-page.js) runs it in a second thread, so the page
-   never freezes.
+   tilings and trees, the trace (js/sim-worker.js), the hull and holes
+   (js/sim-shape.js) and what grows a Penrose tiling's plane
+   (js/sim-penrose.js) copied in. runInWorker (js/sim-page.js) runs it
+   in a second thread, so the page never freezes.
    ===================================================================== */
-const worker = startWorker(mountainWorker,
+const sim = runInWorker(mountainWorker,
   [newMountain, ballTile, newGraphMountain, makeGraph, tilingShape, motionTimes, motionApply, halfTurn, coshFromStart,
    learnedRules, tilingByGeometry, tilingByRules, tilingRules, testRules, hashTable, ballAround, spreadPlace,
-   makeRunLoop, newTrace, keepSample, seededUniform, pickSite, newClocks, holeHistory, bettiOverTime,
+   newTrace, keepSample, seededUniform, pickSite, newClocks, holeHistory, bettiOverTime,
    cellWindow, squareWindow, tilingWindow, finiteWindow, convexHull, growingHull, polygonArea, convexity]
-  .concat(penroseHelpers()));
+  .concat(penroseHelpers()), showMountain);
 
-worker.onmessage = function (event) {
-  const message = event.data;
-  if (message.type !== "state" || message.run !== run) return;   // from an older run
+// A report from the worker: keep what is new, and draw it. When the run
+// can't go on, it has paused by itself, and Play and Step are off.
+function showMountain(message) {
   message.setup = sentSetup;                                      // how it was grown (section 2)
   if (message.planeCells) addPlaneCells(sentSetup.tiling, message.planeCells);   // on a Penrose tiling's whole plane
   if (message.places) keepPlaces(message);                        // on a graph (section 6d)
@@ -408,28 +406,17 @@ worker.onmessage = function (event) {
   }
   latest = message;
   showMessage(message.problem);
-  if (message.atMax) {    // the run loop has paused by itself, and Play and Step can't go on
-    if (player.playing) player.setPlaying(false);
-    showMessage("That's the most steps this page goes to.");
-  }
-  if (message.allFull) {  // with a capacity: every site is full, so the run is over
-    if (player.playing) player.setPlaying(false);
-    showMessage("Every site is full (it has capacity M), so no more blocks can land.");
-  }
-  if (message.atEdge) {   // on a Penrose tiling's whole plane: the run is over
-    if (player.playing) player.setPlaying(false);
+  if (message.atMax) showMessage("That's the most steps this page goes to.");
+  if (message.allFull) showMessage("Every site is full (it has capacity M), so no more blocks can land.");
+  if (message.atEdge) {   // on a Penrose tiling's whole plane
     showMessage("The mountain has reached the edge of the part of this tiling the page builds (" + PENROSE_PLANE_MOST +
                 " side lengths from the middle each way), so it stops here.");
   }
   byId("play").disabled = byId("step").disabled = Boolean(message.atMax || message.allFull || message.atEdge);
   drawSoon();
-};
+}
 
-worker.onerror = function () {
-  showMessage("The sim couldn't start. Try reloading the page.");
-};
-
-// A new mountain with the current tile, domain and seed. With
+// A new mountain (paused) with the current tile, domain and seed. With
 // keepStep, it grows at once to the step it was at (so a change to the
 // tile or the domain shows the same moment of the run); without, it
 // starts again from one block. Blocks you clicked (section 6b) are kept,
@@ -437,9 +424,8 @@ worker.onerror = function () {
 function restart(keepStep, forget) {
   if (domainKind === "custom" && !customDomain) return;
   const where = domainSettings();
-  run++;
   const message = {
-    type: "setup", run: run, dim: dim, domain: where.domain, cap: maxHeight(), s: Number(byId("weight-s").value), seed: byId("seed").value,
+    dim: dim, domain: where.domain, cap: maxHeight(), s: Number(byId("weight-s").value), seed: byId("seed").value,
     steps: (keepStep && latest && latest.steps) ? latest.steps : 0,
     forgetClicks: !keepStep || Boolean(forget),
   };
@@ -464,13 +450,12 @@ function restart(keepStep, forget) {
   }
   sentSetup = { domain: where.domain, tiling: drawnOn,
                 box: onTiling() && domainKind !== "whole" ? boxOfTiling().domain : null, wrap: torusRange() };
-  worker.postMessage(message);
-  player.carryOn();
+  sim.setup(message);
 }
 
 // Play / Pause, Step, Restart and the Speed slider (connectPlay,
 // js/sim-page.js). player.playing is true while the sim plays.
-const player = connectPlay(worker, SPEEDS, DEFAULT_SPEED, "block", "blocks", function () { restart(false); });
+const player = connectPlay(sim, SPEEDS, DEFAULT_SPEED, "block", "blocks", function () { restart(false); });
 
 
 /* =====================================================================
@@ -754,7 +739,7 @@ function clickAt(event) {
     showMessage("That site is full: it already has capacity M.");
   } else if (site >= 0) {
     if (player.playing) player.setPlaying(false);
-    worker.postMessage({ type: "click", site: site });
+    sim.send({ type: "click", site: site });
   } else {
     showMessage("A block can only land on an available site: one with blocks, or a gray one next to them.");
   }
@@ -1278,7 +1263,7 @@ for (const radio of document.querySelectorAll("input[name=against]")) radio.addE
 
 // Go to step.
 byId("goto").addEventListener("click", function () {
-  worker.postMessage({ type: "goto", steps: readWhole("goto-steps", 0, 10000000, 0) });
+  sim.send({ type: "goto", steps: readWhole("goto-steps", 0, 10000000, 0) });
 });
 
 // Seed: the same seed gives the same mountain every time.
@@ -1293,4 +1278,3 @@ showMaxHeight();
 showWeight();
 showGraphPresets(useGraph);
 setDimension(2);   // 2D by default: with M = 1 it is the Eden model
-player.setPlaying(false);   // paused: press Play

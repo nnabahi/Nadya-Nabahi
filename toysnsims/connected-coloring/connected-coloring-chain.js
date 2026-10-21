@@ -83,14 +83,15 @@
    The whole chain is one function, chainWorker(). The sim page
    (connected-coloring.js) turns that function into a "Web Worker": a
    second thread that runs the chain without freezing the page. The page
-   and the worker talk by sending each other messages (section 5).
+   and the worker talk by sending each other messages (section 5), as
+   every sim's do.
 
    The file is split into numbered sections, all inside chainWorker():
      1. The state of the chain
      2. One move of the chain
      3. Wilson's algorithm, and cutting the tree
      4. Counting spanning trees (log of a determinant)
-     5. Messages from the page, and the run loop
+     5. Messages from the page
    ===================================================================== */
 
 function chainWorker() {
@@ -122,7 +123,6 @@ function chainWorker() {
   let accepted = 0;        // moves accepted
   let alphas = [];         // move, alpha, move, alpha, ... since the last report (for the chart)
   let film = null;         // "watch each move": what this move did, for the page to show (section 5)
-  let run = 0;             // which run this is (the page numbers them)
 
   // Scratch space, one number per cell, reused by every move.
   // A "stamp" array marks cells by writing the current stamp number into
@@ -139,7 +139,6 @@ function chainWorker() {
     N = message.N;
     color = Int32Array.from(message.colors);
     random = new Math.seedrandom(String(message.seed));
-    run = message.run;
     proposed = 0;
     accepted = 0;
     alphas = [];
@@ -541,85 +540,43 @@ function chainWorker() {
 
 
   /* ===================================================================
-     5. MESSAGES FROM THE PAGE, AND THE RUN LOOP
+     5. MESSAGES FROM THE PAGE
      -------------------------------------------------------------------
-     The page sends:
-       { type: "setup", run, n, first, nbr, colors, N, seed }   a new run
-       { type: "play", speed }    run "speed" moves per second
-                                  (Infinity = as fast as possible)
-       { type: "pause" }
-       { type: "step" }           one move
-       { type: "watch", on }      "watch each move" on or off
-       { type: "next" }           (watching) the page has shown the last move
-     The worker answers with "state" messages: the colors, and the
-     numbers for the Statistics box, including the acceptance
-     probability alpha of every move since the last message. Each one
-     carries its run number, so the page can ignore leftovers from an
-     older run. Play, Pause and Speed are the run loop makeRunLoop
-     (js/sim-worker.js).
+     The worker talks to the page the way every sim's worker does
+     (serveRun, js/sim-worker.js). Its own messages:
+       setup  { n, first, nbr, colors, N, seed, watch }   a new run
+                        ("watch": is "watch each move" on?)
+       watch  { on }    "watch each move" on or off
+       next   {}        (watching) the page has shown the last move
+     It reports the colors, and the numbers for the Statistics box,
+     including the acceptance probability alpha of every move since the
+     last report.
 
-     Watching each move, the worker makes one move at a time and sends
-     what it did along with it ("film": the two colors, every walk of
-     Wilson's algorithm, the root, the cut edge, the proposed colors,
-     alpha, and accepted or not). It doesn't make the next move until
-     the page has shown this one and sends "next". The moves are the
-     same as without watching: the same seed gives the same run.
+     Watching each move, each move also sends what it did ("film": the
+     two colors, every walk of Wilson's algorithm, the root, the cut
+     edge, the proposed colors, alpha, and accepted or not), and the
+     next move waits until the page has shown this one and sends
+     "next". The moves are the same as without watching: the same seed
+     gives the same run.
      =================================================================== */
-  const loop = makeRunLoop(oneMove, report);
-  let lastReported = -1;   // the move count last sent to the page
   let watching = false;    // "watch each move" is on
-  let playing = false;     // the page wants the chain to play
-  let speed = 1;           // the page's last speed, for when watching stops
   let showing = false;     // watching: the page is still showing the last move
+  let lastReported = -1;   // the move count last sent to the page
 
-  // Watching: make one move and send it, with its film.
-  function filmMove() {
-    film = {};
+  // One step: one move, or, watching, one move with its film once the
+  // page has shown the last one (until then it waits: false).
+  function oneStep() {
+    if (watching && showing) return false;
+    film = watching ? {} : null;
     oneMove();
-    report();
-    film = null;
-    showing = true;
+    showing = watching;
   }
 
-  self.onmessage = function (event) {
-    const message = event.data;
-    if (message.type === "setup") {
-      loop.pause();
-      setup(message);
-      lastReported = -1;
-      showing = false;
-      report();
-    } else if (message.type === "play") {
-      playing = true;
-      speed = message.speed;
-      if (!watching) loop.play(speed);
-      else if (!showing) filmMove();
-    } else if (message.type === "pause") {
-      playing = false;
-      loop.pause();
-    } else if (message.type === "step") {
-      if (watching) { filmMove(); return; }
-      oneMove();
-      report();
-    } else if (message.type === "watch") {
-      watching = message.on;
-      showing = false;
-      if (watching) { loop.pause(); if (playing) filmMove(); }
-      else if (playing) loop.play(speed);
-    } else if (message.type === "next") {
-      showing = false;
-      if (watching && playing) filmMove();
-    }
-  };
-
-  // Send the colors and the numbers to the page.
-  function report() {
+  function report(send) {
     if (proposed === lastReported) return;   // nothing new to show
     lastReported = proposed;
     const copy = color.slice();
-    self.postMessage({
-      type: "state",
-      run: run,
+    send({
       colors: copy,
       proposed: proposed,
       accepted: accepted,
@@ -627,7 +584,22 @@ function chainWorker() {
       pairs: pairs,
       alphas: alphas,
       film: film,
-    }, [copy.buffer]);   // hand the copy over instead of copying it again
+    }, [copy.buffer]);
     alphas = [];
+    film = null;
   }
+
+  serveRun({
+    setup: function (message) {
+      setup(message);
+      watching = message.watch;
+      showing = false;
+      lastReported = -1;
+    },
+    steps: oneStep, report: report,
+    messages: {
+      watch: function (message) { watching = message.on; showing = false; },
+      next: function () { showing = false; },
+    },
+  });
 }

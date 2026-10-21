@@ -113,11 +113,10 @@
      1d. convexity(m): the base's area over the area of its convex hull.
      2. mountainWorker(): runs a mountain in a second thread (a "Web
         Worker") for the sim page, eden-growth.js, so the page never
-        freezes. startWorker (js/sim-page.js) starts it, with
+        freezes. runInWorker (js/sim-page.js) starts it, with
         newMountain, ballTile, newGraphMountain, the hyperbolic tilings
-        and trees, the run loop, trace and random numbers
-        (js/sim-worker.js) and the hull and holes (js/sim-shape.js)
-        copied in.
+        and trees, the trace and random numbers (js/sim-worker.js) and
+        the hull and holes (js/sim-shape.js) copied in.
    ===================================================================== */
 
 
@@ -665,8 +664,9 @@ function convexity(m) {
    keeps the same alarms, and the picture changes as little as it can,
    like a Desmos slider.
 
-   The page sends:
-     { type: "setup", run, dim, tile, domain, start, cap, s, seed, steps, forgetClicks }
+   It talks to the page the way every sim's worker does (serveRun,
+   js/sim-worker.js), one step being one block. Its own messages:
+     setup  { dim, tile, domain, start, cap, s, seed, steps, forgetClicks }
          (on another tiling: tiling and radius instead of tile; on a
          graph: dim "graph", and graph and radius instead of tile and start)
          a new mountain, grown at once to "steps" steps with the same
@@ -675,13 +675,9 @@ function convexity(m) {
          plane of it (kept from run to run while the tiling stays the
          same), and the setup also says how many of the plane's cells the
          page already has, cellsKnown.
-     { type: "play", speed }   drop "speed" blocks per second
-                               (Infinity = as fast as possible)
-     { type: "pause" }
-     { type: "step" }          one block
-     { type: "goto", steps }   jump to that step (back or forward)
-     { type: "click", site }   the next block goes on available site
-                               number "site" (a click on the picture)
+     goto   { steps }    jump to that step (back or forward)
+     click  { site }     the next block goes on available site number
+                         "site" (a click on the picture)
 
    Clicks. A clicked block is kept as "step n landed on this site", so
    it stays when the run is grown again (going back with "goto", or a
@@ -692,19 +688,17 @@ function convexity(m) {
    available at that step any more (say the domain changed), that step
    is random as usual.
 
-   The worker answers with "state" messages: the available sites, their
-   heights, and the numbers for the Statistics box, and on a Penrose
-   tiling's whole plane the plane's cells the page doesn't have yet, and
-   whether the mountain has reached the plane's edge (where it stops).
-   Each carries its run number, so the page can ignore leftovers from an
-   older run.
+   It reports the available sites, their heights, and the numbers for
+   the Statistics box, and on a Penrose tiling's whole plane the plane's
+   cells the page doesn't have yet. The run is done (and pauses by
+   itself) at the step limit, when every site is full, or when the
+   mountain reaches the edge of a Penrose plane.
    ===================================================================== */
 function mountainWorker() {
   const MAX_STEPS = 10000000;   // ten million blocks at most
   const SHAPE_BINS = 180;       // directions for the radius charts (2 degrees each)
   let options = null;           // the latest setup message
   let mountain = null;          // from newMountain() or newGraphMountain() (part 1)
-  let run = 0;
   let problem = "";             // e.g. "The start site is outside the domain."
   let clicks = new Map();       // step n -> the site clicked for it (see siteName)
   let trace = null;             // the run so far, for the charts over time (newTrace, js/sim-worker.js)
@@ -744,14 +738,14 @@ function mountainWorker() {
     while (mountain.steps < steps && !isDone()) oneStep();
   }
 
-  // The run can't go on: the step limit, or (with a capacity) every
-  // site is full, so no block can land anywhere.
+  // The run can't go on: there is no mountain (the setup had a
+  // problem), the step limit, (with a capacity) every site is full, so
+  // no block can land anywhere, or the edge of a Penrose plane.
   function isDone() {
-    return mountain !== null && (mountain.steps >= MAX_STEPS || mountain.available.length === 0 || mountain.atEdge);
+    return mountain === null || mountain.steps >= MAX_STEPS || mountain.available.length === 0 || mountain.atEdge;
   }
 
   function oneStep() {
-    if (!mountain || isDone()) return;
     const clicked = clicks.has(mountain.steps + 1) ? findSite(clicks.get(mountain.steps + 1)) : -1;
     if (clicked >= 0) mountain.dropOn(clicked);
     else mountain.step();
@@ -789,51 +783,38 @@ function mountainWorker() {
     keepSample(trace, m.steps, values);
   }
 
-  // Play, Pause and Speed: the run loop (js/sim-worker.js), dropping the
-  // blocks that are due. When the run can't go on it pauses by itself.
-  const loop = makeRunLoop(oneStep, report, isDone);
-
-  self.onmessage = function (event) {
-    const message = event.data;
-    if (message.type === "setup") {
+  const loop = serveRun({
+    setup: function (message) {
       options = message;
-      run = message.run;
       if (message.forgetClicks) clicks = new Map();
       setup(message.steps);
-      report();
-    } else if (message.type === "play") {
-      loop.play(message.speed);
-    } else if (message.type === "pause") {
-      loop.pause();
-      report();
-    } else if (message.type === "step") {
-      oneStep();
-      report();
-    } else if (message.type === "click") {
-      if (mountain && mountain.available.includes(message.site) && !isDone()) {
+    },
+    steps: oneStep, isDone: isDone, report: report,
+    messages: {
+      click: function (message) {
+        if (isDone() || !mountain.available.includes(message.site)) return;
         clicks.set(mountain.steps + 1, siteName(message.site));
         oneStep();
-        report();
-      }
-    } else if (message.type === "goto") {
-      if (mountain && message.steps < mountain.steps) setup(message.steps);
-      else while (mountain && mountain.steps < message.steps && !isDone()) oneStep();
-      report();
-    }
-  };
+      },
+      goto: function (message) {
+        if (mountain && message.steps < mountain.steps) setup(message.steps);
+        else while (!isDone() && mountain.steps < message.steps) oneStep();
+      },
+    },
+  });
 
   // Send the page the heights of the available sites (in the order they
   // became available), the numbers for the Statistics box, and
   // where the sites are: in 1D and 2D, every site's coordinates; on a
   // graph, the places of the new sites (addPlaces).
-  function report() {
+  function report(send) {
     const m = mountain;
     if (!m) {
-      self.postMessage({ type: "state", run: run, problem: problem });
+      send({ problem: problem });
       return;
     }
     const message = {
-      type: "state", run: run, problem: "", dim: options.dim,
+      problem: "", dim: options.dim,
       height: Int32Array.from(m.height),
       start: m.start,
       steps: m.steps, blocks: m.blocks, baseSize: m.baseSize,
@@ -866,7 +847,7 @@ function mountainWorker() {
     if (onPlane()) addPlane(message);
     // Hand the lists of sites over instead of copying them again.
     const lists = [message.height, message.x, message.y, message.z, message.places].filter(Boolean);
-    self.postMessage(message, lists.map(function (list) { return list.buffer; }));
+    send(message, lists.map(function (list) { return list.buffer; }));
   }
 
   // Is the mountain on a Penrose tiling's whole plane?

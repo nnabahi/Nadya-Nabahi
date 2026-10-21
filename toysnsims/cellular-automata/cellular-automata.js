@@ -97,7 +97,6 @@ let colorNames = [];         // colorNames[s] = how state s is drawn, e.g. "#fff
 let colorRGB = [];           // the same as [red, green, blue], 0 .. 255
 let domain = null;           // the picture as a domain of cells (js/sim-domains.js), for drawing and the clusters
 
-let run = 0;                 // counts restarts, so leftovers from an older run are ignored
 let latest = null;           // the latest message from the worker (part 2 of cellular-automata-rule.js)
 let look = null;             // 1D: the last step shown when scrolled back, or null for the newest
 const highlight = newHighlight();   // the clicked cell, whose cluster is highlighted (js/sim-highlight.js)
@@ -251,27 +250,14 @@ function randomRule() {
    5. RUNNING THE AUTOMATON
    ---------------------------------------------------------------------
    The rule is automatonWorker() in cellular-automata-rule.js, with
-   newAutomaton, automatonStart, stateHash, the run loop and the trace
+   newAutomaton, automatonStart, stateHash, the trace
    (js/sim-worker.js), and countPieces with the search behind it
-   (js/sim-domains.js) copied in. startWorker (js/sim-page.js)
+   (js/sim-domains.js) copied in. runInWorker (js/sim-page.js)
    runs it in a second thread, so the page never freezes.
    ===================================================================== */
-const worker = startWorker(automatonWorker, [newAutomaton, automatonStart, stateHash, makeRunLoop, newTrace, keepSample,
-                                             countPieces, findRegions, spreadRegion]);
-
-worker.onmessage = function (event) {
-  const message = event.data;
-  if (message.type !== "state" || message.run !== run) return;   // from an older run
-  latest = message;
-  showHistory();
-  if (message.done && player.playing) player.setPlaying(false);
-  drawSoon();
-};
-
-worker.onerror = function () {
-  showMessage("The sim couldn't start. It loads one small library (seedrandom) from the " +
-              "internet, so check the connection and reload the page.");
-};
+const sim = runInWorker(automatonWorker, [newAutomaton, automatonStart, stateHash, newTrace, keepSample,
+                                          countPieces, findRegions, spreadRegion],
+                        function (message) { latest = message; showHistory(); drawSoon(); });
 
 // The size of the tape or grid, and in 1D the rows shown.
 function sizes() {
@@ -283,25 +269,23 @@ function sizes() {
            height: readWhole("grid-height", 3, MAX_SIDE, DEFAULTS.height), rows: 0 };
 }
 
-// Start the run again with the current settings and seed. With
-// "keepStep", it is made again up to the step it was at, so a changed
-// rule shows the same moment of the run; without, from step 0.
+// Start the run again (paused) with the current settings and seed.
+// With "keepStep", it is made again up to the step it was at, so a
+// changed rule shows the same moment of the run; without, from step 0.
 function restart(keepStep) {
   if (!table) return;        // the settings can't run (readRule said why)
   const toStep = keepStep && latest ? latest.time : 0;
   if (!keepStep) look = null;
   const size = sizes();
-  run++;
   latest = null;
   showMessage("");
-  worker.postMessage({
-    type: "setup", run: run, dim: dim, width: size.width, height: size.height, rows: size.rows,
+  sim.setup({
+    dim: dim, width: size.width, height: size.height, rows: size.rows,
     b: b, offsets: neighborhood, table: table, edge: checked("edge"),
     edgeState: readWhole("edge-state", 0, b - 1, 0), start: byId("start").value, drawn: drawn,
     seed: byId("seed").value, mode: checked("mode"), toStep: toStep, look: look,
     links: { 4: tapeLinks(size, 4), 8: tapeLinks(size, 8) },
   });
-  player.carryOn();
 }
 
 // The tape (1D) or grid (2D) as it is now, as a domain with 4 or 8
@@ -315,7 +299,7 @@ function tapeLinks(size, links) {
 
 // Play / Pause, Step, Restart and the Speed slider (connectPlay,
 // js/sim-page.js). player.playing is true while the sim plays.
-const player = connectPlay(worker, SPEEDS, DEFAULT_SPEED, "step", "steps", function () { restart(false); });
+const player = connectPlay(sim, SPEEDS, DEFAULT_SPEED, "step", "steps", function () { restart(false); });
 
 
 /* =====================================================================
@@ -414,7 +398,7 @@ historyBar.addEventListener("scroll", function () {
 function lookAt(last) {
   const h = historyRows();
   look = last === null || last >= h.newest ? null : Math.max(last, h.oldest + h.rows - 1);
-  worker.postMessage({ type: "look", last: look });
+  sim.send({ type: "look", last: look });
 }
 
 // The mouse wheel over the picture scrolls through the history too,
@@ -701,4 +685,3 @@ byId("grid-width").value = DEFAULTS.width;
 byId("grid-height").value = DEFAULTS.height;
 byId("seed").value = DEFAULTS.seed;
 usePreset("rule30");          // starts the first run
-player.setPlaying(false);     // paused: press Play
