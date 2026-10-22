@@ -1,6 +1,6 @@
 /* =====================================================================
    connected-coloring-chain.js  —  the Markov chain behind the
-   "Random connected coloring" sim
+   "Connected Coloring" sim
    ---------------------------------------------------------------------
    What it does, in plain words:
      The domain is a graph (the cells, joined to their neighbors). A

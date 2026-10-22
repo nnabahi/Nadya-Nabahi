@@ -2,7 +2,7 @@
    formulas.js  —  typed formulas and their sliders, like Desmos
    ---------------------------------------------------------------------
    Shared by the graph tool's formula box and the sims that take typed
-   formulas (like the random sequential packing). A page that loads this
+   formulas (like Sequential Continuous Tiling). A page that loads this
    file loads math.js (https://mathjs.org) before it, which does the
    actual reading of the formulas.
 

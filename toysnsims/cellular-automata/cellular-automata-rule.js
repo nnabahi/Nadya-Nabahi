@@ -1,5 +1,5 @@
 /* =====================================================================
-   cellular-automata-rule.js  —  the rule behind the "Cellular automata"
+   cellular-automata-rule.js  —  the rule behind the "Cellular Automata"
    sim
    ---------------------------------------------------------------------
    What it does, in plain words:

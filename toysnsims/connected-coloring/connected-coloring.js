@@ -1,6 +1,5 @@
 /* =====================================================================
-   connected-coloring.js  —  the page of the "Random connected
-   coloring" sim
+   connected-coloring.js  —  the page of the "Connected Coloring" sim
    ---------------------------------------------------------------------
    What it does, in plain words:
      - Builds the domain: a box or torus of cells (on the square grid,

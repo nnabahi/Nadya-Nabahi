@@ -710,8 +710,8 @@ a.card:hover {
 /* A small picture of a formula's shape (the domain or the tile), which
    pops up above the formula's top right corner while the mouse is over
    the formula (its box or its typeset preview), or while you type in it
-   (":focus-within" = the box has the typing cursor). Used by the random
-   sequential packing. */
+   (":focus-within" = the box has the typing cursor). Used by Sequential
+   Continuous Tiling. */
 .formula-with-picture {
   position: relative;      /* the picture is placed relative to this */
 }
@@ -776,9 +776,9 @@ a.card:hover {
 /* A clickable grid of small square cells, for picking a set of offsets
    (Eden Growth's Tile T, a cellular automaton's neighborhood;
    showOffsetGrid in js/sim-controls.js): a lit cell is in the set. The
-   middle cell is either dark (the mountain's site itself) or outlined
-   ("own": the cell itself, which a neighborhood may include). In 1D it
-   is a single row. */
+   middle cell is either dark (the site itself, in Eden Growth) or
+   outlined ("own": the cell itself, which a neighborhood may include).
+   In 1D it is a single row. */
 .tile-grid {
   display: grid;
   gap: 2px;
@@ -824,10 +824,10 @@ a.card:hover {
   box-shadow: inset 0 0 0 2px var(--color-text);
 }
 
-/* The random matrix products' matrices (made by
-   toysnsims/matrix-products/matrix-products.js): the boxes of
-   one matrix, laid out like the matrix itself, with its weight and a
-   remove button beside it.
+/* Matrix Products' matrices (made by
+   toysnsims/matrix-products/matrix-products.js): the boxes of one
+   matrix, laid out like the matrix itself, with its weight and a remove
+   button beside it.
 
        M1   [ 0.9 ] [ 0.8 ]    weight       ×
             [ 0.1 ] [ 0.2 ]    [    ]
@@ -898,7 +898,7 @@ a.card:hover {
   height: 90px;
 }
 
-/* A chart you can click (e.g. the coloring sim's color sizes: a click
+/* A chart you can click (e.g. Connected Coloring's color sizes: a click
    highlights that color). */
 .chart.clickable {
   cursor: pointer;
@@ -908,8 +908,8 @@ a.card:hover {
 .chart.tall   { height: 130px; }
 .chart.taller { height: 180px; }
 
-/* A box that scrolls when its content is more than 220px tall (the
-   random sine's table of lobes). */
+/* A box that scrolls when its content is more than 220px tall
+   (Sinusoid-ish's table of lobes). */
 .scroll-box {
   max-height: 220px;
   overflow-y: auto;
@@ -1350,8 +1350,8 @@ body.embedded .graph-wrap {
   white-space: nowrap;         /* in a table, "✓ pass" stays on one line */
 }
 
-/* A picture on a check page: the random sine's two pictures, and the
-   random matrix products' histogram (a little shorter). */
+/* A picture on a check page: Sinusoid-ish's two pictures, and Matrix
+   Products' histogram (a little shorter). */
 .check-picture {
   display: block;
   width: 100%;
@@ -1364,7 +1364,7 @@ body.embedded .graph-wrap {
   height: 260px;
 }
 
-/* Pictures side by side (the random sequential packing's check page). */
+/* Pictures side by side (Sequential Continuous Tiling's check page). */
 .check-pictures {
   display: flex;
   flex-wrap: wrap;
@@ -1377,7 +1377,7 @@ body.embedded .graph-wrap {
   border: 1px solid var(--color-border);
 }
 
-/* The random tile packing's check page: its sections, the table of
+/* Uniform Discrete Tiling's check page: its sections, the table of
    counts (numbers line up on the right), the bars, and the arctic
    circle picture. */
 .check-section {
@@ -1451,7 +1451,7 @@ body.embedded .graph-wrap {
     overflow-x: auto;
   }
 
-  /* Stack the four boxes in one column, in this order. */
+  /* Stack the five boxes in one column, in this order. */
   .sim-layout {
     grid-template-columns: 1fr;
     grid-template-areas:

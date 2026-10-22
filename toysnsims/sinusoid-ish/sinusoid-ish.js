@@ -1,5 +1,5 @@
 /* =====================================================================
-   sinusoid-ish.js  —  the "Random sine function" sim page
+   sinusoid-ish.js  —  the "Sinusoid-ish" sim page
    ---------------------------------------------------------------------
    The math lives in sinusoid-ish-roots.js (placing the roots, f, the
    peaks and lobe areas), the same file sinusoid-ish-check.html tests.

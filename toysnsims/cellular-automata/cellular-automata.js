@@ -1,5 +1,5 @@
 /* =====================================================================
-   cellular-automata.js  —  the page of the "Cellular automata" sim
+   cellular-automata.js  —  the page of the "Cellular Automata" sim
    ---------------------------------------------------------------------
    What it does, in plain words:
      - Reads the settings: 1D or 2D, the number of states b, the

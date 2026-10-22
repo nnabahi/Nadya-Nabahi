@@ -1,5 +1,5 @@
 /* =====================================================================
-   random-walk-coloring.js  —  the page of the "Random walk coloring"
+   random-walk-coloring.js  —  the page of the "Random Walk Coloring"
    sim
    ---------------------------------------------------------------------
    What it does, in plain words:

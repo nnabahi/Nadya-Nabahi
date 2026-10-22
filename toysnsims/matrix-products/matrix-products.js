@@ -1,5 +1,5 @@
 /* =====================================================================
-   matrix-products.js  —  the "Random matrix products" page
+   matrix-products.js  —  the "Matrix Products" page
    ---------------------------------------------------------------------
    The math lives in matrix-products-math.js (reading the matrices,
    the runs, the statistics), the same file

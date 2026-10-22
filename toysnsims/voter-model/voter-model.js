@@ -1,5 +1,5 @@
 /* =====================================================================
-   voter-model.js  —  the page of the "Generalized voter model" sim
+   voter-model.js  —  the page of the "Generalized Voter Model" sim
    ---------------------------------------------------------------------
    What it does, in plain words:
      - Builds the domain: a box or torus of cells (on the square grid,

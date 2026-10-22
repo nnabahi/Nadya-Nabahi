@@ -1,5 +1,5 @@
 /* =====================================================================
-   ising-potts.js  —  the page of the "Ising and Potts model" sim
+   ising-potts.js  —  the page of the "Ising & Potts Model" sim
    ---------------------------------------------------------------------
    What it does, in plain words:
      - Builds the domain: a box or torus of cells (on the square grid,

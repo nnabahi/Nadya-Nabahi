@@ -1,6 +1,6 @@
 /* =====================================================================
-   sinusoid-ish-roots.js  —  the math behind the "Random sine function"
-   sim (nadya's Desmos idea D1, "random roots")
+   sinusoid-ish-roots.js  —  the math behind the "Sinusoid-ish" sim
+   (nadya's Desmos idea D1, "random roots")
    ---------------------------------------------------------------------
    What it does, in plain words:
      Put roots at random points ... < R(-2) < R(-1) < 0 < R(0) < R(1) < ...

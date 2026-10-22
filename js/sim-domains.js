@@ -632,7 +632,7 @@ function pointInPolygon(corners, u, w) {
 
 // A tiling domain of the cells listed (cell v is cell part[v] of block
 // (x[v], y[v])), for drawing a set of cells that grows, like a walk's
-// visited cells or a mountain's sites. Its picture's box is the box
+// visited cells or Eden Growth's sites. Its picture's box is the box
 // around the cells' middles, with one cell and one side length to
 // spare all round. It has no sides (none are drawn between its cells)
 // and no index (tilingBox's domains have both).

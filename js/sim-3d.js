@@ -79,7 +79,7 @@ const SMALLEST_SHARED_WIDTH = 0.1;
 const COIN_SIDES = 24;
 
 // The whole picture is shrunk to fit in a box this big, so it always
-// looks the same size, however big the mountain gets (as in 2D).
+// looks the same size, however big the stacks get (as in 2D).
 const PICTURE_SIZE = 2;
 
 // Where the camera starts: this far from the middle of the picture,
@@ -264,7 +264,7 @@ function toThree(rgb) {
 //               make the cell topple). 0 for every cell if left out.
 //   empty, ground   colors [r, g, b] of the empty cells and of the floor
 //   lines, lineColor    (optional) thin lines on the floor, e.g. the
-//               tiling under a mountain: a list [x1, y1, x2, y2, ...],
+//               tiling under the stacks: a list [x1, y1, x2, y2, ...],
 //               one line from (x1, y1) to (x2, y2) and so on, and their
 //               color [r, g, b]
 //   topLines, topLineColor   (optional) lines over the tops of the

@@ -3,7 +3,7 @@
    ---------------------------------------------------------------------
    What it does, in plain words:
      Builds graphs that a sim can run on, ONE CELL AT A TIME, as the sim
-     asks for them. That is what lets a mountain grow forever on the
+     asks for them. That is what lets Eden Growth grow forever on the
      hyperbolic plane or on a tree, where "the whole graph" could never
      fit in the computer: the number of cells within distance R of a
      cell grows exponentially in R (true for every hyperbolic tiling
@@ -166,7 +166,7 @@ function makeGraph(spec) {
   // --- The line and the grid: a cell is known by its coordinates. ---
   if (spec.kind === "line" || spec.kind === "grid") {
     // The neighbors, in this order. (For the grid it is the order of
-    // the 2D mountain's "4 neighbors" tile, so the two number their
+    // Eden Growth's 2D "4 neighbors" tile, so the two number their
     // sites the same way.)
     const steps = spec.kind === "line" ? [[1, 0], [-1, 0]] : [[1, 0], [-1, 0], [0, 1], [0, -1]];
     if (spec.kind === "line") graph.order = function (v) { return places[v][0]; };
@@ -184,7 +184,7 @@ function makeGraph(spec) {
   // --- A hyperbolic tiling {p,q}, or a tree as {p, infinity}. ---
   // Built exactly from the tiling's rules (tilingByRules) when they can
   // be learned, which is so for every tree and most tilings with small
-  // p and q (the ones whose mountains reach far out). Otherwise built by
+  // p and q (the ones a sim can reach far out on). Otherwise built by
   // geometry (tilingByGeometry), which only reaches about distance 23
   // from the start: beyond that the computer's numbers are too rough.
   graph.shape = tilingShape(spec.p, spec.q);
