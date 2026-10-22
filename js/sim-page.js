@@ -14,7 +14,6 @@
      colorShareRows(names, ...)       a coloring's table: cells, share, regions
      readWhole(id, lo, hi, fallback)  a whole number typed in a box
      startWorker(fn, helpers)         run a function in a second thread
-     runInWorker(fn, helpers, show)   a sim's second thread, with its runs
      keepAlong(kept, more, at)        add numbers a second thread sent to a list
      sharpPen(canvas, width, height)  a canvas's pen, sharp on sharp screens
      oncePerFrame(draw)               draw at the next screen refresh
@@ -24,19 +23,22 @@
      showPlaying(on)                  the Play button, while it plays
      speedText(speed, one, many)      "5 moves per second", for the Speed slider
      addRangeBoxes(slider, lo, hi, ...)  "min" and "max" boxes at a slider's ends
-     connectSpeedSlider(id, speeds, ...) a Speed slider with those boxes
-     connectSliderAndBox(slider, box, set)   a number's slider and box, moving together
+     connectSpeedSlider(id, ...)      a Speed slider with those boxes
+     connectSliderAndBox(...)         a number's slider and box, together
+     runInWorker(fn, helpers, show)   a sim's second thread, with its runs
      connectPlay(runner, ...)         Play / Pause, Step, Restart and Speed
      connectSeed(onChange)            the Seed box and its New seed button
+     make3D(canvas, height, options)  the 3D view (js/sim-3d.js), loaded
+                                        when it first shows
+     connectStretch(onChange)         the 3D view's Heights slider
      pictureHeight(normal)            how tall to draw the picture (taller
                                         in the full screen popup)
-     make3D(canvas, height, options)  the 3D view (js/sim-3d.js), loaded when it first shows
-     connectStretch(onChange)         the 3D view's Heights slider
 
    It also fits the statistics into their L-shaped box, typesets the
    formulas in the About box (so a page that has formulas loads KaTeX
    before this file), makes the About tabs work, and puts the full
-   screen button on the picture (all at the end of this file). The small charts are in js/sim-charts.js.
+   screen button on the picture (all at the end of this file). The
+   small charts are in js/sim-charts.js.
    ===================================================================== */
 
 

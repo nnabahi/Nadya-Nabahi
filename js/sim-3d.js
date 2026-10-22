@@ -6,9 +6,10 @@
      fingers. It draws two kinds of picture:
        STACKS: a floor of cells, and on each cell a stack of blocks
          (cubes, coins, or blocks in the shape of the cell's tile) as
-         tall as that cell's height. Eden Growth
-         and Sandpiles use it, on the square grid and on hyperbolic tilings
-         and trees (their edges drawn as lines on the floor).
+         tall as that cell's height. Eden Growth, Sandpiles and
+         Uniform Spanning Tree use it, on the square grid, on other
+         tilings, and on hyperbolic tilings and trees (their edges
+         drawn as lines on the floor).
        SURFACES: a colored surface over a grid, like a graph
          z = h(x, y) in Desmos 3D, with balls on some of its points.
          Lattice Path Counting uses it.
