@@ -292,7 +292,7 @@ function chainWorker() {
       if (color[nbr[e]] === old) a++;
       else if (color[nbr[e]] === c) b++;
     }
-    if (a > b && random() >= b / a) return;   // rejected (min(1, a/b) < 1)
+    if (a < b && random() >= a / b) return;   // rejected: accepted only with min(1, a/b)
     if (a === 0 || !staysConnected(v, old)) return;   // v alone in its color, or v holds it together
     mStamp++;
     inM[v] = mStamp;
