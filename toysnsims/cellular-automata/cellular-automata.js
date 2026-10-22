@@ -541,7 +541,7 @@ function showStats() {
   byId("stat-interface").textContent = (eight ? s.interface8 : s.interface4).toLocaleString();
   byId("stat-clusters-name").textContent = dim === 1 ? "Clusters in the picture" : "Clusters";
   byId("stat-clusters").textContent = regions.areas.length.toLocaleString();
-  byId("stat-largest").textContent = regions.areas.length ? Math.max(...regions.areas).toLocaleString() + " cells" : "";
+  byId("stat-largest").textContent = regions.areas.length ? most(regions.areas).toLocaleString() + " cells" : "";
   if (s.done) showMessage("The picture is full. Press Restart, or pick \"scroll\" to keep going.");
 
   // One row per state: cells (now), share, clusters (in the picture).
