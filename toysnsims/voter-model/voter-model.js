@@ -40,7 +40,7 @@
    ===================================================================== */
 
 // The default domain, number of opinions, noise and seed.
-const DEFAULTS = { width: 100, height: 100, neighbors: 4, q: 2, noise: 0, seed: "1" };
+const DEFAULTS = { width: 100, height: 100, q: 2, noise: 0, seed: "1" };
 
 // The rules in the "Rule" menu: g(x) as typed, and the sliders it starts
 // with. x is the share of a cell's neighbors holding an opinion.

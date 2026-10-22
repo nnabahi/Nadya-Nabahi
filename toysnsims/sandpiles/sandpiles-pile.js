@@ -71,7 +71,8 @@
 //               or a ball (makeBall, js/sim-hyperbolic.js): its cells n
 //               and neighbors (first and nbr) are all the pile uses
 //   threshold   the grains that make a cell topple: the lattice's number
-//               of neighbors (4 or 8; p on a tiling {p,q} or a tree), or
+//               of neighbors (4 on the square grid; p on a tiling {p,q}
+//               or a tree), or
 //               a list with each cell's own (on a tiling with cells of
 //               different kinds)
 //   sinks       (optional) a list of cells that are sink cells
