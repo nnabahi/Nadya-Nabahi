@@ -110,12 +110,7 @@ function readFormulas() {
   }
   letters.delete("N");                     // N is the grid size, not a slider
   for (const def of definitions) letters.delete(def.name);
-  const holder = byId("sliders");
-  holder.innerHTML = "";
-  for (const letter of letters) {
-    if (!sliders[letter]) sliders[letter] = Object.assign({}, NEW_SLIDER);   // a fresh copy
-    holder.appendChild(makeSlider(letter, sliders[letter], recount));
-  }
+  showSliders(byId("sliders"), letters, sliders, recount);
   recount();
 }
 
@@ -148,8 +143,7 @@ let stats = null;          // f along the line (lineStats)
 
 function recount() {
   if (!trees) return;
-  const values = {};
-  for (const letter in sliders) values[letter] = sliders[letter].value;
+  const values = sliderValues(sliders);
   try {
     const weights = makeWeights(trees, definitions, values, N, byId("seed").value);
     paths = countPaths(N, weights.X, weights.Y);

@@ -118,19 +118,13 @@ function readSet() {
   }
 
   // One slider per letter.
-  const holder = byId("sliders");
-  holder.innerHTML = "";
-  for (const letter of letters) {
-    if (!sliders[letter]) sliders[letter] = Object.assign({}, NEW_SLIDER);   // a fresh copy
-    holder.appendChild(makeSlider(letter, sliders[letter], useSet));
-  }
+  showSliders(byId("sliders"), letters, sliders, useSet);
   useSet();
 }
 
 // Read the set with the sliders' current values, then make a new sample.
 function useSet() {
-  const values = {};
-  for (const letter in sliders) values[letter] = sliders[letter].value;
+  const values = sliderValues(sliders);
   try {
     law = readGapSet(byId("gap-set").value, values);
   } catch (problem) {
