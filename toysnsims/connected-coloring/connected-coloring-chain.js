@@ -101,7 +101,7 @@ function chainWorker() {
   let sweeps = 1;          // sweeps of flips between two moves (1 sweep = n flips; section 2b)
   let flips = 0, flipped = 0;   // flips tried, and flips accepted
   let stale = null;        // stale[c]: a flip changed color c, so logTau[c] must be worked out again
-  let seen = null, seenStamp = 0;   // marks for the flips' connectivity check
+  let owner = null, ownerStamp = 1;   // marks for the flips' connectivity check (staysConnected)
   let boundaryTrace = null;   // the boundary edges after each step (sweeps and moves alike), for the chart (keepSample, js/sim-worker.js)
   let alphaTrace = null;      // each move's acceptance probability alpha, against the move number, for the chart
   let alphaSum = 0;           // the sum of every move's alpha, for their average
@@ -127,7 +127,7 @@ function chainWorker() {
     accepted = 0;
     flips = flipped = 0;
     sweeps = message.sweeps;
-    seen = new Int32Array(n);
+    owner = new Int32Array(n);
     stale = new Uint8Array(N);
 
     inM = new Int32Array(n);
@@ -312,40 +312,46 @@ function chainWorker() {
     flipped++;
   }
 
-  // Do the cells of color "old" next to v stay connected without v? A
-  // search from one of them through color "old", never entering v,
-  // stopping once it has found them all.
+  // Do the cells of color "old" next to v stay connected without v?
+  // A search through color "old" (never entering v) starts from each of
+  // them at once, and they take turns, one cell each. Two searches that
+  // meet join into one; if they all join, the color stays connected. If
+  // one runs out of cells first, its piece is cut off from the rest: v
+  // holds the color together. Taking turns keeps the work to about the
+  // size of the smallest piece, which is small when v is near a tip.
   function staysConnected(v, old) {
-    seenStamp++;
-    seen[v] = seenStamp;
-    let wanted = 0, startCell = -1;
+    const starts = [];
     for (let e = first[v]; e < first[v + 1]; e++) {
       const w = nbr[e];
-      if (color[w] !== old || seen[w] === seenStamp) continue;
-      seen[w] = seenStamp;                    // (counted once, even if a neighbor repeats)
-      wanted++;
-      startCell = w;
+      if (color[w] === old && !starts.includes(w)) starts.push(w);
     }
-    seenStamp++;
-    seen[v] = seenStamp;
-    seen[startCell] = seenStamp;
-    const queue = [startCell];
-    let found = 0;
-    for (let head = 0; head < queue.length; head++) {
-      const u = queue[head];
-      if (isNeighbor(u, v)) found++;
-      if (found === wanted) return true;
-      for (let e = first[u]; e < first[u + 1]; e++) {
-        const w = nbr[e];
-        if (color[w] === old && seen[w] !== seenStamp) { seen[w] = seenStamp; queue.push(w); }
+    if (starts.length === 1) return true;
+    // owner[u] - base = the search that reached u first (any smaller
+    // number: not reached yet). joined[k]: the search that k has joined.
+    const base = ownerStamp;
+    ownerStamp += starts.length;
+    const queues = starts.map(function (w, k) { owner[w] = base + k; return [w]; });
+    const heads = starts.map(function () { return 0; });
+    const joined = starts.map(function (w, k) { return k; });
+    const rootOf = function (k) { while (joined[k] !== k) k = joined[k]; return k; };
+    let searches = starts.length;
+    for (;;) {
+      for (let k = 0; k < starts.length; k++) {
+        if (joined[k] !== k) continue;               // it is part of another search now
+        if (heads[k] === queues[k].length) return false;   // out of cells: cut off
+        const u = queues[k][heads[k]++];
+        for (let e = first[u]; e < first[u + 1]; e++) {
+          const w = nbr[e];
+          if (w === v || color[w] !== old) continue;
+          if (owner[w] < base) { owner[w] = base + k; queues[k].push(w); continue; }
+          const other = rootOf(owner[w] - base);
+          if (other === k) continue;
+          joined[other] = k;                         // the two meet: one search from now on
+          for (let h = heads[other]; h < queues[other].length; h++) queues[k].push(queues[other][h]);
+          if (--searches === 1) return true;
+        }
       }
     }
-    return false;
-  }
-
-  function isNeighbor(u, v) {
-    for (let e = first[v]; e < first[v + 1]; e++) if (nbr[e] === u) return true;
-    return false;
   }
 
   // Give each cell v of "cells" the color target[v], keeping between,
