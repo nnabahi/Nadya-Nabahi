@@ -313,8 +313,8 @@ function plainWindow(set) {
    with every cell on its own, and join the two cells of every edge
    whose ends have the same color (B. A. Galler and M. J. Fischer, "An
    improved equivalence algorithm", Communications of the ACM 7 (1964)
-   301-303). The pages that use it load js/sim-domains.js and the
-   library seedrandom.
+   301-303). The pages that use it load js/sim-domains.js,
+   js/sim-tilings.js and the library seedrandom.
    --------------------------------------------------------------------- */
 
 // Each cell's region, by union-find: root[v] is the same number for
@@ -343,8 +343,8 @@ function testRegions() {
     ["a 9 × 7 box with 8 neighbors", boxDomain(9, 7, 8, false)],
     ["an 8 × 6 torus with 4 neighbors", boxDomain(8, 6, 4, true)],
     ["an 8 × 6 torus with 8 neighbors", boxDomain(8, 6, 8, true)],
-    ["an 8 × 6 torus of triangles", latticeBox("triangle", 8, 6, true)],
-    ["a 7 × 6 box of hexagons", latticeBox("hexagon", 7, 6, false)],
+    ["an 8 × 6 torus of triangles", tilingBox(tilingBlock(TILINGS[1].code, false), 8, 6, true)],
+    ["a 12 × 9 box of hexagons", tilingBox(tilingBlock(TILINGS[2].code, false), 12, 9, false)],
     ["an Aztec diamond of order 5", aztecDiamond(5)],
   ];
   const random = new Math.seedrandom("regions");

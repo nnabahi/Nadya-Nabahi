@@ -4,11 +4,12 @@
    What it does, in plain words:
      - Builds the domain: a box or torus of cells, an Aztec diamond, or
        a custom one drawn in the graph tool (shown inside this page).
-       The cells can also be triangles or hexagons (a box, a torus, or
-       for triangles a hexagon); then the tile is two neighboring cells. The
-       domain code is shared with the other sims: the domains in
-       js/sim-domains.js, and their options and the graph tool in
-       js/sim-controls.js.
+       The cells can also be triangles or hexagons, the triangle and
+       hexagon tilings every sim shares (js/sim-tilings.js): a box, a
+       torus, or for triangles a hexagon; then the tile is two
+       neighboring cells. The domain code is shared with the other sims:
+       the domains in js/sim-domains.js, and their options and the graph
+       tool in js/sim-controls.js.
      - Reads the tiles (rectangles, each with a weight) and the options.
      - Hands everything to the chain (uniform-discrete-tiling-chain.js), which runs
        in a second thread (a "Web Worker"), and draws every packing it
@@ -37,7 +38,8 @@
    1. SETTINGS YOU MIGHT WANT TO CHANGE
    ===================================================================== */
 
-// The default domain (a 24 x 24 box), Aztec diamond order, side of the
+// The default domain (a 24 x 24 box: 24 x 24 squares, or 24 x 24 side
+// lengths of triangles or hexagons), Aztec diamond order, side of the
 // hexagon of triangles, mean radius, refill limit and seed.
 const DEFAULTS = { width: 24, height: 24, order: 20, side: 12, radius: 1.5, limit: 10000, seed: "1" };
 
@@ -49,7 +51,7 @@ const PRESETS = {
 };
 const DEFAULT_PRESET = "squares";
 
-const MAX_SIDE = 200;             // the biggest box or torus is 200 x 200
+const MAX_SIDE = 200;             // the biggest box or torus is 200 x 200 (squares or side lengths)
 const MAX_ORDER = 100;            // the biggest Aztec diamond (20,200 cells)
 const MAX_SIDE_HEXAGON = 60;      // the biggest hexagon of triangles (21,600 cells)
 const MAX_WEIGHT_SLIDER = 5;      // the weight sliders go from 0 to 5 (the boxes take any number >= 0)
@@ -69,7 +71,7 @@ const DEFAULT_SPEED = 5;
    2. WHAT THE PAGE REMEMBERS (the "state")
    ===================================================================== */
 
-let lattice = "square";         // the cells: "square", "triangle" or "hexagon"
+let lattice = "square";         // the cells: "square", "triangle" or "hexagon" (the Cells menu)
 let domain = null;              // the domain (js/sim-domains.js); its kind is domains.kind (section 8)
 let tiles = [];                 // the tiles: [{ w, h, weight }, ...]
 
@@ -86,14 +88,16 @@ function showingAverage() { return checked("show") === "average"; }
 /* =====================================================================
    3. RUNNING THE CHAIN
    ---------------------------------------------------------------------
-   The chain is the function tilePacking() in uniform-discrete-tiling-chain.js,
-   with cellAt, wrap, cellCorners, pointInCell and countPieces with the
-   search behind it (js/sim-domains.js), the trace (js/sim-worker.js)
-   and the colors (section 7 of the chain file) copied in. runInWorker (js/sim-page.js) runs it in a second thread, a
-   "Web Worker", so the page never freezes, and hands each report to
-   the function below.
+   The chain is the function tilePacking() in
+   uniform-discrete-tiling-chain.js, with the helpers it uses from
+   js/sim-domains.js (where the cells are, and countPieces with the
+   search behind it), the trace (js/sim-worker.js) and the colors
+   (section 7 of the chain file) copied in. runInWorker
+   (js/sim-page.js) runs it in a second thread, a "Web Worker", so the
+   page never freezes, and hands each report to the function below.
    ===================================================================== */
-const sim = runInWorker(tilePacking, [wrap, cellAt, cellCorners, pointInCell, countPieces, findRegions, spreadRegion,
+const sim = runInWorker(tilePacking, [wrap, cellAt, blockStart, cornersOf, cellMiddle, cellMiddles, widestCell,
+                                      blocksNear, tilingCell, pointInCell, countPieces, findRegions, spreadRegion,
                                       newTrace, keepSample, colorScheme, cellColors], function (message) {
   if (message.placements) {    // a new run's first report
     placements = message.placements;
@@ -401,7 +405,7 @@ function drawCoverChart() {
    ===================================================================== */
 const domains = connectDomains({
   view: view, player: player,
-  box: latticeBoxFromOptions,
+  box: boxOfCells,
   custom: {
     help: "Paint the cells to pack (any color counts). Then press Done.",
     check: function (drawing) {
@@ -425,21 +429,27 @@ const domains = connectDomains({
   },
 });
 
-// The box or torus the options say, on the lattice in use. Triangles and
-// hexagons use latticeBox (js/sim-domains.js); a torus of them needs an
-// even height, and of triangles an even width too, so an odd one goes
-// up by 1.
-function latticeBoxFromOptions() {
-  if (lattice === "square") return boxFromOptions(1, MAX_SIDE, DEFAULTS);   // (4 neighbors)
-  const torus = checked("domain") === "torus";
-  let width = readWhole("set-width", 1, MAX_SIDE, DEFAULTS.width);
-  let height = readWhole("set-height", 1, MAX_SIDE, DEFAULTS.height);
-  if (torus && height % 2 === 1) byId("set-height").value = ++height;
-  if (torus && lattice === "triangle" && width % 2 === 1) byId("set-width").value = ++width;
-  return latticeBox(lattice, width, height, torus);
+// The tilings of the Cells menu's triangles and hexagons: the second
+// and third of TILINGS (js/sim-tilings.js), each built the first time
+// it is needed (tilingBlock), and kept.
+const CELL_CODES = { triangle: TILINGS[1].code, hexagon: TILINGS[2].code };
+const cellTilings = {};
+function cellTiling() {
+  if (!cellTilings[lattice]) cellTilings[lattice] = tilingBlock(CELL_CODES[lattice], false);
+  return cellTilings[lattice];
 }
 
-// The hexagon of triangles (triangleHexagon, js/sim-domains.js): the
+// The box or torus the options say, of the cells in use: squares
+// (boxFromOptions, js/sim-controls.js, with 4 neighbors), or triangles
+// or hexagons (tilingBoxFromOptions, the same file), its size in side
+// lengths. A torus of triangles or hexagons is a whole number of the
+// tiling's repeating blocks, so the pattern carries on across its seams.
+function boxOfCells() {
+  if (lattice === "square") return boxFromOptions(1, MAX_SIDE, DEFAULTS);
+  return tilingBoxFromOptions(cellTiling(), 1, MAX_SIDE, DEFAULTS);
+}
+
+// The hexagon of triangles (tilingHexagon, js/sim-domains.js): the
 // lozenge tilings of the arctic circle pictures. Choosing it switches to
 // no gaps, colored by direction; both can be changed afterwards.
 function useHexagon(switchOptions) {
@@ -449,7 +459,7 @@ function useHexagon(switchOptions) {
     showGapsInfo();
     byId("color-by").value = "direction";
   }
-  domains.use("hexagon", triangleHexagon(side));
+  domains.use("hexagon", tilingHexagon(cellTiling(), side));
 }
 
 // The Aztec diamond (aztecDiamond is in js/sim-domains.js). Choosing it
