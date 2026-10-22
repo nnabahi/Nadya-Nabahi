@@ -192,9 +192,10 @@ function makeGraph(spec) {
   graph.exact = kinds !== null;
   if (graph.exact) tilingByRules(graph, kinds, MAX_CELLS);
   else tilingByGeometry(graph, MAX_CELLS);
-  const cellNeighbors = graph.neighbors;
+  // Each cell's neighbors are worked out once, then kept in nbrs.
+  const findNeighbors = graph.neighbors;
   graph.neighbors = function (v) {
-    if (!nbrs[v]) nbrs[v] = cellNeighbors(v);
+    if (!nbrs[v]) nbrs[v] = findNeighbors(v);
     return nbrs[v];
   };
   return graph;
