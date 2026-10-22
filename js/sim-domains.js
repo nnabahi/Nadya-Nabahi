@@ -36,13 +36,19 @@
      wrap(v, lo, hi)          wrap a whole number around, for tori
      wrapNumber(v, size)      the same for any number
      least(list), most(list)  the smallest and biggest number of a list
+     boxAround(x, y, spare, which)   the box around some points
      boxDomain(...)           a box or torus of cells
      aztecDiamond(N)          the Aztec diamond of order N
      drawnDomain(...)         a region drawn in the graph tool
      makeDomain(...)          a domain from its cells and edges (every
                               domain is built by it)
+     neighborLists(n, edges)  its neighbor lists, as first and nbr
      cellAt(d, x, y)          which cell is at (x, y)
-     stepsFrom(d, starts)     distances through the domain
+     searchFrom(d, starts)    a search from some cells: how far each
+                              cell is from the nearest, and which it is
+     stepsFrom(d, starts)     ... just how far
+     farthestFrom(d, starts)  the cell farthest from some cells
+     spreadOut(d, count, first)   cells spread out over the domain
      countPieces(d, colorOf, count)   the connected pieces of each color
      findRegions(d, colors)   the same pieces, each with its area and perimeter
      regionOf(d, colors, s)   the piece holding cell s (to highlight it)
@@ -61,11 +67,15 @@
      tilingHexagon(...)       a hexagon of a tiling's cells (of triangles:
                               the hexagon of the lozenge tilings)
      cellNeighbors(cell)      a tiling cell's neighbors, each once
-     blockStart(d, I, J)      where a block of the tiling is
-     cornersOf(d, v)          the corners of a cell
+     blockStart(tiling, I, J) where block (I, J) of a tiling starts
+     middleAt(tiling, I, J, k)    the middle of cell k of that block ...
+     cornersAt(tiling, I, J, k)   ... and its corners
+     cornersOf(d, v)          the corners of a domain's cell
      tilingCell(d, I, J, k)   cell k of block (I, J)
      blocksNear(d, u, w, reach)   the blocks near a point
      pointInPolygon(corners, u, w)   is a point inside a cell?
+     signedArea(corners)      a polygon's area (less than 0 if its
+                              corners go clockwise)
      tilingCells(...)         some cells of a tiling, to draw (a growing set)
      widestCell(tiling)       the farthest a cell's corner is from its middle
 
@@ -88,6 +98,20 @@ function wrapNumber(v, size) { return ((v % size) + size) % size; }
 // about 100,000 numbers at once overflows the browser's stack.
 function least(list) { return list.reduce(function (a, b) { return Math.min(a, b); }, Infinity); }
 function most(list) { return list.reduce(function (a, b) { return Math.max(a, b); }, -Infinity); }
+
+// The smallest box { xmin, xmax, ymin, ymax } around the points
+// (x[i], y[i]), with "spare" more all round: for each i in the list
+// "which", or, if it is left out, for every i.
+function boxAround(x, y, spare, which) {
+  let xmin = Infinity, xmax = -Infinity, ymin = Infinity, ymax = -Infinity;
+  const count = which ? which.length : x.length;
+  for (let k = 0; k < count; k++) {
+    const i = which ? which[k] : k;
+    xmin = Math.min(xmin, x[i]); xmax = Math.max(xmax, x[i]);
+    ymin = Math.min(ymin, y[i]); ymax = Math.max(ymax, y[i]);
+  }
+  return { xmin: xmin - spare, xmax: xmax + spare, ymin: ymin - spare, ymax: ymax + spare };
+}
 
 // A width x height box of cells, with 4 or 8 neighbors. If "torus" is
 // true, the right edge is glued to the left and the top to the bottom.
@@ -157,11 +181,24 @@ function drawnDomain(graph, toolGrid) {
 // Build the domain object described at the top of this file, from the
 // cells' coordinates (xs, ys) and the edges as pairs of cell numbers.
 function makeDomain(xs, ys, edges, wrapRange, ids) {
-  const n = xs.length;
+  const n = xs.length, { first, nbr } = neighborLists(n, edges);
+  const d = {
+    n: n, x: Int32Array.from(xs), y: Int32Array.from(ys),
+    first: first, nbr: nbr, wrap: wrapRange, ids: ids,
+    xmin: least(xs), xmax: most(xs), ymin: least(ys), ymax: most(ys),
+  };
+  const boxWidth = d.xmax - d.xmin + 1;
+  d.cellAt = new Int32Array(boxWidth * (d.ymax - d.ymin + 1)).fill(-1);
+  for (let v = 0; v < n; v++) d.cellAt[(d.y[v] - d.ymin) * boxWidth + (d.x[v] - d.xmin)] = v;
+  return d;
+}
 
-  // Neighbor lists, each edge in both directions. A Set drops repeats
-  // (a torus 2 wide meets the same neighbor on both sides), and a cell
-  // is never its own neighbor.
+// The neighbor lists of n cells joined by "edges" ([a, b] pairs), each
+// edge both ways, in the form every domain keeps them: cell v's
+// neighbors are nbr[first[v]] .. nbr[first[v + 1] - 1]. A Set drops
+// repeats (a torus 2 wide meets the same neighbor on both sides), and a
+// cell is never its own neighbor.
+function neighborLists(n, edges) {
   const lists = [];
   for (let v = 0; v < n; v++) lists.push(new Set());
   for (const [a, b] of edges) {
@@ -175,16 +212,7 @@ function makeDomain(xs, ys, edges, wrapRange, ids) {
     for (const w of lists[v]) all.push(w);
   }
   first[n] = all.length;
-
-  const d = {
-    n: n, x: Int32Array.from(xs), y: Int32Array.from(ys),
-    first: first, nbr: Int32Array.from(all), wrap: wrapRange, ids: ids,
-    xmin: least(xs), xmax: most(xs), ymin: least(ys), ymax: most(ys),
-  };
-  const boxWidth = d.xmax - d.xmin + 1;
-  d.cellAt = new Int32Array(boxWidth * (d.ymax - d.ymin + 1)).fill(-1);
-  for (let v = 0; v < n; v++) d.cellAt[(d.y[v] - d.ymin) * boxWidth + (d.x[v] - d.xmin)] = v;
-  return d;
+  return { first: first, nbr: Int32Array.from(all) };
 }
 
 // Which cell of domain d is at (x, y)? -1 if none. On a torus, (x, y)
@@ -201,20 +229,44 @@ function cellAt(d, x, y) {
   return d.cellAt[(y - d.ymin) * (d.xmax - d.xmin + 1) + (x - d.xmin)];
 }
 
-// The number of steps from the nearest of the cells "starts" to every
-// cell (a breadth-first search). -1 for cells that can't be reached.
-function stepsFrom(d, starts) {
-  const steps = new Int32Array(d.n).fill(-1);
+// A breadth-first search through domain d from the cells "starts" all
+// at once. For each cell v: steps[v], the number of steps from the
+// nearest start, and from[v], which start that is (its place in
+// "starts"; of two as near, the one the search reached v from first).
+// Both are -1 for cells no start can reach.
+function searchFrom(d, starts) {
+  const steps = new Int32Array(d.n).fill(-1), from = new Int32Array(d.n).fill(-1);
   const queue = starts.slice();
-  for (const s of starts) steps[s] = 0;
+  starts.forEach(function (s, k) { steps[s] = 0; from[s] = k; });
   for (let head = 0; head < queue.length; head++) {
     const v = queue[head];
     for (let e = d.first[v]; e < d.first[v + 1]; e++) {
       const w = d.nbr[e];
-      if (steps[w] === -1) { steps[w] = steps[v] + 1; queue.push(w); }
+      if (steps[w] === -1) { steps[w] = steps[v] + 1; from[w] = from[v]; queue.push(w); }
     }
   }
-  return steps;
+  return { steps: steps, from: from };
+}
+
+// The number of steps from the nearest of the cells "starts" to every
+// cell (-1 for cells that can't be reached).
+function stepsFrom(d, starts) { return searchFrom(d, starts).steps; }
+
+// The cell farthest (in steps) from the nearest of the cells "starts"
+// (of several as far, the one with the smallest number).
+function farthestFrom(d, starts) {
+  const steps = stepsFrom(d, starts);
+  let far = 0;
+  for (let v = 1; v < d.n; v++) if (steps[v] > steps[far]) far = v;
+  return far;
+}
+
+// "count" cells spread out over domain d: "first", then each time the
+// cell farthest from all those picked so far.
+function spreadOut(d, count, first) {
+  const picked = [first];
+  while (picked.length < count) picked.push(farthestFrom(d, picked));
+  return picked;
 }
 
 // How many connected pieces each color has: pieces[c] for the colors
@@ -297,8 +349,7 @@ function spreadRegion(d, colors, s, seen) {
 // of a tiling, the corner itself.)
 function cellMiddle(d, v) {
   if (!d.lattice) return [d.x[v], d.y[v]];
-  const [u, w] = blockStart(d, d.x[v], d.y[v]), middle = d.tiling.cells[d.part[v]].middle;
-  return [middle[0] + u, middle[1] + w];
+  return middleAt(d.tiling, d.x[v], d.y[v], d.part[v]);
 }
 
 // The middle of every cell of domain d (cellMiddle), as a list, worked
@@ -363,7 +414,8 @@ function pictureBox(d) {
     // One copy of the torus: its blocks across and up (for a tiling
     // whose blocks are slanted, the copies above are shifted sideways:
     // torusSteps).
-    d.pictureBox = { left: 0, right: blockStart(d, d.wrap.xmax + 1, 0)[0], bottom: 0, top: blockStart(d, 0, d.wrap.ymax + 1)[1] };
+    const [across, up] = torusSteps(d);
+    d.pictureBox = { left: 0, right: across[0], bottom: 0, top: up[1] };
     return d.pictureBox;
   }
   let left = Infinity, right = -Infinity, bottom = Infinity, top = -Infinity;
@@ -380,7 +432,7 @@ function pictureBox(d) {
 // The two steps by which the picture of a torus repeats: across, and up
 // (up is slanted for a tiling with slanted blocks).
 function torusSteps(d) {
-  if (d.lattice) return [blockStart(d, d.wrap.xmax + 1, 0), blockStart(d, 0, d.wrap.ymax + 1)];
+  if (d.lattice) return [blockStart(d.tiling, d.wrap.xmax + 1, 0), blockStart(d.tiling, 0, d.wrap.ymax + 1)];
   const box = pictureBox(d);
   return [[box.right - box.left, 0], [0, box.top - box.bottom]];
 }
@@ -478,9 +530,7 @@ function cellsInBox(tiling, box, inside) {
   const [A, bx, B] = [tiling.a[0], tiling.b[0], tiling.b[1]];
   for (let J = Math.floor(box.bottom / B) - 1; J * B < top + B; J++) {
     for (let I = Math.floor((box.left - J * bx) / A) - 2; I * A + J * bx < right + A; I++) {
-      tiling.cells.forEach(function (cell, k) {
-        if (keep(cell.middle[0] + I * A + J * bx, cell.middle[1] + J * B)) cells.push([I, J, k]);
-      });
+      for (let k = 0; k < tiling.cells.length; k++) if (keep(...middleAt(tiling, I, J, k))) cells.push([I, J, k]);
     }
   }
   return cells;
@@ -492,7 +542,6 @@ function cellsInBox(tiling, box, inside) {
 // rectangle the cells were picked from, for onLeft and onRight (or
 // null: then the domain has neither).
 function makeTilingDomain(tiling, cells, wrapRange, box) {
-  const [A, bx] = [tiling.a[0], tiling.b[0]];
   const index = new Map();
   cells.forEach(function ([I, J, k], v) { index.set(I + "," + J + "," + k, v); });
   const edges = [], sides = [];
@@ -504,7 +553,7 @@ function makeTilingDomain(tiling, cells, wrapRange, box) {
       const w = index.has(I2 + "," + J2 + "," + k2) ? index.get(I2 + "," + J2 + "," + k2) : -1;
       if (w > v) edges.push([v, w]);
       if (box && w === -1 && k2 >= 0) {   // the neighbor is outside the box: is it off the left or right side?
-        const u = tiling.cells[k2].middle[0] + I2 * A + J2 * bx;
+        const u = middleAt(tiling, I2, J2, k2)[0];
         if (u < box.left) onLeft[v] = 1;
         if (u >= box.left + box.width) onRight[v] = 1;
       }
@@ -537,17 +586,26 @@ function cellNeighbors(cell) {
   });
 }
 
-// Where block (I, J) of domain d's tiling starts, in the picture.
-function blockStart(d, I, J) {
-  const t = d.tiling;
-  return [I * t.a[0] + J * t.b[0], I * t.a[1] + J * t.b[1]];
+// Where block (I, J) of a tiling starts, in the picture: I a + J b.
+function blockStart(tiling, I, J) {
+  return [I * tiling.a[0] + J * tiling.b[0], I * tiling.a[1] + J * tiling.b[1]];
+}
+
+// The middle of cell k of block (I, J) of a tiling, in the picture: the
+// cell's middle in the block, moved to where the block starts.
+function middleAt(tiling, I, J, k) {
+  const [u, w] = blockStart(tiling, I, J), middle = tiling.cells[k].middle;
+  return [middle[0] + u, middle[1] + w];
+}
+
+// The corners of cell k of block (I, J) of a tiling, in the picture.
+function cornersAt(tiling, I, J, k) {
+  const [u, w] = blockStart(tiling, I, J);
+  return tiling.cells[k].corners.map(function (c) { return [c[0] + u, c[1] + w]; });
 }
 
 // The corners of cell v of a tiling domain, in the picture.
-function cornersOf(d, v) {
-  const [u, w] = blockStart(d, d.x[v], d.y[v]);
-  return d.tiling.cells[d.part[v]].corners.map(function (c) { return [c[0] + u, c[1] + w]; });
-}
+function cornersOf(d, v) { return cornersAt(d.tiling, d.x[v], d.y[v], d.part[v]); }
 
 // Cell k of block (I, J) of a tiling domain (wrapped around on a
 // torus), or -1 if the domain doesn't have it.
@@ -587,10 +645,8 @@ function tilingCellAt(d, u, w) {
     return k === undefined ? -1 : tilingCell(d, 0, 0, k);
   }
   for (const [I, J] of blocksNear(d, u, w, widestCell(t))) {
-    const [su, sw] = blockStart(d, I, J);
     for (let k = 0; k < t.cells.length; k++) {
-      const corners = t.cells[k].corners.map(function (c) { return [c[0] + su, c[1] + sw]; });
-      if (pointInPolygon(corners, u, w)) return tilingCell(d, I, J, k);
+      if (pointInPolygon(cornersAt(t, I, J, k), u, w)) return tilingCell(d, I, J, k);
     }
   }
   return -1;
@@ -630,9 +686,21 @@ function pointInPolygon(corners, u, w) {
   return inside;
 }
 
+// The area of the polygon with these corners, in order: positive when
+// they go counterclockwise, negative when they go clockwise (the
+// "shoelace formula").
+function signedArea(corners) {
+  let twice = 0;
+  for (let k = 0; k < corners.length; k++) {
+    const p = corners[k], q = corners[(k + 1) % corners.length];
+    twice += p[0] * q[1] - q[0] * p[1];
+  }
+  return twice / 2;
+}
+
 // A tiling domain of the cells listed (cell v is cell part[v] of block
 // (x[v], y[v])), for drawing a set of cells that grows, like a walk's
-// visited cells or a mountain's sites. Its picture's box is the box
+// visited cells or Eden Growth's sites. Its picture's box is the box
 // around the cells' middles, with one cell and one side length to
 // spare all round. It has no sides (none are drawn between its cells)
 // and no index (tilingBox's domains have both).

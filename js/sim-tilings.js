@@ -1131,12 +1131,9 @@ function turnedSteps(block) {
 // if there is none (a slanted lattice).
 function stepStraightUp(t1, t2, a) {
   let best = null;
-  for (let i = -MOST_STEPS; i <= MOST_STEPS; i++) {
-    for (let j = -MOST_STEPS; j <= MOST_STEPS; j++) {
-      const v = [i * t1[0] + j * t2[0], i * t1[1] + j * t2[1]];
-      if (v[1] < 1e-9 || Math.abs(v[0]) > 1e-9 * Math.abs(a[0])) continue;
-      if (best === null || v[1] < best[1]) best = [0, v[1]];
-    }
+  for (const v of wholeSteps(t1, t2)) {
+    if (v[1] < 1e-9 || Math.abs(v[0]) > 1e-9 * Math.abs(a[0])) continue;
+    if (best === null || v[1] < best[1]) best = [0, v[1]];
   }
   return best;
 }
@@ -1147,15 +1144,22 @@ function stepStraightUp(t1, t2, a) {
 // this b and a together reach every block.)
 function stepUpSlanted(t1, t2) {
   let best = null;
-  for (let i = -MOST_STEPS; i <= MOST_STEPS; i++) {
-    for (let j = -MOST_STEPS; j <= MOST_STEPS; j++) {
-      const v = [i * t1[0] + j * t2[0], i * t1[1] + j * t2[1]];
-      if (v[1] < 1e-9) continue;
-      if (best === null || v[1] < best[1] - 1e-9 ||
-          (Math.abs(v[1] - best[1]) < 1e-9 && Math.abs(v[0]) < Math.abs(best[0]))) best = v;
-    }
+  for (const v of wholeSteps(t1, t2)) {
+    if (v[1] < 1e-9) continue;
+    if (best === null || v[1] < best[1] - 1e-9 ||
+        (Math.abs(v[1] - best[1]) < 1e-9 && Math.abs(v[0]) < Math.abs(best[0]))) best = v;
   }
   return best;
+}
+
+// The whole steps i t1 + j t2 for i and j from -MOST_STEPS to
+// MOST_STEPS, as [x, y].
+function wholeSteps(t1, t2) {
+  const steps = [];
+  for (let i = -MOST_STEPS; i <= MOST_STEPS; i++) {
+    for (let j = -MOST_STEPS; j <= MOST_STEPS; j++) steps.push([i * t1[0] + j * t2[0], i * t1[1] + j * t2[1]]);
+  }
+  return steps;
 }
 
 // The block [I, J] a point is in, for blocks at I a + J b: the whole

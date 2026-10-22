@@ -7,8 +7,8 @@
        and on most sims "Hyperbolic plane or tree" (on the line: Segment
        and Cycle), and on some the whole plane (or line);
      - the graph tool itself, shown inside the page for Custom;
-     - a clickable grid of cells for picking a set of offsets (the random
-       mountain's tile, the cellular automata's neighborhood).
+     - a clickable grid of cells for picking a set of offsets (Eden
+       Growth's tile, the cellular automata's neighborhood).
    Each sim used to have its own copy of the code for these. Now they
    are written once, here. Each helper is handed what is different on
    each page (what a click does, what makes a drawing good enough, ...)
@@ -38,6 +38,7 @@
           listenToTool(frame, useDrawing)   the drawings it sends
           showToolStatus(tool, problem, good)   the line that checks them
           atLeastTwoCells(drawing)          the usual check of a drawing
+          oneConnectedPiece(drawing)        ... for a region in one piece
      3. The clickable grid of offsets
           offsetKey(t), offsetText(t)       an offset's name, and as shown
           showOffsetGrid(grid, dim, reach, offsets, setOffsets, center)
@@ -639,6 +640,17 @@ function atLeastTwoCells(drawing) {
   return cells < 2 ? ["Paint at least two cells.", ""] : ["", cells + " cells."];
 }
 
+// The check of a drawing for a sim whose cells must all be reachable
+// from each other: at least two cells, in one connected piece.
+function oneConnectedPiece(drawing) {
+  const tooFew = atLeastTwoCells(drawing)[0];
+  if (tooFew) return [tooFew, ""];
+  const region = drawnDomain(drawing.graph, drawing.grid);
+  const pieces = countPieces(region, new Int32Array(region.n), 1)[0];   // (js/sim-domains.js)
+  return pieces > 1 ? ["The region is in " + pieces + " pieces; it must be one connected piece.", ""]
+                    : ["", region.n + " cells in one connected piece."];
+}
+
 
 /* =====================================================================
    3. THE CLICKABLE GRID OF OFFSETS
@@ -660,10 +672,10 @@ function offsetText(t) { return t.length === 1 ? String(t[0]) : "(" + t[0] + ", 
 // square in 2D (top row first, as y goes up). A cell is lit up when its
 // offset is in the list "offsets", and clicking it calls
 // setOffsets(the new list), which should show the grid again.
-// The middle cell, offset 0: with center = "fixed" it is dark and can't
-// be clicked (the mountain's site itself); with center = "clickable" it
-// is outlined and can be clicked like the others (the cell itself, in a
-// cellular automaton's neighborhood). "dim" is 1 or 2.
+// The middle cell, offset 0: with center = "fixed" it is dark and
+// can't be clicked (the site itself, in Eden Growth); with center =
+// "clickable" it is outlined and can be clicked like the others (the
+// cell itself, in a cellular automaton's neighborhood). "dim" is 1 or 2.
 function showOffsetGrid(grid, dim, reach, offsets, setOffsets, center) {
   const inSet = new Set(offsets.map(offsetKey));
   grid.innerHTML = "";

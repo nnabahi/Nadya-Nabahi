@@ -6,9 +6,10 @@
      fingers. It draws two kinds of picture:
        STACKS: a floor of cells, and on each cell a stack of blocks
          (cubes, coins, or blocks in the shape of the cell's tile) as
-         tall as that cell's height. Eden Growth
-         and Sandpiles use it, on the square grid and on hyperbolic tilings
-         and trees (their edges drawn as lines on the floor).
+         tall as that cell's height. Eden Growth, Sandpiles and
+         Uniform Spanning Tree use it, on the square grid, on other
+         tilings, and on hyperbolic tilings and trees (their edges
+         drawn as lines on the floor).
        SURFACES: a colored surface over a grid, like a graph
          z = h(x, y) in Desmos 3D, with balls on some of its points.
          Lattice Path Counting uses it.
@@ -79,7 +80,7 @@ const SMALLEST_SHARED_WIDTH = 0.1;
 const COIN_SIDES = 24;
 
 // The whole picture is shrunk to fit in a box this big, so it always
-// looks the same size, however big the mountain gets (as in 2D).
+// looks the same size, however big the stacks get (as in 2D).
 const PICTURE_SIZE = 2;
 
 // Where the camera starts: this far from the middle of the picture,
@@ -264,7 +265,7 @@ function toThree(rgb) {
 //               make the cell topple). 0 for every cell if left out.
 //   empty, ground   colors [r, g, b] of the empty cells and of the floor
 //   lines, lineColor    (optional) thin lines on the floor, e.g. the
-//               tiling under a mountain: a list [x1, y1, x2, y2, ...],
+//               tiling under the stacks: a list [x1, y1, x2, y2, ...],
 //               one line from (x1, y1) to (x2, y2) and so on, and their
 //               color [r, g, b]
 //   topLines, topLineColor   (optional) lines over the tops of the
@@ -449,12 +450,7 @@ function floorBox(stacks) {
   const f = stacks.floor;
   if (f.disk) return { xmin: -f.disk, xmax: f.disk, ymin: -f.disk, ymax: f.disk };
   if (!f.x) return f;
-  let xmin = Infinity, xmax = -Infinity, ymin = Infinity, ymax = -Infinity;
-  for (let i = 0; i < f.x.length; i++) {
-    xmin = Math.min(xmin, f.x[i]); xmax = Math.max(xmax, f.x[i]);
-    ymin = Math.min(ymin, f.y[i]); ymax = Math.max(ymax, f.y[i]);
-  }
-  return { xmin: xmin, xmax: xmax, ymin: ymin, ymax: ymax };
+  return boxAround(f.x, f.y, 0);   // (js/sim-domains.js)
 }
 
 // Room for the blocks of drawStacks in the mesh view3d.meshes[name]:

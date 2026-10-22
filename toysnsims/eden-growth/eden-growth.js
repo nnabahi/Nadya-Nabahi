@@ -355,17 +355,17 @@ function customStart(d) {
    ---------------------------------------------------------------------
    The growth rule is mountainWorker() in eden-growth-rule.js,
    with newMountain(), ballTile(), newGraphMountain(), the hyperbolic
-   tilings and trees, the trace (js/sim-worker.js), the hull and holes
-   (js/sim-shape.js) and what grows a Penrose tiling's plane
-   (js/sim-penrose.js) copied in. runInWorker (js/sim-page.js) runs it
-   in a second thread, so the page never freezes.
+   tilings and trees, the trace (js/sim-worker.js), where a tiling's
+   cells are (js/sim-domains.js), the hull and holes (js/sim-shape.js)
+   and what grows a Penrose tiling's plane (js/sim-penrose.js) copied
+   in. runInWorker (js/sim-page.js) runs it in a second thread, so the
+   page never freezes.
    ===================================================================== */
 const sim = runInWorker(mountainWorker,
   [newMountain, ballTile, newGraphMountain, makeGraph, tilingShape, motionTimes, motionApply, halfTurn, coshFromStart,
    learnedRules, tilingByGeometry, tilingByRules, tilingRules, testRules, hashTable, ballAround, spreadPlace,
-   newTrace, keepSample, seededUniform, mountainSteps, pickSite, newClocks, wrap, holeHistory, bettiOverTime,
-   cellWindow, squareWindow, tilingWindow, finiteWindow, convexHull, growingHull, polygonArea, convexity]
-  .concat(penroseHelpers()), showMountain);
+   newTrace, keepSample, seededUniform, mountainSteps, pickSite, newClocks, wrap, blockStart, middleAt, cornersAt,
+   convexity].concat(shapeHelpers(), penroseHelpers()), showMountain);
 
 // On a graph whose rules the page can't learn (js/sim-graphs.js).
 const BY_GEOMETRY = "This tiling has too many cells near the start for the page to learn its rules, " +
@@ -474,13 +474,8 @@ function heightColor(h, highest) {
 function pictureRange() {
   const s = latest;
   if (s.setup.range) return s.setup.range;
-  let xmin = Infinity, xmax = -Infinity, ymin = Infinity, ymax = -Infinity;
-  for (let i = 0; i < s.x.length; i++) {
-    xmin = Math.min(xmin, s.x[i]); xmax = Math.max(xmax, s.x[i]);
-    ymin = Math.min(ymin, s.y[i]); ymax = Math.max(ymax, s.y[i]);
-  }
-  return dim === 1 ? { xmin: xmin - 1, xmax: xmax + 1, ymin: 0, ymax: 0 }
-                   : { xmin: xmin - 1, xmax: xmax + 1, ymin: ymin - 1, ymax: ymax + 1 };
+  const box = boxAround(s.x, s.y, 1);   // (js/sim-domains.js)
+  return dim === 1 ? { xmin: box.xmin, xmax: box.xmax, ymin: 0, ymax: 0 } : box;
 }
 
 function drawMountain() {
@@ -1142,9 +1137,7 @@ byId("show-holes").addEventListener("change", drawSoon);
 for (const radio of document.querySelectorAll("input[name=against]")) radio.addEventListener("change", drawSoon);
 
 // Go to step.
-byId("goto").addEventListener("click", function () {
-  sim.send({ type: "goto", steps: readWhole("goto-steps", 0, 10000000, 0) });
-});
+connectGoto(sim, 10000000, 1000);
 
 // Seed: the same seed gives the same mountain every time.
 connectSeed(function () { restart(true, true); });
@@ -1152,7 +1145,6 @@ connectSeed(function () { restart(true, true); });
 
 // --- Start ------------------------------------------------------------
 byId("seed").value = DEFAULT_SEED;
-byId("goto-steps").value = 1000;
 showMaxHeight();
 showWeight();
 setDimension(2);   // 2D by default: with M = 1 it is the Eden model

@@ -1,17 +1,28 @@
-// writing.js — runs on writing.html.
-//
-// Each post is a <details class="card post"> box. This file does two things:
-//   1. sorts the posts newest first, by the date in each post's "post-date";
-//   2. turns each post's Markdown text into formatted text, with the math
-//      typeset by KaTeX.
-//
-// It also gives each open post a comment box at its bottom, via giscus
-// (https://giscus.app): comments are stored in this repo's Discussions
-// tab, and people sign in with GitHub to write one.
-//
-// Libraries it uses (loaded by writing.html before this file):
-//   marked  (marked.parse)        Markdown -> HTML
-//   KaTeX   (katex.renderToString) a formula -> HTML
+/* =====================================================================
+   writing.js  —  the posts on writing.html
+   ---------------------------------------------------------------------
+   Each post is a <details class="card post"> box. This file:
+     1. sorts the posts newest first, by the date in each post's
+        "post-date";
+     2. turns each post's Markdown text into formatted text, with the
+        math typeset by KaTeX;
+     3. gives each open post a comment box at its bottom, via giscus
+        (https://giscus.app): comments are stored in this repo's
+        Discussions tab, and people sign in with GitHub to write one.
+
+   Libraries it uses (loaded by writing.html before this file):
+     marked  (marked.parse)          Markdown -> HTML
+     KaTeX   (katex.renderToString)  a formula -> HTML
+
+   Contents:
+     sortPostsNewestFirst()          the posts in date order
+     renderPost(script)              one post's Markdown, formatted
+     markdownToHtml(markdown)        ... the Markdown with its math
+     setAsideMath, putMathBack       ... the math kept away from marked
+     removeIndent(text)              the indent every line shares, gone
+     showComments(post)              the comment box under an open post
+     giscusLoader(term)              ... the script that loads it
+   ===================================================================== */
 
 // The giscus settings, copied from giscus.app. Until repoId and
 // categoryId are filled in, the posts simply have no comment box.
@@ -24,17 +35,18 @@ const GISCUS = {
 
 sortPostsNewestFirst();
 document.querySelectorAll('script[type="text/markdown"]').forEach(renderPost);
-document.querySelectorAll(".post").forEach(post =>
-  post.addEventListener("toggle", () => { if (post.open) showComments(post); }));
+document.querySelectorAll(".post").forEach(function (post) {
+  post.addEventListener("toggle", function () { if (post.open) showComments(post); });
+});
 
 
 // Moves the posts into date order, newest at the top. Dates are written
 // YEAR-MONTH-DAY, so comparing them as text gives the right order.
 function sortPostsNewestFirst() {
-  const posts = [...document.querySelectorAll(".post")];
-  const dateOf = post => post.querySelector(".post-date").textContent.trim();
-  posts.sort((a, b) => dateOf(b).localeCompare(dateOf(a)));
-  posts.forEach(post => post.parentNode.appendChild(post));  // appending moves it to the end
+  const posts = Array.from(document.querySelectorAll(".post"));
+  const dateOf = function (post) { return post.querySelector(".post-date").textContent.trim(); };
+  posts.sort(function (a, b) { return dateOf(b).localeCompare(dateOf(a)); });
+  posts.forEach(function (post) { post.parentNode.appendChild(post); });  // appending moves it to the end
 }
 
 // Replaces one <script type="text/markdown"> block with the formatted post.
@@ -58,25 +70,28 @@ function markdownToHtml(markdown) {
 // like MATH0END, MATH1END, ..., and remembers the formulas in order.
 // "(?<!\\)" skips a dollar written as \$, which marked shows as a plain $.
 function setAsideMath(markdown, formulas) {
-  return markdown.replace(/(?<!\\)\$\$([\s\S]+?)\$\$|(?<!\\)\$([^$\n]+?)\$/g, (match, display, inline) => {
-    formulas.push({ tex: display ?? inline, displayMode: display !== undefined });
+  return markdown.replace(/(?<!\\)\$\$([\s\S]+?)\$\$|(?<!\\)\$([^$\n]+?)\$/g, function (match, display, inline) {
+    const displayMode = display !== undefined;
+    formulas.push({ tex: displayMode ? display : inline, displayMode: displayMode });
     return "MATH" + (formulas.length - 1) + "END";
   });
 }
 
 // Swaps each marker back for its typeset formula.
 function putMathBack(html, formulas) {
-  return html.replace(/MATH(\d+)END/g, (match, i) =>
-    katex.renderToString(formulas[i].tex, { displayMode: formulas[i].displayMode, throwOnError: false }));
+  return html.replace(/MATH(\d+)END/g, function (match, i) {
+    return katex.renderToString(formulas[i].tex, { displayMode: formulas[i].displayMode, throwOnError: false });
+  });
 }
 
 // Removes the indent shared by every line, so the text can be indented
 // inside writing.html. (Markdown would read 4 leading spaces as code.)
 function removeIndent(text) {
   const lines = text.split("\n");
-  const indents = lines.filter(line => line.trim() !== "").map(line => line.match(/^ */)[0].length);
+  const indents = lines.filter(function (line) { return line.trim() !== ""; })
+    .map(function (line) { return line.match(/^ */)[0].length; });
   const shared = Math.min(...indents);
-  return lines.map(line => line.slice(shared)).join("\n").trim();
+  return lines.map(function (line) { return line.slice(shared); }).join("\n").trim();
 }
 
 // Puts the comment box at the bottom of this post. giscus allows one box
@@ -85,7 +100,7 @@ function removeIndent(text) {
 // changing a title keeps its comments.
 function showComments(post) {
   if (!GISCUS.repoId || !GISCUS.categoryId) return;
-  document.querySelectorAll(".giscus, .giscus-loader").forEach(old => old.remove());
+  document.querySelectorAll(".giscus, .giscus-loader").forEach(function (old) { old.remove(); });
 
   const box = document.createElement("div");
   box.className = "giscus";              // giscus puts its comments into this div

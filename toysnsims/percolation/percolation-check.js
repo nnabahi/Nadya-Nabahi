@@ -772,17 +772,6 @@ function menuDomains() {
   return list;
 }
 
-// The area of a polygon from its corners (counterclockwise), by the
-// shoelace formula.
-function shoelace(corners) {
-  let twice = 0;
-  corners.forEach(function (p, k) {
-    const q = corners[(k + 1) % corners.length];
-    twice += p[0] * q[1] - q[0] * p[1];
-  });
-  return twice / 2;
-}
-
 function testTilingDomains() {
   const near = function (p, q) { return Math.hypot(p[0] - q[0], p[1] - q[1]) < 1e-6; };
   const problems = [];
@@ -793,7 +782,7 @@ function testTilingDomains() {
     let area = 0;
     for (let v = 0; v < d.n && !problem; v++) {
       const corners = cornersOf(d, v), next = t.cells[d.part[v]].next;
-      area += shoelace(corners);
+      area += signedArea(corners);   // (js/sim-domains.js)
       if (cellAtPoint(d, ...cellMiddle(d, v)) !== v) problem = "clicking a cell finds another one";
       if (d.wrap && d.first[v + 1] - d.first[v] !== corners.length) problem = "a cell of the torus has the wrong number of neighbors";
       next.forEach(function ([k, dI, dJ], e) {
@@ -802,8 +791,7 @@ function testTilingDomains() {
         if (!d.sides[w].includes(v)) problem = "a side is shared one way only";
         // The cell across, where it is next to v (not wrapped around):
         // it has both ends of the side.
-        const [u, z] = blockStart(d, d.x[v] + dI, d.y[v] + dJ);
-        const across = t.cells[k].corners.map(function (c) { return [c[0] + u, c[1] + z]; });
+        const across = cornersAt(t, d.x[v] + dI, d.y[v] + dJ, k);
         for (const end of [corners[e], corners[(e + 1) % corners.length]]) {
           if (!across.some(function (c) { return near(c, end); })) problem = "the cell across a side is in the wrong place";
         }

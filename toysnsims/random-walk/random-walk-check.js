@@ -95,20 +95,31 @@ function checkCoupling() {
    =================================================================== */
 function checkKept(dim, weights, steps) {
   const { walk, path } = walkPath({ dim: dim, weights: weights, seed: "kept " + dim }, steps);
+  const kept = recountKept(walk, path, function (p) { return p; });
+  const xs = path.map(function (p) { return p[0]; });
+  if (dim === 1 && (walk.lowest !== least(xs) || walk.highest !== most(xs))) kept.problems.push("lowest/highest");   // (js/sim-domains.js)
+  addRow(dim + "D, weights " + weights.join(", ") + ": range, returns, largest distance" + (dim === 1 ? ", lowest and highest" : "") + ", " + steps.toLocaleString() + " steps",
+         kept.problems.length === 0, kept.problems.join("; ") || "kept step by step = recounted from the path (range " + kept.range + ", returns " + kept.returns + ")");
+}
+
+// The numbers the walk kept step by step (its range, its returns to the
+// start, and its largest distance from the start) against the same
+// numbers recounted from its path, where placeOf(p) is where the site p
+// of the path is. Returns { problems, range, returns, largest }.
+function recountKept(walk, path, placeOf) {
   const keys = new Set(path.map(function (p) { return p.join(","); }));
-  let returns = 0, largest = 0, low = 0, high = 0;
+  const start = placeOf(path[0]);
+  let returns = 0, largest = 0;
   path.forEach(function (p, n) {
     if (n > 0 && p.every(function (v) { return v === 0; })) returns++;
-    largest = Math.max(largest, Math.hypot(p[0], p[1], p[2]));
-    low = Math.min(low, p[0]); high = Math.max(high, p[0]);
+    const q = placeOf(p);
+    largest = Math.max(largest, Math.hypot(...q.map(function (v, k) { return v - start[k]; })));
   });
   const problems = [];
   if (walk.siteX.length !== keys.size) problems.push("range " + walk.siteX.length + " vs " + keys.size);
   if (walk.returns !== returns) problems.push("returns " + walk.returns + " vs " + returns);
   if (Math.abs(walk.maxDistance - largest) > 1e-9) problems.push("largest distance " + walk.maxDistance + " vs " + largest);
-  if (dim === 1 && (walk.lowest !== low || walk.highest !== high)) problems.push("lowest/highest");
-  addRow(dim + "D, weights " + weights.join(", ") + ": range, returns, largest distance" + (dim === 1 ? ", lowest and highest" : "") + ", " + steps.toLocaleString() + " steps",
-         problems.length === 0, problems.join("; ") || "kept step by step = recounted from the path (range " + keys.size + ", returns " + returns + ")");
+  return { problems: problems, range: keys.size, returns: returns, largest: largest };
 }
 
 
@@ -131,12 +142,19 @@ function checkHullByHand() {
 
 function checkWalkHull(weights, steps) {
   const { walk, path } = walkPath({ dim: 2, weights: weights, seed: "hull" + weights }, steps);
-  const all = convexHull(path.map(function (p) { return [p[0], p[1]]; }));
-  const quick = walkHull(walk);
+  checkHullKept("2D, weights " + weights.join(", "), walk, steps, path.map(function (p) { return [p[0], p[1]]; }), "visited site");
+}
+
+// The hull the walk kept up to date (walkHull) against the hull of
+// "points", where each site it visited is ("what" says what they are),
+// as a row of the table.
+function checkHullKept(name, walk, steps, points, what) {
+  const all = convexHull(points), quick = walkHull(walk);
   const pass = Math.abs(quick.perimeter - polygonPerimeter(all)) < 1e-9 && Math.abs(quick.area - polygonArea(all)) < 1e-9;
-  addRow("2D, weights " + weights.join(", ") + ": the hull kept up to date, " + steps.toLocaleString() + " steps",
+  addRow(name + ": the hull kept up to date, " + steps.toLocaleString() + " steps",
          pass, "perimeter " + niceNumber(quick.perimeter) + ", area " + niceNumber(quick.area) +
-         (pass ? ", the same as the hull of every visited site" : "; every site gives " + niceNumber(polygonPerimeter(all)) + ", " + niceNumber(polygonArea(all))));
+         (pass ? ", the same as the hull of every " + what
+               : "; the hull of every " + what + " gives " + niceNumber(polygonPerimeter(all)) + ", " + niceNumber(polygonArea(all))));
 }
 
 
@@ -272,27 +290,12 @@ function checkTilingSteps(t, steps) {
 // against a recount from the path.
 function checkTilingKept(t, steps) {
   const { walk, path } = tilingWalk(t, "kept", steps);
-  const start = middleAt(walk.tiling, 0, 0, 0);
-  const keys = new Set(path.map(function (p) { return p.join(","); }));
-  let returns = 0, largest = 0;
-  path.forEach(function (p, n) {
-    if (n > 0 && p[0] === 0 && p[1] === 0 && p[2] === 0) returns++;
-    const [u, w] = middleAt(walk.tiling, ...p);
-    largest = Math.max(largest, Math.hypot(u - start[0], w - start[1]));
-  });
-  const problems = [];
-  if (walk.siteX.length !== keys.size) problems.push("range " + walk.siteX.length + " vs " + keys.size);
-  if (walk.returns !== returns) problems.push("returns " + walk.returns + " vs " + returns);
-  if (Math.abs(walk.maxDistance - largest) > 1e-9) problems.push("largest distance " + walk.maxDistance + " vs " + largest);
-  addRow(t.name + ": range, returns, largest distance, " + steps.toLocaleString() + " steps", problems.length === 0,
-         problems.join("; ") || "kept step by step = recounted from the path (range " + keys.size + ", returns " + returns + ", largest distance " + niceNumber(largest) + ")");
-
-  const all = convexHull(Array.from(keys, function (key) { return middleAt(walk.tiling, ...key.split(",").map(Number)); }));
-  const quick = walkHull(walk);
-  const pass = Math.abs(quick.perimeter - polygonPerimeter(all)) < 1e-9 && Math.abs(quick.area - polygonArea(all)) < 1e-9;
-  addRow(t.name + ": the hull kept up to date, " + steps.toLocaleString() + " steps",
-         pass, "perimeter " + niceNumber(quick.perimeter) + ", area " + niceNumber(quick.area) +
-         (pass ? ", the same as the hull of every visited cell's middle" : "; every cell gives " + niceNumber(polygonPerimeter(all)) + ", " + niceNumber(polygonArea(all))));
+  const placeOf = function (p) { return middleAt(walk.tiling, ...p); };   // (js/sim-domains.js)
+  const kept = recountKept(walk, path, placeOf);
+  addRow(t.name + ": range, returns, largest distance, " + steps.toLocaleString() + " steps", kept.problems.length === 0,
+         kept.problems.join("; ") || "kept step by step = recounted from the path (range " + kept.range + ", returns " + kept.returns +
+         ", largest distance " + niceNumber(kept.largest) + ")");
+  checkHullKept(t.name, walk, steps, path.map(placeOf), "visited cell's middle");
 }
 
 // The holes on a tiling, two ways. At every step, beta_1 from
@@ -304,29 +307,13 @@ function checkTilingKept(t, steps) {
 function checkTilingHoles(t, steps) {
   const { walk } = tilingWalk(t, "holes", steps);
   const h = holeHistory(walk, walk.steps);
-  const beta = bettiOverTime(h, Array.from({ length: steps + 1 }, function (_, step) { return step; }));
-  const counter = eulerCounter(walk.tiling);
-  let i = 0, most = 0, problem = "";
-  for (let step = 0; step <= steps && !problem; step++) {
-    for (; i < walk.siteX.length && walk.bornAt[i] === step; i++) counter.add(walk.siteX[i], walk.siteY[i], walk.siteZ[i]);
-    const euler = counter.holes();
-    most = Math.max(most, euler);
-    if (euler !== beta[step]) problem = "step " + step + ": " + beta[step] + " from the births and deaths, " + euler + " by Euler's formula";
-  }
+  const { problem, most } = holesAgainstEuler(walk, h, steps);   // (js/check-page.js)
   addRow(t.name + ": holes against Euler's formula at every step, " + steps.toLocaleString() + " steps", problem === "",
          problem || "beta_1 = 1 - V + E - F at every step (at most " + most + " holes, " + h.openBirths.length + " at the end)");
-
-  const plain = holesFromPolygons(walk);
-  const ours = new Set();
-  for (let k = 0; k < h.holeCells.length; k += 3) ours.add(h.holeCells[k] + "," + h.holeCells[k + 1] + "," + h.holeCells[k + 2]);
-  const sizes = function (list) { return Array.from(list).sort(function (a, b) { return a - b; }).join(" "); };
-  const frontier = frontierLength(walk), problems = [];
-  if (plain.sizes.length !== h.openBirths.length) problems.push(plain.sizes.length + " holes from the polygons, " + h.openBirths.length + " open");
-  if (sizes(plain.sizes) !== sizes(h.holeSizes)) problems.push("hole sizes " + sizes(h.holeSizes) + " vs " + sizes(plain.sizes));
-  if (ours.size !== plain.cells.size || [...ours].some(function (key) { return !plain.cells.has(key); })) problems.push("the holes' cells differ");
-  if (frontier !== plain.frontier) problems.push("outer boundary " + frontier + " vs " + plain.frontier);
-  addRow(t.name + ": holes and outer boundary from the polygons alone, after " + steps.toLocaleString() + " steps", problems.length === 0,
-         problems.join("; ") || plain.sizes.length + " holes (" + ours.size + " cells), outer boundary " + frontier + " sides, the same both ways");
+  const plain = holesAgainstPolygons(walk, h);
+  addRow(t.name + ": holes and outer boundary from the polygons alone, after " + steps.toLocaleString() + " steps",
+         plain.problems.length === 0, plain.problems.join("; ") || plain.holes + " holes (" + plain.cells + " cells), outer boundary " +
+         plain.frontier + " sides, the same both ways");
 }
 
 // On a Penrose tiling, the walk grows its plane as it goes, and stops

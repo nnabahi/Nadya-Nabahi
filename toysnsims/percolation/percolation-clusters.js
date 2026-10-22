@@ -112,7 +112,7 @@ function ballForPercolation(ball) {
   ball.x = stepsFrom(ball, [0]);
   ball.y = new Int32Array(ball.n);  // all 0: there is only one "row"
   ball.xmin = 0;
-  ball.xmax = Math.max(...ball.x);
+  ball.xmax = most(ball.x);              // (js/sim-domains.js)
   ball.wrap = null;
   return ball;
 }

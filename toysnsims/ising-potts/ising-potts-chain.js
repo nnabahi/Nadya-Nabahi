@@ -1,6 +1,6 @@
 /* =====================================================================
-   ising-potts-chain.js  —  the Markov chains behind the "Ising and Potts
-   model" sim
+   ising-potts-chain.js  —  the Markov chains behind the "Ising & Potts
+   Model" sim
    ---------------------------------------------------------------------
    What it does, in plain words:
      Every cell v has one of q colors, sigma(v) in {0, ..., q-1}. Two

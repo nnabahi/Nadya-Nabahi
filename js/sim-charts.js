@@ -67,8 +67,8 @@ function chartPen(canvas) {
    numbered ticks up its left side (the y axis) and along its bottom
    (the x axis), and a thin light line across the plot at each y tick,
    under the chart, so a value anywhere (the newest, at the right end,
-   too) can be read against the numbers on the left. An axis is an object with these keys (only "from" and
-   "to" are needed):
+   too) can be read against the numbers on the left. An axis is an
+   object with these keys (only "from" and "to" are needed):
      from, to   the numbers at its two ends
      scale      "linear" (the default); "log": 1, 10, 100, ... evenly
                 spaced ("from" must be above 0); or "log+1": the log of
@@ -242,8 +242,9 @@ function ticksFit(ticks, axis, pixels, sizeOf) {
 }
 
 // The light lines across at the y ticks, the two axis lines, a small
-// mark at each tick with its number, and the axes' words. An x number stays right of the y numbers and left of
-// the x axis' word (one that would run into the word is left out).
+// mark at each tick with its number, and the axes' words. An x number
+// stays right of the y numbers and left of the x axis' word (one that
+// would run into the word is left out).
 function chartAxes(frame, x, xTicks, y, yTicks) {
   const pen = frame.pen;
   pen.save();

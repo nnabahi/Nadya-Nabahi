@@ -1,6 +1,6 @@
 /* =====================================================================
-   matrix-products-math.js  —  the math behind the "Random matrix
-   products" toy (nadya's Desmos ideas D12 and D13)
+   matrix-products-math.js  —  the math behind the "Matrix Products"
+   toy (nadya's Desmos ideas D12 and D13)
    ---------------------------------------------------------------------
    What it does, in plain words:
      There is a list of 2x2 matrices M_1, M_2, ..., each with a weight.

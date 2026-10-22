@@ -105,11 +105,13 @@ let stretch = 1;               // the 3D view's Heights slider
    3. GROWING THE TREE
    ---------------------------------------------------------------------
    The tree is treeWorker() in uniform-spanning-tree-wilson.js, with
-   Wilson's algorithm (newWilson, js/sim-spanning.js) copied in.
+   Wilson's algorithm (newWilson, js/sim-spanning.js) and the search
+   through the domain (searchFrom, stepsFrom, js/sim-domains.js) copied
+   in.
    runInWorker (js/sim-page.js) runs it in a second thread, so the page
    never freezes.
    ===================================================================== */
-const sim = runInWorker(treeWorker, [newWilson], function (message) {
+const sim = runInWorker(treeWorker, [newWilson, searchFrom, stepsFrom], function (message) {
   latest = message;
   workOutNumbers();
   drawSoon();
@@ -341,11 +343,11 @@ function pathOverStacks(f, height) {
    tree, one pointer drags across the plane instead.
    The root's dot and the other end's ring can be dragged: a press on
    either, or near it (GRAB_STEPS), picks up the nearer one, and it
-   snaps to the cell under the pointer. The
-   other end just moves along the tree. The root moves along the tree
-   too once the tree is finished (the same tree, now pointing to the new
-   root: Wilson's algorithm gives the same uniform tree from any root);
-   before that, moving it grows a new tree from it (paused).
+   snaps to the cell under the pointer. The other end just moves along
+   the tree. The root moves along the tree too once the tree is
+   finished (the same tree, now pointing to the new root: Wilson's
+   algorithm gives the same uniform tree from any root); before that,
+   moving it grows a new tree from it (paused).
    ===================================================================== */
 let dragging = null;     // what a press picked up: "root", "end", or null
 
@@ -426,7 +428,8 @@ function largest(values) {
    Box / Torus / Custom / Hyperbolic plane or tree, and their options,
    the Lattice options among them (connectDomains, js/sim-controls.js).
    Custom swaps the picture for the graph tool, where any drawing of at
-   least two cells in one piece works. A new domain starts with the
+   least two cells in one piece works (oneConnectedPiece,
+   js/sim-controls.js). A new domain starts with the
    root in its lower left corner and the other end in its upper right
    (as in Lyons and Peres's figures); on a hyperbolic tiling or tree,
    the root is the middle cell and the other end a cell on the edge.
@@ -435,24 +438,13 @@ const domains = connectDomains({
   view: view, player: player, disk: disk,
   box: function () { return boxFromOptions(2, MAX_SIDE, DEFAULTS); },
   ball: function () { return ballFromOptions(disk, BALL); },
-  custom: { check: checkDrawing, showPicture: showPictureKind },
+  custom: { check: oneConnectedPiece, showPicture: showPictureKind },
   use: function (d) {
     domain = d;
     [root, end] = corners(d);
     restart();
   },
 });
-
-// What's wrong with a drawing in the graph tool, if anything, as
-// [problem, good]: it needs at least 2 cells, in one piece.
-function checkDrawing(drawing) {
-  if (drawing.graph.vertices.length === 0) return ["Paint the region first.", ""];
-  const region = drawnDomain(drawing.graph, drawing.grid);
-  if (region.n < 2) return ["The region needs at least 2 cells.", ""];
-  const pieces = countPieces(region, new Int32Array(region.n), 1)[0];
-  if (pieces > 1) return ["The region is in " + pieces + " pieces; it must be one connected piece.", ""];
-  return ["", region.n + " cells in one connected piece."];
-}
 
 // The root and the other end on a new domain d: the cells nearest its
 // lower left and upper right corners (the least and the most of x + y,

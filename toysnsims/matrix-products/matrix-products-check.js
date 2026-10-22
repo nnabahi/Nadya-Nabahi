@@ -92,16 +92,7 @@ function chiSquareTest(matrices, should, steps, runs) {
     const key = pointOf(cloud, n, 1, 0, "none", 1)[0].toFixed(9);
     counts.set(key, (counts.get(key) || 0) + 1);
   }
-  for (const key of counts.keys()) {
-    if (!odds.has(key)) return { pass: false, text: "the sim made an impossible x = " + key };
-  }
-
-  const test = pooledChiSquare(odds, counts, runs);    // js/check-page.js
-  return {
-    pass: test.pValue > 0.001,
-    text: odds.size + " possible values of x, " + runs + " runs: chi-square " + test.statistic.toFixed(1) +
-          " with " + test.degrees + " degrees of freedom, p = " + test.pValue.toFixed(3),
-  };
+  return exactOddsTest(odds, counts, runs, "values of x");    // js/check-page.js
 }
 
 

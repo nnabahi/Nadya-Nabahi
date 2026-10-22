@@ -1,5 +1,5 @@
 /* =====================================================================
-   matrix-products.js  —  the "Random matrix products" page
+   matrix-products.js  —  the "Matrix Products" page
    ---------------------------------------------------------------------
    The math lives in matrix-products-math.js (reading the matrices,
    the runs, the statistics), the same file
@@ -147,19 +147,13 @@ function readMatrices() {
     byId("matrix-message").textContent = "Can't read that yet: " + problem.message;
     return;
   }
-  const holder = byId("sliders");
-  holder.innerHTML = "";
-  for (const letter of letters) {
-    if (!sliders[letter]) sliders[letter] = Object.assign({}, NEW_SLIDER);   // a fresh copy
-    holder.appendChild(makeSlider(letter, sliders[letter], useMatrices));
-  }
+  showSliders(byId("sliders"), letters, sliders, useMatrices);
   useMatrices();
 }
 
 // Read the matrices with the sliders' current values, then replay.
 function useMatrices() {
-  const values = {};
-  for (const letter in sliders) values[letter] = sliders[letter].value;
+  const values = sliderValues(sliders);
   try {
     model = readModel(matrices, values);
   } catch (problem) {

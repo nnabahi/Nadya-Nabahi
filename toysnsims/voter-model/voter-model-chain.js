@@ -1,6 +1,6 @@
 /* =====================================================================
-   voter-model-chain.js  —  the opinions behind the "Generalized voter model"
-   sim
+   voter-model-chain.js  —  the opinions behind the "Generalized Voter
+   Model" sim
    ---------------------------------------------------------------------
    What it does, in plain words:
      Every cell holds one of q opinions (colors). Each cell has its own

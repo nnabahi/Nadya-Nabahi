@@ -586,7 +586,7 @@ function tilesOf(triangles) {
     // a side corner, its 144 degree corner, the other side corner; a
     // dart likewise.
     let corners = (s.kind === "thin" || s.kind === "thick") ? [s.a, s.b, t.a, s.c] : [s.a, s.b, s.c, t.b];
-    if (signedArea(corners.map(zToNumbers)) < 0) corners.reverse();
+    if (signedArea(corners.map(zToNumbers)) < 0) corners.reverse();   // (js/sim-domains.js)
     corners = startingFromSmallest(corners);
     const points = corners.map(zToNumbers);
     tiles.push({ key: key, kind: s.kind, name: TILE_NAMES[s.kind], corners: corners, points: points,
@@ -602,17 +602,6 @@ function startingFromSmallest(corners) {
   const keys = corners.map(function (p) { return zKey(p); });
   const first = keys.indexOf(Math.min(...keys));
   return corners.slice(first).concat(corners.slice(0, first));
-}
-
-// The area of a polygon given by its corners (as ordinary numbers),
-// positive when they go counterclockwise ("shoelace formula").
-function signedArea(points) {
-  let twice = 0;
-  for (let k = 0; k < points.length; k++) {
-    const p = points[k], q = points[(k + 1) % points.length];
-    twice += p[0] * q[1] - q[0] * p[1];
-  }
-  return twice / 2;
 }
 
 // The middle of a polygon: its center of mass (inside it for every tile
@@ -1031,9 +1020,9 @@ function addPlaneCells(mirror, sent) {
   });
 }
 
-// What the second thread needs of this file to grow a plane, for
-// runInWorker (js/sim-page.js): the functions of sections 1 to 6 and
-// of this one, and the constants they use.
+// What the second thread needs to grow a plane, for runInWorker
+// (js/sim-page.js): the functions of sections 1 to 6 and of this one,
+// signedArea (js/sim-domains.js), and the constants they use.
 function penroseHelpers() {
   return [zPlus, zMinus, zTurn, zTurnBack, zOverPhi, zTimesPhi, zTowards, zUnit, zKey, zName, zX, zY, zToNumbers,
     triangle, startTriangles, splitTriangles, mightReach, splitsToCover,
