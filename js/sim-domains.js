@@ -42,7 +42,11 @@
      makeDomain(...)          a domain from its cells and edges (every
                               domain is built by it)
      cellAt(d, x, y)          which cell is at (x, y)
-     stepsFrom(d, starts)     distances through the domain
+     searchFrom(d, starts)    a search from some cells: how far each
+                              cell is from the nearest, and which it is
+     stepsFrom(d, starts)     ... just how far
+     farthestFrom(d, starts)  the cell farthest from some cells
+     spreadOut(d, count, first)   cells spread out over the domain
      countPieces(d, colorOf, count)   the connected pieces of each color
      findRegions(d, colors)   the same pieces, each with its area and perimeter
      regionOf(d, colors, s)   the piece holding cell s (to highlight it)
@@ -201,20 +205,44 @@ function cellAt(d, x, y) {
   return d.cellAt[(y - d.ymin) * (d.xmax - d.xmin + 1) + (x - d.xmin)];
 }
 
-// The number of steps from the nearest of the cells "starts" to every
-// cell (a breadth-first search). -1 for cells that can't be reached.
-function stepsFrom(d, starts) {
-  const steps = new Int32Array(d.n).fill(-1);
+// A breadth-first search through domain d from the cells "starts" all
+// at once. For each cell v: steps[v], the number of steps from the
+// nearest start, and from[v], which start that is (its place in
+// "starts"; of two as near, the one the search reached v from first).
+// Both are -1 for cells no start can reach.
+function searchFrom(d, starts) {
+  const steps = new Int32Array(d.n).fill(-1), from = new Int32Array(d.n).fill(-1);
   const queue = starts.slice();
-  for (const s of starts) steps[s] = 0;
+  starts.forEach(function (s, k) { steps[s] = 0; from[s] = k; });
   for (let head = 0; head < queue.length; head++) {
     const v = queue[head];
     for (let e = d.first[v]; e < d.first[v + 1]; e++) {
       const w = d.nbr[e];
-      if (steps[w] === -1) { steps[w] = steps[v] + 1; queue.push(w); }
+      if (steps[w] === -1) { steps[w] = steps[v] + 1; from[w] = from[v]; queue.push(w); }
     }
   }
-  return steps;
+  return { steps: steps, from: from };
+}
+
+// The number of steps from the nearest of the cells "starts" to every
+// cell (-1 for cells that can't be reached).
+function stepsFrom(d, starts) { return searchFrom(d, starts).steps; }
+
+// The cell farthest (in steps) from the nearest of the cells "starts"
+// (of several as far, the one with the smallest number).
+function farthestFrom(d, starts) {
+  const steps = stepsFrom(d, starts);
+  let far = 0;
+  for (let v = 1; v < d.n; v++) if (steps[v] > steps[far]) far = v;
+  return far;
+}
+
+// "count" cells spread out over domain d: "first", then each time the
+// cell farthest from all those picked so far.
+function spreadOut(d, count, first) {
+  const picked = [first];
+  while (picked.length < count) picked.push(farthestFrom(d, picked));
+  return picked;
 }
 
 // How many connected pieces each color has: pieces[c] for the colors

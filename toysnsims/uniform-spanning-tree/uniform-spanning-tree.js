@@ -105,11 +105,13 @@ let stretch = 1;               // the 3D view's Heights slider
    3. GROWING THE TREE
    ---------------------------------------------------------------------
    The tree is treeWorker() in uniform-spanning-tree-wilson.js, with
-   Wilson's algorithm (newWilson, js/sim-spanning.js) copied in.
+   Wilson's algorithm (newWilson, js/sim-spanning.js) and the search
+   through the domain (searchFrom, stepsFrom, js/sim-domains.js) copied
+   in.
    runInWorker (js/sim-page.js) runs it in a second thread, so the page
    never freezes.
    ===================================================================== */
-const sim = runInWorker(treeWorker, [newWilson], function (message) {
+const sim = runInWorker(treeWorker, [newWilson, searchFrom, stepsFrom], function (message) {
   latest = message;
   workOutNumbers();
   drawSoon();

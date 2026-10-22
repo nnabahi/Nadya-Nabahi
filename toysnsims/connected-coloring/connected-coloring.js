@@ -151,26 +151,8 @@ function bands(total, parts) {
 // Each cell is reached through a neighbor of its own color, so every
 // color is one connected piece.
 function compactStart(d, count) {
-  const seeds = [];
-  let distance = stepsFrom(d, [0]);   // stepsFrom is in js/sim-domains.js
-  for (let k = 0; k < count; k++) {
-    let far = 0;
-    for (let v = 1; v < d.n; v++) if (distance[v] > distance[far]) far = v;
-    seeds.push(far);
-    distance = stepsFrom(d, seeds);
-  }
-  // The search from all seeds at once, handing out colors as it goes.
-  const colorOf = new Int32Array(d.n).fill(-1);
-  const queue = [];
-  seeds.forEach(function (s, c) { colorOf[s] = c; queue.push(s); });
-  for (let head = 0; head < queue.length; head++) {
-    const v = queue[head];
-    for (let e = d.first[v]; e < d.first[v + 1]; e++) {
-      const w = d.nbr[e];
-      if (colorOf[w] === -1) { colorOf[w] = colorOf[v]; queue.push(w); }
-    }
-  }
-  return colorOf;
+  const seeds = spreadOut(d, count, farthestFrom(d, [0]));   // (js/sim-domains.js)
+  return searchFrom(d, seeds).from;
 }
 
 
