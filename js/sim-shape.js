@@ -6,8 +6,9 @@
    Walk (the hull and holes of the cells the walker has visited), and
    by their check pages. A sim's second thread (a "Web Worker") can't
    see the page's scripts, so a sim hands these functions to runInWorker
-   (js/sim-page.js) in its list of helpers, which copies them in. That
-   is also why each one keeps everything it needs inside it.
+   (js/sim-page.js) in its list of helpers, which copies them in:
+   shapeHelpers() lists them, with the two of js/sim-domains.js they
+   use.
 
    Contents:
      convexHull(points)        the corners of the smallest convex polygon
@@ -23,6 +24,7 @@
      cellWindow(...)           the cells around a set that these two
                                look at (squareWindow, tilingWindow,
                                finiteWindow)
+     shapeHelpers()            all of them, for a second thread
    ===================================================================== */
 
 
@@ -275,12 +277,7 @@ function cellWindow(set, inside) {
 // round, so its edge is outside the set. Square (x, y) is number
 // (y - ymin) * across + (x - xmin).
 function squareWindow(set, inside) {
-  let xmin = Infinity, xmax = -Infinity, ymin = Infinity, ymax = -Infinity;
-  for (const i of inside) {
-    xmin = Math.min(xmin, set.siteX[i]); xmax = Math.max(xmax, set.siteX[i]);
-    ymin = Math.min(ymin, set.siteY[i]); ymax = Math.max(ymax, set.siteY[i]);
-  }
-  xmin -= 1; xmax += 1; ymin -= 1; ymax += 1;
+  const { xmin, xmax, ymin, ymax } = boxAround(set.siteX, set.siteY, 1, inside);   // (js/sim-domains.js)
   const across = xmax - xmin + 1, down = ymax - ymin + 1, count = across * down;
   return {
     count: count,
@@ -302,23 +299,17 @@ function squareWindow(set, inside) {
 }
 
 // The window of another tiling's cells: whole blocks, around the set's
-// blocks with "margin" more blocks all round. A cell's neighbors are at
-// most "reach" blocks away (each cell's list "next" says which), so with
-// a margin of reach + 1, the cells of the outermost blocks and all
-// their neighbors are empty, and reach far away through empty blocks.
+// blocks with reach + 1 more blocks all round, where a cell's neighbors
+// are at most "reach" blocks away (each cell's list "next" says which).
+// So the cells of the outermost blocks and all their neighbors are
+// empty, and reach far away through empty blocks.
 // Cell z of block (x, y) is number
 //   ((y - ymin) * across + (x - xmin)) * parts + z.
 function tilingWindow(set, inside) {
   const cells = set.tiling.cells, parts = cells.length;
   let reach = 1;
   for (const cell of cells) for (const [, dx, dy] of cell.next) reach = Math.max(reach, Math.abs(dx), Math.abs(dy));
-  const margin = reach + 1;
-  let xmin = Infinity, xmax = -Infinity, ymin = Infinity, ymax = -Infinity;
-  for (const i of inside) {
-    xmin = Math.min(xmin, set.siteX[i]); xmax = Math.max(xmax, set.siteX[i]);
-    ymin = Math.min(ymin, set.siteY[i]); ymax = Math.max(ymax, set.siteY[i]);
-  }
-  xmin -= margin; xmax += margin; ymin -= margin; ymax += margin;
+  const { xmin, xmax, ymin, ymax } = boxAround(set.siteX, set.siteY, reach + 1, inside);
   const across = xmax - xmin + 1, up = ymax - ymin + 1;
   // The window's number for cell z of the window's block (i, j), or -1
   // if that block isn't in the window.
@@ -402,4 +393,12 @@ function bettiOverTime(holes, times) {
     beta[k] = b - d;
   });
   return beta;
+}
+
+// What a second thread needs to use this file, for runInWorker
+// (js/sim-page.js): its functions, and signedArea and boxAround
+// (js/sim-domains.js).
+function shapeHelpers() {
+  return [convexHull, growingHull, polygonArea, polygonPerimeter, holeHistory, bettiOverTime, frontierLength,
+          cellWindow, squareWindow, tilingWindow, finiteWindow, signedArea, boxAround];
 }

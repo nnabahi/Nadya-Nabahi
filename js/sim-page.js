@@ -105,9 +105,10 @@ function readWhole(id, lo, hi, fallback) {
 // "Blob" (a file made in memory) and the worker is made from that; it
 // works both ways. "helpers" (optional) is a list of other functions
 // the worker uses, and of constants it uses, given as objects like
-// { PHI: PHI }; their text is put in first, so "fn" can use them.
+// { PHI: PHI }; their text is put in first (each once, even if the list
+// has it twice), so "fn" can use them.
 function startWorker(fn, helpers) {
-  const parts = (helpers || []).map(function (helper) {
+  const parts = Array.from(new Set(helpers || [])).map(function (helper) {
     if (typeof helper === "function") return helper.toString() + "\n";
     return Object.keys(helper).map(function (name) { return "const " + name + " = " + sourceOf(helper[name]) + ";\n"; }).join("");
   });

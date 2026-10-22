@@ -36,6 +36,7 @@
      wrap(v, lo, hi)          wrap a whole number around, for tori
      wrapNumber(v, size)      the same for any number
      least(list), most(list)  the smallest and biggest number of a list
+     boxAround(x, y, spare, which)   the box around some points
      boxDomain(...)           a box or torus of cells
      aztecDiamond(N)          the Aztec diamond of order N
      drawnDomain(...)         a region drawn in the graph tool
@@ -96,6 +97,20 @@ function wrapNumber(v, size) { return ((v % size) + size) % size; }
 // about 100,000 numbers at once overflows the browser's stack.
 function least(list) { return list.reduce(function (a, b) { return Math.min(a, b); }, Infinity); }
 function most(list) { return list.reduce(function (a, b) { return Math.max(a, b); }, -Infinity); }
+
+// The smallest box { xmin, xmax, ymin, ymax } around the points
+// (x[i], y[i]), with "spare" more all round: for each i in the list
+// "which", or, if it is left out, for every i.
+function boxAround(x, y, spare, which) {
+  let xmin = Infinity, xmax = -Infinity, ymin = Infinity, ymax = -Infinity;
+  const count = which ? which.length : x.length;
+  for (let k = 0; k < count; k++) {
+    const i = which ? which[k] : k;
+    xmin = Math.min(xmin, x[i]); xmax = Math.max(xmax, x[i]);
+    ymin = Math.min(ymin, y[i]); ymax = Math.max(ymax, y[i]);
+  }
+  return { xmin: xmin - spare, xmax: xmax + spare, ymin: ymin - spare, ymax: ymax + spare };
+}
 
 // A width x height box of cells, with 4 or 8 neighbors. If "torus" is
 // true, the right edge is glued to the left and the top to the bottom.

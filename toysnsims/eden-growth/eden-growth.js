@@ -365,8 +365,7 @@ const sim = runInWorker(mountainWorker,
   [newMountain, ballTile, newGraphMountain, makeGraph, tilingShape, motionTimes, motionApply, halfTurn, coshFromStart,
    learnedRules, tilingByGeometry, tilingByRules, tilingRules, testRules, hashTable, ballAround, spreadPlace,
    newTrace, keepSample, seededUniform, mountainSteps, pickSite, newClocks, wrap, blockStart, middleAt, cornersAt,
-   holeHistory, bettiOverTime, cellWindow, squareWindow, tilingWindow, finiteWindow, convexHull, growingHull,
-   polygonArea, convexity].concat(penroseHelpers()), showMountain);
+   convexity].concat(shapeHelpers(), penroseHelpers()), showMountain);
 
 // On a graph whose rules the page can't learn (js/sim-graphs.js).
 const BY_GEOMETRY = "This tiling has too many cells near the start for the page to learn its rules, " +
@@ -475,13 +474,8 @@ function heightColor(h, highest) {
 function pictureRange() {
   const s = latest;
   if (s.setup.range) return s.setup.range;
-  let xmin = Infinity, xmax = -Infinity, ymin = Infinity, ymax = -Infinity;
-  for (let i = 0; i < s.x.length; i++) {
-    xmin = Math.min(xmin, s.x[i]); xmax = Math.max(xmax, s.x[i]);
-    ymin = Math.min(ymin, s.y[i]); ymax = Math.max(ymax, s.y[i]);
-  }
-  return dim === 1 ? { xmin: xmin - 1, xmax: xmax + 1, ymin: 0, ymax: 0 }
-                   : { xmin: xmin - 1, xmax: xmax + 1, ymin: ymin - 1, ymax: ymax + 1 };
+  const box = boxAround(s.x, s.y, 1);   // (js/sim-domains.js)
+  return dim === 1 ? { xmin: box.xmin, xmax: box.xmax, ymin: 0, ymax: 0 } : box;
 }
 
 function drawMountain() {

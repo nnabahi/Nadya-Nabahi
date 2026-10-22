@@ -450,12 +450,7 @@ function floorBox(stacks) {
   const f = stacks.floor;
   if (f.disk) return { xmin: -f.disk, xmax: f.disk, ymin: -f.disk, ymax: f.disk };
   if (!f.x) return f;
-  let xmin = Infinity, xmax = -Infinity, ymin = Infinity, ymax = -Infinity;
-  for (let i = 0; i < f.x.length; i++) {
-    xmin = Math.min(xmin, f.x[i]); xmax = Math.max(xmax, f.x[i]);
-    ymin = Math.min(ymin, f.y[i]); ymax = Math.max(ymax, f.y[i]);
-  }
-  return { xmin: xmin, xmax: xmax, ymin: ymin, ymax: ymax };
+  return boxAround(f.x, f.y, 0);   // (js/sim-domains.js)
 }
 
 // Room for the blocks of drawStacks in the mesh view3d.meshes[name]:
