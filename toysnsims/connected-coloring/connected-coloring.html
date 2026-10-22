@@ -54,12 +54,12 @@
         <p class="muted small" id="start-info"></p>
 
         <h3 class="option-heading">Run</h3>
-        <div class="option-row play-row" data-step="One move" data-restart="Back to the start, same seed"></div>
+        <div class="option-row play-row" data-step="One step: a sweep of flips or a move" data-restart="Back to the start, same seed"></div>
         <div class="option-row speed-row"></div>
         <div class="option-row">
           <label title="Not on a hyperbolic tiling or tree"><input type="checkbox" id="watch"> Watch each move</label>
         </div>
-        <div class="option-row" title="Between two moves, a step of this many flips per cell: a flip gives one cell a neighbor's color, keeping both colors connected. 0 = moves only.">
+        <div class="option-row" title="Between two moves, this many sweeps, each a step of its own. A sweep is one flip per cell on average: a flip gives one cell a neighbor's color, keeping both colors connected. 0 = moves only.">
           Flip sweeps <input type="range" class="wide-range" id="set-sweeps" min="0" step="1" value="1">
           <span class="muted" id="sweeps-label"></span>
         </div>
@@ -71,7 +71,8 @@
           </div>
           <p class="muted small">Each move step by step: the two colors, the random spanning
             tree being built (the white walk; its loops vanish), the cut, the new colors, and
-            accept or reject. Steps is how fast the walk goes.</p>
+            accept or reject. Each sweep of flips stops once, with the cells it changed
+            marked. Steps is how fast the walk goes.</p>
         </div>
         <div class="option-row seed-row"></div>
         <p class="muted small">The same seed always gives the same run.</p>
@@ -85,6 +86,7 @@
             <table class="stats-table">
               <tr><td>Cells</td><td id="stat-cells"></td></tr>
               <tr><td>Colors N</td><td id="stat-colors"></td></tr>
+              <tr><td>Steps (sweeps and moves)</td><td id="stat-steps"></td></tr>
               <tr><td>Moves tried</td><td id="stat-proposed"></td></tr>
               <tr><td>Moves accepted</td><td id="stat-accepted"></td></tr>
               <tr><td>Flips accepted</td><td id="stat-flips"></td></tr>
@@ -104,7 +106,7 @@
       <section class="panel panel-charts">
         <div class="stat-grid">
           <div class="stat">
-            <h3 class="option-heading">Boundary edges over the whole run</h3>
+            <h3 class="option-heading">Boundary edges over the whole run, after each step</h3>
             <canvas class="chart" id="trace-chart"></canvas>
           </div>
           <div class="stat">
@@ -205,6 +207,28 @@
           without it, which piece gets color <span class="tex">i</span> depends on
           where the tree was rooted, and <span class="tex">q</span> would not be
           the formula above.
+        </p>
+        <p>
+          <strong>Flips.</strong> Between two moves the chain makes a number
+          of <em>sweeps</em> (the Flip sweeps slider), each a step of its own,
+          so the steps go sweep, &hellip;, sweep, move, sweep, &hellip; A sweep
+          is <span class="tex">n</span> flips, with <span class="tex">n</span>
+          the number of cells. A flip picks a uniformly random cell
+          <span class="tex">v</span> and a uniformly random neighbor
+          <span class="tex">w</span>, and proposes giving
+          <span class="tex">v</span> the color of <span class="tex">w</span>.
+          With <span class="tex">a</span> the number of neighbors of
+          <span class="tex">v</span> in its own color and
+          <span class="tex">b</span> the number in the color of
+          <span class="tex">w</span>, the flip is proposed with probability
+          <span class="tex">\frac{1}{n} \cdot \frac{b}{\deg v}</span> and the
+          flip back with <span class="tex">\frac{1}{n} \cdot \frac{a}{\deg v}</span>,
+          so it is accepted with probability <span class="tex">\min(1, a/b)</span>
+          [3, 4], and only if the old color of <span class="tex">v</span>
+          stays one connected piece without it. Each flip and each move
+          leaves the uniform distribution stationary, so a fixed cycle of
+          them does too [18]. Flips change the borders a cell at a time and
+          are cheap; moves redraw two whole colors at once.
         </p>
         <p>
           <strong>Counting spanning trees.</strong> By Kirchhoff's Matrix-Tree
@@ -351,6 +375,10 @@
             (January 1977), 110&ndash;121.</li>
           <li>H. Kociemba, &ldquo;Computing the tile frequencies&rdquo;,
             <a href="https://kociemba.org/themen/penrose/tiling4.html">kociemba.org/themen/penrose/tiling4.html</a>.</li>
+          <li>L. Tierney, &ldquo;Markov chains for exploring posterior
+            distributions&rdquo;, <em>Annals of Statistics</em> 22 (1994),
+            1701&ndash;1762.
+            <a href="https://doi.org/10.1214/aos/1176325750">doi:10.1214/aos/1176325750</a></li>
         </ol>
         </div>
       </section>
