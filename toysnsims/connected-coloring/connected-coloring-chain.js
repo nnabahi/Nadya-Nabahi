@@ -98,7 +98,7 @@ function chainWorker() {
   let random = Math.random;
   let proposed = 0;        // moves tried
   let accepted = 0;        // moves accepted
-  let sweeps = 1;          // flips before each move, in sweeps (1 sweep = n flips; section 2b)
+  let sweeps = 1;          // flips between two moves, in sweeps (1 sweep = n flips; section 2b)
   let flips = 0, flipped = 0;   // flips tried, and flips accepted
   let stale = null;        // stale[c]: a flip changed color c, so logTau[c] must be worked out again
   let seen = null, seenStamp = 0;   // marks for the flips' connectivity check
@@ -185,8 +185,6 @@ function chainWorker() {
      2. ONE MOVE OF THE CHAIN (steps 1-6 at the top of the file)
      =================================================================== */
   function oneMove() {
-    for (let k = Math.round(sweeps * n); k > 0; k--) oneFlip();   // the flips first (section 2b)
-    if (film) film.before = color.slice();
     proposed++;
 
     // Step 1: the touching pairs of colors, and one picked at random.
@@ -268,7 +266,9 @@ function chainWorker() {
   /* ===================================================================
      2b. SINGLE-CELL FLIPS
      -------------------------------------------------------------------
-     Before each move above, the chain makes "sweeps" x n flips. A flip
+     Between two moves above, the chain makes "sweeps" x n flips, as a
+     step of its own, so the page shows them at the Speed of the moves:
+     flips, move, flips, move, ... (oneStep, section 4). A flip
      picks a uniformly random cell v and a uniformly random neighbor w of
      v, and proposes giving v the color of w. With
        a = how many neighbors of v have v's color now, and
@@ -424,7 +424,7 @@ function chainWorker() {
                         ("watch": is "watch each move" on? "most": the
                         most samples each chart keeps)
        watch  { on }    "watch each move" on or off
-       sweeps { sweeps }   flips before each move, in sweeps (section 2b)
+       sweeps { sweeps }   flips between two moves, in sweeps (section 2b)
        next   {}        (watching) the page has shown the last move
      It reports the colors, the numbers for the Statistics box, and the
      run so far for the two charts (the boundary edges, and the
@@ -439,20 +439,30 @@ function chainWorker() {
      =================================================================== */
   let watching = false;    // "watch each move" is on
   let showing = false;     // watching: the page is still showing the last move
-  let lastReported = -1;   // the move count last sent to the page
+  let lastReported = -1;   // the step count last sent to the page
 
   // One step: one move, or, watching, one move with its film once the
   // page has shown the last one (until then it waits: false).
+  // Steps alternate: a sweep of flips (if sweeps > 0), then a move.
+  let steps = 0;           // steps made, flips and moves alike
+  let flipNext = true;     // is the next step a sweep of flips?
   function oneStep() {
     if (watching && showing) return false;
+    steps++;
+    if (flipNext && sweeps > 0) {
+      for (let k = Math.round(sweeps * n); k > 0; k--) oneFlip();
+      flipNext = false;
+      return;
+    }
+    flipNext = true;
     film = watching ? {} : null;
     oneMove();
     showing = watching;
   }
 
   function report(send) {
-    if (proposed === lastReported) return;   // nothing new to show
-    lastReported = proposed;
+    if (steps === lastReported) return;      // nothing new to show
+    lastReported = steps;
     const copy = color.slice();
     send({
       colors: copy,
@@ -478,6 +488,8 @@ function chainWorker() {
       watching = message.watch;
       showing = false;
       lastReported = -1;
+      steps = 0;
+      flipNext = true;
     },
     steps: oneStep, report: report,
     messages: {
