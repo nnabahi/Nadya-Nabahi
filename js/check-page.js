@@ -26,6 +26,8 @@
      spotKey(u, w), sideKeysAt(...)      points and sides as text, to match them up
      eulerCounter(tiling)                the holes of a growing set of cells, by Euler's formula
      holesFromPolygons(set)              its holes and outer boundary, from the polygons alone
+     holesAgainstEuler(set, h, steps)    holeHistory's answer against Euler's formula ...
+     holesAgainstPolygons(set, h)        ... and against the polygons
    and, to test the counting of regions (js/sim-domains.js):
      unionFindRegions(d, colors)         each cell's region, found another way
      testRegions()                       the regions counted and highlighted, on many domains
@@ -261,6 +263,48 @@ function holesFromPolygons(set) {
     sizes.push(size);
   }
   return { sizes: sizes, cells: holeCells, frontier: frontier };
+}
+
+// holeHistory's answer h (js/sim-shape.js) for a set of a tiling's
+// cells ("set" as holeHistory has it, its cells in the order they
+// joined, connected at every step), against Euler's formula: beta_1
+// from h's births and deaths = eulerCounter's at every step 0 .. steps.
+// Returns { problem, most }: what is wrong ("" if nothing), and the most
+// holes there were at once.
+function holesAgainstEuler(set, h, steps) {
+  const beta = bettiOverTime(h, Array.from({ length: steps + 1 }, function (_, step) { return step; }));
+  const counter = eulerCounter(set.tiling);
+  let i = 0, most = 0;
+  for (let step = 0; step <= steps; step++) {
+    for (; i < set.siteX.length && set.bornAt[i] === step; i++) counter.add(set.siteX[i], set.siteY[i], set.siteZ[i]);
+    const euler = counter.holes();
+    most = Math.max(most, euler);
+    if (euler !== beta[step]) {
+      return { problem: "step " + step + ": " + beta[step] + " holes from the births and deaths, " + euler + " by Euler's formula",
+               most: most };
+    }
+  }
+  return { problem: "", most: most };
+}
+
+// holeHistory's answer h for the same set, now: its holes (how many,
+// their sizes and their cells) and the set's outer boundary
+// (frontierLength, js/sim-shape.js) against those found from the
+// polygons alone (holesFromPolygons). Returns { problems (none if they
+// agree), holes, cells, frontier }.
+function holesAgainstPolygons(set, h) {
+  const plain = holesFromPolygons(set), frontier = frontierLength(set), problems = [];
+  const ours = new Set();
+  for (let k = 0; k < h.holeCells.length; k += 3) ours.add(h.holeCells[k] + "," + h.holeCells[k + 1] + "," + h.holeCells[k + 2]);
+  const sizes = function (list) { return Array.from(list).sort(function (a, b) { return a - b; }).join(" "); };
+  const sameCells = ours.size === plain.cells.size && [...ours].every(function (key) { return plain.cells.has(key); });
+  if (plain.sizes.length !== h.openBirths.length) {
+    problems.push(plain.sizes.length + " holes from the polygons, " + h.openBirths.length + " open");
+  }
+  if (sizes(plain.sizes) !== sizes(h.holeSizes)) problems.push("hole sizes " + sizes(h.holeSizes) + ", from the polygons " + sizes(plain.sizes));
+  if (!sameCells) problems.push("the holes' cells differ from the polygons'");
+  if (frontier !== plain.frontier) problems.push("outer boundary " + frontier + ", from the polygons " + plain.frontier);
+  return { problems: problems, holes: plain.sizes.length, cells: ours.size, frontier: frontier };
 }
 
 // The window of cells holesFromPolygons looks at, as [x, y, z, edge]

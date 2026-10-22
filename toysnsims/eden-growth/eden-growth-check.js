@@ -851,34 +851,22 @@ function sameAsSquares(r, extra, steps) {
 // The holes on another tiling, two ways. Grow "steps" steps with
 // r = 1, so the base is connected (each new site shares a side with
 // it). At every step, beta_1 from holeHistory's births and deaths =
-// beta_1 by Euler's formula (eulerCounter, js/check-page.js); at the
-// end, the holes' cells and sizes = those found from the polygons alone
-// (holesFromPolygons, js/check-page.js). Returns { problem, most }:
+// beta_1 by Euler's formula (holesAgainstEuler, js/check-page.js); at
+// the end, the holes and the outer boundary = those found from the
+// polygons alone (holesAgainstPolygons). Returns { problem, most }:
 // what is wrong ("" if nothing), and the most holes there were at once.
 function checkTilingHoles(options, steps) {
   const m = newMountain(options);
   for (let k = 0; k < steps && m.available.length > 0; k++) m.step();
   const h = holeHistory(m, m.steps);
-  const beta = bettiOverTime(h, Array.from({ length: m.steps + 1 }, function (_, step) { return step; }));
+  // The base, in the order its sites got their first block.
   const base = [];
   for (let i = 0; i < m.height.length; i++) if (m.height[i] > 0) base.push(i);
   base.sort(function (i, j) { return m.bornAt[i] - m.bornAt[j]; });
-  const counter = eulerCounter(options.tiling);
-  let j = 0, most = 0;
-  const result = function (problem) { return { problem: problem, most: most }; };
-  for (let step = 0; step <= m.steps; step++) {
-    for (; j < base.length && m.bornAt[base[j]] === step; j++) counter.add(m.siteX[base[j]], m.siteY[base[j]], m.siteZ[base[j]]);
-    most = Math.max(most, counter.holes());
-    if (counter.holes() !== beta[step]) return result("step " + step + ": " + beta[step] + " holes from the births and deaths, " + counter.holes() + " by Euler's formula");
-  }
-  const plain = holesFromPolygons({ tiling: options.tiling, siteX: base.map(function (i) { return m.siteX[i]; }),
-                                    siteY: base.map(function (i) { return m.siteY[i]; }), siteZ: base.map(function (i) { return m.siteZ[i]; }) });
-  const ours = new Set();
-  for (let k = 0; k < h.holeCells.length; k += 3) ours.add(h.holeCells[k] + "," + h.holeCells[k + 1] + "," + h.holeCells[k + 2]);
-  const sizes = function (list) { return Array.from(list).sort(function (a, b) { return a - b; }).join(" "); };
-  if (sizes(plain.sizes) !== sizes(h.holeSizes)) return result("hole sizes " + sizes(h.holeSizes) + ", from the polygons " + sizes(plain.sizes));
-  if (ours.size !== plain.cells.size || [...ours].some(function (key) { return !plain.cells.has(key); })) return result("the holes' cells differ from the polygons'");
-  return result("");
+  const of = function (list) { return base.map(function (i) { return list[i]; }); };
+  const set = { tiling: options.tiling, siteX: of(m.siteX), siteY: of(m.siteY), siteZ: of(m.siteZ), bornAt: of(m.bornAt) };
+  const euler = holesAgainstEuler(set, h, m.steps), plain = holesAgainstPolygons(set, h);   // (js/check-page.js)
+  return { problem: euler.problem || plain.problems.join("; "), most: euler.most };
 }
 
 // The shape on another tiling, after "steps" steps: the area kept
@@ -1310,7 +1298,7 @@ function allTests() {
     tests.push(function () {
       const { problem, most } = checkTilingHoles(Object.assign({ radius: 1 }, options), steps);
       addRow("Other tilings, holes: " + name + ", r = 1, up to " + steps.toLocaleString() + " steps", problem === "",
-             problem || "beta_1 matches Euler's formula at every step (at most " + most + (most === 1 ? " hole" : " holes") + " at once), and the holes' cells match the polygons'");
+             problem || "beta_1 matches Euler's formula at every step (at most " + most + (most === 1 ? " hole" : " holes") + " at once), and the holes and the outer boundary match the polygons'");
     });
   }
   tests.push(function () {
@@ -1407,7 +1395,7 @@ function allTests() {
     tests.push(function () {
       const { problem, most } = checkTilingHoles(Object.assign({ radius: 1 }, make()), steps);
       addRow("Penrose tilings, holes: " + name + ", r = 1, up to " + steps.toLocaleString() + " steps", problem === "",
-             problem || "beta_1 matches Euler's formula at every step (at most " + most + (most === 1 ? " hole" : " holes") + " at once), and the holes' cells match the polygons'");
+             problem || "beta_1 matches Euler's formula at every step (at most " + most + (most === 1 ? " hole" : " holes") + " at once), and the holes and the outer boundary match the polygons'");
     });
   }
   for (const [name, make, steps] of [

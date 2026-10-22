@@ -304,29 +304,13 @@ function checkTilingKept(t, steps) {
 function checkTilingHoles(t, steps) {
   const { walk } = tilingWalk(t, "holes", steps);
   const h = holeHistory(walk, walk.steps);
-  const beta = bettiOverTime(h, Array.from({ length: steps + 1 }, function (_, step) { return step; }));
-  const counter = eulerCounter(walk.tiling);
-  let i = 0, most = 0, problem = "";
-  for (let step = 0; step <= steps && !problem; step++) {
-    for (; i < walk.siteX.length && walk.bornAt[i] === step; i++) counter.add(walk.siteX[i], walk.siteY[i], walk.siteZ[i]);
-    const euler = counter.holes();
-    most = Math.max(most, euler);
-    if (euler !== beta[step]) problem = "step " + step + ": " + beta[step] + " from the births and deaths, " + euler + " by Euler's formula";
-  }
+  const { problem, most } = holesAgainstEuler(walk, h, steps);   // (js/check-page.js)
   addRow(t.name + ": holes against Euler's formula at every step, " + steps.toLocaleString() + " steps", problem === "",
          problem || "beta_1 = 1 - V + E - F at every step (at most " + most + " holes, " + h.openBirths.length + " at the end)");
-
-  const plain = holesFromPolygons(walk);
-  const ours = new Set();
-  for (let k = 0; k < h.holeCells.length; k += 3) ours.add(h.holeCells[k] + "," + h.holeCells[k + 1] + "," + h.holeCells[k + 2]);
-  const sizes = function (list) { return Array.from(list).sort(function (a, b) { return a - b; }).join(" "); };
-  const frontier = frontierLength(walk), problems = [];
-  if (plain.sizes.length !== h.openBirths.length) problems.push(plain.sizes.length + " holes from the polygons, " + h.openBirths.length + " open");
-  if (sizes(plain.sizes) !== sizes(h.holeSizes)) problems.push("hole sizes " + sizes(h.holeSizes) + " vs " + sizes(plain.sizes));
-  if (ours.size !== plain.cells.size || [...ours].some(function (key) { return !plain.cells.has(key); })) problems.push("the holes' cells differ");
-  if (frontier !== plain.frontier) problems.push("outer boundary " + frontier + " vs " + plain.frontier);
-  addRow(t.name + ": holes and outer boundary from the polygons alone, after " + steps.toLocaleString() + " steps", problems.length === 0,
-         problems.join("; ") || plain.sizes.length + " holes (" + ours.size + " cells), outer boundary " + frontier + " sides, the same both ways");
+  const plain = holesAgainstPolygons(walk, h);
+  addRow(t.name + ": holes and outer boundary from the polygons alone, after " + steps.toLocaleString() + " steps",
+         plain.problems.length === 0, plain.problems.join("; ") || plain.holes + " holes (" + plain.cells + " cells), outer boundary " +
+         plain.frontier + " sides, the same both ways");
 }
 
 // On a Penrose tiling, the walk grows its plane as it goes, and stops
