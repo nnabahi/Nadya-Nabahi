@@ -15,6 +15,7 @@
    and the tests several pages use (the p-values come from the library
    jStat, which those pages load):
      pooledChiSquare(odds, seen, runs)   do counts match exact odds?
+     exactOddsTest(odds, seen, runs, what)   ... as a pass or FAIL with its text
      equalChiSquare(counts)              are some outcomes equally likely?
      binomialZ(count, trials, p)         how far a count is from its mean
    and, to test the holes found by holeHistory (js/sim-shape.js):
@@ -107,6 +108,21 @@ function pooledChiSquare(odds, seen, runs) {
   }
   const degrees = groups - 1;
   return { statistic: statistic, groups: groups, degrees: degrees, pValue: 1 - jStat.chisquare.cdf(statistic, degrees) };
+}
+
+// The same test as a result for a row of the table: { pass, text }. An
+// outcome the odds don't list can't happen, and fails the test at once.
+// "what" names the outcomes in the text (like "mountains").
+function exactOddsTest(odds, seen, runs, what) {
+  for (const outcome of seen.keys()) {
+    if (!odds.has(outcome)) return { pass: false, text: "The sim made an outcome the exact odds rule out: " + outcome };
+  }
+  const test = pooledChiSquare(odds, seen, runs);
+  return {
+    pass: test.pValue > 0.001,
+    text: odds.size + " possible " + what + ", " + runs + " runs: chi-square " + test.statistic.toFixed(1) +
+          " with " + test.degrees + " degrees of freedom, p = " + test.pValue.toFixed(3),
+  };
 }
 
 // Are the outcomes equally likely? "counts" is how often each came up.

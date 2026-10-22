@@ -301,22 +301,7 @@ function chiSquareTest(c, runs, clocks) {
     counts.set(key, (counts.get(key) || 0) + 1);
   }
 
-  return pearson(odds, counts, runs);
-}
-
-// Pearson's test of the counts against the exact odds (pooledChiSquare,
-// js/check-page.js). A mountain the exact listing says is impossible is
-// a failure at once.
-function pearson(odds, counts, runs) {
-  for (const key of counts.keys()) {
-    if (!odds.has(key)) return { pass: false, text: "The sim made a mountain that is impossible: " + key };
-  }
-  const test = pooledChiSquare(odds, counts, runs);
-  return {
-    pass: test.pValue > 0.001,
-    text: odds.size + " possible mountains, " + runs + " runs: chi-square " + test.statistic.toFixed(1) +
-          " with " + test.degrees + " degrees of freedom, p = " + test.pValue.toFixed(3),
-  };
+  return exactOddsTest(odds, counts, runs, "mountains");   // (js/check-page.js)
 }
 
 
@@ -475,7 +460,7 @@ function treeChiSquare(d, r, steps, runs, clocks) {
     const key = describeByDepth(pairs);
     counts.set(key, (counts.get(key) || 0) + 1);
   }
-  return pearson(odds, counts, runs);
+  return exactOddsTest(odds, counts, runs, "mountains");   // (js/check-page.js)
 }
 
 // The distance from cell v to every cell within "far" of it, on a graph
