@@ -38,7 +38,7 @@
    ===================================================================== */
 
 // The default domain and number of colors.
-const DEFAULTS = { width: 24, height: 24, neighbors: 4, colors: 6, seed: "1" };
+const DEFAULTS = { width: 24, height: 24, colors: 6, seed: "1" };
 
 const MAX_COLORS = 100;           // the most colors allowed
 const MAX_SIDE = 250;             // the biggest box or torus is 250 x 250

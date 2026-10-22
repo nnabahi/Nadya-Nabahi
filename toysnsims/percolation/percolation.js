@@ -47,8 +47,8 @@ const KIND = document.body.dataset.kind;   // "site" or "bond"
 // The default domain, p and seed, for each kind. Bond percolation
 // starts smaller, so the edges show.
 const DEFAULTS = KIND === "site"
-  ? { width: 128, height: 128, neighbors: 4, p: 0.593, seed: "1" }
-  : { width: 48, height: 48, neighbors: 4, p: 0.5, seed: "1" };
+  ? { width: 128, height: 128, p: 0.593, seed: "1" }
+  : { width: 48, height: 48, p: 0.5, seed: "1" };
 
 const MAX_SIDE = KIND === "site" ? 400 : 300;   // the biggest box or torus
 const MAX_PICTURE_HEIGHT = 600;   // in screen pixels
@@ -63,10 +63,9 @@ const SMALLEST_EDGE_CELL = 6;     // bond: cells at least this big are drawn as 
 const BALL = { R: 6, most: 20, cells: 20000 };
 
 // The critical point p_c on the square grid, where an infinite cluster
-// first appears (see "All the details" for where these come from).
-// null where no exact or well-established value is known. (On a tree,
-// see criticalPoint.)
-const CRITICAL = KIND === "site" ? { 4: 0.592746, 8: 1 - 0.592746 } : { 4: 0.5, 8: null };
+// first appears (see "All the details" for where these come from). (On
+// a tree, see criticalPoint.)
+const SQUARE_CRITICAL = KIND === "site" ? 0.592746 : 0.5;
 
 // The critical points known exactly on the other tilings, by the
 // tiling's code (js/sim-tilings.js) and whether its tiles or its
@@ -511,7 +510,7 @@ function drawSizesChart() {
 }
 
 // The critical point for the domain in use: for a box or torus, where
-// the cells sit on the square grid with 4 or 8 neighbors, or on a
+// the cells sit on the square grid, or on a
 // tiling where it is known exactly (tilingCritical), and for a tree of
 // degree d, where it is 1/(d - 1) for both site and bond percolation
 // (see "All the details"). No exact value is known for the hyperbolic
@@ -520,7 +519,7 @@ function criticalPoint() {
   if (domains.kind === "custom") return null;
   if (domains.kind === "graph") return isTree(disk.spec) ? 1 / (disk.spec.p - 1) : null;
   if (domain.lattice) return tilingCritical() === null ? null : EXACT[tilingCritical()];
-  return CRITICAL[byId("set-neighbors").value];
+  return SQUARE_CRITICAL;
 }
 
 // The exact critical point on the tiling in use, as a key of EXACT, or

@@ -63,8 +63,6 @@
                         size, and nothing else. A page with both (Eden
                         Growth's Dimension option) switches its options
                         with domains.setDim, which sets data-dim.
-     data-no-neighbors  (no value) no Neighbors menu: the page's sim says
-                        who neighbors whom another way (Eden Growth's tile)
    Uniform Discrete Tiling writes its own options, with the same ids: its
    Cells menu has just squares, triangles and hexagons, and it has kinds
    of its own (the Aztec diamond, the hexagon of triangles).
@@ -73,9 +71,7 @@
    page uses the same ids for the options that go with each:
      whole        nothing more: no size
      box, torus   the boxes set-width and set-height (in the row
-                  size-row; on the line only set-width) and, on most
-                  pages, the Neighbors menu set-neighbors (in the row
-                  neighbors-row)
+                  size-row; on the line only set-width)
      custom       the row custom-row, with the line custom-info and the
                   button edit-custom; the graph tool itself is section 2
      graph        the hyperbolic plane or tree: the rows in graph-rows
@@ -95,7 +91,7 @@
    the box tiling-code with the line tiling-message under it, and the
    row cells-row with the radio buttons name="cells-are" (the tiles or
    the corners of the tiling are the cells). The square grid is the
-   usual box or torus, with its Neighbors option; any other tiling is a
+   usual box or torus; any other tiling is a
    tilingBox (js/sim-domains.js), its size in side lengths. A Penrose
    tiling never repeats, so it has no torus: its Torus option hides.
    The cells-row hides where only the tiles can be cells: on the square
@@ -116,14 +112,13 @@ const DOMAIN_KINDS = [
 fillBlocks(".domain-options", domainOptionsHTML);
 
 // The Domain options, as HTML, from the placeholder's settings (above):
-// the kinds and the size, and in 2D the Lattice options, the neighbors,
-// the custom domain's row, and the hyperbolic plane or tree's rows.
+// the kinds and the size, and in 2D the Lattice options, the custom
+// domain's row, and the hyperbolic plane or tree's rows.
 function domainOptionsHTML(settings) {
   const oneD = (settings.dim === "1"), whole = ("whole" in settings);
   const rows = [kindsHTML(settings.ticked, oneD, whole), sizeRowHTML(settings.least || 2, oneD)];
   if (oneD) return rows.join("");
   rows.push(latticeRowsHTML());
-  if (!("noNeighbors" in settings)) rows.push(neighborsRowHTML());
   rows.push(customRowHTML(), graphRowsHTML(whole));
   return rows.join("");
 }
@@ -159,11 +154,6 @@ function latticeRowsHTML() {
         '<label><input type="radio" name="cells-are" value="tiles" checked> tiles</label> ' +
         '<label><input type="radio" name="cells-are" value="corners"> corners</label></div>' +
     "</div>";
-}
-
-function neighborsRowHTML() {
-  return '<div class="option-row" id="neighbors-row">Neighbors <select id="set-neighbors">' +
-    '<option value="4">4 (share a side)</option><option value="8">8 (sides or corners)</option></select></div>';
 }
 
 function customRowHTML() {
@@ -288,7 +278,6 @@ function connectDomains(page) {
     radioOf(kind).checked = true;
     byId("size-row").hidden = isCustom || onGraph || kind === "whole";
     if (byId("height-part")) byId("height-part").hidden = line;
-    if (byId("set-neighbors")) byId("neighbors-row").hidden = isCustom || onGraph || line || !onSquares();
     if (byId("set-tiling")) {
       byId("lattice-rows").hidden = isCustom || onGraph || line;
       byId("cells-row").hidden = !cornersCanBeCells();
@@ -325,7 +314,7 @@ function connectDomains(page) {
       else domains.useTicked();
     });
   }
-  for (const id of ["set-width", "set-height", "set-neighbors"]) {
+  for (const id of ["set-width", "set-height"]) {
     if (byId(id)) byId(id).addEventListener("change", domains.useTicked);
   }
   if (byId("set-tiling")) connectLattice(domains.useTicked);
@@ -348,7 +337,7 @@ function connectDomains(page) {
 
 // The options' values at the start: the box's size (defaults.width x
 // defaults.height, at most "most" on a side; on the line just the
-// width) and neighbors, and, with a "ball" (as in makeBall: its default
+// width), and, with a "ball" (as in makeBall: its default
 // radius R and largest radius "most"), the hyperbolic plane or tree's
 // ball.
 function fillDomainOptions(defaults, most, ball) {
@@ -358,7 +347,6 @@ function fillDomainOptions(defaults, most, ball) {
     byId("set-height").value = defaults.height;
     byId("set-height").max = most;
   }
-  if (byId("set-neighbors")) byId("set-neighbors").value = String(defaults.neighbors);
   if (ball && byId("set-ball-radius")) {
     byId("set-ball-radius").value = ball.R;
     byId("set-ball-radius").max = ball.most;
@@ -385,15 +373,14 @@ function sizeFromOptions(least, most, defaults) {
 }
 
 // The box or torus the options say (sizeFromOptions, as a boxDomain,
-// js/sim-domains.js); with no Neighbors option, and on the line, cells
-// have 4 neighbors (on the line just the 2 beside them). On a lattice
+// js/sim-domains.js): cells are neighbors when they share a side (on the
+// line, the 2 beside each cell). On a lattice
 // other than the square grid, the tiling in use (readTiling), as
 // tilingBoxFromOptions gives it.
 function boxFromOptions(least, most, defaults) {
   if (!onSquares()) return tilingBoxFromOptions(tilingInUse.block, least, most, defaults);
   const size = sizeFromOptions(least, most, defaults);
-  const neighbors = byId("set-neighbors") && !onLine() ? Number(byId("set-neighbors").value) : 4;
-  return boxDomain(size.width, size.height, neighbors, size.torus);
+  return boxDomain(size.width, size.height, 4, size.torus);
 }
 
 // The box or torus the options say of a tiling's cells (tilingBox,

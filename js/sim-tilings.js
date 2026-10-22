@@ -1201,7 +1201,7 @@ const TILINGS = [
   { name: "Rhombitrihexagonal (3.4.6.4)", code: "6-4-3/m30/r(c2)", kinds: 1 },
   { name: "Truncated trihexagonal (4.6.12)", code: "12-6,4/m30/r(c2)", kinds: 1 },
   { name: "Kagome (3.6.3.6)", code: "6-3-6/m30/r(v4)", kinds: 1 },
-  { name: "Truncated square (4.8²)", code: "8-4/m90/r(h4)", kinds: 1 },
+  { name: "Truncated square (4.8², 8 neighbors square)", code: "8-4/m90/r(h4)", kinds: 1 },
   { name: "Snub square (3².4.3.4)", code: "4-3-3,4/r90/r(h2)", kinds: 1 },
   { name: "Elongated triangular (3³.4²)", code: "4-3/m90/r(h2)", kinds: 1 },
   { name: "Snub hexagonal (3⁴.6)", code: "6-3-3/r60/r(h5)", kinds: 1 },

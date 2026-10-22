@@ -39,7 +39,7 @@
    ===================================================================== */
 
 // The default domain (a 64 x 64 torus), number of walkers and seed.
-const DEFAULTS = { width: 64, height: 64, neighbors: 4, walkers: 2, seed: "1" };
+const DEFAULTS = { width: 64, height: 64, walkers: 2, seed: "1" };
 
 const MAX_WALKERS = 30;           // the most walkers allowed
 const MAX_SIDE = 300;             // the biggest box or torus is 300 x 300
