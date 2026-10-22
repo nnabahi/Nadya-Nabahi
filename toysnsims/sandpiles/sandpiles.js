@@ -104,16 +104,14 @@ let latest = null;
    3. COLORS
    ---------------------------------------------------------------------
    Three ways to color the heights:
-     "White to red, then viridis" (the default, nadya's pick): heights
-                             0 up to the cell's threshold (4 on the
-                             square grid) go white, yellow, orange, light
-                             red, dark red (colors from ColorBrewer's "YlOrRd",
-                             Brewer, colorbrewer2.org). Taller cells, which
-                             are about to topple, go from green to dark
-                             purple at the tallest cell: the "viridis"
-                             colors (van der Walt and Smith, matplotlib,
-                             2015) with their yellow end cut off, so they
-                             never look like the low heights.
+     "White to red, then blue" (the default, nadya's pick): heights
+                             below the cell's threshold (0 to 3 on the
+                             square grid) go white, yellow, orange, red
+                             (colors from ColorBrewer's "YlOrRd", Brewer,
+                             colorbrewer2.org). Cells at the threshold or
+                             taller, which are about to topple, go from
+                             light blue at the threshold to dark blue at
+                             the tallest cell (ColorBrewer's "Blues").
    and nadya's own colors, from her Sandpiles.js:
      "One color per height"  height 0 gets the first color, 1 the
                              second, and so on; 9 or more grains get
@@ -126,16 +124,19 @@ let latest = null;
    "Topples so far" colors each cell by how often it has toppled, from
    white (never) to dark blue (the most of any cell).
    On a tiling with cells of different kinds, each cell is colored by
-   its own threshold, so dark red always means "about to topple": a
+   its own threshold, so blue always means "about to topple": a
    triangle (3 grains) and a 12-gon (12 grains) with 3 grains look
    different. Only "One color per height" is the same for every cell.
    ===================================================================== */
 const HEIGHT_COLORS = ["#ffffff", "#fcaf14", "#cc2020", "#02b51c", "#3305b0",
                        "#e012ad", "#12e0dd", "#eff216", "#b34c04", "#000000"];
 const TOPPLES_DARKEST = [30, 60, 140];   // dark blue
-const LOW_COLORS = ["#ffffff", "#fed976", "#fd8d3c", "#e31a1c", "#800026"];   // white, yellow, orange, light red, dark red
-const TALL_COLORS = ["#440154", "#482475", "#414487", "#355f8d",            // viridis at 0, 0.1, ..., 0.7: dark
-                     "#2a788e", "#21918c", "#22a884", "#44bf70"];           // purple to green (no yellow)
+// White, yellow, orange, red, dark red. Height h below the threshold
+// "top" gets the color h / top of the way along, so dark red (the end)
+// is never used: it only spaces the others out.
+const LOW_COLORS = ["#ffffff", "#fed976", "#fd8d3c", "#e31a1c", "#800026"];
+const TALL_COLORS = ["#c6dbef", "#9ecae1", "#6baed6", "#4292c6",            // light blue
+                     "#2171b5", "#08519c", "#08306b"];                      // to dark blue
 
 const LOW_RGB = LOW_COLORS.map(hexToRGB), TALL_RGB = TALL_COLORS.map(hexToRGB);   // as [r, g, b]
 
@@ -157,7 +158,7 @@ function alongColors(list, t) {
 // made again after the Colors menu changes.
 const heightLists = new Map();   // top -> its list
 let palette = "smooth";   // the Colors menu's choice
-let tallest = 0;          // the tallest cell right now (set by drawPile), for the viridis colors
+let tallest = 0;          // the tallest cell right now (set by drawPile), for the blue colors
 function makeHeightColors() {
   palette = byId("palette").value;
   heightLists.clear();
@@ -184,9 +185,9 @@ function heightList(top) {
 }
 // The color of height h on a cell that topples at "top" grains.
 function colorOfHeight(h, top) {
-  if (palette === "smooth" && h > top) {
-    // Above the threshold: green just above it, dark purple at the tallest.
-    const t = tallest > top + 1 ? (tallest - h) / (tallest - top - 1) : 1;
+  if (palette === "smooth" && h >= top) {
+    // At the threshold or above: light blue at the threshold, dark blue at the tallest.
+    const t = tallest > top ? (h - top) / (tallest - top) : 0;
     return alongColors(TALL_RGB, Math.max(0, Math.min(1, t)));
   }
   const list = heightList(top);
