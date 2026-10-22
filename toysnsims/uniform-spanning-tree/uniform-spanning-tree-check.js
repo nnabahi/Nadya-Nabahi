@@ -44,13 +44,7 @@
 // A graph with cells 0 .. n-1 and the edges [a, b] in "edges", stored
 // as the domains are (first, nbr: see js/sim-domains.js).
 function graphFromEdges(n, edges) {
-  const lists = [];
-  for (let v = 0; v < n; v++) lists.push([]);
-  for (const [a, b] of edges) { lists[a].push(b); lists[b].push(a); }
-  const first = new Int32Array(n + 1), nbr = [];
-  for (let v = 0; v < n; v++) { first[v] = nbr.length; nbr.push(...lists[v]); }
-  first[n] = nbr.length;
-  return { n: n, first: first, nbr: Int32Array.from(nbr) };
+  return Object.assign({ n: n }, neighborLists(n, edges));   // (js/sim-domains.js)
 }
 
 // The complete graph on n cells, a cycle of n cells, and a star (one

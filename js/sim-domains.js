@@ -42,6 +42,7 @@
      drawnDomain(...)         a region drawn in the graph tool
      makeDomain(...)          a domain from its cells and edges (every
                               domain is built by it)
+     neighborLists(n, edges)  its neighbor lists, as first and nbr
      cellAt(d, x, y)          which cell is at (x, y)
      searchFrom(d, starts)    a search from some cells: how far each
                               cell is from the nearest, and which it is
@@ -180,11 +181,24 @@ function drawnDomain(graph, toolGrid) {
 // Build the domain object described at the top of this file, from the
 // cells' coordinates (xs, ys) and the edges as pairs of cell numbers.
 function makeDomain(xs, ys, edges, wrapRange, ids) {
-  const n = xs.length;
+  const n = xs.length, { first, nbr } = neighborLists(n, edges);
+  const d = {
+    n: n, x: Int32Array.from(xs), y: Int32Array.from(ys),
+    first: first, nbr: nbr, wrap: wrapRange, ids: ids,
+    xmin: least(xs), xmax: most(xs), ymin: least(ys), ymax: most(ys),
+  };
+  const boxWidth = d.xmax - d.xmin + 1;
+  d.cellAt = new Int32Array(boxWidth * (d.ymax - d.ymin + 1)).fill(-1);
+  for (let v = 0; v < n; v++) d.cellAt[(d.y[v] - d.ymin) * boxWidth + (d.x[v] - d.xmin)] = v;
+  return d;
+}
 
-  // Neighbor lists, each edge in both directions. A Set drops repeats
-  // (a torus 2 wide meets the same neighbor on both sides), and a cell
-  // is never its own neighbor.
+// The neighbor lists of n cells joined by "edges" ([a, b] pairs), each
+// edge both ways, in the form every domain keeps them: cell v's
+// neighbors are nbr[first[v]] .. nbr[first[v + 1] - 1]. A Set drops
+// repeats (a torus 2 wide meets the same neighbor on both sides), and a
+// cell is never its own neighbor.
+function neighborLists(n, edges) {
   const lists = [];
   for (let v = 0; v < n; v++) lists.push(new Set());
   for (const [a, b] of edges) {
@@ -198,16 +212,7 @@ function makeDomain(xs, ys, edges, wrapRange, ids) {
     for (const w of lists[v]) all.push(w);
   }
   first[n] = all.length;
-
-  const d = {
-    n: n, x: Int32Array.from(xs), y: Int32Array.from(ys),
-    first: first, nbr: Int32Array.from(all), wrap: wrapRange, ids: ids,
-    xmin: least(xs), xmax: most(xs), ymin: least(ys), ymax: most(ys),
-  };
-  const boxWidth = d.xmax - d.xmin + 1;
-  d.cellAt = new Int32Array(boxWidth * (d.ymax - d.ymin + 1)).fill(-1);
-  for (let v = 0; v < n; v++) d.cellAt[(d.y[v] - d.ymin) * boxWidth + (d.x[v] - d.xmin)] = v;
-  return d;
+  return { first: first, nbr: Int32Array.from(all) };
 }
 
 // Which cell of domain d is at (x, y)? -1 if none. On a torus, (x, y)
