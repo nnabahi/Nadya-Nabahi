@@ -610,7 +610,7 @@ function drawTrace() {
 
 // The acceptance probability alpha of each move (section 2 of
 // connected-coloring-chain.js) against the move number: one dot per
-// move, from 0 at the bottom to 1 at the top. The dashed line is the
+// move, on a log scale up to 1 at the top. The dashed line is the
 // average alpha over the whole run, which is what the share of moves
 // accepted (in the table) should be close to. Zoom and drag as on the
 // boundary edges chart.
@@ -621,11 +621,23 @@ function drawAlphas() {
   if (points.length < 2) { chartPen(byId("alpha-chart")); return; }
   const [from, to] = shownTimes(alphaZoom, points[0][0], points[points.length - 1][0]);
   const average = latest.alphaAverage;
+  // The y axis is on a log scale: each dot is drawn at log10(alpha),
+  // so 1 is at the top and 1e-10 ten steps down. The axis reaches down
+  // to the smallest alpha of the run (often far below 1e-100, so the
+  // numbers on the axis are written as 1e-20, 1e-40, ...). An alpha too
+  // small for the computer to tell from 0 is drawn at the bottom.
+  let lowest = 0;
+  const shown = points.map(function (p) { return [p[0], Math.log10(p[1])]; });
+  for (const p of shown) if (isFinite(p[1])) lowest = Math.min(lowest, p[1]);
+  for (const p of shown) if (!isFinite(p[1])) p[1] = lowest;
+  const level = Math.log10(average);
   // The dots are see-through, so crowded dots show darker.
   const frame = lineChart(byId("alpha-chart"), [
-    { points: points, dots: true, radius: 1, alpha: 0.5 },
-    { points: [[from, average], [to, average]], color: CHART_TEXT, dashed: true, width: 1 },
-  ], { from: from, to: to, word: "moves" }, { from: 0, to: 1 });
+    { points: shown, dots: true, radius: 1, alpha: 0.5 },
+    { points: [[from, level], [to, level]], color: CHART_TEXT, dashed: true, width: 1 },
+  ], { from: from, to: to, word: "moves" },
+     { from: Math.min(lowest, level), to: 0, round: true,
+       text: function (v) { return v === 0 ? "1" : "1e" + Math.round(v); } });
   alphaZoom.left = frame.left;
   alphaZoom.right = frame.right;
 
@@ -633,7 +645,7 @@ function drawAlphas() {
   const pen = frame.pen;
   pen.textAlign = "right";
   pen.textBaseline = "bottom";
-  pen.fillText("average " + average.toFixed(3), frame.right, Math.max(frame.up + 12, frame.sy(average) - 2));
+  pen.fillText("average " + average.toFixed(3), frame.right, Math.max(frame.up + 12, frame.sy(level) - 2));
 }
 
 
