@@ -98,11 +98,11 @@ function chainWorker() {
   let random = Math.random;
   let proposed = 0;        // moves tried
   let accepted = 0;        // moves accepted
-  let sweeps = 1;          // flips between two moves, in sweeps (1 sweep = n flips; section 2b)
+  let sweeps = 1;          // sweeps of flips between two moves (1 sweep = n flips; section 2b)
   let flips = 0, flipped = 0;   // flips tried, and flips accepted
   let stale = null;        // stale[c]: a flip changed color c, so logTau[c] must be worked out again
   let seen = null, seenStamp = 0;   // marks for the flips' connectivity check
-  let boundaryTrace = null;   // the boundary edges against the moves accepted, for the chart (keepSample, js/sim-worker.js)
+  let boundaryTrace = null;   // the boundary edges after each step (sweeps and moves alike), for the chart (keepSample, js/sim-worker.js)
   let alphaTrace = null;      // each move's acceptance probability alpha, against the move number, for the chart
   let alphaSum = 0;           // the sum of every move's alpha, for their average
   let film = null;         // "watch each move": what this move did, for the page to show (section 4)
@@ -163,12 +163,10 @@ function chainWorker() {
     keepSample(boundaryTrace, 0, { boundary: boundary });
   }
 
-  // After each move, samples for the charts: its alpha, against the
-  // move number, and the boundary edges, against the moves accepted.
-  function takeSamples(alpha) {
+  // After each move, its alpha for the chart, against the move number.
+  function sampleAlpha(alpha) {
     alphaSum += alpha;
     keepSample(alphaTrace, proposed, { alpha: alpha });
-    keepSample(boundaryTrace, accepted, { boundary: boundary });
   }
 
   // Where the pair of colors a, b is stored in "between".
@@ -232,7 +230,7 @@ function chainWorker() {
     if (changed === 0) {                       // Y = X: alpha = 1 and nothing moves
       accepted++;
       if (film) { film.alpha = 1; film.accepted = true; }
-      takeSamples(1);
+      sampleAlpha(1);
       return;
     }
 
@@ -259,16 +257,17 @@ function chainWorker() {
     } else {
       recolor(M, oldColor);                  // rejected: back to X
     }
-    takeSamples(alpha);
+    sampleAlpha(alpha);
   }
 
 
   /* ===================================================================
      2b. SINGLE-CELL FLIPS
      -------------------------------------------------------------------
-     Between two moves above, the chain makes "sweeps" x n flips, as a
-     step of its own, so the page shows them at the Speed of the moves:
-     flips, move, flips, move, ... (oneStep, section 4). A flip
+     Between two moves above, the chain makes "sweeps" sweeps of n
+     flips each. Every sweep is a step of its own, like a move, so the
+     page shows each one at the Speed: with 2 sweeps, the steps go
+     sweep, sweep, move, sweep, sweep, move, ... (oneStep, section 4). A flip
      picks a uniformly random cell v and a uniformly random neighbor w of
      v, and proposes giving v the color of w. With
        a = how many neighbors of v have v's color now, and
@@ -281,6 +280,17 @@ function chainWorker() {
      uniform distribution, so doing them in a fixed order does too. The
      flips roughen the borders cheaply; the moves make the big changes.
      =================================================================== */
+  // One sweep: n flips, so each cell is tried once on average. Watching
+  // each move, the film lists the cells that changed color.
+  function oneSweep() {
+    const before = film ? color.slice() : null;
+    for (let k = n; k > 0; k--) oneFlip();
+    if (film) {
+      film.flipped = [];
+      for (let v = 0; v < n; v++) if (color[v] !== before[v]) film.flipped.push(v);
+    }
+  }
+
   function oneFlip() {
     flips++;
     const v = Math.floor(random() * n);
@@ -424,42 +434,43 @@ function chainWorker() {
                         ("watch": is "watch each move" on? "most": the
                         most samples each chart keeps)
        watch  { on }    "watch each move" on or off
-       sweeps { sweeps }   flips between two moves, in sweeps (section 2b)
-       next   {}        (watching) the page has shown the last move
+       sweeps { sweeps }   sweeps of flips between two moves (section 2b)
+       next   {}        (watching) the page has shown the last step
      It reports the colors, the numbers for the Statistics box, and the
      run so far for the two charts (the boundary edges, and the
      acceptance probability alpha of the moves, with its average).
 
-     Watching each move, each move also sends what it did ("film": the
-     two colors, every walk of Wilson's algorithm, the root, the cut
-     edge, the proposed colors, alpha, and accepted or not), and the
-     next move waits until the page has shown this one and sends
-     "next". The moves are the same as without watching: the same seed
-     gives the same run.
+     Watching each move, each step also sends what it did ("film"): a
+     move, the two colors, every walk of Wilson's algorithm, the root,
+     the cut edge, the proposed colors, alpha, and accepted or not; a
+     sweep, the cells it changed ({ flips: true, flipped }). The next
+     step waits until the page has shown this one and sends "next".
+     The steps are the same as without watching: the same seed gives
+     the same run.
      =================================================================== */
   let watching = false;    // "watch each move" is on
-  let showing = false;     // watching: the page is still showing the last move
+  let showing = false;     // watching: the page is still showing the last step
   let lastReported = -1;   // the step count last sent to the page
 
-  // One step: one move, or, watching, one move with its film once the
-  // page has shown the last step (until then it waits: false).
-  // Steps alternate: a sweep of flips (if sweeps > 0), then a move.
-  // Watching, a sweep is shown too, with the film { flips: true }.
-  let steps = 0;           // steps made, flips and moves alike
-  let flipNext = true;     // is the next step a sweep of flips?
+  // One step: "sweeps" sweeps of flips, each a step, then one move.
+  // Watching, a step waits until the page has shown the last one (until
+  // then it returns false). After every step, the boundary edges go on
+  // their chart, against the step number.
+  let steps = 0;           // steps made, sweeps and moves alike
+  let sweepsMade = 0;      // sweeps made since the last move
   function oneStep() {
     if (watching && showing) return false;
     steps++;
-    if (flipNext && sweeps > 0) {
-      for (let k = Math.round(sweeps * n); k > 0; k--) oneFlip();
-      flipNext = false;
-      film = watching ? { flips: true } : null;
-      showing = watching;
-      return;
-    }
-    flipNext = true;
     film = watching ? {} : null;
-    oneMove();
+    if (sweepsMade < sweeps) {
+      if (film) film.flips = true;
+      oneSweep();
+      sweepsMade++;
+    } else {
+      oneMove();
+      sweepsMade = 0;
+    }
+    keepSample(boundaryTrace, steps, { boundary: boundary });
     showing = watching;
   }
 
@@ -469,6 +480,7 @@ function chainWorker() {
     const copy = color.slice();
     send({
       colors: copy,
+      steps: steps,
       proposed: proposed,
       accepted: accepted,
       flips: flips,
@@ -492,7 +504,7 @@ function chainWorker() {
       showing = false;
       lastReported = -1;
       steps = 0;
-      flipNext = true;
+      sweepsMade = 0;
     },
     steps: oneStep, report: report,
     messages: {
