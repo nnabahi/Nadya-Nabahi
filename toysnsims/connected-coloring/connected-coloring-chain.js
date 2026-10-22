@@ -442,8 +442,9 @@ function chainWorker() {
   let lastReported = -1;   // the step count last sent to the page
 
   // One step: one move, or, watching, one move with its film once the
-  // page has shown the last one (until then it waits: false).
+  // page has shown the last step (until then it waits: false).
   // Steps alternate: a sweep of flips (if sweeps > 0), then a move.
+  // Watching, a sweep is shown too, with the film { flips: true }.
   let steps = 0;           // steps made, flips and moves alike
   let flipNext = true;     // is the next step a sweep of flips?
   function oneStep() {
@@ -452,6 +453,8 @@ function chainWorker() {
     if (flipNext && sweeps > 0) {
       for (let k = Math.round(sweeps * n); k > 0; k--) oneFlip();
       flipNext = false;
+      film = watching ? { flips: true } : null;
+      showing = watching;
       return;
     }
     flipNext = true;
