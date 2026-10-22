@@ -80,16 +80,9 @@ function growingHull() {
   };
 }
 
-// The area inside a polygon, from its corners in order (the "shoelace
-// formula").
-function polygonArea(corners) {
-  let twice = 0;
-  for (let k = 0; k < corners.length; k++) {
-    const p = corners[k], q = corners[(k + 1) % corners.length];
-    twice += p[0] * q[1] - q[0] * p[1];
-  }
-  return Math.abs(twice) / 2;
-}
+// The area inside a polygon, from its corners in order, either way
+// around (signedArea, js/sim-domains.js).
+function polygonArea(corners) { return Math.abs(signedArea(corners)); }
 
 // The length around a polygon, from its corners in order (for the flat
 // hull [a, b] of two points: there and back, twice the distance).

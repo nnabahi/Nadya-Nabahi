@@ -70,6 +70,8 @@
      tilingCell(d, I, J, k)   cell k of block (I, J)
      blocksNear(d, u, w, reach)   the blocks near a point
      pointInPolygon(corners, u, w)   is a point inside a cell?
+     signedArea(corners)      a polygon's area (less than 0 if its
+                              corners go clockwise)
      tilingCells(...)         some cells of a tiling, to draw (a growing set)
      widestCell(tiling)       the farthest a cell's corner is from its middle
 
@@ -656,6 +658,18 @@ function pointInPolygon(corners, u, w) {
     if ((w0 > w) !== (w1 > w) && u < u0 + (w - w0) * (u1 - u0) / (w1 - w0)) inside = !inside;
   }
   return inside;
+}
+
+// The area of the polygon with these corners, in order: positive when
+// they go counterclockwise, negative when they go clockwise (the
+// "shoelace formula").
+function signedArea(corners) {
+  let twice = 0;
+  for (let k = 0; k < corners.length; k++) {
+    const p = corners[k], q = corners[(k + 1) % corners.length];
+    twice += p[0] * q[1] - q[0] * p[1];
+  }
+  return twice / 2;
 }
 
 // A tiling domain of the cells listed (cell v is cell part[v] of block
