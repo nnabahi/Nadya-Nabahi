@@ -263,16 +263,15 @@ function clusterGroups() {
 }
 
 // Bond percolation, big cells: the dots and the open edges. Each square
-// looks at the squares to its right and above (and, with 8 neighbors,
-// diagonally), and if their cells share an open edge, a line joins the
-// two middles.
+// looks at the squares to its right and above, and if their cells share
+// an open edge, a line joins the two middles.
 function drawEdges(pen) {
   const cells = cellsShown(view, domain);
   const cols = view.cols, rows = view.rows, size = view.cell;
   pen.fillStyle = CLOSED;
   pen.fillRect(view.left, 0, view.width, view.height);
   const bonds = bondPaths(size);
-  const looks = [[1, 0], [0, -1], [1, -1], [1, 1]];   // right, up, up-right, down-right (rows go down)
+  const looks = [[1, 0], [0, -1]];   // right, up (rows go down)
   const middleX = function (i) { return squareLeft(view, view.firstI + i) + size / 2; };
   const middleY = function (k) { return squareTop(view, view.firstK + k) + size / 2; };
 
