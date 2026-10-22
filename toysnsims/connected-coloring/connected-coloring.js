@@ -586,7 +586,9 @@ function largestFirst(sizes) {
   return order;
 }
 
-// One bar per color, as tall as its number of cells, largest first.
+// One bar per color, as tall as its number of cells, largest first,
+// on a log scale (every color has at least 1 cell, at the bottom), so
+// tiny colors still show beside huge ones.
 // The bars go from the largest on the left to the smallest on the
 // right; each keeps its own color, so you can follow a color as it
 // grows and shrinks. A highlighted color's bar stays bright.
@@ -599,7 +601,7 @@ function drawSizes() {
   });
   sizesFrame = barChart(byId("sizes-chart"), bars,
     { from: 0.5, to: N + 0.5, whole: true, word: "largest first" },
-    { from: 0, to: Math.max(...sizes), round: true, whole: true, word: "cells" });
+    { from: 1, to: Math.max(...sizes), scale: "log", round: true, whole: true, word: "cells" });
 }
 
 // Clicking a bar highlights its color (section 5b).
