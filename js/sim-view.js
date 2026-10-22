@@ -558,6 +558,7 @@ function drawWalk(pen, walk, width, linesPath, dotsPath) {
   pen.stroke(line);
   pen.fill(dotsPath(now, 1.9 * width));
 }
+
 // The copy of the point p nearest the point "from", on a torus that
 // repeats by the two steps "steps" (torusSteps; null off a torus: p
 // itself).

@@ -343,11 +343,11 @@ function pathOverStacks(f, height) {
    tree, one pointer drags across the plane instead.
    The root's dot and the other end's ring can be dragged: a press on
    either, or near it (GRAB_STEPS), picks up the nearer one, and it
-   snaps to the cell under the pointer. The
-   other end just moves along the tree. The root moves along the tree
-   too once the tree is finished (the same tree, now pointing to the new
-   root: Wilson's algorithm gives the same uniform tree from any root);
-   before that, moving it grows a new tree from it (paused).
+   snaps to the cell under the pointer. The other end just moves along
+   the tree. The root moves along the tree too once the tree is
+   finished (the same tree, now pointing to the new root: Wilson's
+   algorithm gives the same uniform tree from any root); before that,
+   moving it grows a new tree from it (paused).
    ===================================================================== */
 let dragging = null;     // what a press picked up: "root", "end", or null
 
