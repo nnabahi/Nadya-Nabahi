@@ -65,7 +65,7 @@
      cornersOf(d, v)          the corners of a cell
      tilingCell(d, I, J, k)   cell k of block (I, J)
      blocksNear(d, u, w, reach)   the blocks near a point
-     pointInCell(corners, u, w)   is a point inside a cell?
+     pointInPolygon(corners, u, w)   is a point inside a cell?
      tilingCells(...)         some cells of a tiling, to draw (a growing set)
      widestCell(tiling)       the farthest a cell's corner is from its middle
 
@@ -392,22 +392,6 @@ function cellAtPoint(d, u, w) {
   return d.lattice ? tilingCellAt(d, u, w) : cellAt(d, Math.round(u), Math.round(w));
 }
 
-// Is the point (u, w) inside the cell with these corners (a shape with
-// no dents, like a triangle or hexagon)? It is when it is on the same
-// side of every side.
-function pointInCell(corners, u, w) {
-  let sign = 0;
-  for (let k = 0; k < corners.length; k++) {
-    const [u0, w0] = corners[k], [u1, w1] = corners[(k + 1) % corners.length];
-    const cross = (u1 - u0) * (w - w0) - (w1 - w0) * (u - u0);
-    if (cross !== 0) {
-      if (sign !== 0 && Math.sign(cross) !== sign) return false;
-      sign = Math.sign(cross);
-    }
-  }
-  return true;
-}
-
 
 /* ---------------------------------------------------------------------
    Tilings: any tiling by regular polygons (js/sim-tilings.js)
@@ -606,7 +590,7 @@ function tilingCellAt(d, u, w) {
     const [su, sw] = blockStart(d, I, J);
     for (let k = 0; k < t.cells.length; k++) {
       const corners = t.cells[k].corners.map(function (c) { return [c[0] + su, c[1] + sw]; });
-      if (pointInCell(corners, u, w)) return tilingCell(d, I, J, k);
+      if (pointInPolygon(corners, u, w)) return tilingCell(d, I, J, k);
     }
   }
   return -1;
@@ -633,9 +617,10 @@ function cellsNear(t, u, w) {
   return near;
 }
 
-// Is the point (u, w) inside the polygon with these corners (dents
-// allowed, like a Penrose dart's)? It is when the line from it straight
-// to the right crosses the polygon's sides an odd number of times.
+// Is the point (u, w) inside the polygon with these corners (any
+// polygon, dents allowed, like a Penrose dart's)? It is when the line
+// from it straight to the right crosses the polygon's sides an odd
+// number of times.
 function pointInPolygon(corners, u, w) {
   let inside = false;
   for (let k = 0, j = corners.length - 1; k < corners.length; j = k++) {

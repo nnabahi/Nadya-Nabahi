@@ -97,7 +97,7 @@ function showingAverage() { return checked("show") === "average"; }
    page never freezes, and hands each report to the function below.
    ===================================================================== */
 const sim = runInWorker(tilePacking, [wrap, cellAt, blockStart, cornersOf, cellMiddle, cellMiddles, widestCell,
-                                      blocksNear, tilingCell, pointInCell, countPieces, findRegions, spreadRegion,
+                                      blocksNear, tilingCell, pointInPolygon, countPieces, findRegions, spreadRegion,
                                       newTrace, keepSample, colorScheme, cellColors], function (message) {
   if (message.placements) {    // a new run's first report
     placements = message.placements;

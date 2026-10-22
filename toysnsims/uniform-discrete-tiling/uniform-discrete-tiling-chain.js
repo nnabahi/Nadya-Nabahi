@@ -122,7 +122,7 @@
    tilePacking(). The sim page turns it into a "Web Worker" (a second
    thread, see runInWorker in js/sim-page.js), with the helpers it uses
    from js/sim-domains.js (cellAt, wrap, cornersOf, cellMiddles,
-   blocksNear, tilingCell, pointInCell, countPieces, ...), the trace
+   blocksNear, tilingCell, pointInPolygon, countPieces, ...), the trace
    (js/sim-worker.js) and the colors copied in, where it answers
    messages from the page (section 6). The check page (uniform-discrete-tiling-check.html) calls
    tilePacking() directly and uses the functions it hands back.
@@ -496,7 +496,7 @@ function tilePacking() {
   // center? It is when the center is inside it, or closer than r to one
   // of its sides.
   function touchesPolygon(corners, cx, cy, r) {
-    if (pointInCell(corners, cx, cy)) return true;
+    if (pointInPolygon(corners, cx, cy)) return true;
     return corners.some(function (p, k) { return distanceToSide(cx, cy, p, corners[(k + 1) % corners.length]) < r; });
   }
 
@@ -515,7 +515,7 @@ function tilePacking() {
     const u0 = Math.min(...us), u1 = Math.max(...us), w0 = Math.min(...ws), w1 = Math.max(...ws);
     for (;;) {
       const u = u0 + (u1 - u0) * random(), w = w0 + (w1 - w0) * random();
-      if (pointInCell(corners, u, w)) return [u, w];
+      if (pointInPolygon(corners, u, w)) return [u, w];
     }
   }
 
