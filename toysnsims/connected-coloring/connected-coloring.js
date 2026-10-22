@@ -264,7 +264,7 @@ function drawColoring() {
   const shown = film ? film.shown : colors;
   paintDomain(view, pen, domain, function (v) { return shown[v]; },
     function (c) { return paint[c]; }, outsideRGB, CELL_LINES, 0);
-  if (film) drawFilm(pen);
+  if (film && !film.flips) drawFilm(pen);
 }
 
 // Hyperbolic plane or tree: the ball's cells in their colors, with the
@@ -362,9 +362,11 @@ let watchSpeed = DEFAULT_WATCH_SPEED;   // steps of the walk per second
 let film = null;               // the move being shown, or null
 
 // A new move to show. One still being shown is finished at once.
+// A sweep of flips is shown for one stop, its new colors at once.
 function startFilm(message) {
   if (film) useMessage(film.message);
   const log = message.film;
+  if (log.flips) { startFlipsFilm(message); return; }
   if (!log.pair) { useMessage(message); sim.send({ type: "next" }); return; }   // nothing to show
   film = {
     message: message,
@@ -379,6 +381,19 @@ function startFilm(message) {
   // and wilson.path the walk so far, with its loops erased.
   film.wilson = newWilson(domain.n, function () { return film.walks[film.walk][film.step++]; });
   film.wilson.start([film.root], film.walks.map(function (walk) { return walk[0]; }));
+  showFilmInfo();
+  requestAnimationFrame(playFilm);
+}
+
+function startFlipsFilm(message) {
+  let changed = 0;
+  for (let v = 0; v < domain.n; v++) if (message.colors[v] !== colors[v]) changed++;
+  film = {
+    message: message, flips: true, changed: changed,
+    stepping: !player.playing,
+    shown: message.colors.slice(),
+    stage: "flips", wait: stopTime(), last: performance.now(),
+  };
   showFilmInfo();
   requestAnimationFrame(playFilm);
 }
@@ -442,6 +457,11 @@ function walkStep() {
 
 // The line under the picture says what is happening.
 function showFilmInfo() {
+  if (film.flips) {
+    byId("highlight-info").textContent = "Flips: " + film.changed.toLocaleString() +
+      (film.changed === 1 ? " cell" : " cells") + " changed color.";
+    return;
+  }
   const f = film, [i, j] = f.pair, alpha = f.message.film.alpha;
   const cells = f.message.film.proposal.length;
   const name = "colors " + (i + 1) + " and " + (j + 1);
