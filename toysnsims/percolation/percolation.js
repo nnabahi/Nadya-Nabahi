@@ -510,9 +510,8 @@ function drawSizesChart() {
 }
 
 // The critical point for the domain in use: for a box or torus, where
-// the cells sit on the square grid, or on a
-// tiling where it is known exactly (tilingCritical), and for a tree of
-// degree d, where it is 1/(d - 1) for both site and bond percolation
+// the cells sit on the square grid, or on a tiling where it is known
+// exactly (tilingCritical), and for a tree of degree d, where it is 1/(d - 1) for both site and bond percolation
 // (see "All the details"). No exact value is known for the hyperbolic
 // tilings.
 function criticalPoint() {

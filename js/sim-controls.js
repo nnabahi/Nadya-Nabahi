@@ -91,8 +91,8 @@
    the box tiling-code with the line tiling-message under it, and the
    row cells-row with the radio buttons name="cells-are" (the tiles or
    the corners of the tiling are the cells). The square grid is the
-   usual box or torus; any other tiling is a
-   tilingBox (js/sim-domains.js), its size in side lengths. A Penrose
+   usual box or torus; any other tiling is a tilingBox
+   (js/sim-domains.js), its size in side lengths. A Penrose
    tiling never repeats, so it has no torus: its Torus option hides.
    The cells-row hides where only the tiles can be cells: on the square
    grid, and on Penrose's first tiling (P1).
@@ -337,9 +337,8 @@ function connectDomains(page) {
 
 // The options' values at the start: the box's size (defaults.width x
 // defaults.height, at most "most" on a side; on the line just the
-// width), and, with a "ball" (as in makeBall: its default
-// radius R and largest radius "most"), the hyperbolic plane or tree's
-// ball.
+// width), and, with a "ball" (as in makeBall: its default radius R
+// and largest radius "most"), the hyperbolic plane or tree's ball.
 function fillDomainOptions(defaults, most, ball) {
   byId("set-width").value = defaults.width;
   byId("set-width").max = most;
@@ -374,9 +373,9 @@ function sizeFromOptions(least, most, defaults) {
 
 // The box or torus the options say (sizeFromOptions, as a boxDomain,
 // js/sim-domains.js): cells are neighbors when they share a side (on the
-// line, the 2 beside each cell). On a lattice
-// other than the square grid, the tiling in use (readTiling), as
-// tilingBoxFromOptions gives it.
+// line, the 2 beside each cell). On a lattice other than the square
+// grid, the tiling in use (readTiling), as tilingBoxFromOptions gives
+// it.
 function boxFromOptions(least, most, defaults) {
   if (!onSquares()) return tilingBoxFromOptions(tilingInUse.block, least, most, defaults);
   const size = sizeFromOptions(least, most, defaults);

@@ -238,8 +238,9 @@ const domains = connectDomains({
    ===================================================================== */
 
 // The critical point beta_c of the box or torus in use, as in
-// EXACT_BETA, or null if it isn't known: on the square grid, and on the lattices of TILING_CRITICAL (both in section 3
-// of ising-potts-chain.js).
+// EXACT_BETA, or null if it isn't known: on the square grid, and on
+// the lattices of TILING_CRITICAL (both in section 3 of
+// ising-potts-chain.js).
 function criticalBeta() {
   if (domains.kind === "custom" || domains.kind === "graph") return null;
   if (!domain.lattice) return EXACT_BETA.square(q);
