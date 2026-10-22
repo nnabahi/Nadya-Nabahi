@@ -693,11 +693,9 @@ function mountainWorker() {
   // has to be sent once: each message carries the places of the sites
   // made since the last message, starting with site number placesFrom.
   let placesSent = 0;
-  // The holes (part 1c), in 2D off a torus. Worked out again for each
-  // message, but while playing at most a fifth of the time: "holes" is
-  // the last answer, for the step holesStep, and holesFree is when the
-  // next one may start.
-  let holes = null, holesStep = -1, holesFree = 0;
+  // The holes (part 1c), in 2D off a torus, for the messages
+  // (holeReporter, js/sim-shape.js).
+  let reportHoles = null;
   // On a Penrose tiling's whole plane: the plane (penrosePlane,
   // js/sim-penrose.js), and how many of its cells the page has.
   let plane = null, cellsSent = 0;
@@ -706,7 +704,7 @@ function mountainWorker() {
   function setup(steps) {
     problem = "";
     placesSent = 0;
-    holesStep = -1;    // (the holes kept are the old mountain's)
+    reportHoles = holeReporter();
     try {
       const withClocks = Object.assign({}, options, { clocks: String(options.seed), shapeBins: holesWanted() ? SHAPE_BINS : 0 });
       if (onPlane()) {
@@ -823,7 +821,7 @@ function mountainWorker() {
       traceGrowing: Float64Array.from(trace.lists.growing),
       traceCovered: Float64Array.from(trace.lists.covered),
     };
-    if (holesWanted()) addHoles(message);
+    if (holesWanted()) message.holes = reportHoles(m, m.steps, loop.playing, trace.times);
     if (m.radii) {
       message.convexity = convexity(m);
       message.radii = Float64Array.from(m.radii);
@@ -853,26 +851,6 @@ function mountainWorker() {
   function holesWanted() {
     const d = options.domain;
     return options.dim === 2 && !(d.kind === "box" && d.torus) && !(d.kind === "cells" && d.wrap);
-  }
-
-  // The holes now, their births and deaths, and beta_1 at the times of
-  // the charts' samples.
-  function addHoles(message) {
-    const m = mountain, now = performance.now();
-    if (holesStep !== m.steps && (!loop.playing || now >= holesFree)) {
-      holes = holeHistory(m, m.steps);
-      holesStep = m.steps;
-      holesFree = now + 4 * (performance.now() - now);
-    }
-    // beta_1 at step t: births up to t minus deaths up to t (at the
-    // samples up to holesStep; the holes may be a little behind).
-    const times = trace.times.filter(function (t) { return t <= holesStep; });
-    const beta = bettiOverTime(holes, times);
-    message.holes = {
-      step: holesStep, now: holes.openBirths.length, closed: holes.deaths.length,
-      births: Float64Array.from(holes.births), deaths: Float64Array.from(holes.deaths),
-      cells: Int32Array.from(holes.holeCells), times: Float64Array.from(times), beta: beta,
-    };
   }
 
   // On a Penrose tiling's whole plane: the plane's cells the page doesn't

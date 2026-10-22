@@ -20,6 +20,8 @@
                                any tiling's cells), with the step each
                                one opened and closed
      bettiOverTime(holes, times)   the number of holes at given steps
+     holeReporter()            the holes for a sim's reports, kept up
+                               to date without slowing a run down
      frontierLength(set)       the length of the set's outer boundary
      cellWindow(...)           the cells around a set that these two
                                look at (squareWindow, tilingWindow,
@@ -395,10 +397,41 @@ function bettiOverTime(holes, times) {
   return beta;
 }
 
+// The holes of a set that grows step by step, for a sim's second
+// thread to send its page: report(set, step, busy, times) gives the
+// holes of "set" (as in holeHistory) at step "step", as
+//   step           the step they are for
+//   now, closed    how many holes are open, and how many have closed
+//   births, deaths the steps the closed ones were born and died
+//   cells, sizes   the open ones' cells (holeCells) and sizes
+//   times, beta    beta_1 at the steps "times" up to "step"
+// They are worked out again at each new step, but while "busy" (the
+// sim is playing) at most a fifth of the time; in between, the last
+// ones are given again, for an older step. A new run gets a new
+// reporter (the holes kept are the old run's).
+function holeReporter() {
+  let holes = null, holesStep = -1, free = 0;
+  return function report(set, step, busy, times) {
+    const start = performance.now();
+    if (holesStep !== step && (!busy || start >= free)) {
+      holes = holeHistory(set, step);
+      holesStep = step;
+      free = start + 4 * (performance.now() - start);
+    }
+    const upTo = times.filter(function (t) { return t <= holesStep; });
+    return {
+      step: holesStep, now: holes.openBirths.length, closed: holes.deaths.length,
+      births: Float64Array.from(holes.births), deaths: Float64Array.from(holes.deaths),
+      cells: Int32Array.from(holes.holeCells), sizes: Int32Array.from(holes.holeSizes),
+      times: Float64Array.from(upTo), beta: bettiOverTime(holes, upTo),
+    };
+  };
+}
+
 // What a second thread needs to use this file, for runInWorker
 // (js/sim-page.js): its functions, and signedArea and boxAround
 // (js/sim-domains.js).
 function shapeHelpers() {
-  return [convexHull, growingHull, polygonArea, polygonPerimeter, holeHistory, bettiOverTime, frontierLength,
-          cellWindow, squareWindow, tilingWindow, finiteWindow, signedArea, boxAround];
+  return [convexHull, growingHull, polygonArea, polygonPerimeter, holeHistory, bettiOverTime, holeReporter,
+          frontierLength, cellWindow, squareWindow, tilingWindow, finiteWindow, signedArea, boxAround];
 }

@@ -273,9 +273,8 @@ function walkWorker() {
   // (a log-log chart needs no more): at frontierSteps[k] it was
   // frontierValues[k].
   let frontierSteps = [], frontierValues = [], frontierNext = 1;
-  // 2D: the holes (holeHistory, js/sim-shape.js). Worked out again for
-  // each message, but while playing at most a fifth of the time.
-  let holes = null, holesStep = -1, holesFree = 0;
+  // 2D: the holes, for the messages (holeReporter, js/sim-shape.js).
+  let reportHoles = null;
   // On a Penrose tiling: its plane (penrosePlane, js/sim-penrose.js),
   // and how many of the plane's cells the page has.
   let plane = null, cellsSent = 0;
@@ -286,7 +285,7 @@ function walkWorker() {
     sitesSent = pathSent = 0;
     path = [0];
     frontierSteps = []; frontierValues = []; frontierNext = 1;
-    holes = null; holesStep = -1;
+    reportHoles = holeReporter();
     try {
       const finite = options.tiling && options.tiling.finite;
       if (finite) { plane = penrosePlane(plane, options.tiling); cellsSent = options.cellsKnown; }
@@ -372,7 +371,10 @@ function walkWorker() {
       cellsSent = plane.cells.length;
     }
     if (w.dim === 1) addNewPath(message);
-    if (w.dim === 2) { addShape2D(message); addHoles(message); }
+    if (w.dim === 2) {
+      addShape2D(message);
+      message.holes = reportHoles(w, w.steps, loop.playing, trace.times);
+    }
     if (w.dim === 3) message.hullPoints = Float64Array.from(hullCandidates3D(w));
     send(message);
   }
@@ -402,23 +404,5 @@ function walkWorker() {
     message.traceArea = Float64Array.from(trace.lists.area);
     message.frontierSteps = Float64Array.from(frontierSteps);
     message.frontierValues = Float64Array.from(frontierValues);
-  }
-
-  // 2D: the holes now, their births and deaths, their sizes, and beta_1
-  // at the times of the charts' samples (as in Eden Growth).
-  function addHoles(message) {
-    const w = walk, now = performance.now();
-    if (holesStep !== w.steps && (!loop.playing || now >= holesFree)) {
-      holes = holeHistory(w, w.steps);
-      holesStep = w.steps;
-      holesFree = now + 4 * (performance.now() - now);
-    }
-    const times = trace.times.filter(function (t) { return t <= holesStep; });
-    message.holes = {
-      step: holesStep, now: holes.openBirths.length, closed: holes.deaths.length,
-      births: Float64Array.from(holes.births), deaths: Float64Array.from(holes.deaths),
-      cells: Int32Array.from(holes.holeCells), sizes: Int32Array.from(holes.holeSizes),
-      times: Float64Array.from(times), beta: bettiOverTime(holes, times),
-    };
   }
 }
