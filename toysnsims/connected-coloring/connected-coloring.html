@@ -60,7 +60,8 @@
           <label title="Not on a hyperbolic tiling or tree"><input type="checkbox" id="watch"> Watch each move</label>
         </div>
         <div class="option-row" title="Between two moves, a step of this many flips per cell: a flip gives one cell a neighbor's color, keeping both colors connected. 0 = moves only.">
-          Flip sweeps per move <input type="number" id="set-sweeps" min="0" step="0.5" value="1">
+          Flip sweeps <input type="range" class="wide-range" id="set-sweeps" min="0" step="1" value="1">
+          <span class="muted" id="sweeps-label"></span>
         </div>
         <!-- Shown while "Watch each move" is ticked (section 5c of connected-coloring.js). -->
         <div id="watch-options" hidden>

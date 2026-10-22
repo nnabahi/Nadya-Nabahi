@@ -494,12 +494,17 @@ connectSpeedSlider("watch-speed", WATCH_SPEEDS, DEFAULT_WATCH_SPEED, function (s
 
 // Flips between two moves, in sweeps (1 sweep = one flip per cell;
 // section 2b of connected-coloring-chain.js). 0 = moves only.
+// A slider in whole steps, with min and max boxes at its ends
+// (addRangeBoxes, js/sim-page.js).
 function readSweeps() {
-  const box = byId("set-sweeps"), sweeps = Number(box.value);
-  if (!(sweeps >= 0)) { box.value = 1; return 1; }
+  const sweeps = Number(byId("set-sweeps").value);
+  byId("sweeps-label").textContent = sweeps === 0 ? "moves only" : sweeps + (sweeps === 1 ? " sweep" : " sweeps") + " between moves";
   return sweeps;
 }
-byId("set-sweeps").addEventListener("change", function () { sim.send({ type: "sweeps", sweeps: readSweeps() }); });
+function sendSweeps() { sim.send({ type: "sweeps", sweeps: readSweeps() }); }
+addRangeBoxes(byId("set-sweeps"), 0, 5, sendSweeps);
+byId("set-sweeps").addEventListener("input", sendSweeps);
+readSweeps();
 
 function setWatching(on) {
   watching = on;
