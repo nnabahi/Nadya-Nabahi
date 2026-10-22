@@ -38,6 +38,7 @@
           listenToTool(frame, useDrawing)   the drawings it sends
           showToolStatus(tool, problem, good)   the line that checks them
           atLeastTwoCells(drawing)          the usual check of a drawing
+          oneConnectedPiece(drawing)        ... for a region in one piece
      3. The clickable grid of offsets
           offsetKey(t), offsetText(t)       an offset's name, and as shown
           showOffsetGrid(grid, dim, reach, offsets, setOffsets, center)
@@ -637,6 +638,17 @@ function showToolStatus(tool, problem, good) {
 function atLeastTwoCells(drawing) {
   const cells = drawing.graph.vertices.length;
   return cells < 2 ? ["Paint at least two cells.", ""] : ["", cells + " cells."];
+}
+
+// The check of a drawing for a sim whose cells must all be reachable
+// from each other: at least two cells, in one connected piece.
+function oneConnectedPiece(drawing) {
+  const tooFew = atLeastTwoCells(drawing)[0];
+  if (tooFew) return [tooFew, ""];
+  const region = drawnDomain(drawing.graph, drawing.grid);
+  const pieces = countPieces(region, new Int32Array(region.n), 1)[0];   // (js/sim-domains.js)
+  return pieces > 1 ? ["The region is in " + pieces + " pieces; it must be one connected piece.", ""]
+                    : ["", region.n + " cells in one connected piece."];
 }
 
 

@@ -613,13 +613,7 @@ const domains = connectDomains({
   custom: {
     help: "Paint the cells the walkers live on (any color counts). The region must be one connected piece. " +
           "Then press Done, and drag the walkers to where they should start.",
-    check: function (drawing) {
-      if (drawing.graph.vertices.length === 0) return ["Paint the region first.", ""];
-      const region = drawnDomain(drawing.graph, drawing.grid);
-      const reached = stepsFrom(region, [0]).filter(function (s) { return s !== -1; }).length;
-      return reached < region.n ? ["The region must be one connected piece.", ""]
-        : ["", region.n + " cells in one connected piece."];
-    },
+    check: oneConnectedPiece,   // (js/sim-controls.js)
   },
   use: function (d) {
     domain = d;

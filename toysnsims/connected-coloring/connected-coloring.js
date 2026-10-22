@@ -705,14 +705,7 @@ function showStep(step) {
 // buttons that go on (Use automatic start, Draw my own start, Done)
 // work only when there is no problem.
 function checkDrawing(drawing) {
-  if (toolStep === 1) {
-    if (drawing.graph.vertices.length === 0) return ["Paint the region first.", ""];
-    const region = drawnDomain(drawing.graph, drawing.grid);
-    if (region.n < 2) return ["The region needs at least 2 cells.", ""];
-    const pieces = countPieces(region, new Int32Array(region.n), 1)[0];
-    if (pieces > 1) return ["The region is in " + pieces + " pieces; it must be one connected piece.", ""];
-    return ["", region.n + " cells in one connected piece."];
-  }
+  if (toolStep === 1) return oneConnectedPiece(drawing);   // (js/sim-controls.js)
   const start = drawnColoring();
   if (start.uncolored > 0) {
     return [start.uncolored + (start.uncolored === 1 ? " cell has" : " cells have") + " no color yet.", ""];
