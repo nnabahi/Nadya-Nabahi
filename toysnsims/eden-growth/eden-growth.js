@@ -1137,9 +1137,7 @@ byId("show-holes").addEventListener("change", drawSoon);
 for (const radio of document.querySelectorAll("input[name=against]")) radio.addEventListener("change", drawSoon);
 
 // Go to step.
-byId("goto").addEventListener("click", function () {
-  sim.send({ type: "goto", steps: readWhole("goto-steps", 0, 10000000, 0) });
-});
+connectGoto(sim, 10000000, 1000);
 
 // Seed: the same seed gives the same mountain every time.
 connectSeed(function () { restart(true, true); });
@@ -1147,7 +1145,6 @@ connectSeed(function () { restart(true, true); });
 
 // --- Start ------------------------------------------------------------
 byId("seed").value = DEFAULT_SEED;
-byId("goto-steps").value = 1000;
 showMaxHeight();
 showWeight();
 setDimension(2);   // 2D by default: with M = 1 it is the Eden model

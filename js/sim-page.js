@@ -18,7 +18,8 @@
      sharpPen(canvas, width, height)  a canvas's pen, sharp on sharp screens
      oncePerFrame(draw)               draw at the next screen refresh
      notTooOften(gap, busy, draw)     draw at most every "gap" ms while busy
-     the Play, Speed and Seed rows    written once, filled in as the page loads
+     the Play, Speed, Seed and        written once, filled in as the page
+       Go to step rows                  loads
      buttonHTML(id, label, title)     a small button, as HTML
      showPlaying(on)                  the Play button, while it plays
      speedText(speed, one, many)      "5 moves per second", for the Speed slider
@@ -28,6 +29,7 @@
      runInWorker(fn, helpers, show)   a sim's second thread, with its runs
      connectPlay(runner, ...)         Play / Pause, Step, Restart and Speed
      connectSeed(onChange)            the Seed box and its New seed button
+     connectGoto(sim, most, first)    the Go to step box and its Go button
      make3D(canvas, height, options)  the 3D view (js/sim-3d.js), loaded
                                         when it first shows
      connectStretch(onChange)         the 3D view's Heights slider
@@ -196,8 +198,8 @@ function notTooOften(gap, busy, draw) {
   };
 }
 
-// The Play, Speed and Seed rows, written once. A sim page holds empty
-// rows where they go, which are filled in as the page loads:
+// The Play, Speed, Seed and Go to step rows, written once. A sim page
+// holds empty rows where they go, which are filled in as the page loads:
 //   <div class="option-row play-row" data-step="One sweep" data-restart="Back to the start, same seed"></div>
 //       Play, Step and Restart (before any of the page's own buttons
 //       already in the row); data-play, data-step and data-restart say
@@ -207,7 +209,9 @@ function notTooOften(gap, busy, draw) {
 //   <div class="option-row seed-row"></div>
 //       the Seed box, and its button: "New seed" ("A random new seed"),
 //       or data-new (data-new-title) instead
-// connectPlay and connectSeed (below) make them work.
+//   <div class="option-row goto-row"></div>
+//       "Go to step", its box, and the Go button
+// connectPlay, connectSeed and connectGoto (below) make them work.
 fillBlocks(".play-row", function (settings) {
   return buttonHTML("play", "Play", settings.play) + buttonHTML("step", "Step", settings.step) +
     buttonHTML("restart", "Restart", settings.restart);
@@ -218,6 +222,9 @@ fillBlocks(".speed-row", function () {
 fillBlocks(".seed-row", function (settings) {
   return 'Seed <input type="text" id="seed" size="8"> ' +
     buttonHTML("new-seed", settings.new || "New seed", settings.newTitle || "A random new seed");
+});
+fillBlocks(".goto-row", function () {
+  return 'Go to step <input type="number" id="goto-steps" min="0" step="1" style="width: 8em"> ' + buttonHTML("goto", "Go");
 });
 
 // A small button (class "tool-button"), as HTML: id="id", the words
@@ -463,6 +470,17 @@ function connectSeed(onChange) {
   byId("new-seed").addEventListener("click", function () {
     byId("seed").value = String(Math.floor(Math.random() * 100000));
     onChange();
+  });
+}
+
+// The Go to step box (id="goto-steps", starting at "first") and its Go
+// button (id="goto"): Go tells the sim's second thread (runInWorker) to
+// jump to the step typed, from 0 to "most", back or forward (its own
+// "goto" message).
+function connectGoto(sim, most, first) {
+  byId("goto-steps").value = first;
+  byId("goto").addEventListener("click", function () {
+    sim.send({ type: "goto", steps: readWhole("goto-steps", 0, most, 0) });
   });
 }
 

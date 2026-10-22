@@ -661,9 +661,7 @@ for (const id of ["show-hull", "show-holes"]) byId(id).addEventListener("change"
 for (const radio of document.querySelectorAll("input[name=against]")) radio.addEventListener("change", drawSoon);
 
 // Go to step.
-byId("goto").addEventListener("click", function () {
-  sim.send({ type: "goto", steps: readWhole("goto-steps", 0, 2000000, 0) });
-});
+connectGoto(sim, 2000000, 10000);
 
 // Seed: the same seed gives the same walk every time.
 connectSeed(function () { restart(true); });
@@ -671,5 +669,4 @@ connectSeed(function () { restart(true); });
 
 // --- Start ------------------------------------------------------------
 byId("seed").value = DEFAULT_SEED;
-byId("goto-steps").value = 10000;
 setDimension(2);              // 2D by default
