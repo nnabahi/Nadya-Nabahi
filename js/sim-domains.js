@@ -17,9 +17,6 @@
      xmin .. ymax, cellAt   the smallest box around the cells, and which
                 cell sits at each place in it (-1 = none), for drawing
      ids[v]     for a drawn domain, the graph tool's name "x,y" of cell v
-     neighbors  for a box or torus of squares, or a drawn domain: 4 or
-                8, the neighbors of a cell of the square grid it is cut
-                from (the cells on its edge have fewer)
      lattice    "tiling" for a tiling's cells (then also tiling, part,
                 index and sides, and for a box onLeft and onRight: see
                 tilingBox); left out for squares
@@ -89,8 +86,10 @@ function wrapNumber(v, size) { return ((v % size) + size) % size; }
 function least(list) { return list.reduce(function (a, b) { return Math.min(a, b); }, Infinity); }
 function most(list) { return list.reduce(function (a, b) { return Math.max(a, b); }, -Infinity); }
 
-// A width x height box of cells, with 4 or 8 neighbors. If "torus" is
-// true, the right edge is glued to the left and the top to the bottom.
+// A width x height box of cells, with 4 neighbors (sharing a side) or 8
+// (sides or corners: only Cellular Automata's cluster counts use 8; the
+// sims' domains are always 4). If "torus" is true, the right edge is
+// glued to the left and the top to the bottom.
 function boxDomain(width, height, neighbors, torus) {
   const xs = [], ys = [], edges = [];
   // As in the graph tool: each cell looks right and up (and, with 8
@@ -113,7 +112,6 @@ function boxDomain(width, height, neighbors, torus) {
   }
   const wrapRange = torus ? { xmin: 0, xmax: width - 1, ymin: 0, ymax: height - 1 } : null;
   const d = makeDomain(xs, ys, edges, wrapRange, null);
-  d.neighbors = neighbors;
   return d;
 }
 
@@ -139,7 +137,7 @@ function aztecDiamond(N) {
 
 // A domain drawn in the graph tool. "graph" is the tool's getGraph():
 // { vertices: [{id, x, y, color}, ...], edges: [[id, id], ...] }, and
-// "toolGrid" its grid settings (for the torus and the neighbors).
+// "toolGrid" its grid settings (for the torus).
 function drawnDomain(graph, toolGrid) {
   const index = new Map();
   graph.vertices.forEach(function (v, k) { index.set(v.id, k); });
@@ -150,7 +148,6 @@ function drawnDomain(graph, toolGrid) {
   const d = makeDomain(graph.vertices.map(function (v) { return v.x; }),
                        graph.vertices.map(function (v) { return v.y; }),
                        edges, wrapRange, graph.vertices.map(function (v) { return v.id; }));
-  d.neighbors = toolGrid.neighbors;
   return d;
 }
 

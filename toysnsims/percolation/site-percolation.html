@@ -157,15 +157,15 @@
           raise p slowly and watch clusters swallow each other (when clusters
           merge, the new cluster takes the color of the biggest one). Press p = p<sub>c</sub> and
           zoom in: the clusters look alike at every scale. Click a cluster to
-          follow it. Switch to 8 neighbors and see p<sub>c</sub> move.
+          follow it.
         </p>
         </div>
 
         <div data-panel="details" hidden>
         <p>
           <strong>The model.</strong> The domain is a graph
-          <span class="tex">G = (V, E)</span>: the cells, joined to their 4 or
-          8 neighbors (on other lattices, see below). A configuration is
+          <span class="tex">G = (V, E)</span>: the cells, joined to the 4
+          neighbors they share a side with (on other lattices, see below). A configuration is
           <span class="tex">\omega \in \{0,1\}^V</span>, with
           <span class="tex">\omega(v) = 1</span> meaning cell
           <span class="tex">v</span> is open. Under
@@ -213,8 +213,8 @@
           <strong>The critical point.</strong> For 4 neighbors no exact value
           of <span class="tex">p_c</span> is known; the best estimate is
           <span class="tex">p_c = 0.592746050792\ldots</span> [4] (the dashed
-          line uses 0.592746 [2]). The grid with 8 neighbors is the
-          &ldquo;matching lattice&rdquo; of the grid with 4: a closed path with
+          line uses 0.592746 [2]). The grid with 8 neighbors (sides
+          or corners; not offered here) is the &ldquo;matching lattice&rdquo; of the grid with 4: a closed path with
           8 neighbors blocks every open path with 4. So
           <span class="tex">p_c^{(8)} = 1 - p_c^{(4)} \approx 0.407254</span>
           [5; 6, Chapter 3].

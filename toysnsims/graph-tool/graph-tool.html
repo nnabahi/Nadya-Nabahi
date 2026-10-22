@@ -82,13 +82,6 @@
           y from <input type="number" id="set-ymin" step="1"> to <input type="number" id="set-ymax" step="1">
         </div>
         <div class="option-row">
-          Neighbors
-          <select id="set-neighbors">
-            <option value="4">4 (share a side)</option>
-            <option value="8">8 (sides or corners)</option>
-          </select>
-        </div>
-        <div class="option-row">
           <label><input type="checkbox" id="set-torus"> Wrap around (torus)</label>
         </div>
 
@@ -175,8 +168,8 @@
           a click paints the cell and every cell of the same color joined to it,
           like a paint bucket: on a blank cell, the blank patch around it; on a
           blue cell, only the blue cells joined to it. &ldquo;Joined&rdquo;
-          follows the grid's neighbors (4 or 8, and across the edges on a
-          torus). The <em>Eraser</em> always erases. <em>Swap color</em> changes the chosen
+          follows the grid's neighbors (cells sharing a side, and across the
+          edges on a torus). The <em>Eraser</em> always erases. <em>Swap color</em> changes the chosen
           square's color (cells already painted with it change too), and
           <em>+ Add color</em> adds a new one. <em>Move</em> drags the view; the mouse wheel or a
           pinch zooms at any time.

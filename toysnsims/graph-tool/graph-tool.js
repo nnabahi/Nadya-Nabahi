@@ -103,7 +103,6 @@ const MAX_CELLS = 250000;    // biggest grid allowed (e.g. 100 x 100)
 const grid = {
   xmin: -10, xmax: 10,
   ymin: -10, ymax: 10,
-  neighbors: 4,        // 4 = share a side; 8 = sides or corners
   torus: false,        // true = right edge joins left, top joins bottom
 };
 
@@ -266,10 +265,9 @@ function buildGrid() {
     });
   });
 
-  // The edges. Each cell looks right and up (and, with 8 neighbors,
-  // diagonally right-up and right-down); looking the other ways would
-  // only find the same edges again.
-  const steps = grid.neighbors === 8 ? [[1, 0], [0, 1], [1, 1], [1, -1]] : [[1, 0], [0, 1]];
+  // The edges, between cells that share a side. Each cell looks right
+  // and up; looking the other ways would only find the same edges again.
+  const steps = [[1, 0], [0, 1]];
   const seen = new Set();   // edges already made, so none is made twice
 
   forEachCell(function (x, y) {
@@ -621,7 +619,7 @@ function paintAlong(a, b) {
 // The Fill tool, like a paint bucket: paint cell (x, y) and every cell
 // of the same color joined to it (blank cells count as a color too), in
 // the current color. "Joined" goes from cell to neighboring cell along
-// the grid's edges, so it follows the 4 or 8 neighbors and wraps around
+// the grid's edges, so it goes through shared sides and wraps around
 // a torus. Cells outside a sim's locked domain stop it.
 function fillFrom(x, y) {
   const start = cellName(x, y), patchColor = colorAt(x, y);
@@ -833,8 +831,9 @@ function loadText(text) {
   else loadEdgeList(text);
 }
 
-// Files saved before the site switched to American spelling say "colour"
-// and "neighbours"; new files say "color" and "neighbors". Read either.
+// Files saved before the site switched to American spelling say "colour";
+// new files say "color". Read either. (Old files may also say how many
+// neighbors the grid had; cells now always neighbor across a side.)
 function oldOrNew(object, oldName, newName) {
   return object[newName] !== undefined ? object[newName] : object[oldName];
 }
@@ -853,7 +852,6 @@ function loadJSON(text) {
   const settings = {
     xmin: Number(data.grid.xmin), xmax: Number(data.grid.xmax),
     ymin: Number(data.grid.ymin), ymax: Number(data.grid.ymax),
-    neighbors: Number(oldOrNew(data.grid, "neighbours", "neighbors")) === 8 ? 8 : 4,
     torus: data.grid.torus === true,
   };
   const problem = checkSettings(settings);
@@ -1147,7 +1145,7 @@ chooser.addEventListener("change", function () {
 });
 
 // --- Grid settings ----------------------------------------------------
-const SETTING_BOXES = ["set-xmin", "set-xmax", "set-ymin", "set-ymax", "set-neighbors", "set-torus"];
+const SETTING_BOXES = ["set-xmin", "set-xmax", "set-ymin", "set-ymax", "set-torus"];
 
 // Returns a sentence describing what's wrong, or "" if all is fine.
 function checkSettings(s) {
@@ -1165,7 +1163,6 @@ function showSettings() {
   byId("set-xmax").value = grid.xmax;
   byId("set-ymin").value = grid.ymin;
   byId("set-ymax").value = grid.ymax;
-  byId("set-neighbors").value = String(grid.neighbors);
   byId("set-torus").checked = grid.torus;
 }
 
@@ -1174,7 +1171,6 @@ function applySettings() {
   const settings = {
     xmin: Number(byId("set-xmin").value), xmax: Number(byId("set-xmax").value),
     ymin: Number(byId("set-ymin").value), ymax: Number(byId("set-ymax").value),
-    neighbors: Number(byId("set-neighbors").value),
     torus: byId("set-torus").checked,
   };
   const problem = checkSettings(settings);

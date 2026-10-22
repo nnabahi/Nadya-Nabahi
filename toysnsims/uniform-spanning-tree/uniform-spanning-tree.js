@@ -48,7 +48,7 @@
 
 // The default domain and seed (Lyons and Peres's Figure 4.3 is a 40 x 40
 // grid).
-const DEFAULTS = { width: 40, height: 40, neighbors: 4, seed: "1" };
+const DEFAULTS = { width: 40, height: 40, seed: "1" };
 
 const MAX_SIDE = 300;             // the biggest box or torus
 const MAX_PICTURE_HEIGHT = 600;   // in screen pixels

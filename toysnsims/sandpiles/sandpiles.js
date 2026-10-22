@@ -42,7 +42,7 @@
 
 // The default: nadya's Python, a center pile of 64 grains on a 25 x 25 box.
 const DEFAULTS = {
-  width: 25, height: 25, neighbors: 4, seed: "1",
+  width: 25, height: 25, seed: "1",
   start: "center", grains: 64, most: 3, full: 4, value: 0, slope: 1,
 };
 
@@ -80,7 +80,7 @@ const DEFAULT_STORM_RATE = 2;
 
 let domain = null;              // the table's graph (js/sim-domains.js), or a ball (makeBall, js/sim-hyperbolic.js); its kind is domains.kind (section 8)
 let threshold = null;           // threshold[v]: the grains that make cell v topple, its number of
-                                // neighbors in the whole lattice (4 or 8 on the square grid, p on a
+                                // neighbors in the whole lattice (4 on the square grid, p on a
                                 // tiling {p,q} or a tree; on another tiling, see tilingThresholds
                                 // in sandpiles-pile.js)
 let sameThreshold = 4;          // every cell's threshold, when they are all the same (else null)
@@ -723,13 +723,12 @@ const domains = connectDomains({
   ball: function () { return ballFromOptions(disk, BALL, function (spec) { return ", each toppling at " + spec.p + " grains"; }); },
   custom: {
     title: "Draw the table",
-    help: "Paint the cells of the table (any color counts). Grains that fall off its edge are lost. Pick 4 or 8 " +
-          "neighbors in the tool; that is also how many grains a cell needs to topple.",
+    help: "Paint the cells of the table (any color counts). Grains that fall off its edge are lost. " +
+          "A cell topples at 4 grains, one for each side.",
     check: function (drawing) {
       const cells = drawing.graph.vertices.length;
-      return cells === 0 ? ["Paint the table first.", ""] : ["", cells + " cells, " + drawing.grid.neighbors + " neighbors."];
+      return cells === 0 ? ["Paint the table first.", ""] : ["", cells + " cells."];
     },
-    info: function (d) { return "Your table: " + d.n + " cells, " + d.neighbors + " neighbors" + (d.wrap ? ", on a torus." : "."); },
     showPicture: showPictureKind,     // the picture from above or in 3D hides while the tool is open
   },
   use: function (d) {
@@ -747,14 +746,13 @@ const domains = connectDomains({
 });
 
 // The grains that make each cell of the table d topple: as many as it
-// has neighbors in the whole lattice. That is the Neighbors option (4
-// or 8) on squares, the tool's on a custom table, p on a tiling {p,q}
-// or a tree of degree p, and on another tiling tilingThresholds
-// (sandpiles-pile.js).
+// has neighbors in the whole lattice: 4 on squares (a box, a torus or a
+// custom table), p on a tiling {p,q} or a tree of degree p, and on
+// another tiling tilingThresholds (sandpiles-pile.js).
 function thresholdsOf(d) {
   if (domains.kind === "graph") return new Int32Array(d.n).fill(disk.spec.p);
   if (d.lattice) return tilingThresholds(d);
-  return new Int32Array(d.n).fill(d.neighbors);
+  return new Int32Array(d.n).fill(4);
 }
 
 

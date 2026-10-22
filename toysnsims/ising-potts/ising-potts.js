@@ -38,7 +38,7 @@
 
 // The default domain, q, beta, h and seed. The default beta is the
 // critical point of the Ising model on the square grid, log(1 + sqrt 2).
-const DEFAULTS = { width: 128, height: 128, neighbors: 4, q: 2, beta: 0.8814, h: 0, seed: "1" };
+const DEFAULTS = { width: 128, height: 128, q: 2, beta: 0.8814, h: 0, seed: "1" };
 
 const MAX_Q = 10;                 // the most colors
 const MAX_BETA = 3;               // the beta slider goes from 0 to this
@@ -238,12 +238,11 @@ const domains = connectDomains({
    ===================================================================== */
 
 // The critical point beta_c of the box or torus in use, as in
-// EXACT_BETA, or null if it isn't known: on the square grid with 4
-// neighbors, and on the lattices of TILING_CRITICAL (both in section 3
+// EXACT_BETA, or null if it isn't known: on the square grid, and on the lattices of TILING_CRITICAL (both in section 3
 // of ising-potts-chain.js).
 function criticalBeta() {
   if (domains.kind === "custom" || domains.kind === "graph") return null;
-  if (!domain.lattice) return byId("set-neighbors").value === "4" ? EXACT_BETA.square(q) : null;
+  if (!domain.lattice) return EXACT_BETA.square(q);
   const known = TILING_CRITICAL[domain.tiling.code];
   const lattice = known && known[domain.tiling.corners ? "corners" : "tiles"];
   return lattice ? EXACT_BETA[lattice](q) : null;
