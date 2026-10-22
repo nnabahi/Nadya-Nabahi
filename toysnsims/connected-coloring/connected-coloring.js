@@ -65,7 +65,6 @@ const WATCH_SPEEDS = [1, 200, Infinity];
 const DEFAULT_WATCH_SPEED = 50;
 const STOP = 1;
 const TREE = "#1e1e1e";           // the spanning tree's lines
-const WALK = "#ffffff";           // the walk's path (with a TREE-colored edge around it)
 const CUT = "#e0201b";            // the edge that gets cut
 
 
@@ -483,21 +482,7 @@ function drawFilm(pen) {
     pen.lineWidth = 2 * width;
     pen.stroke(cellLinesPath(view, domain, function (line) { line(f.cut[0], f.cut[1]); }));
   }
-  if (path.length > 0) {
-    const walk = cellLinesPath(view, domain, function (line) {
-      for (let k = 0; k + 1 < path.length; k++) line(path[k], path[k + 1]);
-    });
-    pen.strokeStyle = TREE;                    // a dark edge, so white shows on any color
-    pen.lineWidth = 2 * width;
-    pen.stroke(walk);
-    pen.strokeStyle = WALK;
-    pen.lineWidth = width;
-    pen.stroke(walk);
-    const head = cellDotsPath(view, domain, [path[path.length - 1]], 1.4 * width);
-    pen.fillStyle = WALK;
-    pen.fill(head);
-    pen.stroke(head);
-  }
+  drawWalk(pen, path, width, cellLinesPath.bind(null, view, domain), cellDotsPath.bind(null, view, domain));
 }
 
 // The "Watch each move" box and its Steps slider.

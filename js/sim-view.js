@@ -70,6 +70,7 @@
                                  torus, each copy of the picture that shows)
      cellLinesPath, cellDotsPath lines between neighbors' middles, and dots on
                                  middles (a tree, a walk), on every copy
+     drawWalk(pen, walk, ...)    a walk as a white line, with a dot where it is now
      zoomBy, slideCells, resetView   zoom around a point, move; back to the start
      cellUnder, cellAtEvent      the cell under the pointer
      floorOf3D(d, kind, disk, keep)  where the cells stand on the 3D floor
@@ -102,6 +103,10 @@ const ZOOM_STEP = 1.5;            // how much one click on + or − zooms
 // sims with such lines give cells this big a whole number of pixels
 // each (makeView), so the lines sit exactly on the cell edges.
 const SMALLEST_BORDERED_CELL = 4;
+
+// A walk (drawWalk): white, with a dark edge so it shows on any color.
+const WALK_COLOR = "#ffffff";
+const WALK_EDGE = "#1e1e1e";
 
 
 // A new view for "canvas". "redraw" is the page's function that draws
@@ -531,6 +536,29 @@ function cellDotsPath(view, d, cells, radius) {
   return path;
 }
 
+// A walk (a list of cells, each a neighbor of the one before) as a
+// white line "width" pixels thick with a dark edge, so it shows on any
+// color, and a bigger dot, also white with a dark edge, on its last
+// cell: where the walker is now. linesPath(addLines) and
+// dotsPath(cells, radius) make the lines and dots: cellLinesPath and
+// cellDotsPath on a box, ballLinesPath and ballDotsPath on a ball
+// (js/sim-hyperbolic.js). (Wilson's algorithm: Uniform Spanning Tree,
+// and Connected Coloring's "Watch each move".)
+function drawWalk(pen, walk, width, linesPath, dotsPath) {
+  if (walk.length === 0) return;
+  const line = linesPath(function (add) { for (let k = 0; k + 1 < walk.length; k++) add(walk[k], walk[k + 1]); });
+  const now = [walk[walk.length - 1]];
+  pen.lineCap = pen.lineJoin = "round";
+  pen.strokeStyle = WALK_EDGE;
+  pen.lineWidth = 2 * width;
+  pen.stroke(line);
+  pen.fillStyle = WALK_EDGE;
+  pen.fill(dotsPath(now, 2.6 * width));
+  pen.strokeStyle = pen.fillStyle = WALK_COLOR;
+  pen.lineWidth = width;
+  pen.stroke(line);
+  pen.fill(dotsPath(now, 1.9 * width));
+}
 // The copy of the point p nearest the point "from", on a torus that
 // repeats by the two steps "steps" (torusSteps; null off a torus: p
 // itself).

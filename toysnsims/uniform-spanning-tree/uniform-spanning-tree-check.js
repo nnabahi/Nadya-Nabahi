@@ -32,7 +32,9 @@
         compared by a chi-square test.
      5. Distances in the tree (treeDistances) and the path between two
         cells (treePath) match a plain breadth-first search through the
-        tree's edges, on boxes, tori and a tiling.
+        tree's edges, on boxes, tori and a tiling; and the tree moved to
+        a new root (rerootTree) has the same edges, with the new root at
+        the top.
 
    Random numbers come from the library seedrandom, with fixed seeds,
    so the tests do the same thing every time. Chi-square p-values come
@@ -312,10 +314,18 @@ function testDistances() {
         for (let v = 0; v < d.n; v++) if (mine[v] !== plain[v]) { problems.push(name + ": a distance"); break; }
         checked++;
       }
+      // Moved to the root a: a is the top, every other cell points to a
+      // tree neighbor, and the distances to a are the same.
+      const moved = rerootTree(parent, a);
+      if (moved[a] !== -1) problems.push(name + ": the new root");
+      for (let v = 0; v < d.n; v++) if (v !== a && !near[v].includes(moved[v])) { problems.push(name + ": an edge of the moved tree"); break; }
+      const movedDistance = treeDistances(d.n, moved, a, [a]);
+      for (let v = 0; v < d.n; v++) if (movedDistance[v] !== fromA[v]) { problems.push(name + ": a distance in the moved tree"); break; }
+      checked++;
     }
   }
-  addRow("Distances and paths in the tree", problems.length === 0,
-    checked + " sets of distances (to the root, to a cell, and to a path) on " + domains.map(function (x) { return x.name; }).join(", ") +
+  addRow("Distances, paths and new roots in the tree", problems.length === 0,
+    checked + " sets of distances (to the root, to a cell, to a path, and to a new root) on " + domains.map(function (x) { return x.name; }).join(", ") +
     (problems.length === 0 ? ": all match a plain search through the tree." : ": wrong at " + problems.slice(0, 3).join("; ") + "."));
 }
 
