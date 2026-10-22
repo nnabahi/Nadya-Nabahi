@@ -206,7 +206,7 @@ function restart() {
   alphaZoom.from = alphaZoom.to = null;
   latest = null;
   sim.setup({ n: domain.n, first: domain.first, nbr: domain.nbr, colors: colors, N: N, seed: byId("seed").value,
-              watch: watching, most: TRACE_POINTS });
+              watch: watching, sweeps: readSweeps(), most: TRACE_POINTS });
   showStartInfo();
   drawSoon();
 }
@@ -370,7 +370,7 @@ function startFilm(message) {
     message: message,
     pair: log.pair, walks: log.walks, root: log.root, cut: log.cut,
     stepping: !player.playing,          // from the Step button: show it all, even paused
-    shown: colors.slice(),              // the colors on screen
+    shown: (log.before || colors).slice(),   // the colors on screen (after the flips before the move)
     walk: 0, step: 1,                   // which walk, and which of its cells comes next
     stage: "pick", wait: stopTime(), owed: 0, last: performance.now(),
   };
@@ -492,6 +492,15 @@ connectSpeedSlider("watch-speed", WATCH_SPEEDS, DEFAULT_WATCH_SPEED, function (s
   byId("watch-speed-label").textContent = speed === Infinity ? "at once" : speedText(speed, "step", "steps");
 });
 
+// Flips before each move, in sweeps (1 sweep = one flip per cell;
+// section 2b of connected-coloring-chain.js). 0 = moves only.
+function readSweeps() {
+  const box = byId("set-sweeps"), sweeps = Number(box.value);
+  if (!(sweeps >= 0)) { box.value = 1; return 1; }
+  return sweeps;
+}
+byId("set-sweeps").addEventListener("change", function () { sim.send({ type: "sweeps", sweeps: readSweeps() }); });
+
 function setWatching(on) {
   watching = on;
   byId("watch").checked = on;
@@ -517,6 +526,8 @@ function showStats() {
   byId("stat-proposed").textContent = s.proposed.toLocaleString();
   byId("stat-accepted").textContent = s.accepted.toLocaleString() +
     (s.proposed > 0 ? " (" + (100 * s.accepted / s.proposed).toFixed(1) + "%)" : "");
+  byId("stat-flips").textContent = s.flips ? s.flipped.toLocaleString() + " of " + s.flips.toLocaleString() +
+    " (" + (100 * s.flipped / s.flips).toFixed(1) + "%)" : "0";
   byId("stat-boundary").textContent = s.boundary;
   byId("stat-pairs").textContent = s.pairs;
   showHighlightInfo();
