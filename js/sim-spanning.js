@@ -17,6 +17,7 @@
                                    how far each cell is, in the tree,
                                    from the nearest of some cells
      treePath(parent, a, b)        the path in the tree from a to b
+     rerootTree(parent, r)         the same tree, with r as its root
 
    Every function here keeps its constants inside it, and uses only
    what it is given, so a worker can get a copy of it (runInWorker,
@@ -428,4 +429,21 @@ function treePath(parent, a, b) {
   while (v !== -1 && !up.has(v)) { fromB.push(v); v = parent[v]; }
   if (v === -1) return null;                   // they never met
   return fromA.slice(0, up.get(v) + 1).concat(fromB.reverse());
+}
+
+// The same tree as "parent", with the cell r (in the tree) as its root:
+// a new parent list, in which the cells on the way from r up to the old
+// root point the other way. Every edge stays; only the direction to the
+// root changes. (Wilson's algorithm gives the same uniform tree from any
+// root, so a uniform tree moved to a new root is still uniform.)
+function rerootTree(parent, r) {
+  const moved = parent.slice();
+  let child = -1;
+  for (let v = r; v !== -1; ) {
+    const up = parent[v];
+    moved[v] = child;
+    child = v;
+    v = up;
+  }
+  return moved;
 }

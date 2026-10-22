@@ -75,21 +75,19 @@
         <div class="option-row stretch-row" id="stretch-row" hidden></div>
         <p class="muted small help-3d" id="view3d-help" hidden></p>
 
-        <div class="option-row">
-          A click:
-          <label><input type="radio" name="click" value="root" checked> moves the root (a new tree)</label>
-          <label><input type="radio" name="click" value="end"> moves the other end of the blue path</label>
-        </div>
+        <p class="muted small">Drag the black dot (the root) or the ring (the other end) to move
+          the ends of the blue path. On a finished tree they move along the same tree; before
+          that, moving the root grows a new tree from it.</p>
 
         <h3 class="option-heading">Domain</h3>
-        <div class="domain-options" data-ticked="box"></div>
+        <div class="domain-options" data-ticked="box" data-no-neighbors></div>
 
         <h3 class="option-heading">Run</h3>
         <div class="option-row play-row" data-step="One step of the walk" data-restart="Back to the start, same seed"></div>
         <div class="option-row speed-row"></div>
         <div class="option-row seed-row"></div>
-        <p class="muted small">The same seed and root give the same tree every time. Moving the
-          root, or changing the domain or the seed, grows a new tree from the start.</p>
+        <p class="muted small">The same seed and root give the same tree every time. Changing
+          the domain or the seed grows a new tree from the start.</p>
       </section>
 
       <!-- UNDER THE PICTURE: numbers about this tree. -->
@@ -122,8 +120,8 @@
         <div data-panel="details" hidden>
         <p>
           <strong>The model.</strong> The domain is a finite connected graph
-          <span class="tex">G = (V, E)</span>: the cells, joined to their 4
-          or 8 neighbors (on other lattices, see below). A spanning tree of
+          <span class="tex">G = (V, E)</span>: the cells, joined to the 4
+          neighbors they share a side with (on other lattices, see below). A spanning tree of
           <span class="tex">G</span> is a set of edges
           <span class="tex">T \subseteq E</span> that joins every two cells
           by exactly one path: it has no cycles and reaches every cell. The
@@ -167,6 +165,9 @@
           root" is the number of tree edges between each cell and the root,
           and "Distance to the blue path" the number of tree edges between
           each cell and the path in the tree from the other end to the root.
+          Dragging the root on a finished tree keeps the tree and only changes
+          which way its edges point: the uniform spanning tree does not depend
+          on the root [1; 2, Theorem 4.1].
           In 3D, each cell gets a stack that tall. In an
           <span class="tex">n \times n</span> box, the tree distance from
           one corner to the opposite one grows like

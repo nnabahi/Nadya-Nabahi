@@ -25,8 +25,8 @@
            and a second cell, "the other end" (Figure 4.6);
        from above, colored from blue (low) to red (high), or in 3D, as
        stacks of blocks. The path from the other end to the root is
-       drawn in blue. A click moves the root (and grows a new tree) or
-       the other end. The numbers come from js/sim-spanning.js.
+       drawn in blue. Its two ends, the root and the other end, can be
+       dragged. The numbers come from js/sim-spanning.js.
 
    The file is split into numbered sections:
      1. Settings you might want to change
@@ -35,7 +35,7 @@
      4. The numbers shown on the cells
      5. Drawing the tree from above
      6. The 3D view
-     7. Clicking, moving and zooming
+     7. Dragging the ends, moving and zooming
      8. Statistics
      9. The domain
     10. Connecting the buttons on the page
@@ -65,7 +65,6 @@ const DEFAULT_SPEED = 20;
 
 // The colors of the lines on top of the picture.
 const TREE = "#1e1e1e";           // the tree's edges, and the root's dot
-const WALK = "#ffffff";           // the walk adding to the tree (with a TREE-colored edge around it)
 const PATH = "#2f6fd6";           // the path in the tree from the other end to the root
 const EMPTY = "#ffffff";          // a cell with no number to show (not in the tree yet)
 const EMPTY_3D = "#d9d7d2";       // in 3D, the flat tiles of the cells with no number, or 0
@@ -74,6 +73,11 @@ const EMPTY_3D = "#d9d7d2";       // in 3D, the flat tiles of the cells with no 
 // only on cells at least this many pixels big (smaller, they would hide
 // the colors). With "The tree" shown, they are always drawn.
 const SMALLEST_LINED_CELL = 8;
+
+// A press this many steps (cells) or fewer from the root or the other
+// end picks it up, so it can be grabbed without pressing exactly on it
+// (or when it sits under the zoom buttons, in a corner).
+const GRAB_STEPS = 2;
 
 // The colors from blue (low) to red (high) (heatColor, js/sim-colors.js),
 // in 256 steps, and EMPTY as [red, green, blue], worked out once.
@@ -87,7 +91,8 @@ const EMPTY_RGB = hexToRGB(EMPTY);
    ===================================================================== */
 
 let domain = null;             // the domain graph (js/sim-domains.js), or a ball (makeBall, js/sim-hyperbolic.js); its kind is domains.kind (section 9)
-let root = 0;                  // the root: Wilson's algorithm grows the tree from it
+let root = 0;                  // the root: one end of the blue path, and what "Distance to the root" measures to
+let grownFrom = 0;             // the cell Wilson's algorithm grew the tree from (the root, until it is dragged on a finished tree)
 let end = 0;                   // the other end of the blue path
 let latest = null;             // the latest message from the worker (uniform-spanning-tree-wilson.js)
 let numbers = null;            // the numbers on the cells, worked out from "latest" (section 4)
@@ -113,6 +118,7 @@ const sim = runInWorker(treeWorker, [newWilson], function (message) {
 // A new tree from the start (paused), on the current domain, from the
 // current root, with the current seed.
 function restart() {
+  grownFrom = root;
   latest = null;
   numbers = null;
   showMessage("");
@@ -135,9 +141,13 @@ const player = connectPlay(sim, SPEEDS, DEFAULT_SPEED, "step", "steps", restart)
      path     its distance in the tree to the path from the other end to
               the root (treePath), once both are in the tree
    Cells not in the tree yet get -1: no number.
+   The worker's tree points to the cell it grew from; once the root has
+   been dragged elsewhere on the finished tree, the same tree is turned
+   to point to the new root (rerootTree).
    ===================================================================== */
 function workOutNumbers() {
-  const n = domain.n, parent = latest.parent;
+  const n = domain.n;
+  const parent = root === grownFrom ? latest.parent : rerootTree(latest.parent, root);
   const colors = new Int32Array(n).fill(-1);
   for (let v = 0; v < n; v++) if (parent[v] !== -1) colors[v] = latest.exits[v];
   const line = treePath(parent, end, root);     // null until both are in the tree
@@ -247,17 +257,7 @@ function drawOnTop(pen, withTree, width, linesPath, dotsPath) {
     pen.lineWidth = 2 * width;
     pen.stroke(linesPath(function (add) { for (let k = 0; k + 1 < line.length; k++) add(line[k], line[k + 1]); }));
   }
-  if (walk.length > 0) {
-    const path = linesPath(function (add) { for (let k = 0; k + 1 < walk.length; k++) add(walk[k], walk[k + 1]); });
-    pen.strokeStyle = TREE;                    // a dark edge, so white shows on any color
-    pen.lineWidth = 2 * width;
-    pen.stroke(path);
-    pen.strokeStyle = WALK;
-    pen.lineWidth = width;
-    pen.stroke(path);
-    pen.fillStyle = WALK;
-    pen.fill(dotsPath([walk[walk.length - 1]], 1.6 * width));   // where the walk is now
-  }
+  drawWalk(pen, walk, width, linesPath, dotsPath);   // (js/sim-view.js)
   pen.fillStyle = TREE;
   pen.fill(dotsPath([root], 2 * width));
   pen.strokeStyle = TREE;
@@ -334,30 +334,65 @@ function pathOverStacks(f, height) {
 
 
 /* =====================================================================
-   7. CLICKING, MOVING AND ZOOMING
+   7. DRAGGING THE ENDS, MOVING AND ZOOMING
    ---------------------------------------------------------------------
    Drag to move, mouse wheel or pinch to zoom, and the + / − / Reset
    buttons (connectPicture, js/sim-view.js). On a hyperbolic tiling or
    tree, one pointer drags across the plane instead.
-   A click on a cell (the "A click" option) moves the root there, which
-   grows a new tree from the start (paused), or moves the other end of
-   the blue path there, which keeps the tree.
+   The root's dot and the other end's ring can be dragged: a press on
+   either, or near it (GRAB_STEPS), picks up the nearer one, and it
+   snaps to the cell under the pointer. The
+   other end just moves along the tree. The root moves along the tree
+   too once the tree is finished (the same tree, now pointing to the new
+   root: Wilson's algorithm gives the same uniform tree from any root);
+   before that, moving it grows a new tree from it (paused).
    ===================================================================== */
+let dragging = null;     // what a press picked up: "root", "end", or null
+
 connectPicture(view, {
   disk: disk, onGraph: function () { return domains.kind === "graph"; },
-  onClick: function (event) {
-    const v = cellAtEvent(view, disk, domain, domains.kind === "graph", event);
-    if (v === -1) return;
-    if (checked("click") === "root") {
-      root = v;
-      restart();
-    } else {
-      end = v;
-      if (latest) workOutNumbers();
-      drawSoon();
-    }
+  grab: {
+    press: function (event) {
+      dragging = endNear(cellUnderPointer(event));
+      return dragging !== null;
+    },
+    move: function (event) {
+      const v = cellUnderPointer(event);
+      if (v === -1) return;
+      if (dragging === "end" && v !== end) moveEnd(v);
+      if (dragging === "root" && v !== root) moveRoot(v);
+    },
+    release: function () { dragging = null; },
   },
 });
+
+// The end of the blue path at most GRAB_STEPS from cell v, "root" or
+// "end" (the nearer one; the root if they are as near), or null.
+function endNear(v) {
+  if (v === -1) return null;
+  const steps = stepsFrom(domain, [v]);     // (js/sim-domains.js)
+  const near = function (w) { return steps[w] !== -1 && steps[w] <= GRAB_STEPS; };
+  if (near(root) && (!near(end) || steps[root] <= steps[end])) return "root";
+  return near(end) ? "end" : null;
+}
+
+function cellUnderPointer(event) { return cellAtEvent(view, disk, domain, domains.kind === "graph", event); }
+
+function moveEnd(v) {
+  end = v;
+  if (latest) workOutNumbers();
+  drawSoon();
+}
+
+function moveRoot(v) {
+  root = v;
+  if (!treeIsFinished()) { restart(); return; }
+  workOutNumbers();
+  drawSoon();
+}
+
+// Is every cell of the root's piece in the tree?
+function treeIsFinished() { return latest !== null && latest.joined === latest.pieceSize; }
 
 
 /* =====================================================================
