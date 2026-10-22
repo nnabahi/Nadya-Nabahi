@@ -59,7 +59,7 @@
         for the sim page, random-walk.js, so the page never freezes.
         runInWorker (js/sim-page.js) starts it, with newWalk, the trace
         and random numbers (js/sim-worker.js), the hull, holes and outer
-        boundary (js/sim-shape.js) and blockStart (js/sim-domains.js)
+        boundary (js/sim-shape.js) and middleAt (js/sim-domains.js)
         copied in.
    ===================================================================== */
 
@@ -116,13 +116,8 @@ function newWalk(options) {
 
   // 2D: where site (x, y, z) is in the plane, in side lengths: on the
   // square grid (x, y) itself; on another tiling the middle of cell z
-  // of block (x, y) (blockStart, js/sim-domains.js: the walk carries its
-  // tiling the way a domain does).
-  function placeOf(x, y, z) {
-    if (!tiling) return [x, y];
-    const [u, v] = blockStart(w, x, y), middle = tiling.cells[z].middle;
-    return [u + middle[0], v + middle[1]];
-  }
+  // of block (x, y) (middleAt, js/sim-domains.js).
+  function placeOf(x, y, z) { return tiling ? middleAt(tiling, x, y, z) : [x, y]; }
 
   // The walker is at (x, y, z) at step n: note the site, if it is new.
   function visit(x, y, z, n) {

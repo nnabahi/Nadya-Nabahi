@@ -734,7 +734,7 @@ function convexityOfDomain(domain, start) {
 
 // After "steps" steps, compare m.radii with the radii found again from
 // every base site (from the middles of the cells, on another tiling
-// with middleAt, js/check-page.js).
+// with middleAt, js/sim-domains.js).
 function checkRadii(options, steps) {
   const m = newMountain(options);
   for (let k = 0; k < steps && m.available.length > 0; k++) m.step();
@@ -883,7 +883,7 @@ function checkTilingHoles(options, steps) {
 
 // The shape on another tiling, after "steps" steps: the area kept
 // block by block = the polygons' areas added up (cornersAt,
-// js/check-page.js), and the convexity = that area over the area of the
+// js/sim-domains.js), and the convexity = that area over the area of the
 // hull of every corner of every base cell (convexity itself uses the
 // hull kept up to date as cells join the base).
 function checkTilingShape(options, steps) {

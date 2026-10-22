@@ -122,7 +122,7 @@
    tilePacking(). The sim page turns it into a "Web Worker" (a second
    thread, see runInWorker in js/sim-page.js), with the helpers it uses
    from js/sim-domains.js (cellAt, wrap, cornersOf, cellMiddles,
-   blocksNear, tilingCell, pointInPolygon, countPieces, ...), the trace
+   middleAt, blocksNear, tilingCell, pointInPolygon, ...), the trace
    (js/sim-worker.js) and the colors copied in, where it answers
    messages from the page (section 6). The check page (uniform-discrete-tiling-check.html) calls
    tilePacking() directly and uses the functions it hands back.
@@ -450,14 +450,13 @@ function tilePacking() {
     if (onTiling) {
       const reach = r + widest;   // a cell farther than this can't touch the disk
       for (const [I, J] of blocksNear(domain, cx, cy, reach)) {
-        const [su, sw] = blockStart(domain, I, J);
-        domain.tiling.cells.forEach(function (cell, k) {
-          if (Math.hypot(cell.middle[0] + su - cx, cell.middle[1] + sw - cy) >= reach) return;
+        for (let k = 0; k < domain.tiling.cells.length; k++) {
+          const [u, w] = middleAt(domain.tiling, I, J, k);
+          if (Math.hypot(u - cx, w - cy) >= reach) continue;
           const v = tilingCell(domain, I, J, k);
-          if (v < 0 || touched[v] === stamp) return;
-          const corners = cell.corners.map(function (c) { return [c[0] + su, c[1] + sw]; });
-          if (touchesPolygon(corners, cx, cy, r)) found(v);
-        });
+          if (v < 0 || touched[v] === stamp) continue;
+          if (touchesPolygon(cornersAt(domain.tiling, I, J, k), cx, cy, r)) found(v);
+        }
       }
       return;
     }

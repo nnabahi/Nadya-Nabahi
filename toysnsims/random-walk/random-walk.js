@@ -174,14 +174,14 @@ function showWeights() {
    ---------------------------------------------------------------------
    The walk is walkWorker() in random-walk-rule.js, with newWalk(), its
    shape, the trace and the random numbers (js/sim-worker.js), the
-   hull, holes and outer boundary (js/sim-shape.js), blockStart and
+   hull, holes and outer boundary (js/sim-shape.js), middleAt and
    cellNeighbors (js/sim-domains.js) and what grows a Penrose tiling's
    plane (js/sim-penrose.js) copied in.
    runInWorker (js/sim-page.js) runs it in a second thread, so the page
    never freezes, and hands each report to showWalk.
    ===================================================================== */
 const sim = runInWorker(walkWorker,
-  [newWalk, cutsOf, walkHull, hullCandidates3D, newTrace, keepSample, seededUniform, blockStart, cellNeighbors,
+  [newWalk, cutsOf, walkHull, hullCandidates3D, newTrace, keepSample, seededUniform, blockStart, middleAt, cellNeighbors,
    convexHull, growingHull, polygonArea, polygonPerimeter, holeHistory, bettiOverTime, frontierLength,
    cellWindow, squareWindow, tilingWindow, finiteWindow].concat(penroseHelpers()),
   showWalk);

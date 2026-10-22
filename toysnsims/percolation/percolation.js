@@ -309,7 +309,7 @@ function drawTilingEdges(pen) {
   pen.fillStyle = CLOSED;
   pen.fillRect(view.left, 0, view.width, view.height);
   const copies = screenCopies(view, domain);      // (js/sim-view.js; sets view.cell)
-  const bonds = bondPaths(view.cell), tiles = domain.tiling.cells;
+  const bonds = bondPaths(view.cell), tiling = domain.tiling;
   for (const { sx, sy } of copies) {
     for (let v = 0; v < domain.n; v++) {
       const [u, w] = cellMiddle(domain, v);
@@ -317,12 +317,12 @@ function drawTilingEdges(pen) {
       if (!nearScreen(view, x, y)) continue;
       const lines = bonds.dot(v, x, y);
       if (lines === null) continue;
-      tiles[domain.part[v]].next.forEach(function ([k, dI, dJ], e) {
+      tiling.cells[domain.part[v]].next.forEach(function ([k, dI, dJ], e) {
         const other = domain.sides[v][e];
         if (other < v || !isOpenEdge(v, other)) return;
-        const [bu, bw] = blockStart(domain, domain.x[v] + dI, domain.y[v] + dJ);
+        const [ou, ow] = middleAt(tiling, domain.x[v] + dI, domain.y[v] + dJ, k);   // (js/sim-domains.js)
         lines.moveTo(x, y);
-        lines.lineTo(sx(bu + tiles[k].middle[0]), sy(bw + tiles[k].middle[1]));
+        lines.lineTo(sx(ou), sy(ow));
       });
     }
   }

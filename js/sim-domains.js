@@ -65,8 +65,10 @@
      tilingHexagon(...)       a hexagon of a tiling's cells (of triangles:
                               the hexagon of the lozenge tilings)
      cellNeighbors(cell)      a tiling cell's neighbors, each once
-     blockStart(d, I, J)      where a block of the tiling is
-     cornersOf(d, v)          the corners of a cell
+     blockStart(tiling, I, J) where block (I, J) of a tiling starts
+     middleAt(tiling, I, J, k)    the middle of cell k of that block ...
+     cornersAt(tiling, I, J, k)   ... and its corners
+     cornersOf(d, v)          the corners of a domain's cell
      tilingCell(d, I, J, k)   cell k of block (I, J)
      blocksNear(d, u, w, reach)   the blocks near a point
      pointInPolygon(corners, u, w)   is a point inside a cell?
@@ -327,8 +329,7 @@ function spreadRegion(d, colors, s, seen) {
 // of a tiling, the corner itself.)
 function cellMiddle(d, v) {
   if (!d.lattice) return [d.x[v], d.y[v]];
-  const [u, w] = blockStart(d, d.x[v], d.y[v]), middle = d.tiling.cells[d.part[v]].middle;
-  return [middle[0] + u, middle[1] + w];
+  return middleAt(d.tiling, d.x[v], d.y[v], d.part[v]);
 }
 
 // The middle of every cell of domain d (cellMiddle), as a list, worked
@@ -393,7 +394,8 @@ function pictureBox(d) {
     // One copy of the torus: its blocks across and up (for a tiling
     // whose blocks are slanted, the copies above are shifted sideways:
     // torusSteps).
-    d.pictureBox = { left: 0, right: blockStart(d, d.wrap.xmax + 1, 0)[0], bottom: 0, top: blockStart(d, 0, d.wrap.ymax + 1)[1] };
+    const [across, up] = torusSteps(d);
+    d.pictureBox = { left: 0, right: across[0], bottom: 0, top: up[1] };
     return d.pictureBox;
   }
   let left = Infinity, right = -Infinity, bottom = Infinity, top = -Infinity;
@@ -410,7 +412,7 @@ function pictureBox(d) {
 // The two steps by which the picture of a torus repeats: across, and up
 // (up is slanted for a tiling with slanted blocks).
 function torusSteps(d) {
-  if (d.lattice) return [blockStart(d, d.wrap.xmax + 1, 0), blockStart(d, 0, d.wrap.ymax + 1)];
+  if (d.lattice) return [blockStart(d.tiling, d.wrap.xmax + 1, 0), blockStart(d.tiling, 0, d.wrap.ymax + 1)];
   const box = pictureBox(d);
   return [[box.right - box.left, 0], [0, box.top - box.bottom]];
 }
@@ -508,9 +510,7 @@ function cellsInBox(tiling, box, inside) {
   const [A, bx, B] = [tiling.a[0], tiling.b[0], tiling.b[1]];
   for (let J = Math.floor(box.bottom / B) - 1; J * B < top + B; J++) {
     for (let I = Math.floor((box.left - J * bx) / A) - 2; I * A + J * bx < right + A; I++) {
-      tiling.cells.forEach(function (cell, k) {
-        if (keep(cell.middle[0] + I * A + J * bx, cell.middle[1] + J * B)) cells.push([I, J, k]);
-      });
+      for (let k = 0; k < tiling.cells.length; k++) if (keep(...middleAt(tiling, I, J, k))) cells.push([I, J, k]);
     }
   }
   return cells;
@@ -522,7 +522,6 @@ function cellsInBox(tiling, box, inside) {
 // rectangle the cells were picked from, for onLeft and onRight (or
 // null: then the domain has neither).
 function makeTilingDomain(tiling, cells, wrapRange, box) {
-  const [A, bx] = [tiling.a[0], tiling.b[0]];
   const index = new Map();
   cells.forEach(function ([I, J, k], v) { index.set(I + "," + J + "," + k, v); });
   const edges = [], sides = [];
@@ -534,7 +533,7 @@ function makeTilingDomain(tiling, cells, wrapRange, box) {
       const w = index.has(I2 + "," + J2 + "," + k2) ? index.get(I2 + "," + J2 + "," + k2) : -1;
       if (w > v) edges.push([v, w]);
       if (box && w === -1 && k2 >= 0) {   // the neighbor is outside the box: is it off the left or right side?
-        const u = tiling.cells[k2].middle[0] + I2 * A + J2 * bx;
+        const u = middleAt(tiling, I2, J2, k2)[0];
         if (u < box.left) onLeft[v] = 1;
         if (u >= box.left + box.width) onRight[v] = 1;
       }
@@ -567,17 +566,26 @@ function cellNeighbors(cell) {
   });
 }
 
-// Where block (I, J) of domain d's tiling starts, in the picture.
-function blockStart(d, I, J) {
-  const t = d.tiling;
-  return [I * t.a[0] + J * t.b[0], I * t.a[1] + J * t.b[1]];
+// Where block (I, J) of a tiling starts, in the picture: I a + J b.
+function blockStart(tiling, I, J) {
+  return [I * tiling.a[0] + J * tiling.b[0], I * tiling.a[1] + J * tiling.b[1]];
+}
+
+// The middle of cell k of block (I, J) of a tiling, in the picture: the
+// cell's middle in the block, moved to where the block starts.
+function middleAt(tiling, I, J, k) {
+  const [u, w] = blockStart(tiling, I, J), middle = tiling.cells[k].middle;
+  return [middle[0] + u, middle[1] + w];
+}
+
+// The corners of cell k of block (I, J) of a tiling, in the picture.
+function cornersAt(tiling, I, J, k) {
+  const [u, w] = blockStart(tiling, I, J);
+  return tiling.cells[k].corners.map(function (c) { return [c[0] + u, c[1] + w]; });
 }
 
 // The corners of cell v of a tiling domain, in the picture.
-function cornersOf(d, v) {
-  const [u, w] = blockStart(d, d.x[v], d.y[v]);
-  return d.tiling.cells[d.part[v]].corners.map(function (c) { return [c[0] + u, c[1] + w]; });
-}
+function cornersOf(d, v) { return cornersAt(d.tiling, d.x[v], d.y[v], d.part[v]); }
 
 // Cell k of block (I, J) of a tiling domain (wrapped around on a
 // torus), or -1 if the domain doesn't have it.
@@ -617,10 +625,8 @@ function tilingCellAt(d, u, w) {
     return k === undefined ? -1 : tilingCell(d, 0, 0, k);
   }
   for (const [I, J] of blocksNear(d, u, w, widestCell(t))) {
-    const [su, sw] = blockStart(d, I, J);
     for (let k = 0; k < t.cells.length; k++) {
-      const corners = t.cells[k].corners.map(function (c) { return [c[0] + su, c[1] + sw]; });
-      if (pointInPolygon(corners, u, w)) return tilingCell(d, I, J, k);
+      if (pointInPolygon(cornersAt(t, I, J, k), u, w)) return tilingCell(d, I, J, k);
     }
   }
   return -1;

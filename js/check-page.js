@@ -20,8 +20,9 @@
    and, to test the holes found by holeHistory (js/sim-shape.js):
      countHoles(cells)                   the holes of a set of cells, counted plainly
    and, for the pages that test tilings (they load js/sim-tilings.js,
-   whose tilingBlock(code, corners) builds a tiling as the sims do):
-     middleAt, cornersAt(tiling, x, y, z)   where a cell is: its middle, its corners
+   whose tilingBlock(code, corners) builds a tiling as the sims do, and
+   js/sim-domains.js, whose middleAt and cornersAt say where its cells
+   are):
      spotKey(u, w), sideKeysAt(...)      points and sides as text, to match them up
      eulerCounter(tiling)                the holes of a growing set of cells, by Euler's formula
      holesFromPolygons(set)              its holes and outer boundary, from the polygons alone
@@ -168,17 +169,6 @@ function countHoles(cells) {
   return holes;
 }
 
-
-// Where cell z of block (x, y) of a tiling is: its middle, and its corners.
-function middleAt(tiling, x, y, z) {
-  const m = tiling.cells[z].middle;
-  return [m[0] + x * tiling.a[0] + y * tiling.b[0], m[1] + x * tiling.a[1] + y * tiling.b[1]];
-}
-function cornersAt(tiling, x, y, z) {
-  return tiling.cells[z].corners.map(function (c) {
-    return [c[0] + x * tiling.a[0] + y * tiling.b[0], c[1] + x * tiling.a[1] + y * tiling.b[1]];
-  });
-}
 
 // A point as text, rounded to 6 decimals, so the same point worked out
 // from two cells gets the same text.

@@ -355,17 +355,18 @@ function customStart(d) {
    ---------------------------------------------------------------------
    The growth rule is mountainWorker() in eden-growth-rule.js,
    with newMountain(), ballTile(), newGraphMountain(), the hyperbolic
-   tilings and trees, the trace (js/sim-worker.js), the hull and holes
-   (js/sim-shape.js) and what grows a Penrose tiling's plane
-   (js/sim-penrose.js) copied in. runInWorker (js/sim-page.js) runs it
-   in a second thread, so the page never freezes.
+   tilings and trees, the trace (js/sim-worker.js), where a tiling's
+   cells are (js/sim-domains.js), the hull and holes (js/sim-shape.js)
+   and what grows a Penrose tiling's plane (js/sim-penrose.js) copied
+   in. runInWorker (js/sim-page.js) runs it in a second thread, so the
+   page never freezes.
    ===================================================================== */
 const sim = runInWorker(mountainWorker,
   [newMountain, ballTile, newGraphMountain, makeGraph, tilingShape, motionTimes, motionApply, halfTurn, coshFromStart,
    learnedRules, tilingByGeometry, tilingByRules, tilingRules, testRules, hashTable, ballAround, spreadPlace,
-   newTrace, keepSample, seededUniform, mountainSteps, pickSite, newClocks, wrap, holeHistory, bettiOverTime,
-   cellWindow, squareWindow, tilingWindow, finiteWindow, convexHull, growingHull, polygonArea, convexity]
-  .concat(penroseHelpers()), showMountain);
+   newTrace, keepSample, seededUniform, mountainSteps, pickSite, newClocks, wrap, blockStart, middleAt, cornersAt,
+   holeHistory, bettiOverTime, cellWindow, squareWindow, tilingWindow, finiteWindow, convexHull, growingHull,
+   polygonArea, convexity].concat(penroseHelpers()), showMountain);
 
 // On a graph whose rules the page can't learn (js/sim-graphs.js).
 const BY_GEOMETRY = "This tiling has too many cells near the start for the page to learn its rules, " +

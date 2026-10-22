@@ -96,9 +96,9 @@ function showingAverage() { return checked("show") === "average"; }
    (js/sim-page.js) runs it in a second thread, a "Web Worker", so the
    page never freezes, and hands each report to the function below.
    ===================================================================== */
-const sim = runInWorker(tilePacking, [wrap, cellAt, blockStart, cornersOf, cellMiddle, cellMiddles, widestCell,
-                                      blocksNear, tilingCell, pointInPolygon, countPieces, findRegions, spreadRegion,
-                                      newTrace, keepSample, colorScheme, cellColors], function (message) {
+const sim = runInWorker(tilePacking, [wrap, cellAt, blockStart, middleAt, cornersAt, cornersOf, cellMiddle, cellMiddles,
+                                      widestCell, blocksNear, tilingCell, pointInPolygon, countPieces, findRegions,
+                                      spreadRegion, newTrace, keepSample, colorScheme, cellColors], function (message) {
   if (message.placements) {    // a new run's first report
     placements = message.placements;
     showMessage(message.error);

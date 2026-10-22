@@ -791,8 +791,7 @@ function testTilingDomains() {
         if (!d.sides[w].includes(v)) problem = "a side is shared one way only";
         // The cell across, where it is next to v (not wrapped around):
         // it has both ends of the side.
-        const [u, z] = blockStart(d, d.x[v] + dI, d.y[v] + dJ);
-        const across = t.cells[k].corners.map(function (c) { return [c[0] + u, c[1] + z]; });
+        const across = cornersAt(t, d.x[v] + dI, d.y[v] + dJ, k);
         for (const end of [corners[e], corners[(e + 1) % corners.length]]) {
           if (!across.some(function (c) { return near(c, end); })) problem = "the cell across a side is in the wrong place";
         }
