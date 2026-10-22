@@ -89,14 +89,16 @@
    2008, call this the weighted version of the same idea). The weights
    are multiplied as logarithms, so big products can't overflow.
 
-   TRIANGLES AND HEXAGONS. On a domain of triangles or hexagons (see
-   js/sim-domains.js) the only tile is a pair of neighboring cells: on
-   triangles that is a rhombus, so a tiling of a hexagon is a "lozenge
-   tiling", the picture of a pile of cubes in a corner. A pair has one
-   of 3 directions, its orientations. The disk is a disk in the picture,
-   and a cell "touches" it when any point of the triangle or hexagon is
-   inside it. The move and the proof above don't change: they never used
-   the shape of the cells.
+   TRIANGLES AND HEXAGONS. The cells can also be the triangles or the
+   hexagons of the shared tilings (tilingBox and tilingHexagon in
+   js/sim-domains.js, the tilings from js/sim-tilings.js). Then the only
+   tile is a pair of neighboring cells: on triangles that is a rhombus,
+   so a tiling of a hexagon is a "lozenge tiling", the picture of a pile
+   of cubes in a corner. A pair has one of 3 directions, its
+   orientations, read from the side its two cells share. The disk is a
+   disk in the picture, and a cell "touches" it when any point of the
+   triangle or hexagon is inside it. The move and the proof above don't
+   change: they never used the shape of the cells.
 
    The starting packing (section 4):
      - Gaps on: go through all tile positions in random order and place
@@ -109,17 +111,19 @@
        Which lengths add up is the "coin problem", solved by a small
        table. If nothing works, the sim says so.
      - Gaps off, on triangles or hexagons: each row's cells paired left
-       to right, if every row's runs have an even length. Otherwise, on
-       the hexagon of triangles, the "empty room" tiling: the hexagon cut
+       to right, if every row's runs have an even length (the rows are
+       found from where the cells are in the picture). Otherwise, on the
+       hexagon of triangles, the "empty room" tiling: the hexagon cut
        into 3 big rhombi from its middle, each filled with rhombi of one
        direction (the picture of an empty corner, with no cubes).
 
    HOW IT RUNS
    Everything but the colors (section 7) is inside one function,
    tilePacking(). The sim page turns it into a "Web Worker" (a second
-   thread, see runInWorker in js/sim-page.js), with cellAt, wrap,
-   cellCorners, pointInCell and countPieces (js/sim-domains.js), the
-   trace (js/sim-worker.js) and the colors copied in, where it answers
+   thread, see runInWorker in js/sim-page.js), with the helpers it uses
+   from js/sim-domains.js (cellAt, wrap, cornersOf, cellMiddles,
+   blocksNear, tilingCell, pointInPolygon, countPieces, ...), the trace
+   (js/sim-worker.js) and the colors copied in, where it answers
    messages from the page (section 6). The check page (uniform-discrete-tiling-check.html) calls
    tilePacking() directly and uses the functions it hands back.
    The one library used is seedrandom
@@ -153,13 +157,17 @@ function tilePacking() {
      them, cellAt[] saying which cell is where in that box, and "wrap"
      (the x and y range that wraps around, for a torus; else null).
      cellAt(domain, x, y), from the same file, says which cell is at a
-     grid point (wrapped around on a torus), or -1.
+     grid point (wrapped around on a torus), or -1. On triangles or
+     hexagons (a tiling's cells, lattice "tiling"), (x[v], y[v]) is the
+     block of the tiling the cell is in instead, and the domain also
+     says which cell is across each side of a cell (sides[v]).
 
      A PLACEMENT is one tile in one position: an orientation (w by h)
-     and the cell at its lower-left corner. All placements that fit in
-     the domain are listed once at the start, so a packing is just a set
-     of placement numbers, and owner[v] says which placement covers cell
-     v (-1 = empty).
+     and the cell at its lower-left corner (on a tiling, a pair of cells
+     and the first of them). All placements that fit in the domain are
+     listed once at the start, so a packing is just a set of placement
+     numbers, and owner[v] says which placement covers cell v (-1 =
+     empty).
      =================================================================== */
   let random = Math.random;
   let gaps = true;           // gaps allowed (then packings must be maximal)
@@ -172,9 +180,9 @@ function tilePacking() {
   let domain = null, n = 0, X = null, Y = null;
   let xmin = 0, ymin = 0, boxWidth = 0, boxHeight = 0;
   let wrapW = 0, wrapH = 0;   // the torus's width and height (0: no torus)
-  let lattice = null;         // "triangle" or "hexagon", or null for squares
-  let periodU = 0, periodW = 0;   // on a torus of triangles or hexagons: how far the picture repeats across and up
-  const ROW = Math.sqrt(3) / 2;   // the height of a row of triangles or hexagons
+  let onTiling = false;       // are the cells a tiling's (triangles or hexagons), not squares?
+  let middles = null;         // middles[v]: cell v's middle in the picture (cellMiddles, js/sim-domains.js)
+  let widest = 0;             // on a tiling: how far a cell's corners are from its middle
 
   // The tile orientations: orientation o is orientW[o] wide and orientH[o]
   // tall, and comes from tile number orientTile[o] of the list given
@@ -232,9 +240,9 @@ function tilePacking() {
     boxWidth = d.xmax - d.xmin + 1; boxHeight = d.ymax - d.ymin + 1;
     wrapW = d.wrap ? d.wrap.xmax - d.wrap.xmin + 1 : 0;
     wrapH = d.wrap ? d.wrap.ymax - d.wrap.ymin + 1 : 0;
-    lattice = d.lattice || null;
-    periodU = wrapW * (lattice === "triangle" ? 0.5 : 1);
-    periodW = wrapH * ROW;
+    onTiling = Boolean(d.lattice);
+    middles = cellMiddles(d);
+    widest = onTiling ? widestCell(d.tiling) : 0;
 
     // Orientations: each tile, and with rotations also the tile turned a
     // quarter turn. The same size twice is kept once (a 2x2 turned is
@@ -256,7 +264,7 @@ function tilePacking() {
 
     // Triangles and hexagons: one tile, a pair of neighboring cells, in
     // its 3 directions (the first tile's weight).
-    if (lattice) {
+    if (onTiling) {
       const weight = (s.tiles[0].weight === undefined) ? 1 : s.tiles[0].weight;
       orientW = []; orientH = []; orientTile = []; orientLogWeight = [];
       if (weight > 0) {
@@ -264,7 +272,7 @@ function tilePacking() {
       }
     }
 
-    if (lattice) listPairs(); else listPlacements();
+    if (onTiling) listPairs(); else listPlacements();
 
     owner = new Int32Array(n).fill(-1);
     tileCount = orientW.map(function () { return 0; });
@@ -329,7 +337,7 @@ function tilePacking() {
     plOrient = Int32Array.from(orients);
     plAnchor = Int32Array.from(anchors);
     plClass = new Int32Array(P);
-    for (let p = 0; p < P; p++) plClass[p] = 2 * plOrient[p] + (((X[plAnchor[p]] + Y[plAnchor[p]]) % 2 + 2) % 2);
+    for (let p = 0; p < P; p++) plClass[p] = 2 * plOrient[p] + checkerOf(plAnchor[p]);
 
     // The placements covering each cell.
     const lists = [];
@@ -347,13 +355,16 @@ function tilePacking() {
     cellPl = Int32Array.from(all);
   }
 
+  // The checkerboard color of cell v, 0 or 1: (x + y) mod 2 on squares.
+  // A tiling's cells all get 0: hexagons have no checkerboard, and on
+  // triangles the two cells of a pair always have different colors, so
+  // its direction says it all.
+  function checkerOf(v) { return onTiling ? 0 : (((X[v] + Y[v]) % 2) + 2) % 2; }
+
   // Triangles and hexagons: a placement for every pair of neighbors v, w
-  // (each pair once). Its "lower-left" cell is the left one of the two,
-  // or the lower one, and its orientation is its direction:
-  //   0  the two cells one above the other (on triangles: a standing
-  //      rhombus; on hexagons: side by side in a row)
-  //   1, 2  the two other directions (see pairDirection)
-  // Then kept the same way as listPlacements's.
+  // (each pair once), its first cell the one with the smaller number and
+  // its orientation the pair's direction (pairDirection). Then kept the
+  // same way as listPlacements's.
   let pairAt = new Map();   // "v,w" (v < w) -> placement
   function listPairs() {
     const starts = [0], cells = [], orients = [], anchors = [];
@@ -362,45 +373,29 @@ function tilePacking() {
       for (let e = domain.first[v]; e < domain.first[v + 1]; e++) {
         const w = domain.nbr[e];
         if (w < v) continue;
-        const [first, o] = pairDirection(v, w);
         pairAt.set(v + "," + w, orients.length);
-        cells.push(first, first === v ? w : v);
+        cells.push(v, w);
         starts.push(cells.length);
-        orients.push(o);
-        anchors.push(first);
+        orients.push(pairDirection(v, domain.sides[v].indexOf(w)));
+        anchors.push(v);
       }
     }
     keepPlacements(starts, cells, orients, anchors);
   }
 
-  // The steps from cell a to its neighbor b, as whole numbers -1, 0 or 1
-  // (on a torus, the short way round).
-  function stepBetween(a, b) {
-    let dx = X[b] - X[a], dy = Y[b] - Y[a];
-    if (wrapW && Math.abs(dx) > 1) dx = -Math.sign(dx);
-    if (wrapH && Math.abs(dy) > 1) dy = -Math.sign(dy);
-    return [dx, dy];
-  }
-
-  // The pair's first ("lower-left") cell and its direction.
-  //   triangles: 0 if one is above the other; else 1 if the left one
-  //              points up, 2 if it points down
-  //   hexagons:  0 if they are side by side; else 1 if the upper one is
-  //              up and to the right of the lower one, 2 if up and left
-  function pairDirection(v, w) {
-    const [dx, dy] = stepBetween(v, w);
-    if (dy === 0) {
-      const left = dx > 0 ? v : w;
-      if (lattice === "hexagon") return [left, 0];
-      return [left, ((X[left] + Y[left]) % 2 + 2) % 2 === 1 ? 1 : 2];
-    }
-    const lower = dy > 0 ? v : w, upper = lower === v ? w : v;
-    if (lattice === "triangle") return [lower, 0];
-    // Hexagons: in an odd row the one above-right has the same x, in an
-    // even row it has x + 1.
-    const odd = ((Y[lower] % 2) + 2) % 2 === 1;
-    const right = stepBetween(lower, upper)[0] === (odd ? 1 : 0);
-    return [lower, right ? 1 : 2];
+  // The direction of a pair, from the side its two cells share (side e
+  // of cell v): 0, 1 or 2, the number of 60 degree turns clockwise from
+  // level to that side, rounded down. On triangles, 0 is two triangles
+  // one above the other, 1 a pair whose left triangle points up, and 2
+  // one whose left triangle points down; on hexagons, 1 is two hexagons
+  // side by side in a row. (The sides' angles are multiples of 30
+  // degrees, so they are rounded to whole degrees first, and land
+  // exactly where they should.)
+  function pairDirection(v, e) {
+    const corners = cornersOf(domain, v), p = corners[e], q = corners[(e + 1) % corners.length];
+    const degrees = Math.round(Math.atan2(q[1] - p[1], q[0] - p[0]) * 180 / Math.PI);
+    const clockwise = ((-degrees % 180) + 180) % 180;   // from level, from 0 up to 180
+    return Math.floor(clockwise / 60);
   }
 
   // Put placement p on the board, or take it off.
@@ -436,18 +431,57 @@ function tilePacking() {
   // writing the current stamp number into them; bumping the number
   // un-marks everything at once, for free.
   let stamp = 0;
-  let inRegion, seenCell, seenPl, position;
+  let inRegion, touched, seenPl, position;
   function makeScratch() {
-    inRegion = new Int32Array(n); seenCell = new Int32Array(n); position = new Int32Array(n);
+    inRegion = new Int32Array(n); touched = new Int32Array(n); position = new Int32Array(n);
     seenPl = new Int32Array(P);
     stamp = 0;
   }
 
-  // Does the disk (cx, cy, r) touch cell v? Cell v is the square of side 1
-  // centered at (X[v], Y[v]). On a torus, distances are measured the short
-  // way round.
-  function touches(v, cx, cy, r) {
-    if (lattice) return touchesShape(v, cx, cy, r);
+  // Call f(v) once for each cell v that the disk (cx, cy, r) touches,
+  // and mark it in "touched" with the current stamp. Only the cells
+  // near the disk are tried: on squares, those at the grid points it
+  // can reach (on a torus, at most once round in each direction); on a
+  // tiling, those of the blocks it can reach (blocksNear,
+  // js/sim-domains.js), where on a torus each copy of a cell near the
+  // disk is tried, as the polygon it is in that copy.
+  function forEachTouched(cx, cy, r, f) {
+    const found = function (v) { touched[v] = stamp; f(v); };
+    if (onTiling) {
+      const reach = r + widest;   // a cell farther than this can't touch the disk
+      for (const [I, J] of blocksNear(domain, cx, cy, reach)) {
+        const [su, sw] = blockStart(domain, I, J);
+        domain.tiling.cells.forEach(function (cell, k) {
+          if (Math.hypot(cell.middle[0] + su - cx, cell.middle[1] + sw - cy) >= reach) return;
+          const v = tilingCell(domain, I, J, k);
+          if (v < 0 || touched[v] === stamp) return;
+          const corners = cell.corners.map(function (c) { return [c[0] + su, c[1] + sw]; });
+          if (touchesPolygon(corners, cx, cy, r)) found(v);
+        });
+      }
+      return;
+    }
+    let x0 = Math.floor(cx - r - 0.5), x1 = Math.ceil(cx + r + 0.5);
+    let y0 = Math.floor(cy - r - 0.5), y1 = Math.ceil(cy + r + 0.5);
+    if (wrapW) {
+      if (x1 - x0 + 1 > wrapW) { x0 = domain.wrap.xmin; x1 = domain.wrap.xmax; }
+      if (y1 - y0 + 1 > wrapH) { y0 = domain.wrap.ymin; y1 = domain.wrap.ymax; }
+    } else {
+      x0 = Math.max(x0, xmin); x1 = Math.min(x1, xmin + boxWidth - 1);
+      y0 = Math.max(y0, ymin); y1 = Math.min(y1, ymin + boxHeight - 1);
+    }
+    for (let y = y0; y <= y1; y++) {
+      for (let x = x0; x <= x1; x++) {
+        const v = cellAt(domain, x, y);
+        if (v >= 0 && touched[v] !== stamp && touchesSquare(v, cx, cy, r)) found(v);
+      }
+    }
+  }
+
+  // Does the disk (cx, cy, r) touch square cell v, the square of side 1
+  // centered at (X[v], Y[v])? On a torus, distances are measured the
+  // short way round.
+  function touchesSquare(v, cx, cy, r) {
     let dx = Math.abs(cx - X[v]), dy = Math.abs(cy - Y[v]);
     if (wrapW) {
       dx %= wrapW; dx = Math.min(dx, wrapW - dx);
@@ -457,33 +491,13 @@ function tilePacking() {
     return ex * ex + ey * ey < r * r;
   }
 
-  // Triangles and hexagons: does the disk touch cell v, that is, is some
-  // point of the triangle or hexagon closer than r to the center? It is
-  // when the center is inside the cell, or closer than r to one of its
-  // sides. On a torus every copy of the cell near the disk is tried.
-  function touchesShape(v, cx, cy, r) {
-    const corners = cellCorners(lattice, X[v], Y[v]);
-    let mu = 0, mw = 0;                   // the cell's middle
-    for (const c of corners) { mu += c[0] / corners.length; mw += c[1] / corners.length; }
-    const shiftsU = [0], shiftsW = [0];
-    if (wrapW) {
-      // The copies of the cell (shifted by whole tori) that could be
-      // within r of the center.
-      shiftsU.length = shiftsW.length = 0;
-      for (let a = Math.floor((cx - r - mu) / periodU) - 1; a <= Math.ceil((cx + r - mu) / periodU) + 1; a++) shiftsU.push(a * periodU);
-      for (let b = Math.floor((cy - r - mw) / periodW) - 1; b <= Math.ceil((cy + r - mw) / periodW) + 1; b++) shiftsW.push(b * periodW);
-    }
-    for (const su of shiftsU) {
-      for (const sw of shiftsW) {
-        const u = cx - su, w = cy - sw;   // the center, seen from this copy
-        if (Math.hypot(u - mu, w - mw) >= r + 1) continue;   // too far (a cell is less than 1 across from its middle)
-        if (pointInCell(corners, u, w)) return true;
-        for (let k = 0; k < corners.length; k++) {
-          if (distanceToSide(u, w, corners[k], corners[(k + 1) % corners.length]) < r) return true;
-        }
-      }
-    }
-    return false;
+  // Does the disk (cx, cy, r) touch the polygon with these corners (a
+  // triangle or a hexagon): is some point of it closer than r to the
+  // center? It is when the center is inside it, or closer than r to one
+  // of its sides.
+  function touchesPolygon(corners, cx, cy, r) {
+    if (pointInPolygon(corners, cx, cy)) return true;
+    return corners.some(function (p, k) { return distanceToSide(cx, cy, p, corners[(k + 1) % corners.length]) < r; });
   }
 
   // The distance from the point (u, w) to the side from corner p to corner q.
@@ -496,12 +510,12 @@ function tilePacking() {
   // A uniform point of cell v (a triangle or hexagon): a uniform point
   // of the box around it, tried again until it falls in the cell.
   function pointIn(v) {
-    const corners = cellCorners(lattice, X[v], Y[v]);
+    const corners = cornersOf(domain, v);
     const us = corners.map(function (c) { return c[0]; }), ws = corners.map(function (c) { return c[1]; });
     const u0 = Math.min(...us), u1 = Math.max(...us), w0 = Math.min(...ws), w1 = Math.max(...ws);
     for (;;) {
       const u = u0 + (u1 - u0) * random(), w = w0 + (w1 - w0) * random();
-      if (pointInCell(corners, u, w)) return [u, w];
+      if (pointInPolygon(corners, u, w)) return [u, w];
     }
   }
 
@@ -521,59 +535,37 @@ function tilePacking() {
       cx = at.x; cy = at.y;               // the middle of the clicked cell
     } else {
       const v0 = Math.floor(random() * n);
-      if (lattice) [cx, cy] = pointIn(v0);
+      if (onTiling) [cx, cy] = pointIn(v0);
       else { cx = X[v0] - 0.5 + random(); cy = Y[v0] - 0.5 + random(); }
     }
     const r = -meanRadius * Math.log(1 - random());
     lastDisk = { x: cx, y: cy, r: r };
 
-    // Step 2: the tiles to delete and the region.
-    stamp++;
+    // Step 2: the tiles to delete and the region. The cells the disk
+    // touches are marked with this move's stamp, for step 3.
+    const thisMove = ++stamp;
     const removed = [], regionCells = [];
     function addToRegion(c) {
       if (inRegion[c] !== stamp) { inRegion[c] = stamp; regionCells.push(c); }
     }
-    // Look only at the grid points the disk can reach (on a torus, at
-    // most once round in each direction).
-    let x0 = Math.floor(cx - r - 0.5), x1 = Math.ceil(cx + r + 0.5);
-    let y0 = Math.floor(cy - r - 0.5), y1 = Math.ceil(cy + r + 0.5);
-    if (lattice) {
-      // Rows are ROW high; triangles are half a unit apart in a row,
-      // hexagons a whole one (with a margin for shifted rows and corners).
-      const perUnit = lattice === "triangle" ? 2 : 1;
-      x0 = Math.floor(perUnit * (cx - r)) - 2; x1 = Math.ceil(perUnit * (cx + r)) + 2;
-      y0 = Math.floor((cy - r) / ROW) - 2; y1 = Math.ceil((cy + r) / ROW) + 2;
-    }
-    if (wrapW) {
-      if (x1 - x0 + 1 > wrapW) { x0 = domain.wrap.xmin; x1 = domain.wrap.xmax; }
-      if (y1 - y0 + 1 > wrapH) { y0 = domain.wrap.ymin; y1 = domain.wrap.ymax; }
-    } else {
-      x0 = Math.max(x0, xmin); x1 = Math.min(x1, xmin + boxWidth - 1);
-      y0 = Math.max(y0, ymin); y1 = Math.min(y1, ymin + boxHeight - 1);
-    }
-    for (let y = y0; y <= y1; y++) {
-      for (let x = x0; x <= x1; x++) {
-        const v = cellAt(domain, x, y);
-        if (v < 0 || seenCell[v] === stamp) continue;
-        seenCell[v] = stamp;
-        if (!touches(v, cx, cy, r)) continue;
-        const p = owner[v];
-        if (p < 0) { addToRegion(v); continue; }   // an empty cell the disk touches
-        if (seenPl[p] === stamp) continue;
-        seenPl[p] = stamp;
-        removed.push(p);                           // a tile the disk touches
-        for (let k = plStart[p]; k < plStart[p + 1]; k++) addToRegion(plCell[k]);
-      }
-    }
+    forEachTouched(cx, cy, r, function (v) {
+      const p = owner[v];
+      if (p < 0) { addToRegion(v); return; }     // an empty cell the disk touches
+      if (seenPl[p] === stamp) return;
+      seenPl[p] = stamp;
+      removed.push(p);                           // a tile the disk touches
+      for (let k = plStart[p]; k < plStart[p + 1]; k++) addToRegion(plCell[k]);
+    });
     regionTotal += regionCells.length;
     if (regionCells.length > MAX_REGION) { skipped++; return; }
 
     // Step 3: list the refills, keeping one chosen at random by weight.
-    const mayStayEmpty = function (c) { return !touchChecks || touches(c, cx, cy, r); };
+    const touches = function (c) { return touched[c] === thisMove; };
+    const mayStayEmpty = function (c) { return !touchChecks || touches(c); };
     const tileAllowed = function (p) {
       if (!touchChecks) return true;
       for (let k = plStart[p]; k < plStart[p + 1]; k++) {
-        if (touches(plCell[k], cx, cy, r)) return true;
+        if (touches(plCell[k])) return true;
       }
       return false;
     };
@@ -628,8 +620,11 @@ function tilePacking() {
     stamp++;
     const m = regionCells.length;
 
-    // Search order: bottom row first, left to right.
-    const cells = regionCells.slice().sort(function (a, b) { return Y[a] - Y[b] || X[a] - X[b]; });
+    // Search order: by the cells' middles, the lowest first, then left
+    // to right.
+    const cells = regionCells.slice().sort(function (a, b) {
+      return middles[a][1] - middles[b][1] || middles[a][0] - middles[b][0];
+    });
     for (let k = 0; k < m; k++) { inRegion[cells[k]] = stamp; position[cells[k]] = k; }
     const emptyOk = cells.map(function (c) { return gaps && mayStayEmpty(c); });
 
@@ -753,29 +748,20 @@ function tilePacking() {
     return true;
   }
 
-  // Gaps off: build a tiling directly, with no search.
+  // Gaps off: build a tiling directly, with no search. On squares, a
+  // box (or torus) is cut into strips, a drawn domain into runs; on
+  // triangles and hexagons, each row's cells are paired up, or else (on
+  // the hexagon of triangles) the empty room.
   function directStart() {
-    if (lattice) return pairStart();
     const fullBox = n === boxWidth * boxHeight &&
                     (!wrapW || (boxWidth === wrapW && boxHeight === wrapH));
-    const plan = fullBox ? (strips(false) || strips(true)) : (runs(false) || runs(true));
+    const plan = onTiling ? (rowPairs() || emptyRoom())
+               : fullBox ? (strips(false) || strips(true)) : (runs(false) || runs(true));
     if (!plan) {
       return "Couldn't build a starting tiling without a search. " +
              "Try allowing gaps, or another size.";
     }
     for (const t of plan) placeTile(t);
-    return "";
-  }
-
-  // Triangles and hexagons, gaps off: pair up each row's cells, left to
-  // right; or else, on the hexagon of triangles, the empty room.
-  function pairStart() {
-    const plan = rowPairs() || (lattice === "triangle" ? emptyRoom() : null);
-    if (!plan) {
-      return "Couldn't build a starting tiling without a search. " +
-             "Try allowing gaps, or an even width.";
-    }
-    for (const p of plan) placeTile(p);
     return "";
   }
 
@@ -789,43 +775,65 @@ function tilePacking() {
   // does for squares). null if some run has an odd length.
   function rowPairs() {
     const plan = [];
-    for (let y = ymin; y < ymin + boxHeight; y++) {
-      for (let x = xmin; x < xmin + boxWidth; x++) {
-        const v = cellAt(domain, x, y);
-        if (v < 0) continue;
-        const right = x + 1 < xmin + boxWidth ? cellAt(domain, x + 1, y) : -1;
-        const p = right < 0 ? -1 : pairOf(v, right);
+    for (const row of rowsOfCells()) {
+      for (let k = 0; k < row.length; k += 2) {
+        const p = k + 1 < row.length ? pairOf(row[k], row[k + 1]) : -1;
         if (p < 0) return null;
         plan.push(p);
-        x++;   // its partner is taken
       }
     }
     return plan;
   }
 
-  // The hexagon of triangles cut into 3 big rhombi from its middle (the
-  // corner (0, 0)), each filled with rhombi of one direction: the
-  // picture of an empty corner of a room. Each triangle pointing up,
-  // with its middle at angle a from the middle of the hexagon, pairs with
-  //   from -60 to 60 degrees    the triangle below it (direction 0)
-  //   from 60 to 180 degrees    the triangle to its right (direction 1)
-  //   from 180 to 300 degrees   the triangle to its left (direction 2)
-  // (The 3 lines between the big rhombi run along the triangles' sides,
-  // so no triangle is cut by them.)
+  // The cells in rows, from the bottom, each row from left to right. The
+  // heights of the cells' corners cut the picture into level bands, and
+  // a row is the cells whose middles are in one band: a row of
+  // triangles (pointing up and down) between two lines of their sides,
+  // or a row of hexagons.
+  function rowsOfCells() {
+    const lines = [];
+    for (let v = 0; v < n; v++) for (const c of cornersOf(domain, v)) lines.push(c[1]);
+    lines.sort(function (a, b) { return a - b; });
+    const byHeight = Array.from({ length: n }, function (x, v) { return v; })
+      .sort(function (a, b) { return middles[a][1] - middles[b][1]; });
+    const rows = [];
+    let below = -1, line = 0;   // the number of corner heights below the last cell's middle
+    for (const v of byHeight) {
+      while (line < lines.length && lines[line] < middles[v][1]) line++;
+      if (line !== below) { rows.push([]); below = line; }
+      rows[rows.length - 1].push(v);
+    }
+    return rows.map(function (row) { return row.sort(function (a, b) { return middles[a][0] - middles[b][0]; }); });
+  }
+
+  // The empty room: the domain (the hexagon of triangles) cut into 3 big
+  // rhombi from its middle, each filled with rhombi of one direction,
+  // the picture of an empty corner of a room. Each big rhombus has the
+  // shape of the small ones of its direction, so a cell whose middle is
+  // at angle a from the domain's middle (the average of the cells'
+  // middles) pairs with the cell across its side of direction
+  //   0  for a from -60 to 60 degrees (the big rhombus on the right)
+  //   1  for a from 60 to 180 degrees (top left)
+  //   2  for a from 180 to 300 degrees (bottom left)
+  // (pairDirection). The lines between the big rhombi run along the
+  // triangles' sides, so no triangle is cut by them. null if this
+  // doesn't tile the domain (always on hexagons, which have two sides in
+  // each direction).
   function emptyRoom() {
+    let mu = 0, mw = 0;
+    for (const [u, w] of middles) { mu += u / n; mw += w / n; }
     const plan = [], used = new Uint8Array(n);
     for (let v = 0; v < n; v++) {
-      if (((X[v] + Y[v]) % 2 + 2) % 2 !== 1) continue;   // only the ones pointing up
-      const u = X[v] / 2, w = (Y[v] + 1 / 3) * ROW;
-      const angle = (Math.atan2(w, u) * 180 / Math.PI + 360 + 60) % 360;   // 0 at -60 degrees
-      const other = angle < 120 ? cellAt(domain, X[v], Y[v] - 1)
-                  : angle < 240 ? cellAt(domain, X[v] + 1, Y[v]) : cellAt(domain, X[v] - 1, Y[v]);
-      const p = other < 0 ? -1 : pairOf(v, other);
-      if (p < 0 || used[other]) return null;
-      used[v] = used[other] = 1;
+      if (used[v]) continue;
+      const angle = (Math.atan2(middles[v][1] - mw, middles[v][0] - mu) * 180 / Math.PI + 360 + 60) % 360;   // 0 at -60 degrees
+      const direction = Math.floor(angle / 120);
+      const across = domain.sides[v].filter(function (w, e) { return pairDirection(v, e) === direction; });
+      const p = across.length === 1 && across[0] >= 0 ? pairOf(v, across[0]) : -1;
+      if (p < 0 || used[across[0]]) return null;
+      used[v] = used[across[0]] = 1;
       plan.push(p);
     }
-    return plan.length * 2 === n ? plan : null;
+    return plan;
   }
 
   // The coin problem: write "length" as a sum of numbers from "sizes"

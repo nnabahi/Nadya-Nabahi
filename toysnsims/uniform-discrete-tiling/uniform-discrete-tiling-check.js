@@ -45,6 +45,11 @@ const VERSIONS = {
   walk:     { label: "nadya's random walk from tiling_mcmc.py, scaled down (k from 2 to 8 tiles)", settings: {}, walk: true },
 };
 
+// The triangle and hexagon tilings, as the sim builds them (TILINGS and
+// tilingBlock, js/sim-tilings.js).
+function triangles() { return tilingBlock(TILINGS[1].code, false); }
+function hexagons() { return tilingBlock(TILINGS[2].code, false); }
+
 // The tiny test domains.
 const TESTS = [
   { name: "A row of 3 cells, tiles 1x2 and 1x3, gaps on",
@@ -92,17 +97,17 @@ const TESTS = [
   { name: "Triangles: a hexagon of side 2, rhombi, gaps off",
     note: "20 tilings, as MacMahon's formula for the hexagon with sides 2, 2, 2 says " +
           "(P. A. MacMahon, Combinatory Analysis, vol. 2, 1916).",
-    domain: function () { return triangleHexagon(2); },
+    domain: function () { return tilingHexagon(triangles(), 2); },
     tiles: [{ w: 2, h: 1 }], rotations: true, gaps: false,
     versions: ["rule", "noChecks", "bigDisk"] },
-  { name: "Triangles: a 4 x 4 torus, rhombi, gaps off",
+  { name: "Triangles: the smallest torus (3 x 3 blocks of 4 triangles), rhombi, gaps off",
     note: "Rhombi may wrap around the edges.",
-    domain: function () { return latticeBox("triangle", 4, 4, true); },
+    domain: function () { return tilingBox(triangles(), 3, 5, true); },
     tiles: [{ w: 2, h: 1 }], rotations: true, gaps: false,
     versions: ["rule", "bigDisk"] },
-  { name: "Hexagons: a 3 x 2 box, pairs of hexagons, gaps on",
+  { name: "Hexagons: a 5 x 3 box (6 hexagons), pairs of hexagons, gaps on",
     note: "Maximal packings of pairs: gaps allowed, but no pair fits in them.",
-    domain: function () { return latticeBox("hexagon", 3, 2, false); },
+    domain: function () { return tilingBox(hexagons(), 5, 3, false); },
     tiles: [{ w: 2, h: 1 }], rotations: true, gaps: true,
     versions: ["rule", "noChecks"] },
 ];

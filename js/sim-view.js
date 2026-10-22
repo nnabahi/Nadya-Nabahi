@@ -327,17 +327,17 @@ function drawBorders(view, pen, shown, color) {
 }
 
 
-// Triangles and hexagons, and the cells of any tiling (js/sim-domains.js),
-// can't be painted as squares, so paintLattice draws each cell as its
-// own shape, after fitPicture. colorOf(v) is cell v's color (any CSS
-// color, like "#ff0000"), and with "groupOf" (as in paintCells) a line
-// of color "lines" goes along every side between two cells of different
-// groups, and along the domain's edge. Cells of one color are collected
+// The cells of a tiling (js/sim-domains.js), triangles and hexagons
+// among them, can't be painted as squares, so paintLattice draws each
+// cell as its own shape, after fitPicture. colorOf(v) is cell v's color
+// (any CSS color, like "#ff0000"), and with "groupOf" (as in
+// paintCells) a line of color "lines" goes along every side between two
+// cells of different groups, and along the domain's edge (d.sides says
+// which cell is across each side). Cells of one color are collected
 // into one path and filled at once, which is much faster than one at a
 // time, and cells off the screen are skipped. On a torus the picture
 // repeats as far as it shows.
 function paintLattice(view, pen, d, colorOf, groupOf, lines) {
-  const sides = groupOf ? latticeSides(d) : null;   // (only the lines need them)
   const shapes = new Map(), border = new Path2D();
   for (const { sx, sy } of screenCopies(view, d)) {
     for (let v = 0; v < d.n; v++) {
@@ -358,7 +358,7 @@ function paintLattice(view, pen, d, colorOf, groupOf, lines) {
       // The side from corner k to the next: drawn once, from the cell
       // with the smaller number (or always, on the domain's edge).
       corners.forEach(function (c, k) {
-        const other = sides[v][k];
+        const other = d.sides[v][k];
         if (other > v || (other >= 0 && groupOf(other) === groupOf(v))) return;
         const next = corners[(k + 1) % corners.length];
         border.moveTo(sx(c[0]), sy(c[1]));
@@ -594,28 +594,6 @@ function copiesShown(view, d, box, showsAcross, showsUp) {
   return copies;
 }
 
-// For each cell v of a triangle or hexagon domain, the cell across each
-// of its sides (sides[v][k], for the side from corner k to the next), or
-// -1 where the domain ends. In these lattices the cell across a side is
-// v's mirror image in that side, so its middle is the side's middle
-// pushed on as far again. Worked out once per domain and kept. (A tiling
-// domain comes with its sides: tilingBox, js/sim-domains.js.)
-function latticeSides(d) {
-  if (d.sides) return d.sides;
-  d.sides = [];
-  for (let v = 0; v < d.n; v++) {
-    const corners = cornersOf(d, v);
-    const middle = cellMiddle(d, v);
-    d.sides.push(corners.map(function (c, k) {
-      const next = corners[(k + 1) % corners.length];
-      const u = c[0] + next[0] - middle[0], w = c[1] + next[1] - middle[1];
-      return cellAtPoint(d, u, w);
-    }));
-  }
-  return d.sides;
-}
-
-
 /* ---------------------------------------------------------------------
    Moving and zooming the cells
    --------------------------------------------------------------------- */
@@ -671,7 +649,7 @@ function resetView(view) {
 // is none: off the picture, or outside a drawn domain.
 function cellUnder(view, d, spot) {
   if (spot.x < view.left || spot.x >= view.left + view.width || spot.y < 0 || spot.y >= view.height) return -1;
-  if (d.lattice) {   // triangles or hexagons: the point of the picture under the spot
+  if (d.lattice) {   // a tiling: the point of the picture under the spot
     const box = pictureBox(d);
     return cellAtPoint(d, box.left + (spot.x - view.left) / view.cell - view.scroll.x,
                        box.top - (spot.y / view.cell - view.scroll.y));
@@ -744,11 +722,11 @@ function floorOf3D(d, kind, disk, keep) {
 // on the domain's edge). Worked out once per domain, and kept.
 function tilingLines(d) {
   if (d.floorLines) return d.floorLines;
-  const sides = latticeSides(d), lines = [];
+  const lines = [];
   for (let v = 0; v < d.n; v++) {
     const corners = cornersOf(d, v);
     corners.forEach(function (c, k) {
-      if (sides[v][k] > v) return;
+      if (d.sides[v][k] > v) return;
       const next = corners[(k + 1) % corners.length];
       lines.push(c[0], c[1], next[0], next[1]);
     });

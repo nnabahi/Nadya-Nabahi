@@ -25,6 +25,7 @@
           onLine()                          is the domain on the line (1D)?
           sizeFromOptions(least, most, defaults)  the size they say
           boxFromOptions(least, most, defaults)   the box or torus they say
+          tilingBoxFromOptions(tiling, ...)  the same, of a given tiling
         and the Lattice options, on pages that have them:
           connectLattice(onChange)          fill in and connect them
           onSquares()                       is the lattice the square grid (or the line)?
@@ -63,8 +64,9 @@
                         with domains.setDim, which sets data-dim.
      data-no-neighbors  (no value) no Neighbors menu: the page's sim says
                         who neighbors whom another way (Eden Growth's tile)
-   Uniform Discrete Tiling, whose cells are its own, writes its own
-   options, with the same ids.
+   Uniform Discrete Tiling writes its own options, with the same ids: its
+   Cells menu has just squares, triangles and hexagons, and it has kinds
+   of its own (the Aztec diamond, the hexagon of triangles).
 
    The radio buttons name="domain" pick the kind of domain, and every
    page uses the same ids for the options that go with each:
@@ -384,15 +386,22 @@ function sizeFromOptions(least, most, defaults) {
 // The box or torus the options say (sizeFromOptions, as a boxDomain,
 // js/sim-domains.js); with no Neighbors option, and on the line, cells
 // have 4 neighbors (on the line just the 2 beside them). On a lattice
-// other than the square grid, a tilingBox of the tiling in use
-// (readTiling), the sides in side lengths, and at least
-// SMALLEST_TILING_BOX of them, so it always has a cell.
+// other than the square grid, the tiling in use (readTiling), as
+// tilingBoxFromOptions gives it.
 function boxFromOptions(least, most, defaults) {
-  if (!onSquares()) least = Math.max(least, SMALLEST_TILING_BOX);
+  if (!onSquares()) return tilingBoxFromOptions(tilingInUse.block, least, most, defaults);
   const size = sizeFromOptions(least, most, defaults);
-  if (!onSquares()) return tilingBox(tilingInUse.block, size.width, size.height, size.torus);
   const neighbors = byId("set-neighbors") && !onLine() ? Number(byId("set-neighbors").value) : 4;
   return boxDomain(size.width, size.height, neighbors, size.torus);
+}
+
+// The box or torus the options say of a tiling's cells (tilingBox,
+// js/sim-domains.js; "tiling" is its block, from tilingBlock in
+// js/sim-tilings.js): the sides in side lengths, and at least
+// SMALLEST_TILING_BOX of them, so it always has a cell.
+function tilingBoxFromOptions(tiling, least, most, defaults) {
+  const size = sizeFromOptions(Math.max(least, SMALLEST_TILING_BOX), most, defaults);
+  return tilingBox(tiling, size.width, size.height, size.torus);
 }
 
 // A box of a tiling is at least this many side lengths on a side, so it
