@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>First Passage Percolation — Toys n' Sims</title>
   <link rel="stylesheet" href="../../css/style.css">
-  <!-- KaTeX's styles, for the typeset formulas (the law's f, and About the model). -->
+  <!-- KaTeX's styles, for the typeset formulas (the random variables, and About the model). -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/katex.min.css">
 </head>
 <body>
@@ -54,10 +54,11 @@
           <label><input type="radio" name="mode" value="pairs"> Pairs and their geodesics</label>
         </div>
 
-        <!-- The law of the passage times: the shared law box
-             (js/sim-laws.js fills it in). -->
-        <h3 class="option-heading">Law of the passage times</h3>
-        <div class="law-options"></div>
+        <!-- The passage times: the shared Random variables box
+             (js/sim-random.js fills it in), and its sliders. -->
+        <h3 class="option-heading">Passage times</h3>
+        <div class="random-box" data-about="w is the passage time: each edge (or cell) gets its own w, all independent."></div>
+        <div id="sliders"></div>
 
         <h3 class="option-heading">Times on the</h3>
         <div class="option-row">
@@ -202,8 +203,8 @@
           <span class="tex">G</span>: the cells, each joined to the cells it
           shares a side with. Every edge <span class="tex">e</span> gets a
           passage time <span class="tex">\tau_e \ge 0</span>, all independent
-          with the same law <span class="tex">F</span>, the one typed in the
-          law box. The passage time from <span class="tex">x</span> to
+          with the same law <span class="tex">F</span>, the law of
+          <span class="tex">w</span> in the Random variables box. The passage time from <span class="tex">x</span> to
           <span class="tex">y</span> is the least total time of a path between
           them, and a path that takes exactly that long is a geodesic:
         </p>
@@ -249,7 +250,7 @@
           flat edges [9, 10; 2, Theorem 2.24]. If instead
           <span class="tex">F(0) \ge 1/2</span>, the time constant is 0 and
           <span class="tex">B(t)/t</span> grows without bound [6, Theorem 6.1; 2, Theorem 2.5].
-          The preset Geometric from 0 with <span class="tex">q = 1/2</span>
+          The law <code>w ~ geometric(1/2)</code> (on 0, 1, 2, &hellip;)
           has <span class="tex">F(0) = 1/2</span> exactly: it sits at the
           critical point, where the zero-time edges form critical
           percolation clusters. The charts "Radius by direction" show the
@@ -296,27 +297,30 @@
           the hyperbolic plane.
         </p>
         <p>
-          <strong>The law box.</strong> The law is typed as its density
-          <span class="tex">f(x)</span>, Desmos style. A piece whose condition
-          is an equation is a point mass: <span class="tex">x = c</span> puts
-          its value at <span class="tex">c</span>, and any other equation, like
-          <code>mod(x, 1) = 0</code>, puts mass on each whole number where it
-          holds. For example
-          <code>{x = 0: p_0, x = 3: p_3, x &gt;= 5: (1 - p_0 - p_3) e^(-x + 5), 0}</code>
+          <strong>The Random variables box.</strong> The passage time is the
+          random variable <span class="tex">w</span>. Its line can give it a
+          law from the list, like <code>w ~ exp(1)</code>, or a density typed
+          in <span class="tex">x</span>, Desmos style, where a piece whose
+          condition is an equation is a point mass: for example
+          <code>w ~ {x = 0: p_0, x = 3: p_3, x &gt;= 5: (1 - p_0 - p_3) e^(-x + 5), 0}</code>
           puts mass <span class="tex">p_0</span> at 0 and
           <span class="tex">p_3</span> at 3, and spreads the rest over
-          <span class="tex">[5, \infty)</span>. If it all doesn't add up to 1,
-          it is scaled so it does. The law becomes its distribution function
-          <span class="tex">F</span>, the density added up on a fine grid,
-          and each edge's time is
+          <span class="tex">[5, \infty)</span> (it must all add up to 1). Or
+          <span class="tex">w</span> can be a formula of other random
+          variables, like <code>w = min(a, b)</code> with
+          <code>a ~ exp(1)</code> and <code>b ~ unif(0, 2)</code>, worked out
+          anew on each edge (the
+          <a href="../../help/random-variables.html">help page</a> has every
+          law and how to type them). Each edge's time is
           <span class="tex">\tau = F^{-1}(U)</span>, the least
           <span class="tex">x</span> with <span class="tex">F(x) \ge U</span>,
           for a uniform <span class="tex">U</span> [21, Section 1.2]. Each
           edge keeps its own <span class="tex">U</span>, from the seed and
-          where the edge is, so moving a slider of the law moves every time a
-          little, all the same way, and the ball and the geodesics change
-          smoothly. Times can't be negative, so <span class="tex">f</span> must
-          be 0 below 0.
+          where the edge is, so moving a slider moves every time a little,
+          all the same way, and the ball and the geodesics change smoothly.
+          Times can't be negative: a law for <span class="tex">w</span> must
+          be 0 below 0, and a formula that comes out negative on an edge is
+          refused.
         </p>
         <p>
           <strong>How it is computed.</strong> Dijkstra's algorithm [22] finds
@@ -418,10 +422,13 @@
   </main>
 
   <!-- KaTeX (https://katex.org) typesets the formulas, and math.js
-       (https://mathjs.org) reads the typed law. The version numbers are
+       (https://mathjs.org) reads the typed lines. The version numbers are
        fixed so an update can never change the site by surprise. -->
   <script src="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/katex.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mathjs@15.2.0/lib/browser/math.js"></script>
+  <!-- jStat (https://jstat.github.io) works out the incomplete gamma and
+       beta functions some laws in the Random variables box need. -->
+  <script src="https://cdn.jsdelivr.net/npm/jstat@1.9.6/dist/jstat.min.js"></script>
 
   <!-- The code the sims share (in js/, see the README): page helpers
        (they also typeset the formulas, so they come after KaTeX), the
@@ -429,8 +436,8 @@
        the picture's view (moving and zooming it), the hyperbolic tilings
        and trees and their pictures, the tilings by regular polygons, the
        options and controls of the domain, the shape and holes of a set of
-       cells, typed formulas and the law box. Then the model, then this
-       page's code. -->
+       cells, typed formulas, the laws, the catalog of laws and the Random
+       variables box. Then the model, then this page's code. -->
   <script src="../../js/sim-page.js"></script>
   <script src="../../js/sim-worker.js"></script>
   <script src="../../js/sim-charts.js"></script>
@@ -445,6 +452,8 @@
   <script src="../../js/sim-shape.js"></script>
   <script src="../../js/formulas.js"></script>
   <script src="../../js/sim-laws.js"></script>
+  <script src="../../js/sim-law-catalog.js"></script>
+  <script src="../../js/sim-random.js"></script>
   <script src="first-passage-percolation-rule.js"></script>
   <script src="first-passage-percolation.js"></script>
 

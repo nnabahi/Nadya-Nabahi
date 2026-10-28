@@ -2,16 +2,20 @@
    first-passage-percolation-check.js  —  the tests on
    first-passage-percolation-check.html
    ---------------------------------------------------------------------
-   Tests of the code behind the First Passage Percolation sim: the law
-   box (js/sim-laws.js) and the model (first-passage-percolation-rule.js).
+   Tests of the code behind the First Passage Percolation sim: its
+   passage times w, from the Random variables box (js/sim-random.js), and
+   the model (first-passage-percolation-rule.js). The laws themselves,
+   and the box, are tested on the Random variables check page
+   (help/random-variables-check.html).
 
-     1. The laws: the presets' distribution functions F and F^-1 against
-        their formulas (the exponential, the uniform, the geometric), and
-        a law typed with point masses, nadya's example
-          {x = 0: p_0, x = 3: p_3, x >= 5: (1 - p_0 - p_3) e^(-x + 5), 0}.
-     2. The random times the sim draws, tau = F^-1(U), one per edge of a
-        big box: a Kolmogorov-Smirnov test against F for laws with a
-        density, and a chi-square test of the masses for the others.
+     1. The times: the U's the sim keeps for w ~ a law give the same
+        times as the drawer works out at each edge (and cell), and a
+        formula for w that comes out negative is refused.
+     2. The random times the sim draws, one per edge of a big box: a
+        Kolmogorov-Smirnov test against F for laws with a density (one
+        of them w = min(a, b), a formula), and a chi-square test of the
+        masses for the others (one of them nadya's example
+          w ~ {x = 0: p_0, x = 3: p_3, x >= 5: (1 - p_0 - p_3) e^(-x + 5), 0}).
      3. Dijkstra's algorithm (newSearch) against the Bellman-Ford
         algorithm, a slower and plainer way to the same distances, on
         boxes, tori, tilings, a Penrose tiling, a hyperbolic ball and a
@@ -47,12 +51,17 @@
    ===================================================================== */
 
 
-// A law typed as in the sim's law box (readLaw, js/sim-laws.js).
-function lawOf(text, values) { return readLaw(readTree(text), values || {}); }
+// Random variables typed as in the sim's box (js/sim-random.js), with
+// the sliders' values "values".
+function variablesOf(text, values) { return makeRandomVariables(readRandomVariables(text), values || {}); }
 
-const EXPONENTIAL = lawOf(LAW_PRESETS.exponential.f);
-const GEOMETRIC = lawOf(LAW_PRESETS.geometric.f, { q: 0.5 });
-const HERS = lawOf("{x = 0: p_0, x = 3: p_3, x >= 5: (1 - p_0 - p_3) e^(-x + 5), 0}", { p_0: 0.2, p_3: 0.3 });
+const EXPONENTIAL = variablesOf("w ~ exp(1)");
+const GEOMETRIC = variablesOf("w ~ geometric(q)", { q: 0.5 });
+const HERS = variablesOf("w ~ {x = 0: p_0, x = 3: p_3, x >= 5: (1 - p_0 - p_3) e^(-x + 5), 0}", { p_0: 0.2, p_3: 0.3 });
+
+// The times of domain d with the U's of the seed, on the edges or the
+// cells, for the random variables "variables" (as the sim finds them).
+function timesOf(d, seed, onCells, variables) { return passageTimes(d, newWeights(d, seed, onCells), variables); }
 
 // Every cell of a domain, 0 .. n-1.
 function cellsOf(d) { return Array.from({ length: d.n }, function (_, v) { return v; }); }
@@ -62,49 +71,31 @@ function short(x) { return Number(x.toPrecision(4)).toString(); }
 
 
 /* ---------------------------------------------------------------------
-   1. The laws
+   1. The times
    --------------------------------------------------------------------- */
-function testLaws() {
-  // The exponential: F^-1(u) = -log(1 - u).
-  let expError = 0;
-  for (let u = 0.0005; u < 0.9995; u += 0.0005) expError = Math.max(expError, Math.abs(drawFromLaw(EXPONENTIAL, u) + Math.log(1 - u)));
-  addRow("Exponential, mean 1: F^-1(u) = -log(1 - u)", expError < 1e-4 && Math.abs(EXPONENTIAL.mean - 1) < 1e-4,
-         "Largest error over u = 0.0005, 0.001, ..., 0.9995: " + short(expError) + " (the midpoint rule's error, about f' h^2). Mean " +
-         short(EXPONENTIAL.mean) + ".");
+function testTimes() {
+  // For w ~ a law the sim keeps one U per edge, and its time is F^-1(U):
+  // the same number the drawer works out there, the slow way.
+  const d = boxDomain(30, 30, 4, false);
+  for (const onCells of [false, true]) {
+    const weights = newWeights(d, "kept", onCells), times = passageTimes(d, weights, EXPONENTIAL);
+    const drawer = newDrawer(EXPONENTIAL, "kept");
+    let differ = 0;
+    forEachPlace(d, weights.places, onCells, function (k, place) {
+      drawer.at(...place);
+      if (drawer.value("w", 0) !== times.tau[k]) differ++;
+    });
+    addRow("The kept U's give the drawer's times, on the " + (onCells ? "cells" : "edges"), differ === 0,
+           "w ~ exp(1) on a 30 x 30 box: F^-1(U) against the drawer's w at each of the " + times.tau.length + " " +
+           (onCells ? "cells" : "edge entries") + "; " + differ + " differ.");
+  }
 
-  // The uniform on [0, 1]: F^-1(u) = u, exactly (its ends are on the grid).
-  const uniform = lawOf(LAW_PRESETS.uniform.f);
-  let uniformError = 0;
-  for (let u = 0.001; u < 1; u += 0.001) uniformError = Math.max(uniformError, Math.abs(drawFromLaw(uniform, u) - u));
-  addRow("Uniform on [0, 1]: F^-1(u) = u", uniformError < 1e-12 && Math.abs(uniform.mean - 0.5) < 1e-12,
-         "Largest error: " + short(uniformError) + ". Mean " + short(uniform.mean) + ".");
-
-  // The geometric from 0 with q = 1/2: mass 2^-(k+1) at each k, nothing
-  // in between.
-  let massError = 0, offWhole = 0;
-  for (let k = 0; k <= 20; k++) massError = Math.max(massError, Math.abs(lawCDF(GEOMETRIC, k) - (1 - Math.pow(0.5, k + 1))));
-  for (let u = 0.001; u < 1; u += 0.001) { const x = drawFromLaw(GEOMETRIC, u); if (x !== Math.round(x)) offWhole++; }
-  addRow("Geometric from 0, q = 1/2: P(X <= k) = 1 - 2^-(k+1), only whole numbers", massError < 1e-12 && offWhole === 0,
-         "Largest error of F at k = 0, ..., 20: " + short(massError) + "; draws off the whole numbers: " + offWhole +
-         " of 999. Mean " + short(GEOMETRIC.mean) + " (exact: 1).");
-
-  // nadya's example: mass 0.2 at 0 and 0.3 at 3, then the rest as
-  // 0.5 e^(5 - x) on [5, infinity).
-  const exact = [[-1, 0], [0, 0.2], [2.999, 0.2], [3, 0.5], [4.999, 0.5], [5, 0.5], [6, 0.5 + 0.5 * (1 - Math.exp(-1))],
-                 [8, 0.5 + 0.5 * (1 - Math.exp(-3))]];
-  let hersError = 0;
-  for (const [x, F] of exact) hersError = Math.max(hersError, Math.abs(lawCDF(HERS, x) - F));
-  const atoms = [0.1, 0.2, 0.3, 0.5].map(function (u) { return drawFromLaw(HERS, u); });
-  addRow("Point masses: nadya's example, p_0 = 0.2, p_3 = 0.3", hersError < 1e-5 && atoms.join() === "0,0,3,3",
-         "F at -1, 0, 2.999, 3, 4.999, 5, 6, 8 is off by at most " + short(hersError) + "; F^-1(0.1), F^-1(0.2), F^-1(0.3), " +
-         "F^-1(0.5) = " + atoms.join(", ") + " (the jumps, exactly). Mean " + short(HERS.mean) + " (exact: 3.9).");
-
-  // Problems are found: f negative, a point mass hidden in a formula.
-  const negative = lawOf("{x >= 0: -1, 0}"), hidden = lawOf("2 {x = 0: 1, 0}"), scaled = lawOf("{x >= 0: 2 e^(-x), 0}");
-  addRow("Laws that can't be, or don't add up to 1", Boolean(negative.problem) && Boolean(hidden.problem) && scaled.note !== "" &&
-         Math.abs(drawFromLaw(scaled, 0.5) - Math.log(2)) < 1e-4,
-         "f = -1 is refused (\"" + negative.problem + "\"); so is a point mass inside a formula; 2 e^(-x) is scaled to e^(-x) (" +
-         "its median comes out " + short(drawFromLaw(scaled, 0.5)) + ", log 2 = 0.6931).");
+  // A formula for w that comes out negative somewhere.
+  let refused = "";
+  try { timesOf(d, "negative", false, variablesOf("w = n\nn ~ normal(0, 1)")); }
+  catch (problem) { refused = problem.message; }
+  addRow("A formula for w that comes out negative is refused", refused !== "",
+         refused ? "w = n with n ~ normal(0, 1): \"" + refused + "\"" : "w = n with n ~ normal(0, 1) was taken.");
 }
 
 
@@ -114,8 +105,8 @@ function testLaws() {
 
 // One time per edge of a 120 x 120 box (28,560 edges), as the sim draws
 // them.
-function drawnTimes(law, seed) {
-  const d = boxDomain(120, 120, 4, false), times = passageTimes(newWeights(d, seed, false), law), sample = [];
+function drawnTimes(variables, seed) {
+  const d = boxDomain(120, 120, 4, false), times = timesOf(d, seed, false, variables), sample = [];
   for (let v = 0; v < d.n; v++) for (let e = d.first[v]; e < d.first[v + 1]; e++) if (d.nbr[e] > v) sample.push(times.tau[e]);
   return sample;
 }
@@ -138,12 +129,14 @@ function ksStatistic(sample, G) {
 
 function testDraws() {
   const continuous = [
-    { name: "Exponential, mean 1", law: EXPONENTIAL, G: function (x) { return 1 - Math.exp(-x); } },
-    { name: "Uniform on [0, 1]", law: lawOf(LAW_PRESETS.uniform.f), G: function (x) { return Math.min(1, Math.max(0, x)); } },
-    { name: "the density x e^(-x) (typed)", law: lawOf("{x >= 0: x e^(-x), 0}"), G: function (x) { return 1 - Math.exp(-x) * (1 + x); } },
+    { name: "w ~ exp(1)", variables: EXPONENTIAL, G: function (x) { return 1 - Math.exp(-x); } },
+    { name: "w ~ unif(0, 1)", variables: variablesOf("w ~ unif(0, 1)"), G: function (x) { return Math.min(1, Math.max(0, x)); } },
+    { name: "the density x e^(-x), typed", variables: variablesOf("w ~ {x >= 0: x e^(-x), 0}"), G: function (x) { return 1 - Math.exp(-x) * (1 + x); } },
+    { name: "w = min(a, b), a and b ~ exp(1) (so w ~ exp(2))", variables: variablesOf("w = min(a, b)\na ~ exp(1)\nb ~ exp(1)"),
+      G: function (x) { return 1 - Math.exp(-2 * x); } },
   ];
   for (const c of continuous) {
-    const k = ksStatistic(drawnTimes(c.law, "ks " + c.name), c.G);
+    const k = ksStatistic(drawnTimes(c.variables, "ks " + c.name), c.G);
     addRow("The drawn times, " + c.name + " (Kolmogorov-Smirnov)", k < 1.949,
            "28,560 edge times: sqrt(n) D = " + short(k) + " (a correct sim is above 1.949 one time in 1000).");
   }
@@ -153,7 +146,7 @@ function testDraws() {
   for (let k = 0; k <= 30; k++) odds.set(k, Math.pow(0.5, k + 1));
   for (const x of geometric) seen.set(x, (seen.get(x) || 0) + 1);
   let result = pooledChiSquare(odds, seen, geometric.length);
-  addRow("The drawn times, Geometric from 0, q = 1/2 (chi-square)", result.pValue > 0.001,
+  addRow("The drawn times, w ~ geometric(1/2) (chi-square)", result.pValue > 0.001,
          "28,560 edge times in " + result.groups + " groups: p = " + short(result.pValue) + ".");
 
   // nadya's example: the two masses, and the density's part in pieces.
@@ -251,10 +244,10 @@ function testDijkstra() {
   for (const { name, d } of testDomains()) {
     const problems = [];
     let runs = 0;
-    for (const [lawName, law] of laws) {
+    for (const [lawName, variables] of laws) {
       for (const onCells of [false, true]) {
         for (let k = 0; k < 2; k++) {
-          const times = passageTimes(newWeights(d, "dijkstra " + k, onCells), law);
+          const times = timesOf(d, "dijkstra " + k, onCells, variables);
           const problem = searchProblem(d, times, (k * 37) % d.n);
           runs++;
           if (problem) problems.push(lawName + (onCells ? ", on cells: " : ", on edges: ") + problem);
@@ -278,7 +271,7 @@ function testDistance() {
   for (const onCells of [false, true]) {
     let bad = 0, checked = 0;
     for (let k = 0; k < 10; k++) {
-      const times = passageTimes(newWeights(d, "distance " + k, onCells), EXPONENTIAL);
+      const times = timesOf(d, "distance " + k, onCells, EXPONENTIAL);
       for (let j = 0; j < 10; j++) {
         const x = pick(), y = pick(), z = pick();
         const xy = pathBetween(d, times, x, y).time, yx = pathBetween(d, times, y, x).time;
@@ -327,7 +320,7 @@ function testEden() {
   for (const onCells of [true, false]) {
     const odds = joinOdds(d, start, !onCells), seen = new Map();
     for (let k = 0; k < RUNS; k++) {
-      const search = newSearch(d, passageTimes(newWeights(d, "eden " + k, onCells), EXPONENTIAL), start);
+      const search = newSearch(d, timesOf(d, "eden " + k, onCells, EXPONENTIAL), start);
       for (let j = 0; j < 4; j++) search.next();
       const key = search.order.slice(1).join();
       seen.set(key, (seen.get(key) || 0) + 1);
@@ -391,8 +384,8 @@ function testCoupling() {
 
   // Moving a slider moves every time the same way.
   const box = boxDomain(30, 30, 4, false), weights = newWeights(box, "slider", false);
-  const uniformA = function (a) { return passageTimes(weights, lawOf("{0 <= x <= a: 1 / a, 0}", { a: a })).tau; };
-  const rate = function (r) { return passageTimes(weights, lawOf("{x >= 0: r e^(-r x), 0}", { r: r })).tau; };
+  const uniformA = function (a) { return passageTimes(box, weights, variablesOf("w ~ {0 <= x <= a: 1 / a, 0}", { a: a })).tau; };
+  const rate = function (r) { return passageTimes(box, weights, variablesOf("w ~ exp(r)", { r: r })).tau; };
   const [u1, u2] = [uniformA(1), uniformA(1.5)], [e1, e2] = [rate(1), rate(2)];
   let wrongWay = 0, worst = 0;
   for (let e = 0; e < u1.length; e++) {
@@ -431,8 +424,8 @@ function testWholePlane() {
     let bad = 0, found = 0;
     for (let k = 0; k < 10; k++) {
       const onCells = k % 2 === 1, seed = "plane " + k;
-      const a = newSearch(small, passageTimes(newWeights(small, seed, onCells), EXPONENTIAL), middleCell(small));
-      const b = newSearch(big, passageTimes(newWeights(big, seed, onCells), EXPONENTIAL), sameCell(middleCell(small)));
+      const a = newSearch(small, timesOf(small, seed, onCells, EXPONENTIAL), middleCell(small));
+      const b = newSearch(big, timesOf(big, seed, onCells, EXPONENTIAL), sameCell(middleCell(small)));
       while (a.peek() !== -1 && !edge[a.peek()]) a.next();
       while (b.order.length < a.order.length) b.next();
       for (const v of a.order) if (Math.abs(a.T[v] - b.T[sameCell(v)]) > 1e-12 || !b.settled[sameCell(v)]) bad++;
@@ -460,10 +453,10 @@ function middleCell(d) {
    --------------------------------------------------------------------- */
 function testHoles() {
   const d = boxDomain(30, 30, 4, false), laws = [["exponential", EXPONENTIAL], ["geometric (cells join together)", GEOMETRIC]];
-  for (const [name, law] of laws) {
+  for (const [name, variables] of laws) {
     let bad = 0, checked = 0;
     for (let k = 0; k < 4; k++) {
-      const search = newSearch(d, passageTimes(newWeights(d, "holes " + k, false), law), cellAt(d, 15, 15));
+      const search = newSearch(d, timesOf(d, "holes " + k, false, variables), cellAt(d, 15, 15));
       while (search.next() !== -1);
       const set = { siteX: d.x, siteY: d.y, bornAt: search.T }, last = search.T[search.order[search.order.length - 1]];
       const holes = holeHistory(set, last);
@@ -505,5 +498,5 @@ function testPairs() {
 
 
 runChecksOnClick(function () {
-  return [testLaws, testDraws, testDijkstra, testDistance, testEden, testCoupling, testWholePlane, testHoles, testPairs];
+  return [testTimes, testDraws, testDijkstra, testDistance, testEden, testCoupling, testWholePlane, testHoles, testPairs];
 });
