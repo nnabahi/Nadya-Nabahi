@@ -695,6 +695,12 @@ a.card:hover {
   overflow-x: auto;        /* a long formula scrolls instead of spilling out */
 }
 
+/* The Random variables box's menu of laws (js/sim-random.js): its
+   longest name would make it wider than a phone, so it shrinks to fit. */
+.option-row select.law-menu {
+  max-width: 100%;
+}
+
 /* The Lattice's code box (a tiling in GomJau-Hogg notation, read by
    js/sim-tilings.js), and the line under it: the tiling's kinds of
    corner, or what is wrong with the code. */
@@ -1433,6 +1439,12 @@ body.embedded .graph-wrap {
   aspect-ratio: 1;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
+}
+
+/* A wide table (like the Random Variables page's table of laws) scrolls
+   sideways on a narrow screen instead of squashing. */
+.help-wide {
+  overflow-x: auto;
 }
 
 

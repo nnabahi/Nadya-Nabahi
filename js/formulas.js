@@ -10,6 +10,8 @@
      readTree(text)                 read a typed formula, Desmos style
      formulaTex(tree)               the formula typeset by KaTeX, with
                                       {condition: a, b} drawn as cases
+     nameTex(name)                  a name typeset, u1 as u_1
+     isSeries(node)                 is it sum(k, a, b, ...) or prod(k, a, b, ...)?
      sliderLetters(tree, own)       the letters in it that need a slider
      isFunctionName(path, parent)   is this name used as a function?
      NEW_SLIDER, SMALLEST_STEP      a new slider's settings
@@ -99,15 +101,34 @@ function splitOutside(text, mark) {
   return parts;
 }
 
-// The formula typeset by KaTeX (as a string KaTeX draws), with a
-// piecewise formula drawn the way Desmos shows it, as cases:
+// The formula typeset by KaTeX (as a string KaTeX draws), the way
+// Desmos shows it: a piecewise formula as cases,
 //   { a   if c
 //   { b   otherwise
+// a name with digits or a subscript as u_1 or d_k (nameTex), a list
+// [1, 2, 3] on one line, and sum(k, a, b, ...) as a sum sign with k = a
+// under it and b over it (prod the same, with a product sign).
 // (math.js asks "handler" about every piece of the tree first; it
-// answers only for the "c ? a : b" pieces, and math.js does the rest.)
+// answers only for those pieces, and math.js does the rest.)
 function formulaTex(tree) {
-  const options = { parenthesis: "keep", implicit: "hide", handler: casesTex };
+  const options = { parenthesis: "keep", implicit: "hide", handler: pieceTex };
   return tree.toTex(options);
+  function pieceTex(node) {
+    if (node.isSymbolNode && /^\p{L}(\d|_)/u.test(node.name)) return nameTex(node.name);
+    if (node.isArrayNode && !node.items.some(function (item) { return item.isArrayNode; })) {
+      return "\\left[" + node.items.map(function (item) { return item.toTex(options); }).join(", ") + "\\right]";
+    }
+    if (isSeries(node)) {
+      const [k, a, b, body] = node.args, inner = bare(body);
+      const wrap = inner.isConditionalNode || (inner.isOperatorNode && (inner.fn === "add" || inner.fn === "subtract"));
+      return (node.fn.name === "sum" ? "\\sum" : "\\prod") + "_{" + k.name + "=" + a.toTex(options) + "}^{" + b.toTex(options) + "} " +
+             (wrap ? "\\left(" + body.toTex(options) + "\\right)" : body.toTex(options));
+    }
+    if (node.isFunctionNode && node.fn.isSymbolNode && /_$/.test(node.fn.name) && node.args.length === 1) {
+      return "{" + nameTex(node.fn.name.slice(0, -1)) + "}_{" + node.args[0].toTex(options) + "}";
+    }
+    return casesTex(node);
+  }
   function casesTex(node) {
     let n = bare(node);
     if (!n.isConditionalNode) return undefined;
@@ -116,7 +137,8 @@ function formulaTex(tree) {
       rows.push(bare(n.trueExpr).toTex(options) + " & \\text{if } " + bare(n.condition).toTex(options));
       n = bare(n.falseExpr);
     }
-    if (!(n.isSymbolNode && n.name === "NaN")) rows.push(n.toTex(options) + " & \\text{otherwise}");
+    const none = (n.isSymbolNode && n.name === "NaN") || (n.isConstantNode && Number.isNaN(n.value));   // no "otherwise"
+    if (!none) rows.push(n.toTex(options) + " & \\text{otherwise}");
     return "\\begin{cases}" + rows.join(" \\\\ ") + "\\end{cases}";
   }
   // Without the brackets piecewise put around each piece.
@@ -124,6 +146,23 @@ function formulaTex(tree) {
     while (n.isParenthesisNode) n = n.content;
     return n;
   }
+}
+
+// A name typeset as Desmos does: the digits after its letter, or what
+// comes after "_", as a subscript (u1 as u_1, e_5 as e_5, d_k as d_k).
+function nameTex(name) {
+  const parts = name.match(/^(\p{L})(\d*)(?:_(\w+))?$/u);
+  if (!parts) return name;
+  const sub = [parts[2], parts[3]].filter(Boolean).join(",");
+  return parts[1] + (sub ? "_{" + sub + "}" : "");
+}
+
+// Is "node" a sum or product over a letter, sum(k, a, b, ...), with k
+// running from a to b? (A sum of four numbers, sum(1, 2, 3, 4), is
+// math.js's own.)
+function isSeries(node) {
+  return node.isFunctionNode && node.fn.isSymbolNode && (node.fn.name === "sum" || node.fn.name === "prod") &&
+         node.args.length === 4 && node.args[0].isSymbolNode && /^\p{L}$/u.test(node.args[0].name);
 }
 
 // The letters in the formula that need a slider: everything except its

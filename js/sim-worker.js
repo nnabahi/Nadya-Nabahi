@@ -232,8 +232,9 @@ function keepSample(trace, time, values, now) {
 // can tie each random choice to *where* it is made, and that choice
 // stays the same when a setting changes: that is what makes the
 // sliders "coupled", changing the picture smoothly, like the p slider
-// of Bernoulli percolation. random.textToNumbers(text) turns text (the
-// seed, or a graph cell's name) into two whole numbers.
+// of Bernoulli percolation. random.uniformOfList(list) is the same for
+// a list of whole numbers, [a, b, ...]. random.textToNumbers(text)
+// turns text (the seed, or a graph cell's name) into two whole numbers.
 // How: a hash. Each number is folded into two running 32-bit hashes,
 // scrambled with the last step of MurmurHash3, by Austin Appleby,
 // public domain (github.com/aappleby/smhasher); the two together give
@@ -259,15 +260,16 @@ function seededUniform(seed) {
     return [h1, h2];
   }
   const [seedA, seedB] = textToNumbers(String(seed));
-  function uniform() {
+  function uniformOfList(list) {
     let h1 = seedA, h2 = seedB;
-    for (let k = 0; k < arguments.length; k++) {
-      h1 = fold(h1, arguments[k]);
-      h2 = fold(h2, arguments[k]);
+    for (let k = 0; k < list.length; k++) {
+      h1 = fold(h1, list[k]);
+      h2 = fold(h2, list[k]);
     }
     return ((h1 >>> 11) * 4294967296 + (h2 >>> 0) + 0.5) / 9007199254740992;
   }
-  return { uniform: uniform, textToNumbers: textToNumbers };
+  function uniform() { return uniformOfList(arguments); }
+  return { uniform: uniform, uniformOfList: uniformOfList, textToNumbers: textToNumbers };
 }
 
 
