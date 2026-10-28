@@ -488,12 +488,13 @@ function pickSite(available, height, s, u) {
 //                         to when.
 //   textToNumbers(text)   two whole numbers for a place given as text
 //                         (for the cells of a graph)
-// The times wait in a "heap", lists kept so the soonest is always
-// first. A site set again (a click put a block on it early) leaves its
-// old time in the heap; next() skips times that are out of date.
+// The times wait in a heap (newHeap, js/sim-worker.js), so the soonest
+// is always first. A site set again (a click put a block on it early)
+// leaves its old time in the heap; next() skips times that are out of
+// date.
 function newClocks(seed, s) {
   const due = [];      // due[i] = when site i's next block lands
-  const times = [], sites = [];   // the heap: times[k] is never later than times[2k+1], times[2k+2]
+  const heap = newHeap();
 
   // E(place, h): exponential with mean 1, -log(U) for U uniform in
   // (0, 1), always the same for the same seed, place and height
@@ -507,35 +508,12 @@ function newClocks(seed, s) {
     if (h < 0) { due[i] = Infinity; return; }
     const time = now + exponential(place, h) / Math.pow(h + 1, s);
     due[i] = time;
-    // Add it at the end, and move it up while it is sooner than its parent.
-    let k = times.length;
-    while (k > 0) {
-      const up = (k - 1) >> 1;
-      if (times[up] <= time) break;
-      times[k] = times[up]; sites[k] = sites[up]; k = up;
-    }
-    times[k] = time; sites[k] = i;
+    heap.add(time, i);
   }
 
   function next(m) {
     for (;;) {
-      const time = times[0], i = sites[0];
-      // Take the first out: put the last one in front, then move it
-      // down while a child is sooner.
-      const lastTime = times.pop(), lastSite = sites.pop();
-      const n = times.length;
-      if (n > 0) {
-        let k = 0;
-        for (;;) {
-          const a = 2 * k + 1, b = a + 1;
-          let soonest = -1, soonestTime = lastTime;
-          if (a < n && times[a] < soonestTime) { soonest = a; soonestTime = times[a]; }
-          if (b < n && times[b] < soonestTime) { soonest = b; soonestTime = times[b]; }
-          if (soonest < 0) break;
-          times[k] = times[soonest]; sites[k] = sites[soonest]; k = soonest;
-        }
-        times[k] = lastTime; sites[k] = lastSite;
-      }
+      const time = heap.firstKey(), i = heap.take();
       if (due[i] === time) {   // not out of date
         m.time = time;
         return i;
