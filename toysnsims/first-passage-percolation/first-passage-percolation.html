@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>First Passage Percolation — Toys n' Sims</title>
+  <link rel="stylesheet" href="../../css/style.css">
+  <!-- KaTeX's styles, for the typeset formulas (the law's f, and About the model). -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/katex.min.css">
+</head>
+<body>
+
+  <header class="topbar" data-active="toysnsims.html"></header>
+  <script src="../../js/site.js"></script>
+
+  <main class="page">
+    <p><a href="../../toysnsims.html">&larr; All sims</a></p>
+    <h1>First Passage Percolation</h1>
+
+    <!-- The boxes, as on every sim page (their layout is in
+         section 6 of css/style.css). All the behavior lives in
+         first-passage-percolation.js; the ids below (id="...") are how
+         that script finds each button and box. -->
+    <div class="sim-layout">
+
+      <!-- TOP LEFT: the picture. -->
+      <section class="panel panel-sim">
+        <h2>Simulation</h2>
+
+        <!-- The picture, with the zoom buttons in its top right corner
+             (js/sim-view.js) and the full screen button in its top left
+             (js/sim-page.js). -->
+        <div class="sim-picture">
+          <canvas id="sim-canvas"></canvas>
+        </div>
+
+        <!-- Ball: the colors, from T = 0 to T = t. -->
+        <div class="color-key" id="color-key" hidden>
+          <span id="key-low"></span><span class="color-key-strip" id="key-strip"></span><span id="key-high"></span>
+        </div>
+        <p class="muted" id="sim-message"></p>
+      </section>
+
+      <!-- TOP RIGHT: settings. -->
+      <section class="panel panel-controls">
+        <!-- The heading, with a small "model check" button on the right
+             that opens the page testing this sim's math. -->
+        <h2 class="heading-with-button">Options
+          <a class="tool-button model-check" href="first-passage-percolation-check.html">model check</a></h2>
+
+        <h3 class="option-heading">Mode</h3>
+        <div class="option-row">
+          <label><input type="radio" name="mode" value="ball" checked> Ball B(t) around the start</label>
+          <label><input type="radio" name="mode" value="pairs"> Pairs and their geodesics</label>
+        </div>
+
+        <!-- The law of the passage times: the shared law box
+             (js/sim-laws.js fills it in). -->
+        <h3 class="option-heading">Law of the passage times</h3>
+        <div class="law-options"></div>
+
+        <h3 class="option-heading">Times on the</h3>
+        <div class="option-row">
+          <label><input type="radio" name="weights" value="edges" checked> edges</label>
+          <label><input type="radio" name="weights" value="cells"> cells</label>
+        </div>
+        <p class="muted small">On the edges, crossing an edge takes its time. On the cells,
+          stepping onto a cell takes that cell's time.</p>
+
+        <!-- Ball mode: what is drawn on the ball. -->
+        <div class="ball-only">
+          <h3 class="option-heading">Show</h3>
+          <div class="option-row">
+            <label><input type="checkbox" id="show-tree"> the geodesic tree</label>
+            <label id="holes-row"><input type="checkbox" id="show-holes"> shade the holes (light blue)</label>
+            <label id="disk-row"><input type="checkbox" id="show-disk"> a disk to compare</label>
+          </div>
+          <p class="muted small">The geodesic tree joins every cell of the ball to the cell before
+            it on its geodesic from the start. Drag the black dot to move the start. Click a cell of
+            the ball to draw its geodesic in white; click it again to clear it.</p>
+        </div>
+
+        <!-- Pairs mode: how many pairs. -->
+        <div class="pairs-only" hidden>
+          <h3 class="option-heading">Pairs</h3>
+          <div class="option-row">
+            n <input type="range" id="pairs-slider" min="1" max="100" step="1">
+            <input type="number" id="pairs-box" min="1" max="500" step="1">
+          </div>
+          <p class="muted small">2n particles at uniformly random cells, paired uniformly at random.
+            Play adds the pairs one at a time, each with its geodesic, in its own color. Where
+            geodesics share an edge they run side by side, the first pair outside. Drag a particle
+            to move it.</p>
+        </div>
+
+        <h3 class="option-heading">Domain</h3>
+        <div class="domain-options" data-ticked="whole" data-whole="flat"></div>
+
+        <h3 class="option-heading">Run</h3>
+        <div class="option-row play-row" data-step="One more cell (Ball) or pair (Pairs)" data-restart="Back to the start, same seed"></div>
+        <div class="option-row speed-row"></div>
+        <div class="option-row seed-row"></div>
+        <p class="muted small">The same seed always gives the same times. Changing the law or
+          what the times are on keeps the seed and how far the run is, so the picture changes
+          as little as it can; changing the domain or the seed starts again.</p>
+      </section>
+
+      <!-- UNDER THE PICTURE: numbers about this run, and the small charts. -->
+      <section class="panel panel-stats">
+        <h2>Statistics</h2>
+        <div class="stat-grid">
+          <div class="stat">
+            <table class="stats-table">
+              <tr class="ball-only"><td>Time t</td><td id="stat-time"></td></tr>
+              <tr class="ball-only"><td>Cells in B(t)</td><td id="stat-cells"></td></tr>
+              <tr class="ball-only"><td>Farthest cell from the start</td><td id="stat-farthest"></td></tr>
+              <tr class="ball-only holes-only"><td>Holes now (&beta;<sub>1</sub>)</td><td id="stat-holes"></td></tr>
+              <tr class="ball-only holes-only"><td>Holes closed so far</td><td id="stat-closed"></td></tr>
+              <tr class="ball-only shape-only"><td>Convexity (area / hull area)</td><td id="stat-convexity"></td></tr>
+              <tr class="ball-only"><td>Clicked cell: T(0, x), steps</td><td id="stat-clicked"></td></tr>
+              <tr class="pairs-only"><td>Pairs</td><td id="stat-pairs"></td></tr>
+              <tr class="pairs-only"><td>Edges on a geodesic</td><td id="stat-used"></td></tr>
+              <tr class="pairs-only"><td>... on 2 or more</td><td id="stat-shared"></td></tr>
+              <tr class="pairs-only"><td>Most geodesics on one edge</td><td id="stat-most"></td></tr>
+              <tr class="pairs-only"><td>Average T(x, y) / distance</td><td id="stat-ratio"></td></tr>
+              <tr><td>Domain</td><td id="stat-domain"></td></tr>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- THE FULL WIDTH: the big charts, two to a row, and whatever else
+           does not fit under the picture (js/sim-page.js). -->
+      <section class="panel panel-charts">
+        <div class="stat-grid">
+          <div class="stat ball-only">
+            <h3 class="option-heading">Cells in B(t) over time t</h3>
+            <canvas class="chart" id="size-chart"></canvas>
+          </div>
+          <div class="stat ball-only">
+            <h3 class="option-heading">T(0, x) / |x| against |x|</h3>
+            <canvas class="chart" id="ratio-chart"></canvas>
+            <p class="muted small" id="ratio-help"></p>
+          </div>
+          <div class="stat ball-only shape-only">
+            <h3 class="option-heading">Radius by direction, over the average</h3>
+            <canvas class="chart taller" id="radius-chart"></canvas>
+          </div>
+          <div class="stat ball-only shape-only">
+            <h3 class="option-heading">Radius by direction over time</h3>
+            <canvas class="chart taller" id="radius-heat-chart"></canvas>
+            <p class="muted small">Up: the direction from the start, from &minus;180&deg;
+              (left) through &minus;90&deg; (down), 0&deg; (right) and 90&deg; (up). Color: the
+              farthest cell of B(t) that way over the average, from blue (25% or more
+              shorter) through white to red (25% or more longer). Gray: no cell that way yet.</p>
+          </div>
+          <div class="stat ball-only shape-only">
+            <h3 class="option-heading">Convexity over time t</h3>
+            <canvas class="chart" id="convexity-chart"></canvas>
+          </div>
+          <div class="stat ball-only holes-only">
+            <h3 class="option-heading">Holes over time t (&beta;<sub>1</sub>)</h3>
+            <canvas class="chart" id="holes-chart"></canvas>
+          </div>
+          <div class="stat ball-only holes-only">
+            <h3 class="option-heading">How long each closed hole lived</h3>
+            <canvas class="chart taller" id="persistence-chart"></canvas>
+            <span class="muted small">against the time it was
+              <label><input type="radio" name="against" value="birth" checked> born</label>
+              <label><input type="radio" name="against" value="death"> filled</label></span>
+          </div>
+          <div class="stat pairs-only">
+            <h3 class="option-heading">Edges used by k geodesics</h3>
+            <canvas class="chart" id="usage-chart"></canvas>
+            <label class="muted small"><input type="checkbox" id="usage-log"> log scale</label>
+          </div>
+          <div class="stat pairs-only">
+            <h3 class="option-heading">Each pair: T(x, y) against the distance</h3>
+            <canvas class="chart" id="pairs-chart"></canvas>
+            <p class="muted small" id="pairs-help"></p>
+          </div>
+        </div>
+      </section>
+
+      <!-- BOTTOM, the full width: about the model, in two tabs (js/sim-page.js
+           switches them). Text in class="tex" is typeset by KaTeX. -->
+      <section class="panel panel-about">
+        <h2>About the model</h2>
+        <nav class="about-tabs">
+          <button class="about-tab selected" data-tab="simple">Simple</button>
+          <button class="about-tab" data-tab="details">All the details</button>
+        </nav>
+
+        <!-- PLACEHOLDER: nadya writes the Simple text herself. -->
+        <div data-panel="simple">
+        <p class="muted">(The simple explanation is coming.)</p>
+        </div>
+
+        <div data-panel="details" hidden>
+        <p>
+          <strong>The model</strong> [1, 2]. The domain is a graph
+          <span class="tex">G</span>: the cells, each joined to the cells it
+          shares a side with. Every edge <span class="tex">e</span> gets a
+          passage time <span class="tex">\tau_e \ge 0</span>, all independent
+          with the same law <span class="tex">F</span>, the one typed in the
+          law box. The passage time from <span class="tex">x</span> to
+          <span class="tex">y</span> is the least total time of a path between
+          them, and a path that takes exactly that long is a geodesic:
+        </p>
+        <div class="tex">T(x, y) = \inf_{\gamma : x \to y} \sum_{e \in \gamma} \tau_e .</div>
+        <p>
+          With the times on the cells instead, each cell
+          <span class="tex">v</span> has its own
+          <span class="tex">\tau_v</span>, and a path pays the time of every
+          cell it steps onto (not the one it starts from). The ball
+          <span class="tex">B(t) = \{x : T(0, x) \le t\}</span> is where a fluid
+          poured in at the start <span class="tex">0</span> at time 0 has
+          reached by time <span class="tex">t</span>, if it flows through each
+          edge in its passage time; Hammersley and Welsh introduced the model
+          as this picture of a fluid in a porous medium [1].
+        </p>
+        <p>
+          <strong>Eden growth.</strong> With exponential times of mean 1 on the
+          cells, <span class="tex">B(t)</span> grows exactly like Eden's model
+          [3]: the next cell to join is uniform among the cells next to the
+          ball. A cell next to the ball has waited part of its time, and by
+          the memoryless property of the exponential law, what is left of it is
+          again exponential with mean 1, the same for each. With exponential
+          times on the edges, the next cell is picked in proportion to its
+          number of edges to the ball instead: Richardson's model [4]
+          (see [2, Section 1.1]). The check page tests both.
+        </p>
+        <p>
+          <strong>The limit shape</strong> [5, 6; 2, Theorem 2.17]. On
+          <span class="tex">\mathbb{Z}^2</span>, if
+          <span class="tex">F(0) &lt; p_c = 1/2</span> (the critical point of
+          bond percolation [7]) and
+          <span class="tex">\mathbb{E} \min(\tau_1, \dots, \tau_4)^2 &lt; \infty</span>
+          for four independent times, then <span class="tex">B(t)/t</span>
+          converges, almost surely, to a fixed compact convex set
+          <span class="tex">\mathcal{B}</span> with the symmetries of the grid.
+          Almost nothing more is known about <span class="tex">\mathcal{B}</span>.
+          It isn't even known to be different from a disk for exponential
+          times, though simulations say it is [8]. One thing is: if
+          <span class="tex">F</span> has a smallest value
+          <span class="tex">r &gt; 0</span> with
+          <span class="tex">F(\{r\})</span> at least the critical point of
+          oriented percolation, then <span class="tex">\mathcal{B}</span> has
+          flat edges [9, 10]. If instead
+          <span class="tex">F(0) \ge 1/2</span>, the time constant is 0 and
+          <span class="tex">B(t)/t</span> grows without bound [6, Theorem 6.1].
+          The preset Geometric from 0 with <span class="tex">q = 1/2</span>
+          has <span class="tex">F(0) = 1/2</span> exactly: it sits at the
+          critical point, where the zero-time edges form critical
+          percolation clusters. The charts "Radius by direction" show the
+          ball's shape against a disk, and "T(0, x)/|x|" shows the times
+          settling down to the time constant in each direction.
+        </p>
+        <p>
+          <strong>Fluctuations</strong> [2, Section 3]. In
+          <span class="tex">d = 2</span> the fluctuations of
+          <span class="tex">T(0, n e_1)</span> are believed to be of order
+          <span class="tex">n^{1/3}</span>, as the KPZ scaling theory predicts.
+          That is proved only for exactly solvable last passage models [11];
+          for first passage percolation the best bound in general is
+          <span class="tex">\mathrm{Var}\, T(0, n e_1) \le C n / \log n</span>
+          [12, 13].
+        </p>
+        <p>
+          <strong>Geodesics</strong> [2, Section 4]. With a law that has no
+          point masses, the geodesic between two cells is unique (almost
+          surely). Geodesics heading the same way from far apart tend to merge:
+          Newman showed it under a curvature assumption on
+          <span class="tex">\mathcal{B}</span> [14, 15], and Damron and Hanson
+          without it [16]. There are at least 4 infinite geodesics from the
+          start [17]. Whether there is a geodesic infinite in both directions is
+          open; Damron and Hanson rule them out in fixed directions, under
+          assumptions [18]. A geodesic of length
+          <span class="tex">n</span> is believed to stray about
+          <span class="tex">n^{2/3}</span> from the straight line; the relation
+          <span class="tex">\chi = 2\xi - 1</span> between this exponent
+          and the fluctuations' is proved under assumptions by Chatterjee [19].
+          Pairs mode shows the merging: where geodesics share edges, they run
+          side by side in a bundle.
+        </p>
+        <p>
+          <strong>Holes.</strong> A hole of <span class="tex">B(t)</span> is a
+          bounded piece of the plane outside it, a pocket the fluid has gone
+          around. It is born when the ball closes around it, and dies when its
+          last cell is reached. When a hole is split in two, the piece that is
+          filled last keeps the old birth (the "elder rule" of persistent
+          homology [20]). Holes are counted on flat domains, not on a torus or
+          the hyperbolic plane.
+        </p>
+        <p>
+          <strong>The law box.</strong> The law is typed as its density
+          <span class="tex">f(x)</span>, Desmos style. A piece whose condition
+          is an equation is a point mass: <span class="tex">x = c</span> puts
+          its value at <span class="tex">c</span>, and any other equation, like
+          <code>mod(x, 1) = 0</code>, puts mass on each whole number where it
+          holds. For example
+          <code>{x = 0: p_0, x = 3: p_3, x &gt;= 5: (1 - p_0 - p_3) e^(-x + 5), 0}</code>
+          puts mass <span class="tex">p_0</span> at 0 and
+          <span class="tex">p_3</span> at 3, and spreads the rest over
+          <span class="tex">[5, \infty)</span>. If it all doesn't add up to 1,
+          it is scaled so it does. The law becomes its distribution function
+          <span class="tex">F</span>, the density added up on a fine grid,
+          and each edge's time is
+          <span class="tex">\tau = F^{-1}(U)</span>, the least
+          <span class="tex">x</span> with <span class="tex">F(x) \ge U</span>,
+          for a uniform <span class="tex">U</span> [21, Theorem 1.2.2]. Each
+          edge keeps its own <span class="tex">U</span>, from the seed and
+          where the edge is, so moving a slider of the law moves every time a
+          little, all the same way, and the ball and the geodesics change
+          smoothly. Times can't be negative, so <span class="tex">f</span> must
+          be 0 below 0.
+        </p>
+        <p>
+          <strong>How it is computed.</strong> Dijkstra's algorithm [22] finds
+          the cells in order of <span class="tex">T(0, x)</span>, the nearest
+          first, one at a time; each step of the run is one more cell, so
+          watching it is watching <span class="tex">B(t)</span> grow, and
+          <span class="tex">t</span> is the time of the last cell found. In
+          Pairs mode, each pair's geodesic is found by Dijkstra's algorithm from
+          one particle, stopped when it reaches the other. The whole plane is a
+          box around the start that grows: a path that leaves the box crosses a
+          cell on its edge first, so the box gives the plane's
+          <span class="tex">T</span> for every cell found before the first one
+          on its edge. Then the box doubles, and every edge keeps its time. In
+          Pairs mode on the whole plane, the particles are uniform in the
+          middle of the first box.
+        </p>
+        <p>
+          <strong>Other lattices.</strong> The Lattice menu puts the cells on
+          a tiling of the plane by regular polygons (its tiles or its corners),
+          or on one of Penrose's tilings; on the hyperbolic plane or a tree, the
+          domain is the ball of every cell within <span class="tex">R</span>
+          steps of the start. There <span class="tex">|x|</span> is the
+          number of steps from the start, not a length.
+        </p>
+        <p><strong>References</strong></p>
+        <ol class="references">
+          <li>J. M. Hammersley, D. J. A. Welsh, &ldquo;First-passage percolation,
+            subadditive processes, stochastic networks, and generalized renewal
+            theory&rdquo;, in <em>Bernoulli, Bayes, Laplace Anniversary Volume</em>,
+            Springer, 1965, 61&ndash;110.</li>
+          <li>A. Auffinger, M. Damron, J. Hanson, <em>50 Years of First-Passage
+            Percolation</em>, University Lecture Series 68, American Mathematical
+            Society, 2017, <a href="https://arxiv.org/abs/1511.03262">arXiv:1511.03262</a>.</li>
+          <li>M. Eden, &ldquo;A two-dimensional growth process&rdquo;, in
+            <em>Proceedings of the Fourth Berkeley Symposium on Mathematical
+            Statistics and Probability</em>, Vol. 4, University of California
+            Press, 1961, 223&ndash;239.</li>
+          <li>D. Richardson, &ldquo;Random growth in a tessellation&rdquo;,
+            <em>Proceedings of the Cambridge Philosophical Society</em> 74 (1973),
+            515&ndash;528.</li>
+          <li>J. T. Cox, R. Durrett, &ldquo;Some limit theorems for percolation
+            processes with necessary and sufficient conditions&rdquo;,
+            <em>Ann. Probab.</em> 9 (1981), 583&ndash;603.</li>
+          <li>H. Kesten, &ldquo;Aspects of first passage percolation&rdquo;, in
+            <em>&Eacute;cole d'&Eacute;t&eacute; de Probabilit&eacute;s de
+            Saint-Flour XIV</em>, Lecture Notes in Mathematics 1180, Springer,
+            1986, 125&ndash;264.</li>
+          <li>H. Kesten, &ldquo;The critical probability of bond percolation on
+            the square lattice equals 1/2&rdquo;, <em>Comm. Math. Phys.</em> 74
+            (1980), 41&ndash;59.</li>
+          <li>S. E. Alm, M. Deijfen, &ldquo;First passage percolation on
+            <span class="tex">\mathbb{Z}^2</span>: a simulation study&rdquo;,
+            <em>J. Stat. Phys.</em> 161 (2015), 657&ndash;678.</li>
+          <li>R. Durrett, T. M. Liggett, &ldquo;The shape of the limit set in
+            Richardson's growth model&rdquo;, <em>Ann. Probab.</em> 9 (1981),
+            186&ndash;193.</li>
+          <li>R. Marchand, &ldquo;Strict inequalities for the time constant in
+            first passage percolation&rdquo;, <em>Ann. Appl. Probab.</em> 12
+            (2002), 1001&ndash;1038.</li>
+          <li>K. Johansson, &ldquo;Shape fluctuations and random matrices&rdquo;,
+            <em>Comm. Math. Phys.</em> 209 (2000), 437&ndash;476.</li>
+          <li>I. Benjamini, G. Kalai, O. Schramm, &ldquo;First passage percolation
+            has sublinear distance variance&rdquo;, <em>Ann. Probab.</em> 31
+            (2003), 1970&ndash;1978.</li>
+          <li>M. Bena&iuml;m, R. Rossignol, &ldquo;Exponential concentration for
+            first passage percolation through modified Poincar&eacute;
+            inequalities&rdquo;, <em>Ann. Inst. Henri Poincar&eacute; Probab.
+            Stat.</em> 44 (2008), 544&ndash;573.</li>
+          <li>C. M. Newman, &ldquo;A surface view of first-passage
+            percolation&rdquo;, in <em>Proceedings of the International Congress
+            of Mathematicians, Z&uuml;rich 1994</em>, Birkh&auml;user, 1995,
+            1017&ndash;1023.</li>
+          <li>C. Licea, C. M. Newman, &ldquo;Geodesics in two-dimensional
+            first-passage percolation&rdquo;, <em>Ann. Probab.</em> 24 (1996),
+            399&ndash;410.</li>
+          <li>M. Damron, J. Hanson, &ldquo;Busemann functions and infinite
+            geodesics in two-dimensional first-passage percolation&rdquo;,
+            <em>Comm. Math. Phys.</em> 325 (2014), 917&ndash;963.</li>
+          <li>C. Hoffman, &ldquo;Geodesics in first passage percolation&rdquo;,
+            <em>Ann. Appl. Probab.</em> 18 (2008), 1944&ndash;1969.</li>
+          <li>M. Damron, J. Hanson, &ldquo;Bigeodesics in first-passage
+            percolation&rdquo;, <em>Comm. Math. Phys.</em> 349 (2017),
+            753&ndash;776.</li>
+          <li>S. Chatterjee, &ldquo;The universal relation between scaling
+            exponents in first-passage percolation&rdquo;, <em>Ann. of Math.</em>
+            177 (2013), 663&ndash;697.</li>
+          <li>H. Edelsbrunner, D. Letscher, A. Zomorodian, &ldquo;Topological
+            persistence and simplification&rdquo;, <em>Discrete Comput. Geom.</em>
+            28 (2002), 511&ndash;533.</li>
+          <li>R. Durrett, <em>Probability: Theory and Examples</em>, 5th ed.,
+            Cambridge University Press, 2019.</li>
+          <li>E. W. Dijkstra, &ldquo;A note on two problems in connexion with
+            graphs&rdquo;, <em>Numer. Math.</em> 1 (1959), 269&ndash;271.</li>
+        </ol>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <!-- KaTeX (https://katex.org) typesets the formulas, and math.js
+       (https://mathjs.org) reads the typed law. The version numbers are
+       fixed so an update can never change the site by surprise. -->
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/katex.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjs@15.2.0/lib/browser/math.js"></script>
+
+  <!-- The code the sims share (in js/, see the README): page helpers
+       (they also typeset the formulas, so they come after KaTeX), the
+       run loop and the seeded random numbers, charts, colors, domains,
+       the picture's view (moving and zooming it), the hyperbolic tilings
+       and trees and their pictures, the tilings by regular polygons, the
+       options and controls of the domain, the shape and holes of a set of
+       cells, typed formulas and the law box. Then the model, then this
+       page's code. -->
+  <script src="../../js/sim-page.js"></script>
+  <script src="../../js/sim-worker.js"></script>
+  <script src="../../js/sim-charts.js"></script>
+  <script src="../../js/sim-colors.js"></script>
+  <script src="../../js/sim-domains.js"></script>
+  <script src="../../js/sim-view.js"></script>
+  <script src="../../js/sim-graphs.js"></script>
+  <script src="../../js/sim-hyperbolic.js"></script>
+  <script src="../../js/sim-tilings.js"></script>
+  <script src="../../js/sim-penrose.js"></script>
+  <script src="../../js/sim-controls.js"></script>
+  <script src="../../js/sim-shape.js"></script>
+  <script src="../../js/formulas.js"></script>
+  <script src="../../js/sim-laws.js"></script>
+  <script src="first-passage-percolation-rule.js"></script>
+  <script src="first-passage-percolation.js"></script>
+
+</body>
+</html>
