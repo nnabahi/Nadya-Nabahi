@@ -665,8 +665,8 @@ const RADIUS_GRAY = "#c9c6bf";
 
 // The farthest cell in each direction (radii[k] for the slice k of the
 // circle, from -180 degrees: newShape, js/sim-shape.js), over their
-// average, as a loop around the start: a disk would be the gray circle (radius 1). Directions with
-// no site yet are left out.
+// average, as a loop around the start: a disk would be the gray circle
+// (radius 1). Directions with no site yet are left out.
 function radiusChart(canvas, radii) {
   const pen = chartPen(canvas);
   const w = canvas.clientWidth, h = canvas.clientHeight;
