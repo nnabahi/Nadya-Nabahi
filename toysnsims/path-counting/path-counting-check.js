@@ -11,20 +11,25 @@
      2. Every path listed: on small grids, every path from (x, y) to
         (0, 0) is walked one by one, written separately from the sim,
         and the products of the weights along them are added up. That
-        must match f, for random open/closed edges, random weights and
-        your periodic rule.
+        must match f, for random open/closed edges, random weights (of
+        two laws) and your periodic rule.
 
      3. Reading formulas: Desmos's piecewise {condition: a, b}, your own
-        functions and the rest, on formulas with known answers.
+        functions, random variables and the rest, on formulas with known
+        answers; the letters that get sliders; and lines that must be
+        refused.
 
      4. Your periodic rule, as typed in the sim: d(y) is one number per
         row, and the edges open are exactly those where d(y) divides x.
 
-     5. Coupled random(): worked out again it gives the same number;
-        another seed, X instead of Y, or another point gives another;
-        and 100,489 of them fall equally often in 10 equal parts of
-        [0, 1) (Pearson's chi-square test, from js/check-page.js).
-        Coupling: an edge open at p = 0.3 is still open at p = 0.6.
+     5. The random variables: worked out again, a name gives the same
+        number; another seed or another point gives another; X and Y at
+        one point share it; two names differ; each input of your own
+        function is a place of its own (d(4) is the same everywhere); and
+        the 100,489 copies of u ~ unif(0, 1) on the grid fall equally
+        often in 10 equal parts of [0, 1) (Pearson's chi-square test,
+        from js/check-page.js). Coupling: an edge open at p = 0.3 is
+        still open at p = 0.6.
 
      6. The lines at angle t: every grid point is on exactly one line,
         each line has one point per column (or row), within half a step
@@ -47,11 +52,18 @@
    ===================================================================== */
 
 // The weights { X, Y } from formula text, as the sim makes them: X, Y,
-// your own functions (one per line), the sliders' values, N and the seed.
-function typed(X, Y, definitions, values, N, seed) {
+// your own functions (one per line), the lines of the Random variables
+// box, the sliders' values, N and the seed.
+function typed(X, Y, definitions, lines, values, N, seed) {
   const defs = definitions.split("\n").filter(function (t) { return t.trim() !== ""; }).map(readDefinition);
-  return makeWeights({ X: readTree(X), Y: readTree(Y) }, defs, values || {}, N, seed || "check");
+  const declared = readRandomVariables(lines, ["x", "y", "N"]);
+  checkDefinitions(defs, declared);
+  const variables = makeRandomVariables(declared, values || {});
+  return makeWeights({ X: readTree(X), Y: readTree(Y) }, defs, variables, N, seed || "check");
 }
+
+// The lines of two uniform random variables, u and v.
+const UNIFORMS = "u ~ unif(0, 1)\nv ~ unif(0, 1)";
 
 // Close enough, for numbers that may be huge: relative error below "tolerance".
 function near(a, b, tolerance) {
@@ -98,14 +110,14 @@ function sumOverPaths(x, y, weightX, weightY) {
 function testEveryPath() {
   const N = 7;
   const cases = [
-    ["open with chance 0.6", "{random() < 0.6: 1, 0}", "{random() < 0.6: 1, 0}", ""],
-    ["weights uniform on [0, 2]", "2 random()", "2 random()", ""],
-    ["your periodic rule, p = 0.5", "1", "{mod(x, d(y)) = 0: 1, 0}", "d(y) = {random() < 0.5: 3, 2}"],
+    ["open with chance 0.6", "{u < 0.6: 1, 0}", "{v < 0.6: 1, 0}", "", UNIFORMS],
+    ["weights a ~ unif(0, 2) and b ~ exp(1)", "a", "b", "", "a ~ unif(0, 2)\nb ~ exp(1)"],
+    ["your periodic rule, p = 0.5", "1", "{mod(x, d(y)) = 0: 1, 0}", "d(y) = {u < 0.5: 3, 2}", "u ~ unif(0, 1)"],
   ];
-  for (const [name, X, Y, defs] of cases) {
+  for (const [name, X, Y, defs, lines] of cases) {
     let worst = 0;
     for (const seed of ["a", "b", "c"]) {
-      const w = typed(X, Y, defs, {}, N, seed);
+      const w = typed(X, Y, defs, lines, {}, N, seed);
       const paths = countPaths(N, w.X, w.Y);
       for (let y = 0; y <= N; y++) for (let x = 0; x <= N; x++) {
         const listed = sumOverPaths(x, y, w.X, w.Y), L = paths.logF[spot(N, x, y)];
@@ -127,31 +139,42 @@ function testFormulas() {
     ["{x < 1: 1, x < 3: 2, 3}", 2, 0, 2], ["{x < 1: 1, x < 3: 2, 3}", 5, 0, 3],
     ["{x > 0: {y > 0: 1, 2}, 3}", 1, 0, 2], ["{x > 0: {y > 0: 1, 2}, 3}", 0, 4, 3],
     ["{mod(x, 3) = 0: 1, 0}", 6, 0, 1], ["{mod(x, 3) = 0: 1, 0}", 7, 0, 0],
-    ["xy + 1", 3, 4, 13], ["random() < 2", 5, 0, 1], ["g(x + 1, 2)", 3, 0, 10],
+    ["xy + 1", 3, 4, 13], ["u < 2", 5, 0, 1], ["u - u", 5, 0, 0], ["g(x + 1, 2)", 3, 0, 10],
   ];
   const wrong = [];
   for (const [text, x, y, want] of cases) {
-    const got = typed(text, "0", "g(a, b) = a b + b", {}, 10).X(x, y);
+    const got = typed(text, "0", "g(a, b) = a b + b", "u ~ unif(0, 1)", {}, 10).X(x, y);
     if (!(got === want || (isNaN(got) && isNaN(want)))) wrong.push(text + " at (" + x + ", " + y + ") gave " + got + ", not " + want);
   }
-  let braceError = false, definitionError = false;
-  try { readTree("{x > 2: 1"); } catch (problem) { braceError = true; }
-  try { readDefinition("d = 3"); } catch (problem) { definitionError = true; }
-  const letters = sliderLetters(readTree("{random() < p: 1, 0} + N")).filter(function (l) { return l !== "N"; });
-  const ok = wrong.length === 0 && braceError && definitionError && letters.join() === "p";
-  addRow("Reading formulas: piecewise {c: a, b}, mod, xy, random(), your own functions", ok,
-    wrong.length ? wrong.join("; ") : (braceError ? "" : "A missing } gave no error. ") +
-      (definitionError ? "" : "\"d = 3\" was read as a function. ") +
-      "All " + cases.length + " formulas gave the right values; the sliders of {random() < p: 1, 0} + N are [" +
-      letters.join(", ") + "] (should be [p]).");
+  // Lines that must be refused: a missing }, a function without
+  // inputs, a random variable's name as a function's input, and the
+  // sim's own letters in the box.
+  const refused = [
+    function () { readTree("{x > 2: 1"); },
+    function () { readDefinition("d = 3"); },
+    function () { typed("d(1)", "0", "d(u) = u + 1", "u ~ unif(0, 1)", {}, 10); },
+    function () { readRandomVariables("y ~ exp(1)", ["x", "y", "N"]); },
+    function () { readRandomVariables("w ~ unif(0, N)", ["x", "y", "N"]); },
+  ].filter(function (read) { try { read(); return true; } catch (problem) { return false; } }).length;
+  // The sliders: the box's letters first, then X's, Y's and the
+  // functions', but not x, y, N, the random variables, a function's
+  // inputs or its name.
+  const declared = readRandomVariables("u ~ unif(0, s)", ["x", "y", "N"]);
+  const letters = weightLetters({ X: readTree("{u < p: 1, 0} + N"), Y: readTree("q g(x, y)") },
+                                [readDefinition("g(a, b) = a b + c")], declared);
+  const ok = wrong.length === 0 && refused === 0 && letters.join() === "s,p,q,c";
+  addRow("Reading formulas: piecewise {c: a, b}, mod, xy, random variables, your own functions", ok,
+    wrong.length ? wrong.join("; ") : (refused ? refused + " lines that should be refused were read. " : "") +
+      "All " + cases.length + " formulas gave the right values, and 5 bad lines were refused; the sliders are [" +
+      letters.join(", ") + "] (should be [s, p, q, c]).");
 }
 
 
 /* 4. Your periodic rule -------------------------------------------------- */
 function testPeriodic() {
   const N = 40, p = 0.37;
-  const w = typed("1", "{mod(x, d(y)) = 0: 1, 0}", "d(y) = {random() < p: 3, 2}", { p: p }, N, "periodic");
-  const rows = typed("d(y)", "0", "d(y) = {random() < p: 3, 2}", { p: p }, N, "periodic").X;   // d(y) itself
+  const w = typed("1", "{mod(x, d(y)) = 0: 1, 0}", "d(y) = {u < p: 3, 2}", "u ~ unif(0, 1)", { p: p }, N, "periodic");
+  const rows = typed("d(y)", "0", "d(y) = {u < p: 3, 2}", "u ~ unif(0, 1)", { p: p }, N, "periodic").X;   // d(y) itself
   let wrong = 0, threes = 0, notPerRow = 0;
   for (let y = 1; y <= N; y++) {
     const d = rows(1, y);
@@ -168,14 +191,18 @@ function testPeriodic() {
 }
 
 
-/* 5. Coupled random() ---------------------------------------------------- */
+/* 5. The random variables ---------------------------------------------- */
 function testRandom() {
   const N = 316;                       // 317 x 317 = 100,489 points
-  const a = typed("random()", "random()", "", {}, N, "1"), again = typed("random()", "random()", "", {}, N, "1");
-  const other = typed("random()", "random()", "", {}, N, "2");
-  const same = a.X(3, 4) === again.X(3, 4) && a.X(3, 4) === a.X(3, 4);
-  const differs = a.X(3, 4) !== other.X(3, 4) && a.X(3, 4) !== a.Y(3, 4) && a.X(3, 4) !== a.X(4, 3);
-  const two = typed("random() - random()", "0", "", {}, N, "1").X(3, 4) !== 0;   // two random()s in one formula
+  const a = typed("u", "u", "", UNIFORMS, {}, N, "1"), again = typed("u", "u", "", UNIFORMS, {}, N, "1");
+  const other = typed("u", "u", "", UNIFORMS, {}, N, "2");
+  const same = a.X(3, 4) === again.X(3, 4) && a.X(3, 4) === a.X(3, 4) && a.X(3, 4) === a.Y(3, 4);
+  const differs = a.X(3, 4) !== other.X(3, 4) && a.X(3, 4) !== a.X(4, 3);
+  const two = typed("u - v", "0", "", UNIFORMS, {}, N, "1").X(3, 4) !== 0;   // two names
+  // Your function's own places: d(4) is the same from every point, and
+  // it is not the u of the point itself.
+  const d = typed("d(4)", "d(y)", "d(y) = u", "u ~ unif(0, 1)", {}, N, "1"), own = typed("u", "d(y)", "d(y) = u", "u ~ unif(0, 1)", {}, N, "1");
+  const ownPlaces = d.X(1, 0) === d.X(7, 3) && d.X(1, 0) === d.Y(5, 4) && own.X(5, 4) !== own.Y(5, 4);
   const counts = new Array(10).fill(0);
   let outside = 0;
   for (let y = 0; y <= N; y++) for (let x = 0; x <= N; x++) {
@@ -183,17 +210,18 @@ function testRandom() {
     if (v < 0 || v >= 1) outside++; else counts[Math.floor(10 * v)]++;
   }
   const test = equalChiSquare(counts);
-  addRow("random(): kept for each place, separate for X and Y, and uniform on [0, 1)",
-    same && differs && two && outside === 0 && test.pValue > 0.001,
-    (same ? "Same seed and place, same number. " : "Worked out again, it changed! ") +
-    (differs ? "Another seed, X vs Y, or another point: another number. " : "Two different places gave the same number! ") +
-    (two ? "" : "Two random()s in one formula were equal! ") +
+  addRow("Random variables: one number per name at each point, shared by X and Y, and uniform on [0, 1)",
+    same && differs && two && ownPlaces && outside === 0 && test.pValue > 0.001,
+    (same ? "Same seed and point, same number, in X and in Y. " : "Worked out again (or in Y), it changed! ") +
+    (differs ? "Another seed or another point: another number. " : "Two different places gave the same number! ") +
+    (two ? "" : "Two names gave the same number! ") +
+    (ownPlaces ? "d(4) is the same from every point, with its own u. " : "Your function's places are wrong! ") +
     "10 equal parts of [0, 1), 100,489 points: chi-square " + test.statistic.toFixed(2) + " with " + test.degrees +
     " degrees of freedom, p-value " + test.pValue.toFixed(3) + (outside ? ", " + outside + " outside [0, 1)" : "") + ".");
 
   const small = 30;
-  const low = typed("{random() < p: 1, 0}", "1", "", { p: 0.3 }, small, "1").X;
-  const high = typed("{random() < p: 1, 0}", "1", "", { p: 0.6 }, small, "1").X;
+  const low = typed("{u < p: 1, 0}", "1", "", "u ~ unif(0, 1)", { p: 0.3 }, small, "1").X;
+  const high = typed("{u < p: 1, 0}", "1", "", "u ~ unif(0, 1)", { p: 0.6 }, small, "1").X;
   let closed = 0;
   for (let y = 0; y <= small; y++) for (let x = 0; x <= small; x++) if (low(x, y) === 1 && high(x, y) !== 1) closed++;
   addRow("Coupling: moving p up only opens edges", closed === 0,
@@ -231,7 +259,7 @@ function testLines() {
 /* 7. Normalizing ------------------------------------------------------- */
 function testHeights() {
   const N = 40;
-  const w = typed("{random() < 0.7: 1, 0}", "2 random()", "", {}, N, "heights");
+  const w = typed("{u < 0.7: 1, 0}", "2 v", "", UNIFORMS, {}, N, "heights");
   const paths = countPaths(N, w.X, w.Y);
   const problems = [];
   for (const degrees of [45, 70, 20]) {
@@ -268,8 +296,8 @@ function testBell() {
 /* The gray note -------------------------------------------------------- */
 function testNote() {
   const N = 10;
-  const gates = typed("{random() < 0.5: 1, 0}", "1", "", {}, N), twos = typed("2", "random() < 0.5", "", {}, N);
-  const negative = typed("1", "x - 3", "", {}, N);
+  const gates = typed("{u < 0.5: 1, 0}", "1", "", UNIFORMS, {}, N), twos = typed("2", "u < 0.5", "", UNIFORMS, {}, N);
+  const negative = typed("1", "x - 3", "", "", {}, N);
   const a = countPaths(N, gates.X, gates.Y), b = countPaths(N, twos.X, twos.Y), c = countPaths(N, negative.X, negative.Y);
   const ok = !a.notZeroOne.X && !a.notZeroOne.Y && b.notZeroOne.X && !b.notZeroOne.Y && c.notZeroOne.Y && c.negative > 0;
   addRow("The gray note: only weights other than 0 and 1 count", ok,

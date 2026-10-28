@@ -8,7 +8,8 @@ algorithms), [math.js](https://mathjs.org) (reads typed formulas),
 [KaTeX](https://katex.org) (shows them as typeset math),
 [seedrandom](https://github.com/davidbau/seedrandom) (random numbers that
 repeat for the same seed), [three.js](https://threejs.org) (the 3D view)
-and, on the check pages, [jStat](https://jstat.github.io) (statistics).
+and [jStat](https://jstat.github.io) (statistics on the check pages, and
+the special functions some laws of random variables need).
 
 ## What's where
 
@@ -26,6 +27,7 @@ and, on the check pages, [jStat](https://jstat.github.io) (statistics).
 | `js/writing.js` | Sorts the posts on `writing.html` newest first, turns their Markdown into formatted text with math, and adds the giscus comment box to an open post |
 | `js/genre-filter.js` | Sorts the cards on `toysnsims.html` A to Z (the graph tool pinned first), builds the genre buttons and hides/shows cards |
 | `help/gomjau-hogg.html` | Help page: how to write a tiling as a GomJau-Hogg code (linked from the Lattice code box), with `gomjau-hogg.js` for its "Try a code" box |
+| `help/random-variables.html` | Help page: how to type random variables in the Random variables box (linked from the box), with `random-variables.js` for its "Try it" box and the tables of every law (made from the catalog); `random-variables-check.html` tests the laws and the random variables |
 | `SIMS.md` | Planning list of candidate sims and their status (not shown on the site) |
 | `SIMS-priority.md` | Claude's ranking of the `SIMS.md` ideas, sims vs toys (not shown on the site) |
 | `MODELS.md` | Every model in nadya's Programming folder, sorted into families (not shown on the site) |
@@ -57,9 +59,10 @@ a link back to the sim.
 | `toysnsims/sandpiles/` | Sandpiles (the abelian sandpile, storms, avalanches, the identity; on the square grid or any tiling's tiles or corners, each cell toppling at its number of neighbors) | `-pile.js`: the toppling rule, in a second thread | nadya's Python, the abelian property, the identity, no sink, tilings with mixed thresholds |
 | `toysnsims/uniform-discrete-tiling/` | Uniform Discrete Tiling (rectangles, with or without gaps, or rhombi and other pairs on triangles and hexagons; every packing equally likely) | `-chain.js`: the Markov chain, in a second thread | every packing equally likely, counting tilings, the arctic circle |
 | `toysnsims/sequential-continuous-tiling/` | Sequential Continuous Tiling (continuous space; any typed domain, tile and density) | `-growth.js`: growing each tile, in a second thread | nadya's gasket formula, known answers, invariants |
-| `toysnsims/sinusoid-ish/` | Sinusoid-ish (roots at random gaps from a typed set; f, its lobes and their histograms) | `-roots.js`: the roots, f, peaks and lobes, in the page | Euler's sine product, stationarity, a picture to compare with nadya's Python |
-| `toysnsims/path-counting/` | Lattice path counting (paths home through edges with typed weights X and Y; f along a line a x + b y = c and its bell curve; 3D surface) | `-math.js`: log f on the grid, the line, the scaled heights, u(...), in the page | binomial coefficients, every path listed, the periodic rule, u(...) and coupling, the line, normalizing, the bell curve |
-| `toysnsims/matrix-products/` | Matrix Products toy (random 2x2 matrices multiply a cloud of vectors) | `-math.js`: reading the matrices, the runs, the growth rate, in the page | exact odds, averages, invariants, the growth rate |
+| `toysnsims/first-passage-percolation/` | First Passage Percolation (a random passage time w on every edge or cell, from the Random variables box; the ball B(t) growing, or geodesics between random pairs; whole plane, box, torus, drawn domain, hyperbolic tilings and trees, on the square grid or any tiling's tiles or corners) | `-rule.js`: the passage times and Dijkstra's algorithm, in the page | the passage times and their laws, the domains, Dijkstra, distances, exponential times as Eden growth and Richardson's model, coupling, the whole plane, holes, pairs |
+| `toysnsims/sinusoid-ish/` | Sinusoid-ish (roots at random gaps g, a random variable from the Random variables box; f, its lobes and their histograms) | `-roots.js`: the roots, f, peaks and lobes, in the page | Euler's sine product, stationarity, a picture to compare with nadya's Python |
+| `toysnsims/path-counting/` | Lattice path counting (paths home through edges with typed weights X and Y; f along a line a x + b y = c and its bell curve; 3D surface) | `-math.js`: log f on the grid, the line, the scaled heights, the weights with their random variables, in the page | binomial coefficients, every path listed, the periodic rule, the random variables and coupling, the line, normalizing, the bell curve |
+| `toysnsims/matrix-products/` | Matrix Products toy (random 2x2 matrices multiply a cloud of vectors; the entries can use random variables) | `-math.js`: reading the matrices, the runs, the growth rate, in the page | exact odds, averages, invariants, the growth rate, random entries and coupling |
 
 ### Code the sims share (`js/`)
 
@@ -80,6 +83,9 @@ a link back to the sim.
 | `js/sim-spanning.js` | Spanning trees: Wilson's algorithm one step at a time (with each cell's "color"), counting spanning trees (Kirchhoff's matrix-tree theorem), distances and paths in a tree, and moving a tree to a new root (Uniform Spanning Tree, Connected Coloring) |
 | `js/sim-3d.js` | The 3D view (stacks of cubes or coins, colored by height and, if a sim asks, by the kind of cell; or a colored surface with balls on it; lines on the floor or over the stacks; turned with the mouse), loaded only when a sim switches to 3D |
 | `js/formulas.js` | Typed formulas and their sliders, like Desmos, with piecewise {condition: a, b} (the graph tool and the sims that take formulas) |
+| `js/sim-laws.js` | The law of a random number, kept as its distribution function F: read from a typed density (with point masses), drawn from by F<sup>-1</sup>(U), and charted |
+| `js/sim-law-catalog.js` | The named laws, like `normal(0, 1)`, `weibull(k, λ)` or `cantor()`, each with its formulas and source (the help page's tables are made from it) |
+| `js/sim-random.js` | Named random variables (`u ~ unif(0, 1)`, `X = max(u, v)`, families `d_k`, `sum` and `prod`), one copy per place a sim names, coupled sliders, many draws at once and averages, and the Random variables box itself (FPP, Sinusoid-ish, Matrix Products, Lattice Path Counting) |
 | `js/check-page.js` | The check pages' results table, "Run the checks" button and shared tests (chi-square, z-score, counting holes plainly, and the holes of a tiling's cells by Euler's formula and from the polygons) |
 
 ## Common changes

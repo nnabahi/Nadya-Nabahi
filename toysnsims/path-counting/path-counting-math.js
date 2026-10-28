@@ -18,11 +18,15 @@
    coefficient C(x + y, x), about 2^(x + y)), so everything is kept as
    log f, which never gets too big for the computer's numbers.
 
-   The page and the check page both load this file. The page loads
-   math.js and js/formulas.js before it, for reading the formulas.
+   The page and the check page both load this file. They load math.js,
+   js/formulas.js and the random variables (js/sim-worker.js,
+   js/sim-laws.js, js/sim-law-catalog.js, js/sim-random.js) before it,
+   for reading the formulas.
 
    Contents:
-     readDefinition(text)          a line like  d(y) = {random() < p: 3, 2}
+     readDefinition(text)          a line like  d(y) = {u < p: 3, 2}
+     checkDefinitions(...)         your functions can't reuse a random variable's name
+     weightLetters(...)            the letters of the formulas that get a slider
      makeWeights(...)              the typed formulas as weights X(x, y), Y(x, y)
      countPaths(N, X, Y)           log f on the whole grid
      makeLine(N, angle)            the lines at right angles to a direction
@@ -35,46 +39,28 @@
 
 
 /* ---------------------------------------------------------------------
-   The weights, and coupled random()
+   The weights, and their random variables
    ---------------------------------------------------------------------
    X(x, y) and Y(x, y) are typed formulas (read by readTree,
    js/formulas.js). You can also define your own functions, one per
    line, like
-       d(y) = {random() < p: 3, 2}
+       d(y) = {u < p: 3, 2}
    and use them in X and Y: Y = {mod(x, d(y)) = 0: 1, 0}.
 
-   random() is COUPLED, as on the old site: each random() is a random
-   number from 0 to 1 that is drawn once and then kept. It is fixed for
-   its place in the formula and for where the formula is worked out:
-   random() in X at (3, 5) is one number, random() in Y at (3, 5)
-   another, and random() in d(y) is one number per row y (so d(4) is
-   the same wherever it is used). Moving a slider never redraws them,
-   so in {random() < p: 1, 0} edges only switch ON as p goes up. The
-   "New randomness" button (a new seed) redraws them all.
-
-   How: the seed, the formula's name and inputs, and which random() it
-   is (the first, second, ... in the formula) are written as text, like
-   "5|Y(3,5)|0", and mixed by the hash function cyrb53 (by bryc, public
-   domain,
-   https://github.com/bryc/code/blob/master/jshash/experimental/cyrb53.js)
-   into a whole number of 53 bits, which is divided by 2^53.
+   The formulas can use the random variables of the Random variables
+   box (js/sim-random.js), like u ~ unif(0, 1). Each point (x, y) is a
+   "place" with its own independent copy of every name, one number in
+   both X and Y there; and each of your functions has a place for each
+   input it is given: u in d(y) is one number per row y, so d(4) is the
+   same wherever it is used. Each copy is F^-1(U), for a uniform number U
+   fixed by the seed, the name and the place (newDrawer,
+   js/sim-random.js), so moving a slider never redraws U: in
+   {u < p: 1, 0}, edges only switch ON as p goes up. The "New
+   randomness" button (a new seed) redraws them all.
    --------------------------------------------------------------------- */
-function cyrb53(text) {
-  let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
-  for (let i = 0; i < text.length; i++) {
-    const ch = text.charCodeAt(i);
-    h1 = Math.imul(h1 ^ ch, 2654435761);
-    h2 = Math.imul(h2 ^ ch, 1597334677);
-  }
-  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507);
-  h1 ^= Math.imul(h2 ^ (h2 >>> 13), 3266489909);
-  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507);
-  h2 ^= Math.imul(h1 ^ (h1 >>> 13), 3266489909);
-  return 4294967296 * (2097151 & h2) + (h1 >>> 0);
-}
 
-// A line like "d(y) = {random() < p: 3, 2}" read as { name: "d",
-// inputs: ["y"], tree }. Throws an error if it isn't of that form.
+// A line like "d(y) = {u < p: 3, 2}" read as { name: "d", inputs: ["y"],
+// tree }. Throws an error if it isn't of that form.
 function readDefinition(text) {
   const parts = text.match(/^\s*([A-Za-z]\w*)\s*\(([^()]*)\)\s*=(.*)$/);
   if (!parts) throw new Error("write it like d(y) = ...");
@@ -82,50 +68,69 @@ function readDefinition(text) {
   return { name: parts[1], inputs: inputs, tree: readTree(parts[3]) };
 }
 
-// Number the random()s in a formula: the k-th one becomes rnd(k), which
-// knows where the formula is being worked out (see makeWeights).
-function numberRandoms(tree) {
-  let k = 0;
-  return tree.transform(function (node) {
-    if (node.isFunctionNode && node.fn.name === "random" && node.args.length === 0) {
-      return new math.FunctionNode(new math.SymbolNode("rnd"), [new math.ConstantNode(k++)]);
+// Your functions next to the random variables ("declared"): a
+// function's name or input can't also be a random variable's name (in
+// d(u) = ..., would u be the input or the random variable?). Throws an
+// Error saying which, if one is.
+function checkDefinitions(definitions, declared) {
+  for (const def of definitions) {
+    for (const letter of [def.name].concat(def.inputs)) {
+      if (!declared.byName.has(letter)) continue;
+      throw new Error(letter + " is a random variable (in the box), so it can't also be " +
+        (letter === def.name ? "the name of your function " : "an input of ") + def.name + "(" + def.inputs.join(", ") + ").");
     }
-    return node;
-  });
+  }
+}
+
+// The letters that get a slider: the Random variables box's
+// ("declared"), then every other letter in X, Y and your functions but
+// x, y, N, a function's own inputs, the random variables and your
+// functions' names.
+function weightLetters(trees, definitions, declared) {
+  const own = ["x", "y", "N"], letters = new Set(declared.letters);
+  for (const tree of [trees.X, trees.Y]) for (const letter of randomLetters(tree, declared, own)) letters.add(letter);
+  for (const def of definitions) {
+    for (const letter of randomLetters(def.tree, declared, own.concat(def.inputs))) letters.add(letter);
+  }
+  for (const def of definitions) letters.delete(def.name);
+  return Array.from(letters);
 }
 
 // The weights X(x, y) and Y(x, y) from the two formulas (trees.X and
-// trees.Y), the definitions (from readDefinition), the sliders' values
-// by letter, the grid size N (usable in the formulas) and the seed. A
-// true/false answer (like random() < p) counts as 1/0.
-function makeWeights(trees, definitions, values, N, seed) {
-  const scope = Object.assign({ N: N }, values);
-  let where = "";                          // e.g. "Y(3,5)": what is being worked out right now
-  scope.rnd = function (k) { return cyrb53(seed + "|" + where + "|" + k) / 9007199254740992; };   // 2^53
+// trees.Y), your functions (from readDefinition), the random variables
+// with the sliders' values (makeRandomVariables, js/sim-random.js), the
+// grid size N (usable in the formulas) and the seed. A true/false
+// answer (like u < p) counts as 1/0. The places: (0, x, y) for the
+// point (x, y), and (k, inputs...) for your k-th function (k = 1, 2, ...).
+function makeWeights(trees, definitions, variables, N, seed) {
+  const declared = variables.declared, drawer = newDrawer(variables, seed), scope = drawer.scope;
+  scope.set("N", N);
 
   // Each definition becomes a function. While it runs, its inputs are
-  // set to the values it was given (and put back afterward).
-  for (const def of definitions) {
-    const code = numberRandoms(def.tree).compile();
-    scope[def.name] = function () {
-      const given = Array.from(arguments), outer = where;
-      const saved = def.inputs.map(function (v) { return scope[v]; });
-      def.inputs.forEach(function (v, i) { scope[v] = given[i]; });
-      where = def.name + "(" + given.join(",") + ")";
-      try { return code.evaluate(scope); }
-      finally { def.inputs.forEach(function (v, i) { scope[v] = saved[i]; }); where = outer; }
-    };
-  }
-  function weight(tree, name) {
-    const code = numberRandoms(tree).compile();
+  // set to the values it was given (and put back afterward), and its
+  // random variables are those of its own place.
+  definitions.forEach(function (def, k) {
+    const code = prepareFormula(def.tree, declared).compile();
+    scope.set(def.name, function () {
+      const given = Array.from(arguments);
+      const saved = def.inputs.map(function (v) { return scope.get(v); });
+      def.inputs.forEach(function (v, i) { scope.set(v, given[i]); });
+      try { return drawer.within([k + 1].concat(given), function () { return code.evaluate(scope); }); }
+      finally {
+        def.inputs.forEach(function (v, i) { if (saved[i] === undefined) scope.delete(v); else scope.set(v, saved[i]); });
+      }
+    });
+  });
+  function weight(tree) {
+    const code = prepareFormula(tree, declared).compile();
     return function (x, y) {
-      scope.x = x;
-      scope.y = y;
-      where = name + "(" + x + "," + y + ")";
+      scope.set("x", x);
+      scope.set("y", y);
+      drawer.at(0, x, y);
       return Number(code.evaluate(scope));
     };
   }
-  return { X: weight(trees.X, "X"), Y: weight(trees.Y, "Y") };
+  return { X: weight(trees.X), Y: weight(trees.Y) };
 }
 
 

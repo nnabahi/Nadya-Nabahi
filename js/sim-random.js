@@ -64,7 +64,8 @@
 const RANDOM_NAME = /^(\p{L}\d*)(?:_(\d+|\p{L}))?$/u;
 
 // The box's text, read. "reserved" lists the letters the page itself
-// uses (like x and y in Path Counting's X(x, y)), which can't be names.
+// uses (like x and y in Path Counting's X(x, y)), which can't be names
+// or sliders.
 // Returns "declared":
 //   lines        one per line typed (blank lines left out), each with
 //                its name, its kind ("law" or "formula"), and what it
@@ -76,13 +77,13 @@ const RANDOM_NAME = /^(\p{L}\d*)(?:_(\d+|\p{L}))?$/u;
 // Throws an Error with a plain message (and the line's number) if a
 // line can't be read.
 function readRandomVariables(text, reserved) {
-  const declared = { lines: [], byName: new Map(), names: [], letters: [] };
+  const declared = { lines: [], byName: new Map(), names: [], letters: [] }, own = reserved || [];
   const typed = text.split("\n");
   // First every line's name (a formula may use a name from a later line).
   typed.forEach(function (line, k) {
     if (line.trim() === "") return;
     withLineNumber(k, function () {
-      const read = splitLine(line, reserved || []);
+      const read = splitLine(line, own);
       read.number = k + 1;
       if (declared.byName.has(read.name)) throw new Error(read.shown + " is given twice.");
       declared.lines.push(read);
@@ -90,12 +91,16 @@ function readRandomVariables(text, reserved) {
       declared.names.push(read.shown);
     });
   });
-  // Then what each line says.
+  // Then what each line says. (The page's own letters can't be sliders
+  // either: they mean something else there.)
   const letters = new Set();
   for (const line of declared.lines) {
     withLineNumber(line.number - 1, function () {
       readRight(line, declared);
-      for (const letter of line.letters) letters.add(letter);
+      for (const letter of line.letters) {
+        if (own.includes(letter)) throw new Error(letter + " is the sim's own letter, so the random variables can't use it.");
+        letters.add(letter);
+      }
     });
   }
   checkForLoops(declared);
@@ -799,7 +804,8 @@ const RANDOM_EXAMPLES = [
 fillBlocks(".random-box", randomBoxHTML);
 
 // Connect the box. "options":
-//   reserved     the letters the page uses itself (can't be names)
+//   reserved     the letters the page uses itself (can't be names or
+//                sliders in the lines)
 //   needs        the names the page's model uses (FPP's w), if any:
 //                without them the box says what to add
 //   check(variables)  (optional) what is wrong with them for this sim

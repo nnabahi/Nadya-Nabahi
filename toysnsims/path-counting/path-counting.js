@@ -12,8 +12,8 @@
      a slider.
 
    The math is in path-counting-math.js; the formulas and sliders in
-   js/formulas.js; the picture from above in js/sim-view.js; the 3D view
-   in js/sim-3d.js.
+   js/formulas.js; the Random variables box in js/sim-random.js; the
+   picture from above in js/sim-view.js; the 3D view in js/sim-3d.js.
 
    Sections:
      1. Settings you might want to change
@@ -41,15 +41,15 @@ const GROUND = "#d8d8d8";          // the floor in 3D
 const START_ANGLE = Math.PI / 4;    // the direction (cos t, sin t) starts at 45 degrees
 const ANGLE_STEP = Math.PI / 360;   // the angle slider moves half a degree at a time
 
-// The "Start from" choices. Each gives X, Y, your own functions, and the
-// sliders' settings.
+// The "Start from" choices. Each gives X, Y, your own functions, the
+// lines of the Random variables box, and the sliders' settings.
 const PRESETS = {
   // The old site's default: d(y) is 3 with chance p and 2 otherwise, one
   // per row, and the step down from (x, y) is open when d(y) divides x.
-  periodic: { X: "1", Y: "{mod(x, d(y)) = 0: 1, 0}", definitions: "d(y) = {random() < p: 3, 2}",
+  periodic: { X: "1", Y: "{mod(x, d(y)) = 0: 1, 0}", definitions: "d(y) = {u < p: 3, 2}", lines: "u ~ unif(0, 1)",
               sliders: { p: { value: 0.5, min: 0, max: 1, step: 0.01 } } },
   open: { X: "1", Y: "1" },
-  bernoulli: { X: "{random() < p: 1, 0}", Y: "1",
+  bernoulli: { X: "{u < p: 1, 0}", Y: "1", lines: "u ~ unif(0, 1)",
                sliders: { p: { value: 0.5, min: 0, max: 1, step: 0.01 } } },
 };
 
@@ -64,13 +64,22 @@ for (let k = 0; k < 256; k++) PALETTE.push(heatColor(k / 255));
    ---------------------------------------------------------------------
    X, Y and your own functions are read by readTree (js/formulas.js):
    "=" means equals, {condition: a, b} is a piecewise formula, and "xy"
-   means x times y, as in Desmos. Every letter other than x, y, N and a
-   function's own inputs gets a slider (one slider per letter, shared by
-   all the formulas).
+   means x times y, as in Desmos. They can use the random variables of
+   the Random variables box (connectRandomBox, js/sim-random.js). Every
+   other letter but x, y, N and a function's own inputs gets a slider
+   (one slider per letter, shared by all the formulas and the box).
    ===================================================================== */
 let trees = null;          // the two formulas, read: { X, Y }
 let definitions = [];      // your own functions (readDefinition, path-counting-math.js)
 let sliders = {};          // letter -> { value, min, max, step }
+
+// The Random variables box. Typing in it re-reads everything.
+const box = connectRandomBox({
+  reserved: ["x", "y", "N"],
+  onTyped: function () { byId("preset").value = "custom"; },
+  onRead: readFormulas,
+  sliders: function () { return sliders; },
+});
 
 function readFormulas() {
   const read = {}, defs = [];
@@ -86,6 +95,7 @@ function readFormulas() {
       try { defs.push(readDefinition(text)); }
       catch (problem) { throw new Error(text.trim() + ": " + problem.message); }
     }
+    checkDefinitions(defs, box.declared);
   } catch (problem) {
     // Usually just a half-typed formula: keep the last good picture.
     byId("formula-message").textContent = "Can't read it yet. " + problem.message;
@@ -102,26 +112,20 @@ function readFormulas() {
     katex.render(lines.join(" \\\\ "), byId("preview-definitions"), { throwOnError: false, displayMode: true });
   }
 
-  // One slider per letter, in the order the letters first appear (a Set
-  // keeps that order, and each letter once).
-  const letters = new Set(sliderLetters(trees.X).concat(sliderLetters(trees.Y)));
-  for (const def of definitions) {
-    for (const letter of sliderLetters(def.tree)) if (!def.inputs.includes(letter)) letters.add(letter);
-  }
-  letters.delete("N");                     // N is the grid size, not a slider
-  for (const def of definitions) letters.delete(def.name);
-  showSliders(byId("sliders"), letters, sliders, recount);
+  // One slider per letter, in the order the letters first appear.
+  showSliders(byId("sliders"), weightLetters(trees, definitions, box.declared), sliders, recount);
   recount();
 }
 
-// Fill in a preset's formulas and sliders.
+// Fill in a preset's formulas, random variables and sliders (putting
+// its lines in the box reads them, then the formulas).
 function usePreset(key) {
   const p = PRESETS[key];
   byId("formula-X").value = p.X;
   byId("formula-Y").value = p.Y;
   byId("definitions").value = p.definitions || "";
   for (const letter in p.sliders || {}) sliders[letter] = Object.assign({}, p.sliders[letter]);
-  readFormulas();
+  box.setText(p.lines || "");
 }
 
 
@@ -141,11 +145,14 @@ let lineNumber = 60;       // which of them is shown: the one at distance c = li
 let points = [];           // the grid points on it
 let stats = null;          // f along the line (lineStats)
 
+// (While the random variables can't be made, the box says why, and the
+// last good picture stays.)
 function recount() {
   if (!trees) return;
-  const values = sliderValues(sliders);
+  const variables = box.build(sliderValues(sliders));
+  if (!variables) return;
   try {
-    const weights = makeWeights(trees, definitions, values, N, byId("seed").value);
+    const weights = makeWeights(trees, definitions, variables, N, byId("seed").value);
     paths = countPaths(N, weights.X, weights.Y);
   } catch (problem) {
     byId("formula-message").textContent = "Can't work it out: " + problem.message;
