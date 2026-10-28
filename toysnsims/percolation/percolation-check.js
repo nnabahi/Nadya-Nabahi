@@ -509,9 +509,11 @@ function testTreeBall(kind, degree, R, p) {
 
 // The kinds of corner a tiling's name in the Lattice menu says, the
 // short way and sorted: "Kagome (3.6.3.6)" says 3.6.3.6, and
-// "[3⁶; 3⁴.6]¹" says 3⁶ and 3⁴.6 (the ¹ is a label).
+// "[3⁶; 3⁴.6]¹" says 3⁶ and 3⁴.6 (the ¹ is a label). A note after a
+// comma is not a corner: "Truncated square (4.8², 8 neighbors square)"
+// says 4.8².
 function cornersInName(name) {
-  const inside = /\((.*)\)$/.exec(name);
+  const inside = /\(([^,]*)(, .*)?\)$/.exec(name);
   const list = inside ? inside[1] : name.replace(/\][¹²³⁴]$/, "").replace(/[\[\]]/g, "");
   return list.split(";").map(function (s) { return s.trim(); }).sort();
 }
