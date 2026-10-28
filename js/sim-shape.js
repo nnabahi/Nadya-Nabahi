@@ -25,6 +25,7 @@
      bettiOverTime(holes, times)   the number of holes at given steps
      holeReporter()            the holes for a sim's reports, kept up
                                to date without slowing a run down
+     newRefresher()            an answer kept up to date that way
      frontierLength(set)       the length of the set's outer boundary
      cellWindow(...)           the cells around a set that these two
                                look at (squareWindow, tilingWindow,
@@ -451,25 +452,39 @@ function bettiOverTime(holes, times) {
 //   cells, sizes   the open ones' cells (holeCells) and sizes
 //   times, beta    beta_1 at the steps "times" up to "step"
 // They are worked out again at each new step, but while "busy" (the
-// sim is playing) at most a fifth of the time; in between, the last
-// ones are given again, for an older step. A new run gets a new
+// sim is playing) only now and then (newRefresher); in between, the
+// last ones are given again, for an older step. A new run gets a new
 // reporter (the holes kept are the old run's).
 function holeReporter() {
-  let holes = null, holesStep = -1, free = 0;
+  const refresh = newRefresher();
   return function report(set, step, busy, times) {
-    const start = performance.now();
-    if (holesStep !== step && (!busy || start >= free)) {
-      holes = holeHistory(set, step);
-      holesStep = step;
-      free = start + 4 * (performance.now() - start);
-    }
-    const upTo = times.filter(function (t) { return t <= holesStep; });
+    const { holes, at } = refresh(step, busy, function () { return { holes: holeHistory(set, step), at: step }; });
+    const upTo = times.filter(function (t) { return t <= at; });
     return {
-      step: holesStep, now: holes.openBirths.length, closed: holes.deaths.length,
+      step: at, now: holes.openBirths.length, closed: holes.deaths.length,
       births: Float64Array.from(holes.births), deaths: Float64Array.from(holes.deaths),
       cells: Int32Array.from(holes.holeCells), sizes: Int32Array.from(holes.holeSizes),
       times: Float64Array.from(upTo), beta: bettiOverTime(holes, upTo),
     };
+  };
+}
+
+// An answer that takes a while to work out, kept up to date without
+// slowing a run down: refresh(key, busy, work) gives work()'s answer,
+// worked out again whenever "key" (what it depends on, like the step)
+// is new, but while "busy" (the sim is playing) at most a fifth of the
+// time: after working it out, it waits four times as long as that took.
+// In between, it gives the last answer again.
+function newRefresher() {
+  let answer, answerKey, free = 0;
+  return function refresh(key, busy, work) {
+    const start = performance.now();
+    if (key !== answerKey && (!busy || start >= free)) {
+      answer = work();
+      answerKey = key;
+      free = start + 4 * (performance.now() - start);
+    }
+    return answer;
   };
 }
 
@@ -478,5 +493,5 @@ function holeReporter() {
 // (js/sim-domains.js).
 function shapeHelpers() {
   return [convexHull, growingHull, polygonArea, polygonPerimeter, newShape, holeHistory, bettiOverTime, holeReporter,
-          frontierLength, cellWindow, squareWindow, tilingWindow, finiteWindow, signedArea, boxAround];
+          newRefresher, frontierLength, cellWindow, squareWindow, tilingWindow, finiteWindow, signedArea, boxAround];
 }

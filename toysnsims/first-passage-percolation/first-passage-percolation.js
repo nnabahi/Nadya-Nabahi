@@ -97,10 +97,6 @@ const SHAPE_BINS = 120;
 // picked), so it stays quick.
 const MOST_DOTS = 4000;
 
-// Holes take a while to find in a big ball: while playing, at most once
-// every this many milliseconds (they are found again when paused).
-const HOLES_GAP = 500;
-
 // The colors from blue (low) to red (high) (heatColor, js/sim-colors.js),
 // in 256 steps, worked out once.
 const PALETTE = [];
@@ -125,7 +121,7 @@ let farness = null;     // farness[v] = |v|: how far cell v is from the start (s
 let shape = null;       // the ball's shape (newShape, js/sim-shape.js), on flat domains; else null
 let trace = null;       // the ball over time, for the charts (newTrace, js/sim-worker.js)
 let clicked = -1;       // the clicked cell, whose geodesic is drawn (-1: none)
-let holes = null;       // the holes of B(t), when last found: { cells, history, at } (section 11)
+let refreshHoles = null; // keeps the holes of B(t) up to date (newRefresher, js/sim-shape.js; section 11)
 
 // Pairs mode.
 let nPairs = DEFAULTS.pairs;   // n, from the slider
@@ -218,7 +214,6 @@ function grow() {
 function useDomain(d) {
   domain = d;
   edge = d.grows ? edgeCells(d) : null;
-  holes = null;
   newNumbers();
   order = randomOrder(d, byId("seed").value, pairCells(d));
 }
@@ -243,7 +238,7 @@ function runBallTo(count) {
   farness = farnessFrom(start);
   shape = shapeWanted() ? newShape(cellMiddle(domain, start), SHAPE_BINS) : null;
   trace = newTrace();
-  holes = null;
+  refreshHoles = newRefresher();
   while (search.order.length < Math.max(count, 1) && findNextCell());
   if (clicked !== -1 && !search.settled[clicked]) clicked = -1;
 }
@@ -810,22 +805,23 @@ function ratioChart() {
       DIAGONAL + '">red</span>).' : "") + (flat ? "" : " |x| is the number of steps from the start.");
 }
 
-// The holes of B(t) now, found again if the ball has changed (but while
-// playing, at most every HOLES_GAP milliseconds): { history (holeHistory,
-// js/sim-shape.js), at (the time t they are for), count (the ball's
-// cells then), cells (1 for each cell of the domain in a hole), offDomain
-// (on squares, the holes' cells off the domain, as x0, y0, x1, y1, ...) }.
-let holesFree = 0;
+// The holes of B(t): { history (holeHistory, js/sim-shape.js), at (the
+// time t they are for), cells (1 for each cell of the domain in a
+// hole), offDomain (on squares, the holes' cells off the domain, as x0,
+// y0, x1, y1, ...) }. They are found again when the ball has grown, but
+// while playing only now and then (newRefresher, js/sim-shape.js).
 function currentHoles() {
-  const count = search.order.length, now = performance.now();
-  if (holes && (holes.count === count || (player.playing && now < holesFree))) return holes;
+  return refreshHoles(search.order.length, player.playing, findHoles);
+}
+
+// The holes of B(t) now, found from scratch: the ball's cells, each
+// born at its T.
+function findHoles() {
   const bornAt = new Float64Array(domain.n).fill(-1);
   for (const v of search.order) bornAt[v] = search.T[v];
   const set = { siteX: domain.x, siteY: domain.y, siteZ: domain.part, tiling: domain.lattice ? domain.tiling : null, bornAt: bornAt };
   const t = ballTime(), history = holeHistory(set, t);
-  holes = Object.assign({ history: history, at: t, count: count }, holeCellsOf(history.holeCells));
-  holesFree = performance.now() + HOLES_GAP;
-  return holes;
+  return Object.assign({ history: history, at: t }, holeCellsOf(history.holeCells));
 }
 
 // The holes' cells (holeHistory's holeCells): those of the domain, and
