@@ -58,14 +58,11 @@
           <label><input type="radio" name="model" value="lattice"> Jittered lattice</label>
           <label><input type="radio" name="model" value="mirror"> Mirror</label>
         </div>
+        <!-- What g means in this model, then the shared Random variables
+             box (js/sim-random.js fills it in) and its sliders. -->
         <p class="small" id="set-label"></p>
-        <input type="text" class="formula-input" id="gap-set" spellcheck="false">
-        <div class="formula-preview" id="gap-preview"></div>
+        <div class="random-box"></div>
         <div id="sliders"></div>
-        <p class="muted small" id="set-message"></p>
-        <p class="muted small">Type a set like {2, 3} (repeats count twice), an interval like
-          [1, 1 + δ], or a formula in u, where u is uniform on [0, 1], like 1 + δu^2.
-          Any other letter gets a slider.</p>
 
         <div class="option-row">
           Roots on each side N = <input type="number" id="set-n" min="10" max="20000" step="10">
@@ -220,37 +217,48 @@
         </p>
         <p>
           <strong>Walk.</strong> The gaps <span class="tex">R(n) - R(n-1)</span> are
-          independent and uniform on the typed set <span class="tex">G</span>, except the
-          gap covering 0. For stationarity that one is <em>size-biased</em>: it has length
-          <span class="tex">g</span> with probability proportional to
-          <span class="tex">g</span>, and 0 is uniform inside it. This is the stationary
-          renewal process, and the size-biasing is the "inspection paradox" [2, 3]. For
-          <span class="tex">G = [1-d, 1+d]</span> the covering gap is
+          independent copies of the random variable <span class="tex">g</span> in the
+          Random variables box, except the gap covering 0. For stationarity that one is
+          <em>size-biased</em>: its law is <span class="tex">x \, dF(x) / \mathbb{E}[g]</span>,
+          <span class="tex">F</span> being the law of <span class="tex">g</span> (a gap
+          is picked with probability proportional to its length), and 0 is uniform inside
+          it. This is the stationary renewal process, and the size-biasing is the
+          "inspection paradox" [2, Section XI.4; 3]. It needs
+          <span class="tex">\mathbb{E}[g] &lt; \infty</span>, so the walk refuses a law
+          like <code>pareto(1, 1)</code>. For <code>g ~ unif(1 - d, 1 + d)</code> the covering
+          gap is
         </p>
         <div class="tex">L = \sqrt{4du + (1-d)^2}, \qquad u \sim \mathrm{Uniform}[0, 1].</div>
         <p>
           <strong>Jittered lattice.</strong>
           <span class="tex">R(n) = n + s + U(n)</span>, with
-          <span class="tex">U(n)</span> uniform on the typed set and one shift
+          <span class="tex">U(n)</span> a copy of <span class="tex">g</span> and one shift
           <span class="tex">s</span> uniform on <span class="tex">[0, 1)</span>, which
           makes it stationary.
         </p>
         <p>
           <strong>Mirror.</strong> Roots at 0 and <span class="tex">\pm r(k)</span>, with
-          <span class="tex">r(k)</span> a walk with gaps uniform on
-          <span class="tex">G</span>, so
+          <span class="tex">r(k)</span> a walk with gaps copies of
+          <span class="tex">g</span>, so
           <span class="tex">f(x) = x \prod_k (1 - x^2/r(k)^2)</span> is odd, and
           <span class="tex">f'(0) = 1</span>. It can't be stationary, since 0 is always a
           root.
         </p>
         <p>
-          <strong>Random numbers.</strong> Gap <span class="tex">n</span> is
-          <span class="tex">g(u_n)</span> for a fixed uniform number
-          <span class="tex">u_n</span> (from the seed). A finite set picks element
-          <span class="tex">\lfloor m u_n \rfloor</span>, an interval
-          <span class="tex">[a, b]</span> gives <span class="tex">a + (b - a) u_n</span>.
-          Changing <span class="tex">G</span> keeps every <span class="tex">u_n</span>, so
-          the curve moves continuously.
+          <strong>Random numbers.</strong> <span class="tex">g</span> can have any law
+          from the list, like <code>g ~ unif([2, 3])</code> or
+          <code>g ~ exp(1)</code> (the Poisson process), a typed density, or be a formula
+          of other random variables, like <code>g = 1 + δ u^2</code> with
+          <code>u ~ unif(0, 1)</code> (the
+          <a href="../../help/random-variables.html">help page</a> has every law and how
+          to type them). Gap <span class="tex">n</span> is
+          <span class="tex">F^{-1}(u_n)</span> for a fixed uniform number
+          <span class="tex">u_n</span> of its own (from the seed), the least
+          <span class="tex">x</span> with <span class="tex">F(x) \ge u_n</span> [3, Theorem 1.2.2]
+          (for a formula, each random variable in it is drawn that way). Changing the law
+          keeps every <span class="tex">u_n</span>, so the curve moves continuously. The
+          covering gap's law is worked out from the table of <span class="tex">F</span>
+          (for a formula, from <span class="tex">F</span> found from many draws).
         </p>
         <p>
           <strong>Peaks.</strong> Between two neighboring roots,
@@ -291,25 +299,29 @@
     </div>
   </main>
 
-  <!-- math.js (https://mathjs.org) reads the typed gap set, KaTeX
-       (https://katex.org) typesets formulas, and seedrandom
-       (https://github.com/davidbau/seedrandom) makes random numbers that
-       repeat for the same seed. Version numbers are fixed so an update can
-       never change the site by surprise. -->
+  <!-- math.js (https://mathjs.org) reads the typed random variables,
+       KaTeX (https://katex.org) typesets formulas, and jStat
+       (https://jstat.github.io) works out the incomplete gamma and beta
+       functions some laws need. Version numbers are fixed so an update
+       can never change the site by surprise. -->
   <script src="https://cdn.jsdelivr.net/npm/mathjs@15.2.0/lib/browser/math.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/katex.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/seedrandom@3.0.5/seedrandom.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jstat@1.9.6/dist/jstat.min.js"></script>
 
   <!-- The code the sims share (in js/, see the README): page helpers
-       (they also typeset the formulas, so they come after KaTeX),
-       charts, and reading formulas with sliders. Then the math of this sim
-       (sinusoid-ish-roots.js, the same file the check page tests), then
-       this page. -->
+       (they also typeset the formulas, so they come after KaTeX), the
+       seeded random numbers, charts, the plane picture, reading formulas
+       with sliders, the laws, the catalog of laws and the Random
+       variables box. Then the math of this sim (sinusoid-ish-roots.js,
+       the same file the check page tests), then this page. -->
   <script src="../../js/sim-page.js"></script>
   <script src="../../js/sim-worker.js"></script>
   <script src="../../js/sim-charts.js"></script>
   <script src="../../js/sim-view.js"></script>
   <script src="../../js/formulas.js"></script>
+  <script src="../../js/sim-laws.js"></script>
+  <script src="../../js/sim-law-catalog.js"></script>
+  <script src="../../js/sim-random.js"></script>
   <script src="sinusoid-ish-roots.js"></script>
   <script src="sinusoid-ish.js"></script>
 

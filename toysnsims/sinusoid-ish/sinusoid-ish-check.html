@@ -19,7 +19,7 @@
 
     <h2>1. One sample, live</h2>
     <p>
-      Walk model, gaps uniform on [1, 1 + δ], stationary start, seed 1, N = 300 roots on each side.
+      Walk model, g ~ unif(1, 1 + δ), stationary start, seed 1, N = 300 roots on each side.
       Solid: f. Dashed: the sine wave with the same first root R(0) and the same mean gap.
       At δ = 0 they are the same curve. Moving δ keeps every random number fixed, so the curve should bend smoothly.
     </p>
@@ -37,7 +37,7 @@
 
     <h2>3. Compare with your Python</h2>
     <p>
-      Walk model, gaps uniform on {2, 3} (your randfuncsagain.py with p = 1/2), 300 samples,
+      Walk model, g ~ unif([2, 3]) (your randfuncsagain.py with p = 1/2), 300 samples,
       every lobe with both roots in [-15, 15]. This histogram of peak offsets x<sub>n</sub> - X<sub>n</sub>
       should look like the left column of the top row of your plot. (Areas and peak heights are scaled
       differently here, since f(0) = 1 instead of your f'(0) = 1, so only offsets are compared.)
@@ -46,16 +46,23 @@
     <p id="offset-summary"></p>
   </main>
 
-  <!-- math.js (https://mathjs.org) reads the typed gap sets (with the site's
-       Desmos-style helpers in js/formulas.js); seedrandom
-       (https://github.com/davidbau/seedrandom) makes repeatable random numbers. -->
+  <!-- math.js (https://mathjs.org) reads the typed random variables
+       (with the site's Desmos-style helpers in js/formulas.js), and jStat
+       (https://jstat.github.io) works out the incomplete gamma and beta
+       functions some laws need. Then the site's shared code: the seeded
+       random numbers, the laws, the catalog of laws and the random
+       variables (js/sim-random.js). -->
   <script src="https://cdn.jsdelivr.net/npm/mathjs@15.2.0/lib/browser/math.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/seedrandom@3.0.5/seedrandom.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jstat@1.9.6/dist/jstat.min.js"></script>
   <script src="../../js/site.js"></script>
   <script src="../../js/sim-page.js"></script>
+  <script src="../../js/sim-worker.js"></script>
   <script src="../../js/sim-charts.js"></script>
   <script src="../../js/check-page.js"></script>
   <script src="../../js/formulas.js"></script>
+  <script src="../../js/sim-laws.js"></script>
+  <script src="../../js/sim-law-catalog.js"></script>
+  <script src="../../js/sim-random.js"></script>
   <script src="sinusoid-ish-roots.js"></script>
   <script src="sinusoid-ish-check.js"></script>
 </body>

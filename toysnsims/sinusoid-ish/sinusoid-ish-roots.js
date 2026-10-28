@@ -20,8 +20,9 @@
    The three ways to place the roots ("root models"):
 
    1. WALK (nadya's D1 and randfuncsagain.py). The gaps between
-      neighboring roots are independent, each uniform on a set that is
-      typed in, like {2, 3} or [1, 1 + δ]. The roots are STATIONARY:
+      neighboring roots are independent copies of the random variable g
+      typed in the Random variables box (js/sim-random.js), like
+      g ~ unif([2, 3]) or g ~ unif(1, 1 + δ). The roots are STATIONARY:
       the picture looks the same, in distribution, wherever you stand.
       For that, the gap that covers 0 must be "size-biased": a gap of
       length g is picked with probability proportional to g (a long
@@ -32,13 +33,13 @@
       Theory and Its Applications", Vol. II, 2nd ed., Wiley, 1971,
       Chapter XI; R. Durrett, "Probability: Theory and Examples", 5th
       ed., Cambridge University Press, 2019, the renewal theory
-      section). For gaps uniform on [1 - d, 1 + d] this gives exactly
-      nadya's L = sqrt(4 d u + (1 - d)^2), with u uniform on [0, 1].
+      section). For g ~ unif(1 - d, 1 + d) this gives exactly nadya's
+      L = sqrt(4 d u + (1 - d)^2), with u uniform on [0, 1].
 
    2. JITTERED LATTICE (matrixcalculations.py, randomsinwave).
-      R(n) = n + s + U(n), with U(n) uniform on a typed set (like
-      [-1/2, 1/2]) and one shift s uniform on [0, 1), which is what
-      makes it stationary.
+      R(n) = n + s + U(n), with U(n) a copy of g (like
+      g ~ unif(-1/2, 1/2)) and one shift s uniform on [0, 1), which is
+      what makes it stationary.
 
    3. MIRROR (randomsinfuncs.py). A walk r(1) < r(2) < ... to the right
       of 0, and roots at 0 and at every +r(k) and -r(k), so
@@ -46,247 +47,111 @@
       is odd. It can't be stationary (0 is always a root), so it keeps
       nadya's x factor and f'(0) = 1 instead of f(0) = 1.
 
-   Random numbers. Every random choice reads one fixed uniform number
-   from [0, 1], made by the library seedrandom
-   (https://github.com/davidbau/seedrandom), which repeats exactly for
-   the same seed. Gap n always reads the same number u(n). So when a
-   slider changes the gap set, the same u(n) are just read through the
-   new set, and the curve bends smoothly instead of jumping (the
-   Desmos feel).
+   Random numbers. Each gap is a place of its own for the random
+   variables (js/sim-random.js), so gap n always gets the same copy of
+   g, from its own fixed uniform number U(n) and the seed: g there is
+   F^-1(U(n)), F being g's law. So when a slider changes g's law, the
+   same U(n) are just read through the new law, and the curve bends
+   smoothly instead of jumping (the Desmos feel).
 
    The file is split into numbered sections:
-     1. The fixed random numbers
-     2. Reading the typed gap set (with math.js)
-     3. Placing the roots
-     4. Evaluating f
-     5. Peaks and lobes (the statistics)
+     1. The random gaps
+     2. Placing the roots
+     3. Evaluating f
+     4. Peaks and lobes (the statistics)
    Nothing here draws or touches the page, so the check page
-   (sinusoid-ish-check.html) can test it on its own.
+   (sinusoid-ish-check.html) can test it on its own. Both pages load
+   js/sim-worker.js, js/sim-laws.js and js/sim-random.js (and what
+   those need) before this file.
    ===================================================================== */
 
 
 /* =====================================================================
-   1. THE FIXED RANDOM NUMBERS
+   1. THE RANDOM GAPS
    ---------------------------------------------------------------------
-   One uniform number for every random choice, always in the same order,
-   so the first numbers stay the same when N grows:
-     cover     picks the length of the gap that covers 0 (walk)
-     place     where 0 sits inside that gap (walk), or the shift s
-               (jittered lattice)
-     right[n]  the n-th gap (or jitter) to the right, n = 1 .. N
-     left[n]   the n-th gap (or jitter) to the left,  n = 1 .. N
+   The n-th gap (or jitter) to the right of 0 is the place (RIGHT, n),
+   and the n-th to the left (LEFT, n), so each is its own copy of g, the
+   same one whatever N is. Two more uniform numbers come from the seed
+   alone (seededUniform, js/sim-worker.js):
+     COVER   picks the length of the gap that covers 0 (walk)
+     PLACE   where 0 sits inside that gap (walk), or the shift s
+             (jittered lattice)
    ===================================================================== */
+const RIGHT = 1, LEFT = 2, COVER = 3, PLACE = 4;
 
-function makeUniforms(seed, N) {
-  // seedrandom adds Math.seedrandom(seed), a random-number function
-  // that gives the same numbers every time for the same seed.
-  const random = new Math.seedrandom(String(seed));
-  const u = {
-    cover: random(),
-    place: random(),
-    right: new Float64Array(N + 1),     // index 0 is not used
-    left: new Float64Array(N + 1),
+// The random gaps of one sample, for the random variables "variables"
+// of the box (g among them) and the seed:
+//   gaps.right(n), gaps.left(n)   g at the n-th gap to the right and
+//                                 to the left of 0, n = 1, 2, ...
+//   gaps.cover    the gap that covers 0, from "coverLaw" (coverLawOf;
+//                 null, and no gap, for the other models)
+//   gaps.place    a uniform number in (0, 1)
+function newGaps(variables, coverLaw, seed) {
+  const drawer = newDrawer(variables, seed), random = seededUniform(seed);
+  const gapAt = function (side, n) { drawer.at(side, n); return drawer.value("g", 0); };
+  return {
+    right: function (n) { return gapAt(RIGHT, n); },
+    left: function (n) { return gapAt(LEFT, n); },
+    cover: coverLaw ? drawFromLaw(coverLaw, random.uniform(COVER)) : NaN,
+    place: random.uniform(PLACE),
   };
-  for (let n = 1; n <= N; n++) {        // right and left take turns, so
-    u.right[n] = random();              // the first n of each stay the same
-    u.left[n] = random();               // when N changes
-  }
-  return u;
+}
+
+// The law of the gap that covers 0, for the walk: g's law, size-biased
+// (a gap of length g is picked in proportion to g; sizeBiasedLaw,
+// js/sim-laws.js). For g a formula of other random variables, g's law
+// is the one worked out from many draws (js/sim-random.js).
+function coverLawOf(variables) {
+  return sizeBiasedLaw(variables.lawOf("g"));
+}
+
+// What is wrong with the random variables for the model ("" if
+// nothing): g must be one number per gap (not a family), the gaps of
+// the walk and the mirror must be more than 0 (F(0) = 0), and the
+// walk's mean gap must be finite (the gap covering 0 needs it).
+function gapProblem(model, variables) {
+  const line = variables.declared.byName.get("g");
+  if (line.family) return "g is one number for each gap: type it without a subscript, like  g ~ unif(1, 2).";
+  if (model === "lattice") return "";
+  const law = variables.lawOf("g");
+  if (lawCDF(law, 0) > 0) return "Every gap must be bigger than 0, but g can be 0 or less.";
+  if (model === "walk" && !isFinite(law.mean)) return "The walk needs g's mean to be finite: the gap covering 0 is picked in proportion to its length.";
+  return "";
 }
 
 
 /* =====================================================================
-   2. READING THE TYPED GAP SET
+   2. PLACING THE ROOTS
    ---------------------------------------------------------------------
-   The box accepts three kinds of text:
-     {2, 3}        a finite set: each element equally likely. Repeats
-                   act as weights: {2, 2, 2, 3} picks 2 three times as
-                   often as 3.
-     [1, 1 + δ]    an interval: uniform on it.
-     1 + δ u^2     a formula in u, where u is uniform on [0, 1].
-   Any other letter (δ, d, a, ...) is a slider; its value comes from
-   "sliders", e.g. { δ: 0.1 }. Reading is done by math.js
-   (https://mathjs.org), Desmos style, by readTree in js/formulas.js:
-   the page loads both before this file.
-
-   The result is a "gap law", an object with:
-     kind          "set", "interval" or "formula"
-     draw(u)       a gap, from one uniform number u
-     sizeBiased(u) a size-biased gap (see section 3), from one u
-     mean          the average gap
-     smallest      the smallest possible gap
+   makeRoots(model, gaps, N) returns the roots as a sorted list (a
+   Float64Array, smallest first). "model" is "walk", "lattice" or
+   "mirror" (see the top of the file); "gaps" comes from newGaps
+   (section 1; for the lattice, its gaps are the jitters).
    ===================================================================== */
 
-// The letters in the box that need a slider: everything except u and
-// names math.js already knows (pi, e, sqrt, ...).
-function gapSetLetters(text) {
-  return sliderLetters(readTree(bracketsAsList(text)), ["u"]);   // (js/formulas.js)
-}
-
-// Read the text and return its gap law (see above). Throws an Error
-// with a plain message if the text can't be used.
-function readGapSet(text, sliders) {
-  text = text.trim();
-  if (text === "") throw new Error("Type a set, like {2, 3} or [1, 1 + δ].");
-
-  // {a, b, c}: a finite set.
-  if (text.startsWith("{")) {
-    if (!text.endsWith("}")) throw new Error("A set needs a closing }.");
-    const values = evaluateList(text, sliders);
-    if (values.length === 0) throw new Error("The set is empty.");
-    return setLaw(values);
-  }
-
-  // [a, b]: an interval.
-  if (text.startsWith("[")) {
-    if (!text.endsWith("]")) throw new Error("An interval needs a closing ].");
-    const ends = evaluateList(text, sliders);
-    if (ends.length !== 2) throw new Error("An interval is [a, b], with two numbers.");
-    if (ends[0] > ends[1]) throw new Error("In [a, b], a must not be bigger than b.");
-    return intervalLaw(ends[0], ends[1]);
-  }
-
-  // Anything else: a formula in u.
-  const formula = readTree(text).compile();
-  return formulaLaw(function (u) {
-    const value = formula.evaluate(Object.assign({}, sliders, { u: u }));
-    if (typeof value !== "number" || !isFinite(value)) {
-      throw new Error("The formula should give one number for every u in [0, 1].");
-    }
-    return value;
-  });
-}
-
-// A finite set of numbers, each equally likely.
-function setLaw(values) {
-  const m = values.length;
-  const total = values.reduce(function (a, b) { return a + b; }, 0);
-  return {
-    kind: "set",
-    draw: function (u) { return values[Math.min(m - 1, Math.floor(u * m))]; },
-    // Size-biased: element i is picked with probability values[i] / total.
-    // Walk along the elements until their running total passes u * total.
-    sizeBiased: function (u) {
-      let running = 0;
-      for (const g of values) {
-        running += g;
-        if (u * total < running) return g;
-      }
-      return values[m - 1];
-    },
-    mean: total / m,
-    smallest: Math.min(...values),
-  };
-}
-
-// Uniform on the interval [a, b].
-function intervalLaw(a, b) {
-  return {
-    kind: "interval",
-    draw: function (u) { return a + (b - a) * u; },
-    // Size-biased: the density is proportional to g on [a, b], so the
-    // chance of being below g is (g^2 - a^2) / (b^2 - a^2). Setting that
-    // equal to u and solving for g ("inverse transform") gives:
-    sizeBiased: function (u) { return Math.sqrt(a * a + u * (b * b - a * a)); },
-    mean: (a + b) / 2,
-    smallest: a,
-  };
-}
-
-// A gap g(u), with u uniform on [0, 1]. For the size-biased draw, u is
-// weighted by g(u). That weighting is put in a table once: g at TABLE
-// points spread evenly over [0, 1], and the running total of g. A
-// size-biased draw finds where the running total passes u * total and
-// reads g there. The same u always lands in the same place, so the
-// curve still morphs smoothly when a slider moves.
-const TABLE = 2000;
-
-function formulaLaw(g) {
-  const gs = new Float64Array(TABLE);      // g at the middle of each of TABLE strips
-  const runningTotal = new Float64Array(TABLE + 1);
-  let smallest = Infinity;
-  for (let j = 0; j < TABLE; j++) {
-    gs[j] = g((j + 0.5) / TABLE);
-    smallest = Math.min(smallest, gs[j]);
-    runningTotal[j + 1] = runningTotal[j] + gs[j];
-  }
-  const total = runningTotal[TABLE];
-  return {
-    kind: "formula",
-    draw: g,
-    sizeBiased: function (u) {
-      // Find the strip j where the running total passes u * total
-      // (halving the search range each time: "binary search"), then go
-      // the right fraction of the way across that strip.
-      const target = u * total;
-      let lo = 0, hi = TABLE - 1;
-      while (lo < hi) {
-        const mid = (lo + hi) >> 1;
-        if (runningTotal[mid + 1] <= target) lo = mid + 1;
-        else hi = mid;
-      }
-      const fraction = (target - runningTotal[lo]) / gs[lo];
-      return g((lo + Math.min(Math.max(fraction, 0), 1)) / TABLE);
-    },
-    mean: total / TABLE,
-    smallest: smallest,
-  };
-}
-
-// math.js reads "[1, 2]" as a list but not "{1, 2}", so braces are
-// read as brackets.
-function bracketsAsList(text) {
-  text = text.trim();
-  if (text.startsWith("{") && text.endsWith("}")) return "[" + text.slice(1, -1) + "]";
-  return text;
-}
-
-// The numbers in "{...}" or "[...]", as a plain list.
-function evaluateList(text, sliders) {
-  const result = readTree(bracketsAsList(text)).compile().evaluate(Object.assign({}, sliders));
-  const values = math.flatten(math.matrix(result)).toArray();
-  for (const v of values) {
-    if (typeof v !== "number" || !isFinite(v)) throw new Error("Every entry must be a number.");
-  }
-  return values;
-}
-
-/* =====================================================================
-   3. PLACING THE ROOTS
-   ---------------------------------------------------------------------
-   makeRoots(model, law, u, N) returns the roots as a sorted list
-   (a Float64Array, smallest first). "model" is "walk", "lattice" or
-   "mirror" (see the top of the file); "law" is the gap law from
-   section 2 (for the lattice it is the jitter); "u" comes from
-   makeUniforms(seed, N).
-   ===================================================================== */
-
-function makeRoots(model, law, u, N) {
-  if (model !== "lattice" && !(law.smallest > 0)) {
-    throw new Error("Every gap must be bigger than 0.");
-  }
+function makeRoots(model, gaps, N) {
   const roots = new Float64Array(2 * N + (model === "mirror" ? 1 : 0));
 
   if (model === "walk") {
     // The gap covering 0 is size-biased, and 0 is uniform inside it:
     // R(-1) < 0 < R(0), with R(0) - R(-1) = L.
-    const L = law.sizeBiased(u.cover);
-    let right = u.place * L;              // R(0)
+    const L = positiveGap(gaps.cover);
+    let right = gaps.place * L;           // R(0)
     let left = right - L;                 // R(-1)
     roots[N] = right;
     roots[N - 1] = left;
     for (let n = 1; n < N; n++) {
-      right += law.draw(u.right[n]);      // R(n)   = R(n-1) + gap
-      left -= law.draw(u.left[n]);        // R(-n-1) = R(-n) - gap
+      right += positiveGap(gaps.right(n));   // R(n)   = R(n-1) + gap
+      left -= positiveGap(gaps.left(n));     // R(-n-1) = R(-n) - gap
       roots[N + n] = right;
       roots[N - 1 - n] = left;
     }
   } else if (model === "lattice") {
     // R(n) = n + s + U(n), for n = -N .. N-1.
-    const s = u.place;
+    const s = gaps.place;
     for (let n = 0; n < N; n++) {
-      roots[N + n] = n + s + law.draw(u.right[n + 1]);
-      roots[N - 1 - n] = -(n + 1) + s + law.draw(u.left[n + 1]);
+      roots[N + n] = n + s + gaps.right(n + 1);
+      roots[N - 1 - n] = -(n + 1) + s + gaps.left(n + 1);
     }
     roots.sort();                         // big jitters can swap neighbors
   } else if (model === "mirror") {
@@ -294,7 +159,7 @@ function makeRoots(model, law, u, N) {
     let r = 0;
     roots[N] = 0;
     for (let k = 1; k <= N; k++) {
-      r += law.draw(u.right[k]);
+      r += positiveGap(gaps.right(k));
       roots[N + k] = r;
       roots[N - k] = -r;
     }
@@ -304,9 +169,16 @@ function makeRoots(model, law, u, N) {
   return roots;
 }
 
+// A gap of the walk or the mirror, which must be more than 0 (a formula
+// for g can come out 0 or less somewhere, which the box can't check).
+function positiveGap(g) {
+  if (!(g > 0)) throw new Error("Every gap must be bigger than 0, but one came out " + Number(g).toPrecision(3) + ".");
+  return g;
+}
+
 
 /* =====================================================================
-   4. EVALUATING f
+   3. EVALUATING f
    ---------------------------------------------------------------------
    f is a product of hundreds of factors, which can be huge or tiny, so
    it is computed as a sum of logarithms:
@@ -341,7 +213,7 @@ function fDerivative(x, roots) {
 
 
 /* =====================================================================
-   5. PEAKS AND LOBES
+   4. PEAKS AND LOBES
    ---------------------------------------------------------------------
    A "lobe" is the piece of f between two neighboring roots. For each
    lobe this finds (as in nadya's randfuncsagain.py):
@@ -374,34 +246,9 @@ function peakBetween(left, right, roots) {
   return (lo + hi) / 2;
 }
 
-// The 20 Gauss-Legendre points and weights on [-1, 1], found once by
-// Newton's method on the Legendre polynomial (Numerical Recipes,
-// Section 4.6, routine "gauleg").
+// The 20 Gauss-Legendre points and weights on [-1, 1], found once
+// (gaussLegendre, js/sim-laws.js).
 const GAUSS = gaussLegendre(20);
-
-function gaussLegendre(n) {
-  const points = [], weights = [];
-  for (let i = 1; i <= n; i++) {
-    let z = Math.cos(Math.PI * (i - 0.25) / (n + 0.5));   // first guess
-    let slope = 1;
-    for (let step = 0; step < 100; step++) {
-      // p1 = Legendre polynomial P_n(z), from the three-term recurrence.
-      let p1 = 1, p2 = 0;
-      for (let j = 1; j <= n; j++) {
-        const p3 = p2;
-        p2 = p1;
-        p1 = ((2 * j - 1) * z * p2 - (j - 1) * p3) / j;
-      }
-      slope = n * (z * p1 - p2) / (z * z - 1);             // P_n'(z)
-      const previous = z;
-      z = previous - p1 / slope;                           // Newton step
-      if (Math.abs(z - previous) < 1e-15) break;
-    }
-    points.push(z);
-    weights.push(2 / ((1 - z * z) * slope * slope));
-  }
-  return { points: points, weights: weights };
-}
 
 // The integral of f from "left" to "right".
 function lobeArea(left, right, roots) {
