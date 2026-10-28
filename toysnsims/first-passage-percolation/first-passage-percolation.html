@@ -227,11 +227,11 @@
           the memoryless property of the exponential law, what is left of it is
           again exponential with mean 1, the same for each. With exponential
           times on the edges, the next cell is picked in proportion to its
-          number of edges to the ball instead: Richardson's model [4]
-          (see [2, Section 1.1]). The check page tests both.
+          number of edges to the ball instead: Richardson's model [4]. The
+          check page tests both.
         </p>
         <p>
-          <strong>The limit shape</strong> [5, 6; 2, Theorem 2.17]. On
+          <strong>The limit shape</strong> [5, 6; 2, Theorem 2.16]. On
           <span class="tex">\mathbb{Z}^2</span>, if
           <span class="tex">F(0) &lt; p_c = 1/2</span> (the critical point of
           bond percolation [7]) and
@@ -244,11 +244,11 @@
           times, though simulations say it is [8]. One thing is: if
           <span class="tex">F</span> has a smallest value
           <span class="tex">r &gt; 0</span> with
-          <span class="tex">F(\{r\})</span> at least the critical point of
+          <span class="tex">F(\{r\})</span> more than the critical point of
           oriented percolation, then <span class="tex">\mathcal{B}</span> has
-          flat edges [9, 10]. If instead
+          flat edges [9, 10; 2, Theorem 2.24]. If instead
           <span class="tex">F(0) \ge 1/2</span>, the time constant is 0 and
-          <span class="tex">B(t)/t</span> grows without bound [6, Theorem 6.1].
+          <span class="tex">B(t)/t</span> grows without bound [6, Theorem 6.1; 2, Theorem 2.5].
           The preset Geometric from 0 with <span class="tex">q = 1/2</span>
           has <span class="tex">F(0) = 1/2</span> exactly: it sits at the
           critical point, where the zero-time edges form critical
@@ -262,18 +262,21 @@
           <span class="tex">T(0, n e_1)</span> are believed to be of order
           <span class="tex">n^{1/3}</span>, as the KPZ scaling theory predicts.
           That is proved only for exactly solvable last passage models [11];
-          for first passage percolation the best bound in general is
-          <span class="tex">\mathrm{Var}\, T(0, n e_1) \le C n / \log n</span>
-          [12, 13].
+          for first passage percolation the best bound known is
+          <span class="tex">\mathrm{Var}\, T(0, n e_1) \le C n / \log n</span>,
+          proved by Benjamini, Kalai and Schramm for times taking two values
+          [12], and then for a wide class of laws [13; 2, Section 3.2].
         </p>
         <p>
           <strong>Geodesics</strong> [2, Section 4]. With a law that has no
           point masses, the geodesic between two cells is unique (almost
           surely). Geodesics heading the same way from far apart tend to merge:
-          Newman showed it under a curvature assumption on
-          <span class="tex">\mathcal{B}</span> [14, 15], and Damron and Hanson
-          without it [16]. There are at least 4 infinite geodesics from the
-          start [17]. Whether there is a geodesic infinite in both directions is
+          Licea and Newman showed it for almost every direction, under a
+          curvature assumption on <span class="tex">\mathcal{B}</span>
+          [14, 15], and Damron and Hanson a form of it under much weaker
+          assumptions [16]. Under general conditions there are, almost surely,
+          at least 4 different infinite geodesics from the start (one-sided:
+          they start there and go off to infinity) [17]. Whether there is a geodesic infinite in both directions is
           open; Damron and Hanson rule them out in fixed directions, under
           assumptions [18]. A geodesic of length
           <span class="tex">n</span> is believed to stray about
@@ -308,7 +311,7 @@
           and each edge's time is
           <span class="tex">\tau = F^{-1}(U)</span>, the least
           <span class="tex">x</span> with <span class="tex">F(x) \ge U</span>,
-          for a uniform <span class="tex">U</span> [21, Theorem 1.2.2]. Each
+          for a uniform <span class="tex">U</span> [21, Section 1.2]. Each
           edge keeps its own <span class="tex">U</span>, from the seed and
           where the edge is, so moving a slider of the law moves every time a
           little, all the same way, and the ball and the geodesics change
