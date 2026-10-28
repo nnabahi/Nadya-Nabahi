@@ -111,7 +111,8 @@
      1b. newGraphMountain(options): the same rule on any graph.
      1c. the holes of a 2D mountain's base (holeHistory, js/sim-shape.js), with the
         step each one was born and the step it died.
-     1d. convexity(m): the base's area over the area of its convex hull.
+     1d. the base's shape (newShape, js/sim-shape.js): its convexity,
+        and how far it reaches in each direction.
      2. mountainWorker(): runs a mountain in a second thread (a "Web
         Worker") for the sim page, eden-growth.js, so the page never
         freezes. runInWorker (js/sim-page.js) starts it, with
@@ -152,13 +153,10 @@
 //   clocks  a seed: pick with clocks (see the top of this file). Leave
 //           it out to pick with the u's handed to step(u).
 //   shapeBins  (2D, not on a torus) keep track of the base's shape, for
-//           part 1d: m.radii[k] is the farthest distance from the start
-//           (straight-line, middle to middle, in side lengths) of a base
-//           site whose direction from the start is in slice k of
-//           shapeBins equal slices of the circle (slice 0 starts at angle
-//           -180 degrees, to the left), 0 if none yet; m.hull is the
-//           convex hull of the base's cells' corners (growingHull,
-//           js/sim-shape.js); m.area is the base's area.
+//           part 1d, as m.shape (newShape, js/sim-shape.js, seen from
+//           the start, with shapeBins slices of the circle): its
+//           farthest site in each direction, its area, hull and
+//           convexity.
 // It returns an object whose step(u) drops one block, and whose fields
 // say how the mountain looks (see the end of this function).
 function newMountain(options) {
@@ -285,7 +283,7 @@ function newMountain(options) {
     dim: dim,
     tiling: tiling,    // (null on the grids; holeHistory, js/sim-shape.js, reads it)
     siteX: siteX, siteY: siteY, siteZ: siteZ, height: height, available: available, bornAt: bornAt,
-    radii: bins ? new Float64Array(bins) : null, hull: bins ? growingHull() : null, area: 0,
+    shape: null,       // with shapeBins: the base's shape (newShape, js/sim-shape.js; set with the start below)
     atEdge: false,     // on a Penrose tiling's plane: the mountain has reached its edge
     steps: 0,          // n, the number of steps so far
     time: 0,           // with clocks: when the last block landed
@@ -308,7 +306,7 @@ function newMountain(options) {
     orderOf: dim === 2 ? null : function (i) { return siteX[i]; },
     joinsBase: function (i) {
       bornAt[i] = m.blocks - 1;   // the start's block is block 1, step n's is block n + 1
-      if (bins) addToShape(i);
+      if (m.shape) m.shape.add(placeOf(siteX[i], siteY[i], siteZ[i]), polygonOf(siteX[i], siteY[i], siteZ[i]));
       for (const [dx, dy, z] of tileOf(siteZ[i])) makeAvailable(siteX[i] + dx, siteY[i] + dy, z);
     },
   });
@@ -332,20 +330,6 @@ function newMountain(options) {
     return tiles.get(z);
   }
 
-  // A new base site i: its slice's radius, its corners for the hull, and
-  // its area.
-  function addToShape(i) {
-    const x = siteX[i], y = siteY[i], z = siteZ[i];
-    const [u, w] = placeOf(x, y, z), dx = u - startPlace[0], dy = w - startPlace[1];
-    if (dx !== 0 || dy !== 0) {
-      const k = Math.min(bins - 1, Math.floor((Math.atan2(dy, dx) + Math.PI) / (2 * Math.PI) * bins));
-      m.radii[k] = Math.max(m.radii[k], Math.sqrt(dx * dx + dy * dy));
-    }
-    const corners = polygonOf(x, y, z);
-    for (const corner of corners) m.hull.add(corner);
-    m.area += polygonArea(corners);
-  }
-
   // The height at (x, y, z) (in 1D, y = 0; on the grids, z = 0), or 0 if
   // there is no site there.
   function heightAt(x, y, z) {
@@ -357,7 +341,7 @@ function newMountain(options) {
   const s = options.start;
   m.start = makeAvailable(s[0], dim === 2 ? s[1] : 0, s[2] || 0);
   if (m.start < 0) throw new Error("The start site is outside the domain.");
-  const startPlace = placeOf(siteX[m.start], siteY[m.start], siteZ[m.start]);
+  if (bins) m.shape = newShape(placeOf(siteX[m.start], siteY[m.start], siteZ[m.start]), bins);
   rule.drop(m.start);
 
   return m;
@@ -619,12 +603,9 @@ function newGraphMountain(options) {
    another tiling), K. Its convexity is area(K) / area(hull of K), where
    the hull is the smallest convex set holding K: 1 when K is convex,
    smaller the more K has bays and holes. The hull of K is the hull of
-   its cells' corners, kept up to date as cells join the base (m.hull:
-   growingHull, js/sim-shape.js).
+   its cells' corners, kept up to date as cells join the base (m.shape:
+   newShape, js/sim-shape.js, shared with First Passage Percolation).
    ===================================================================== */
-function convexity(m) {
-  return m.area / polygonArea(m.hull.corners());
-}
 
 /* =====================================================================
    2. THE MOUNTAIN IN A SECOND THREAD
@@ -754,9 +735,9 @@ function mountainWorker() {
     const values = { base: m.baseSize, highest: m.maxHeight, start: m.height[m.start],
                      full: m.full, growing: m.baseSize - m.full, covered: coveredPercent(m) };
     // The shape (2D off a torus), worked out only when a sample is due.
-    if (m.radii && m.steps >= trace.next) {
-      values.convexity = convexity(m);
-      values.radii = m.radii;
+    if (m.shape && m.steps >= trace.next) {
+      values.convexity = m.shape.convexity();
+      values.radii = m.shape.radii;
     }
     keepSample(trace, m.steps, values);
   }
@@ -809,9 +790,9 @@ function mountainWorker() {
       traceCovered: Float64Array.from(trace.lists.covered),
     };
     if (holesWanted()) addHoles(message);
-    if (m.radii) {
-      message.convexity = convexity(m);
-      message.radii = Float64Array.from(m.radii);
+    if (m.shape) {
+      message.convexity = m.shape.convexity();
+      message.radii = Float64Array.from(m.shape.radii);
       message.traceConvexity = Float64Array.from(trace.lists.convexity);
       message.traceRadii = Float64Array.from(trace.lists.radii);   // SHAPE_BINS numbers per sample
     }

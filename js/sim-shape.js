@@ -2,9 +2,10 @@
    sim-shape.js  —  the shape of a set of cells: its convex hull and
    its holes
    ---------------------------------------------------------------------
-   Shared by Eden Growth (the shape and holes of its base) and Random
-   Walk (the hull and holes of the cells the walker has visited), and
-   by their check pages. A sim's second thread (a "Web Worker") can't
+   Shared by Eden Growth (the shape and holes of its base), Random Walk
+   (the hull and holes of the cells the walker has visited) and First
+   Passage Percolation (the shape and holes of the ball), and by their
+   check pages. A sim's second thread (a "Web Worker") can't
    see the page's scripts, so a sim hands these functions to runInWorker
    (js/sim-page.js) in its list of helpers, which copies them in. That
    is also why each one keeps everything it needs inside it.
@@ -15,6 +16,8 @@
      growingHull()             the same, kept up to date as points come
      polygonArea(corners)      a polygon's area ...
      polygonPerimeter(corners) ... and the length around it
+     newShape(from, bins)      a growing set's farthest cell in each
+                               direction, its area, hull and convexity
      holeHistory(set, now)     the holes of a set of cells (squares, or
                                any tiling's cells), with the step each
                                one opened and closed
@@ -102,6 +105,36 @@ function polygonPerimeter(corners) {
   return length;
 }
 
+
+// The shape of a set of cells that only grows, seen from the point
+// "from" ([u, w], the middle of the start cell), kept up to date as
+// cells join it, for the shape charts (Eden Growth, First Passage
+// Percolation):
+//   shape.add(middle, corners)   a cell joins: its middle and its corners
+//   shape.radii[k]   the farthest distance (straight-line, from "from" to
+//                    a cell's middle, in side lengths) of a cell of the
+//                    set whose direction from "from" is in slice k of
+//                    "bins" equal slices of the circle (slice 0 starts at
+//                    -180 degrees, to the left), or 0 if none yet
+//   shape.area       the set's area, K being the union of its cells
+//   shape.hull       the convex hull of its cells' corners (growingHull),
+//                    which is the hull of K
+//   shape.convexity()   area(K) / area(hull of K): 1 when K is convex,
+//                    smaller the more K has bays and holes
+function newShape(from, bins) {
+  const shape = { radii: new Float64Array(bins), area: 0, hull: growingHull() };
+  shape.add = function (middle, corners) {
+    const dx = middle[0] - from[0], dy = middle[1] - from[1];
+    if (dx !== 0 || dy !== 0) {
+      const k = Math.min(bins - 1, Math.floor((Math.atan2(dy, dx) + Math.PI) / (2 * Math.PI) * bins));
+      shape.radii[k] = Math.max(shape.radii[k], Math.sqrt(dx * dx + dy * dy));
+    }
+    for (const corner of corners) shape.hull.add(corner);
+    shape.area += polygonArea(corners);
+  };
+  shape.convexity = function () { return shape.area / polygonArea(shape.hull.corners()); };
+  return shape;
+}
 
 /* =====================================================================
    THE HOLES OF A SET OF CELLS, OVER TIME

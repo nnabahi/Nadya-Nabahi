@@ -30,6 +30,9 @@
           stackedSizeBars(...)       region sizes, one bar per size, stacked by color, log-log
           perimeterChart(...)        perimeter against area of each region
           persistenceChart(...)      how long each hole lived, log-log
+          radiusChart, radiusHeatChart   a shape's farthest cell in each
+                                     direction, now and over time
+                                     (Eden Growth, First Passage Percolation)
           logLogChart(...)           numbers against numbers, log-log,
                                        with a guide line of a given slope
      5. Zooming in time
@@ -627,17 +630,102 @@ function perimeterChart(canvas, regions, colorNames, border) {
 }
 
 // Each hole that has closed, as a dot: how long it lived (its
-// persistence, died - born, in steps) up, against the step it was born
-// at, or the step it died at ("against"), across. Both scales are
-// logarithmic (1, 10, 100, ... evenly spaced), as most holes close soon
-// and births go from 1 to now. Dots are see-through, so where many fall
-// together the color is darker.
-function persistenceChart(canvas, births, deaths, against, now) {
-  const points = Array.from(births, function (born, k) { return [against === "death" ? deaths[k] : born, deaths[k] - born]; });
+// persistence, died - born) up, against when it was born, or when it
+// died ("against"), across. Holes are timed in steps (Eden Growth), or
+// with "unit" set to "time", in time t (First Passage Percolation).
+// Both scales are logarithmic (1, 10, 100, ... evenly spaced), as most
+// holes close soon and births go from the first one to "now"; in steps
+// both start at 1, in time at the first birth (or death) and the
+// shortest life. A hole that lived no time at all (born and filled at
+// the same moment, when several cells join at once) is left out: the
+// set never has it. Dots are see-through, so where many fall together
+// the color is darker.
+function persistenceChart(canvas, births, deaths, against, now, unit) {
+  const inTime = unit === "time";
+  const points = [];
+  for (let k = 0; k < births.length; k++) {
+    if (deaths[k] > births[k]) points.push([against === "death" ? deaths[k] : births[k], deaths[k] - births[k]]);
+  }
   const series = [{ points: points, dots: true, alpha: 0.35 }];
+  if (inTime && !(now > 0)) { chartPen(canvas); return; }
+  const [x0] = seriesRange(series, 0), [y0, y1] = seriesRange(series, 1);
+  const xFrom = !inTime ? 1 : points.length ? x0 : now / 10, yFrom = !inTime ? 1 : points.length ? y0 : xFrom;
+  const word = inTime ? "time t" : "step";
   return lineChart(canvas, series,
-    { from: 1, to: Math.max(now, 10), scale: "log", word: against === "death" ? "died at step" : "born at step" },
-    { from: 1, to: Math.max(10, seriesRange(series, 1)[1]), scale: "log", round: true, word: "lived (steps)" });
+    { from: xFrom, to: Math.max(now, 10 * xFrom), scale: "log", word: (against === "death" ? "died at " : "born at ") + word },
+    { from: yFrom, to: Math.max(10 * yFrom, y1), scale: "log", round: true, word: inTime ? "lived (time)" : "lived (steps)" });
+}
+
+// The gray of the radius charts' circle (the average) and of directions
+// with no cell yet.
+const RADIUS_GRAY = "#c9c6bf";
+
+// The farthest cell in each direction (radii[k] for the slice k of the
+// circle, from -180 degrees: newShape, js/sim-shape.js), over their
+// average, as a loop around the start: a disk would be the gray circle (radius 1). Directions with
+// no site yet are left out.
+function radiusChart(canvas, radii) {
+  const pen = chartPen(canvas);
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  const average = meanRadius(radii, 0, radii.length);
+  if (average === 0) return;
+  let biggest = 1.2;
+  for (const r of radii) biggest = Math.max(biggest, r / average);
+  const cx = w / 2, cy = h / 2, unit = (Math.min(w, h) / 2 - 6) / biggest;   // screen pixels for radius 1
+  pen.strokeStyle = RADIUS_GRAY;
+  pen.lineWidth = 1;
+  pen.beginPath();
+  pen.arc(cx, cy, unit, 0, 2 * Math.PI);
+  pen.stroke();
+  pen.textAlign = "left";
+  pen.textBaseline = "top";
+  pen.fillText("gray: the average", 0, 0);
+  pen.beginPath();
+  let drawing = false;
+  radii.forEach(function (r, k) {
+    if (r === 0) { drawing = false; return; }
+    const angle = -Math.PI + (k + 0.5) * 2 * Math.PI / radii.length;
+    const x = cx + unit * (r / average) * Math.cos(angle), y = cy - unit * (r / average) * Math.sin(angle);
+    if (drawing) pen.lineTo(x, y); else pen.moveTo(x, y);
+    drawing = true;
+  });
+  if (drawing && radii[0] > 0) {   // close the loop
+    const r = radii[0];
+    const angle = -Math.PI + 0.5 * 2 * Math.PI / radii.length;
+    pen.lineTo(cx + unit * (r / average) * Math.cos(angle), cy - unit * (r / average) * Math.sin(angle));
+  }
+  pen.strokeStyle = CHART_LINE;
+  pen.lineWidth = 1.5;
+  pen.stroke();
+}
+
+// The average of radii[from .. to - 1], leaving out the 0s (no site yet).
+function meanRadius(radii, from, to) {
+  let total = 0, count = 0;
+  for (let k = from; k < to; k++) if (radii[k] > 0) { total += radii[k]; count++; }
+  return count === 0 ? 0 : total / count;
+}
+
+// The radii over time: one column per sample (times[j], called "word"
+// along the bottom, like "step"), one row per direction (bins of them,
+// -180 degrees at the bottom), colored by the radius over that sample's
+// average: blue below, white at 1, red above (full color at 25% off).
+// Gray: no cell that way yet.
+function radiusHeatChart(canvas, times, radii, bins, word) {
+  const columns = times.length;
+  if (columns < 2) { chartPen(canvas); return; }
+  const blue = hexToRGB("#3b6fb6"), red = hexToRGB("#c8402f"), gray = hexToRGB(RADIUS_GRAY);
+  const averages = times.map(function (t, j) { return meanRadius(radii, j * bins, (j + 1) * bins); });
+  function colorAt(j, k) {
+    const r = radii[j * bins + k];
+    if (r === 0) return gray;
+    const off = Math.max(-1, Math.min(1, (r / averages[j] - 1) / 0.25));   // -1 .. 1
+    const to = off < 0 ? blue : red, a = Math.abs(off);
+    return [0, 1, 2].map(function (c) { return Math.round(255 + (to[c] - 255) * a); });
+  }
+  // Directions up the left (-180 degrees at the bottom), time along the bottom.
+  heatChart(canvas, columns, bins, colorAt, { from: 0, to: times[columns - 1], word: word },
+            { from: -180, to: 180, step: 90, text: function (angle) { return shortLabel(angle) + "°"; } });
 }
 
 // Numbers against numbers, both on logarithmic scales (1, 10, 100, ...
