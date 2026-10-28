@@ -355,8 +355,12 @@ function cellSpots(d) {
 // The box around domain d's picture: { left, right, bottom, top }. On a
 // torus it is one copy of the torus, which repeats every (right - left)
 // across and (top - bottom) up. Square cells are the squares of side 1
-// around (x, y).
+// around (x, y). A page whose picture shows only part of a domain (the
+// whole plane, a box that grows to stay ahead of what is shown: First
+// Passage Percolation) sets d.shown to that part's box (for squares,
+// along their sides), and then that is the picture's box.
 function pictureBox(d) {
+  if (d.shown) return d.shown;
   if (!d.lattice) return { left: d.xmin - 0.5, right: d.xmax + 0.5, bottom: d.ymin - 0.5, top: d.ymax + 0.5 };
   if (d.pictureBox) return d.pictureBox;
   if (d.wrap) {
