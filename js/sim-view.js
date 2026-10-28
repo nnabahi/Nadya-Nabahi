@@ -225,10 +225,11 @@ function cellSize(view) {
 // Which squares show, and which cell of domain d is on each: a list of
 // cols x rows cell numbers, row by row from the top, -1 where a square
 // isn't in the domain. Square (i, k) is column i from the left and row
-// k from the top of the domain's box (so k = 0 is the top row, y = ymax:
+// k from the top of the picture's box (so k = 0 is the top row, y = ymax:
 // rows go up the screen as y goes up). On a torus the squares carry on
 // past the box, and cellAt (js/sim-domains.js) wraps them around.
 function cellsShown(view, d) {
+  const [x0, y0] = topLeftSquare(d);
   const size = cellSize(view);
   view.cell = size;
   view.firstI = Math.floor(-view.scroll.x) - 1;
@@ -240,10 +241,17 @@ function cellsShown(view, d) {
   const cells = new Int32Array(view.cols * view.rows);
   for (let k = 0; k < view.rows; k++) {
     for (let i = 0; i < view.cols; i++) {
-      cells[k * view.cols + i] = cellAt(d, d.xmin + view.firstI + i, d.ymax - (view.firstK + k));
+      cells[k * view.cols + i] = cellAt(d, x0 + view.firstI + i, y0 - (view.firstK + k));
     }
   }
   return cells;
+}
+
+// The square in the top left corner of the picture's box, as [x, y]:
+// (xmin, ymax) of domain d, or of the part of it shown (d.shown, see
+// pictureBox in js/sim-domains.js).
+function topLeftSquare(d) {
+  return d.shown ? [Math.round(d.shown.left + 0.5), Math.round(d.shown.top - 0.5)] : [d.xmin, d.ymax];
 }
 
 // Where the sides of the squares are on the canvas, in screen pixels:
@@ -292,9 +300,10 @@ function paintCells(view, pen, d, groupOf, rgbOf, outsideRGB) {
 // their places, as x0, y0, x1, y1, ... (Eden Growth and Random Walk
 // shade their holes this way.)
 function shadeSquares(view, pen, d, cells, color) {
+  const [x0, y0] = topLeftSquare(d);
   pen.fillStyle = color;
   for (let k = 0; k < cells.length; k += 2) {
-    const i = cells[k] - d.xmin, row = d.ymax - cells[k + 1];
+    const i = cells[k] - x0, row = y0 - cells[k + 1];
     const left = squareLeft(view, i), top = squareTop(view, row);
     pen.fillRect(left, top, squareLeft(view, i + 1) - left, squareTop(view, row + 1) - top);
   }
@@ -656,7 +665,8 @@ function cellUnder(view, d, spot) {
   }
   const i = Math.floor((spot.x - view.left) / view.cell - view.scroll.x);   // its square (i, k)
   const k = Math.floor(spot.y / view.cell - view.scroll.y);
-  return cellAt(d, d.xmin + i, d.ymax - k);
+  const [x0, y0] = topLeftSquare(d);
+  return cellAt(d, x0 + i, y0 - k);
 }
 
 // The cell under a pointer event on the picture (-1: none): with

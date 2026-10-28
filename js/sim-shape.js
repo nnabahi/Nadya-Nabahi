@@ -2,9 +2,10 @@
    sim-shape.js  —  the shape of a set of cells: its convex hull and
    its holes
    ---------------------------------------------------------------------
-   Shared by Eden Growth (the shape and holes of its base) and Random
-   Walk (the hull and holes of the cells the walker has visited), and
-   by their check pages. A sim's second thread (a "Web Worker") can't
+   Shared by Eden Growth (the shape and holes of its base), Random Walk
+   (the hull and holes of the cells the walker has visited) and First
+   Passage Percolation (the shape and holes of the ball), and by their
+   check pages. A sim's second thread (a "Web Worker") can't
    see the page's scripts, so a sim hands these functions to runInWorker
    (js/sim-page.js) in its list of helpers, which copies them in:
    shapeHelpers() lists them, with the two of js/sim-domains.js they
@@ -16,12 +17,15 @@
      growingHull()             the same, kept up to date as points come
      polygonArea(corners)      a polygon's area ...
      polygonPerimeter(corners) ... and the length around it
+     newShape(from, bins)      a growing set's farthest cell in each
+                               direction, its area, hull and convexity
      holeHistory(set, now)     the holes of a set of cells (squares, or
                                any tiling's cells), with the step each
                                one opened and closed
      bettiOverTime(holes, times)   the number of holes at given steps
      holeReporter()            the holes for a sim's reports, kept up
                                to date without slowing a run down
+     newRefresher()            an answer kept up to date that way
      frontierLength(set)       the length of the set's outer boundary
      cellWindow(...)           the cells around a set that these two
                                look at (squareWindow, tilingWindow,
@@ -100,6 +104,36 @@ function polygonPerimeter(corners) {
 }
 
 
+// The shape of a set of cells that only grows, seen from the point
+// "from" ([u, w], the middle of the start cell), kept up to date as
+// cells join it, for the shape charts (Eden Growth, First Passage
+// Percolation):
+//   shape.add(middle, corners)   a cell joins: its middle and its corners
+//   shape.radii[k]   the farthest distance (straight-line, from "from" to
+//                    a cell's middle, in side lengths) of a cell of the
+//                    set whose direction from "from" is in slice k of
+//                    "bins" equal slices of the circle (slice 0 starts at
+//                    -180 degrees, to the left), or 0 if none yet
+//   shape.area       the set's area, K being the union of its cells
+//   shape.hull       the convex hull of its cells' corners (growingHull),
+//                    which is the hull of K
+//   shape.convexity()   area(K) / area(hull of K): 1 when K is convex,
+//                    smaller the more K has bays and holes
+function newShape(from, bins) {
+  const shape = { radii: new Float64Array(bins), area: 0, hull: growingHull() };
+  shape.add = function (middle, corners) {
+    const dx = middle[0] - from[0], dy = middle[1] - from[1];
+    if (dx !== 0 || dy !== 0) {
+      const k = Math.min(bins - 1, Math.floor((Math.atan2(dy, dx) + Math.PI) / (2 * Math.PI) * bins));
+      shape.radii[k] = Math.max(shape.radii[k], Math.sqrt(dx * dx + dy * dy));
+    }
+    for (const corner of corners) shape.hull.add(corner);
+    shape.area += polygonArea(corners);
+  };
+  shape.convexity = function () { return shape.area / polygonArea(shape.hull.corners()); };
+  return shape;
+}
+
 /* =====================================================================
    THE HOLES OF A SET OF CELLS, OVER TIME
    ---------------------------------------------------------------------
@@ -129,7 +163,9 @@ function polygonPerimeter(corners) {
        forwards, died at that step;
      - a cell joining several groups is, forwards, a split: the group
        that dies last (the outside never dies) carries on, and each of
-       the others was born at that step.
+       the others was born at that step;
+     - the groups left at the end, other than the outside, are the holes
+       of the set at the start: born at step 0.
    Every group carries the step it dies at. Groups that are still holes
    now die "later than now", and the outside later than everything.
 
@@ -230,6 +266,16 @@ function holeHistory(set, now) {
     }
     diesAt[c] = diesAt[elder];
     for (const g of groups) join(c, g);
+  }
+
+  // What is left is the set at the start (the cells born at step 0). If
+  // it has holes of its own (First Passage Percolation's ball at time 0,
+  // when some times are 0), each was born at step 0.
+  const startHoles = new Set();
+  for (let c = 0; c < count; c++) if (filledAt[c] < 0 && find(c) !== find(OUTSIDE)) startHoles.add(find(c));
+  for (const g of startHoles) {
+    if (diesAt[g] === LATER) result.openBirths.push(0);
+    else { result.births.push(0); result.deaths.push(diesAt[g]); }
   }
   return result;
 }
@@ -406,21 +452,16 @@ function bettiOverTime(holes, times) {
 //   cells, sizes   the open ones' cells (holeCells) and sizes
 //   times, beta    beta_1 at the steps "times" up to "step"
 // They are worked out again at each new step, but while "busy" (the
-// sim is playing) at most a fifth of the time; in between, the last
-// ones are given again, for an older step. A new run gets a new
+// sim is playing) only now and then (newRefresher); in between, the
+// last ones are given again, for an older step. A new run gets a new
 // reporter (the holes kept are the old run's).
 function holeReporter() {
-  let holes = null, holesStep = -1, free = 0;
+  const refresh = newRefresher();
   return function report(set, step, busy, times) {
-    const start = performance.now();
-    if (holesStep !== step && (!busy || start >= free)) {
-      holes = holeHistory(set, step);
-      holesStep = step;
-      free = start + 4 * (performance.now() - start);
-    }
-    const upTo = times.filter(function (t) { return t <= holesStep; });
+    const { holes, at } = refresh(step, busy, function () { return { holes: holeHistory(set, step), at: step }; });
+    const upTo = times.filter(function (t) { return t <= at; });
     return {
-      step: holesStep, now: holes.openBirths.length, closed: holes.deaths.length,
+      step: at, now: holes.openBirths.length, closed: holes.deaths.length,
       births: Float64Array.from(holes.births), deaths: Float64Array.from(holes.deaths),
       cells: Int32Array.from(holes.holeCells), sizes: Int32Array.from(holes.holeSizes),
       times: Float64Array.from(upTo), beta: bettiOverTime(holes, upTo),
@@ -428,10 +469,29 @@ function holeReporter() {
   };
 }
 
+// An answer that takes a while to work out, kept up to date without
+// slowing a run down: refresh(key, busy, work) gives work()'s answer,
+// worked out again whenever "key" (what it depends on, like the step)
+// is new, but while "busy" (the sim is playing) at most a fifth of the
+// time: after working it out, it waits four times as long as that took.
+// In between, it gives the last answer again.
+function newRefresher() {
+  let answer, answerKey, free = 0;
+  return function refresh(key, busy, work) {
+    const start = performance.now();
+    if (key !== answerKey && (!busy || start >= free)) {
+      answer = work();
+      answerKey = key;
+      free = start + 4 * (performance.now() - start);
+    }
+    return answer;
+  };
+}
+
 // What a second thread needs to use this file, for runInWorker
 // (js/sim-page.js): its functions, and signedArea and boxAround
 // (js/sim-domains.js).
 function shapeHelpers() {
-  return [convexHull, growingHull, polygonArea, polygonPerimeter, holeHistory, bettiOverTime, holeReporter,
-          frontierLength, cellWindow, squareWindow, tilingWindow, finiteWindow, signedArea, boxAround];
+  return [convexHull, growingHull, polygonArea, polygonPerimeter, newShape, holeHistory, bettiOverTime, holeReporter,
+          newRefresher, frontierLength, cellWindow, squareWindow, tilingWindow, finiteWindow, signedArea, boxAround];
 }

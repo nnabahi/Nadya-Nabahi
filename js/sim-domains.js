@@ -113,18 +113,22 @@ function boxAround(x, y, spare, which) {
 // A width x height box of cells, with 4 neighbors (sharing a side) or 8
 // (sides or corners: only Cellular Automata's cluster counts use 8; the
 // sims' domains are always 4). If "torus" is true, the right edge is
-// glued to the left and the top to the bottom.
-function boxDomain(width, height, neighbors, torus) {
+// glued to the left and the top to the bottom. The cells are (x, y) for
+// x from 0 to width - 1 and y from 0 to height - 1, or with "centered",
+// shifted so cell (0, 0) is in the middle (First Passage Percolation's
+// whole plane, a box that grows around it).
+function boxDomain(width, height, neighbors, torus, centered) {
   const xs = [], ys = [], edges = [];
+  const dx = centered ? Math.floor(width / 2) : 0, dy = centered ? Math.floor(height / 2) : 0;
   // As in the graph tool: each cell looks right and up (and, with 8
   // neighbors, diagonally), wrapping around on a torus.
   const steps = neighbors === 8 ? [[1, 0], [0, 1], [1, 1], [1, -1]] : [[1, 0], [0, 1]];
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
-      xs.push(x);
-      ys.push(y);
-      for (const [dx, dy] of steps) {
-        let nx = x + dx, ny = y + dy;
+      xs.push(x - dx);
+      ys.push(y - dy);
+      for (const [sx, sy] of steps) {
+        let nx = x + sx, ny = y + sy;
         if (nx < 0 || nx >= width || ny < 0 || ny >= height) {
           if (!torus) continue;
           nx = wrap(nx, 0, width - 1);
@@ -134,9 +138,8 @@ function boxDomain(width, height, neighbors, torus) {
       }
     }
   }
-  const wrapRange = torus ? { xmin: 0, xmax: width - 1, ymin: 0, ymax: height - 1 } : null;
-  const d = makeDomain(xs, ys, edges, wrapRange, null);
-  return d;
+  const wrapRange = torus ? { xmin: -dx, xmax: width - 1 - dx, ymin: -dy, ymax: height - 1 - dy } : null;
+  return makeDomain(xs, ys, edges, wrapRange, null);
 }
 
 // The Aztec diamond of order N: the cells (x, y), x and y from -N to N-1,
@@ -403,8 +406,12 @@ function cellSpots(d) {
 // The box around domain d's picture: { left, right, bottom, top }. On a
 // torus it is one copy of the torus, which repeats every (right - left)
 // across and (top - bottom) up. Square cells are the squares of side 1
-// around (x, y).
+// around (x, y). A page whose picture shows only part of a domain (the
+// whole plane, a box that grows to stay ahead of what is shown: First
+// Passage Percolation) sets d.shown to that part's box (for squares,
+// along their sides), and then that is the picture's box.
 function pictureBox(d) {
+  if (d.shown) return d.shown;
   if (!d.lattice) return { left: d.xmin - 0.5, right: d.xmax + 0.5, bottom: d.ymin - 0.5, top: d.ymax + 0.5 };
   if (d.pictureBox) return d.pictureBox;
   if (d.wrap) {
@@ -456,8 +463,9 @@ function cellAtPoint(d, u, w) {
 
 // A box or torus of a tiling's cells. A box is the cells whose middles
 // are in the rectangle 0 <= u < width, 0 <= w < height (in side
-// lengths), or, for a tiling that never repeats (js/sim-penrose.js),
-// the same rectangle centered on the tiling's middle. A torus is a
+// lengths), or, for a tiling that never repeats (js/sim-penrose.js) and
+// with "centered", the same rectangle centered on the tiling's middle
+// (0, 0). A torus is a
 // whole number of blocks each way, as near width x height as it can be,
 // but at least enough that a cell's neighbors are all different cells.
 // Besides the usual (section 1), the domain has
@@ -469,9 +477,9 @@ function cellAtPoint(d, u, w) {
 //                         middle is left of the box (right of it), as
 //                         the left column is for squares
 // (cellAt isn't used: a block has several cells.)
-function tilingBox(tiling, width, height, torus) {
+function tilingBox(tiling, width, height, torus, centered) {
   if (torus && !tiling.finite) return tilingTorus(tiling, width, height);
-  const box = tiling.finite ? { left: -width / 2, bottom: -height / 2, width: width, height: height }
+  const box = tiling.finite || centered ? { left: -width / 2, bottom: -height / 2, width: width, height: height }
                             : { left: 0, bottom: 0, width: width, height: height };
   return makeTilingDomain(tiling, cellsInBox(tiling, box, null), null, box);
 }
@@ -601,8 +609,15 @@ function cornersAt(tiling, I, J, k) {
   return tiling.cells[k].corners.map(function (c) { return [c[0] + u, c[1] + w]; });
 }
 
-// The corners of cell v of a tiling domain, in the picture.
-function cornersOf(d, v) { return cornersAt(d.tiling, d.x[v], d.y[v], d.part[v]); }
+// The corners of cell v of domain d, in the picture (of a square, its 4
+// corners, from the lower left going counterclockwise).
+function cornersOf(d, v) {
+  if (!d.lattice) {
+    const x = d.x[v], y = d.y[v];
+    return [[x - 0.5, y - 0.5], [x + 0.5, y - 0.5], [x + 0.5, y + 0.5], [x - 0.5, y + 0.5]];
+  }
+  return cornersAt(d.tiling, d.x[v], d.y[v], d.part[v]);
+}
 
 // Cell k of block (I, J) of a tiling domain (wrapped around on a
 // torus), or -1 if the domain doesn't have it.

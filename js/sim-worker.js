@@ -13,6 +13,8 @@
                                             charts over time
      seededUniform(seed)                    random numbers tied to a
                                             seed and a place or step
+     newHeap()                              numbers kept so the smallest
+                                            is always first
 
    A worker can't see the page's scripts, so the page hands these
    functions to it in its list of helpers, for example
@@ -266,4 +268,60 @@ function seededUniform(seed) {
     return ((h1 >>> 11) * 4294967296 + (h2 >>> 0) + 0.5) / 9007199254740992;
   }
   return { uniform: uniform, textToNumbers: textToNumbers };
+}
+
+
+// A "heap" (a binary heap, J. W. J. Williams, "Algorithm 232:
+// Heapsort", Comm. ACM 7 (1964) 347-348): things waiting with a number
+// each, kept so the one with the smallest number is always first.
+// Adding one or taking out the first takes about log2(size) steps, so
+// even millions stay quick. (Eden Growth's clocks, the soonest alarm
+// first; First Passage Percolation's search, the nearest site first.)
+//   heap.add(key, item)   add "item" (a whole number) with the number "key"
+//   heap.firstKey()       the smallest number waiting
+//   heap.firstItem()      the item with it (still waiting)
+//   heap.take()           take out the item with the smallest number
+//   heap.size()           how many are waiting
+// keys[k] is never bigger than keys[2k + 1] or keys[2k + 2], so the
+// smallest is keys[0].
+function newHeap() {
+  const keys = [], items = [];
+
+  function add(key, item) {
+    // Add it at the end, and move it up while it is smaller than its parent.
+    let k = keys.length;
+    while (k > 0) {
+      const up = (k - 1) >> 1;
+      if (keys[up] <= key) break;
+      keys[k] = keys[up]; items[k] = items[up]; k = up;
+    }
+    keys[k] = key; items[k] = item;
+  }
+
+  function take() {
+    const item = items[0];
+    // Put the last one in front, then move it down while a child is smaller.
+    const lastKey = keys.pop(), lastItem = items.pop();
+    const n = keys.length;
+    if (n > 0) {
+      let k = 0;
+      for (;;) {
+        const a = 2 * k + 1, b = a + 1;
+        let smallest = -1, smallestKey = lastKey;
+        if (a < n && keys[a] < smallestKey) { smallest = a; smallestKey = keys[a]; }
+        if (b < n && keys[b] < smallestKey) { smallest = b; smallestKey = keys[b]; }
+        if (smallest < 0) break;
+        keys[k] = keys[smallest]; items[k] = items[smallest]; k = smallest;
+      }
+      keys[k] = lastKey; items[k] = lastItem;
+    }
+    return item;
+  }
+
+  return {
+    add: add, take: take,
+    firstKey: function () { return keys[0]; },
+    firstItem: function () { return items[0]; },
+    size: function () { return keys.length; },
+  };
 }

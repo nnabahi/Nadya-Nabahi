@@ -714,10 +714,10 @@ function convexityOfDomain(domain, start) {
   const m = newMountain({ dim: 2, tile: [[1, 0], [-1, 0], [0, 1], [0, -1]], domain: domain, start: start,
                           cap: 1, clocks: "shape", shapeBins: 8 });
   while (m.available.length > 0) m.step();
-  return convexity(m);
+  return m.shape.convexity();
 }
 
-// After "steps" steps, compare m.radii with the radii found again from
+// After "steps" steps, compare the kept radii (m.shape.radii) with the radii found again from
 // every base site (from the middles of the cells, on another tiling
 // with middleAt, js/sim-domains.js).
 function checkRadii(options, steps) {
@@ -735,7 +735,7 @@ function checkRadii(options, steps) {
     again[k] = Math.max(again[k], Math.hypot(dx, dy));
   }
   for (let k = 0; k < bins; k++) {
-    if (Math.abs(again[k] - m.radii[k]) > 1e-9) return "direction " + k + ": kept " + m.radii[k] + ", found again " + again[k];
+    if (Math.abs(again[k] - m.shape.radii[k]) > 1e-9) return "direction " + k + ": kept " + m.shape.radii[k] + ", found again " + again[k];
   }
   return "";
 }
@@ -870,8 +870,8 @@ function checkTilingShape(options, steps) {
     area += polygonArea(polygon);
     corners.push(...polygon);
   }
-  const should = area / polygonArea(convexHull(corners)), got = convexity(m);
-  if (Math.abs(m.area - area) > 1e-6 * area) return "area kept " + m.area + ", added up " + area;
+  const should = area / polygonArea(convexHull(corners)), got = m.shape.convexity();
+  if (Math.abs(m.shape.area - area) > 1e-6 * area) return "area kept " + m.shape.area + ", added up " + area;
   if (Math.abs(got - should) > 1e-9) return "convexity " + got + ", from every corner " + should;
   return "";
 }
@@ -882,7 +882,7 @@ function oneCellConvexity(t) {
   for (let z = 0; z < t.cells.length; z++) {
     const m = newMountain({ dim: 2, tiling: t, radius: 1, domain: { kind: "cells", cells: [[0, 0, z]], wrap: null },
                             start: [0, 0, z], shapeBins: 8 });
-    if (Math.abs(convexity(m) - 1) > 1e-9) return "cell " + z + ": " + convexity(m);
+    if (Math.abs(m.shape.convexity() - 1) > 1e-9) return "cell " + z + ": " + m.shape.convexity();
   }
   return "";
 }

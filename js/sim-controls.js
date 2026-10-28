@@ -58,7 +58,8 @@
      data-whole         (no value) the whole plane is offered too: "Whole
                         plane" (on the line "Whole line"), and on the
                         hyperbolic plane or tree the whole graph as well
-                        as a ball
+                        as a ball. data-whole="flat": the whole plane, but
+                        on the hyperbolic plane or tree only a ball
      data-dim="1"       a page on the line (1D): Segment, Cycle and the
                         size, and nothing else. A page with both (Eden
                         Growth's Dimension option) switches its options
@@ -75,8 +76,9 @@
      custom       the row custom-row, with the line custom-info and the
                   button edit-custom; the graph tool itself is section 2
      graph        the hyperbolic plane or tree: the rows in graph-rows
-                  (js/sim-hyperbolic.js reads them), with data-whole the
-                  radio buttons name="graph-region" ("whole" or "ball")
+                  (js/sim-hyperbolic.js reads them), with data-whole
+                  (not "flat") the radio buttons name="graph-region"
+                  ("whole" or "ball")
    A page has only the options it offers, and can have its own kinds
    too (Uniform Discrete Tiling's Aztec diamond).
 
@@ -119,7 +121,7 @@ function domainOptionsHTML(settings) {
   const rows = [kindsHTML(settings.ticked, oneD, whole), sizeRowHTML(settings.least || 2, oneD)];
   if (oneD) return rows.join("");
   rows.push(latticeRowsHTML());
-  rows.push(customRowHTML(), graphRowsHTML(whole));
+  rows.push(customRowHTML(), graphRowsHTML(whole && settings.whole !== "flat"));
   return rows.join("");
 }
 
