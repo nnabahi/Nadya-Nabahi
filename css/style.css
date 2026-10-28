@@ -37,17 +37,17 @@
    Colors are written as hex codes: #rrggbb (red, green, blue, 00–ff).
    ===================================================================== */
 :root {
-  --color-background:   #f6f5f2;  /* the page behind everything        */
-  --color-surface:      #ffffff;  /* cards and sim page panels        */
-  --color-text:         #22252b;  /* normal writing                    */
-  --color-text-muted:   #6b6f78;  /* captions, dates, small notes      */
-  --color-border:       #dedbd4;  /* thin lines around cards           */
-  --color-grid:         #e6e6e6;  /* grid lines on charts and plane pictures */
-  --color-accent:       #3a5a7a;  /* links, active tab, highlights     */
-  --color-topbar:       #ffffff;  /* background of the top bar         */
-  --color-placeholder:  #ecebe7;  /* gray boxes where content will go  */
-  --color-tag:          #e8edf2;  /* background of genre labels        */
-  --color-ok:           #2f7d3a;  /* "all fine" messages (green)       */
+  --color-background:   #f6f5f2;  /* the page behind everything         */
+  --color-surface:      #ffffff;  /* cards and sim page panels          */
+  --color-text:         #22252b;  /* normal writing                     */
+  --color-text-muted:   #6b6f78;  /* captions, dates, small notes       */
+  --color-border:       #dedbd4;  /* thin lines around cards            */
+  --color-grid:         #e6e6e6;  /* lines across charts and planes     */
+  --color-accent:       #3a5a7a;  /* links, active tab, highlights      */
+  --color-topbar:       #ffffff;  /* background of the top bar          */
+  --color-placeholder:  #ecebe7;  /* gray boxes where content will go   */
+  --color-tag:          #e8edf2;  /* background of genre labels         */
+  --color-ok:           #2f7d3a;  /* "all fine" messages (green)        */
   --color-problem:      #b3402f;  /* "something's wrong" messages (red) */
 
   /* Fonts: the browser uses the first one it has, else the next. */
@@ -678,7 +678,7 @@ a.card:hover {
   width: 4.6em;
   padding: 2px 3px;
   font-size: 0.8em;
-  color: #777;
+  color: var(--color-text-muted);
 }
 
 /* The formula box, its typeset preview, and its sliders. */
@@ -710,8 +710,8 @@ a.card:hover {
 /* A small picture of a formula's shape (the domain or the tile), which
    pops up above the formula's top right corner while the mouse is over
    the formula (its box or its typeset preview), or while you type in it
-   (":focus-within" = the box has the typing cursor). Used by the random
-   sequential packing. */
+   (":focus-within" = the box has the typing cursor). Used by Sequential
+   Continuous Tiling. */
 .formula-with-picture {
   position: relative;      /* the picture is placed relative to this */
 }
@@ -776,9 +776,9 @@ a.card:hover {
 /* A clickable grid of small square cells, for picking a set of offsets
    (Eden Growth's Tile T, a cellular automaton's neighborhood;
    showOffsetGrid in js/sim-controls.js): a lit cell is in the set. The
-   middle cell is either dark (the mountain's site itself) or outlined
-   ("own": the cell itself, which a neighborhood may include). In 1D it
-   is a single row. */
+   middle cell is either dark (the site itself, in Eden Growth) or
+   outlined ("own": the cell itself, which a neighborhood may include).
+   In 1D it is a single row. */
 .tile-grid {
   display: grid;
   gap: 2px;
@@ -824,10 +824,10 @@ a.card:hover {
   box-shadow: inset 0 0 0 2px var(--color-text);
 }
 
-/* The random matrix products' matrices (made by
-   toysnsims/matrix-products/matrix-products.js): the boxes of
-   one matrix, laid out like the matrix itself, with its weight and a
-   remove button beside it.
+/* Matrix Products' matrices (made by
+   toysnsims/matrix-products/matrix-products.js): the boxes of one
+   matrix, laid out like the matrix itself, with its weight and a remove
+   button beside it.
 
        M1   [ 0.9 ] [ 0.8 ]    weight       ×
             [ 0.1 ] [ 0.2 ]    [    ]
@@ -898,7 +898,7 @@ a.card:hover {
   height: 90px;
 }
 
-/* A chart you can click (e.g. the coloring sim's color sizes: a click
+/* A chart you can click (e.g. Connected Coloring's color sizes: a click
    highlights that color). */
 .chart.clickable {
   cursor: pointer;
@@ -908,8 +908,8 @@ a.card:hover {
 .chart.tall   { height: 130px; }
 .chart.taller { height: 180px; }
 
-/* A box that scrolls when its content is more than 220px tall (the
-   random sine's table of lobes). */
+/* A box that scrolls when its content is more than 220px tall
+   (Sinusoid-ish's table of lobes). */
 .scroll-box {
   max-height: 220px;
   overflow-y: auto;
@@ -935,22 +935,6 @@ a.card:hover {
    picture lets "position: absolute" place the buttons inside it. */
 .sim-picture {
   position: relative;
-}
-
-/* A key under a picture colored by a number (Uniform Spanning Tree): the
-   lowest number, a strip of the colors (its background is set by the
-   page's code), and the highest number, on one row. */
-.color-key {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 6px;
-  font-size: 0.85rem;
-}
-.color-key-strip {
-  flex: 1;
-  height: 10px;
-  border-radius: 2px;
 }
 
 /* The drawing surface for a simulation fills the width of its box.
@@ -990,6 +974,22 @@ canvas.scrollable.dragging {
   cursor: grab;
 }
 
+/* A key under a picture colored by a number (Uniform Spanning Tree): the
+   lowest number, a strip of the colors (its background is set by the
+   page's code), and the highest number, on one row. */
+.color-key {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  font-size: 0.9em;
+}
+.color-key-strip {
+  flex: 1;
+  height: 10px;
+  border-radius: 2px;
+}
+
 /* The zoom buttons in the picture's top right corner (js/sim-view.js
    puts them there), and the 3D view's "Reset view" (js/sim-page.js). */
 .zoom-buttons {
@@ -1013,7 +1013,7 @@ canvas.scrollable.dragging {
   width: 15px;
   overflow-x: hidden;
   overflow-y: scroll;
-  scrollbar-color: #a3a09a #ecebe7;   /* gray handle on a light gray track */
+  scrollbar-color: #a3a09a var(--color-placeholder);   /* gray handle on a light gray track */
 }
 
 /* The tall empty box inside the bar that gives it something to scroll.
@@ -1350,8 +1350,8 @@ body.embedded .graph-wrap {
   white-space: nowrap;         /* in a table, "✓ pass" stays on one line */
 }
 
-/* A picture on a check page: the random sine's two pictures, and the
-   random matrix products' histogram (a little shorter). */
+/* A picture on a check page: Sinusoid-ish's two pictures, and Matrix
+   Products' histogram (a little shorter). */
 .check-picture {
   display: block;
   width: 100%;
@@ -1364,7 +1364,7 @@ body.embedded .graph-wrap {
   height: 260px;
 }
 
-/* Pictures side by side (the random sequential packing's check page). */
+/* Pictures side by side (Sequential Continuous Tiling's check page). */
 .check-pictures {
   display: flex;
   flex-wrap: wrap;
@@ -1377,11 +1377,11 @@ body.embedded .graph-wrap {
   border: 1px solid var(--color-border);
 }
 
-/* The random tile packing's check page: its sections, the table of
+/* Uniform Discrete Tiling's check page: its sections, the table of
    counts (numbers line up on the right), the bars, and the arctic
    circle picture. */
 .check-section {
-  margin: 1.5rem 0;
+  margin: 24px 0;
 }
 
 #count-results td,
@@ -1393,7 +1393,7 @@ body.embedded .graph-wrap {
   width: 100%;
   height: 90px;
   display: block;
-  margin: 0.3rem 0 0.8rem;
+  margin: 5px 0 13px;
 }
 
 #arctic-canvas {
@@ -1451,7 +1451,7 @@ body.embedded .graph-wrap {
     overflow-x: auto;
   }
 
-  /* Stack the four boxes in one column, in this order. */
+  /* Stack the five boxes in one column, in this order. */
   .sim-layout {
     grid-template-columns: 1fr;
     grid-template-areas:

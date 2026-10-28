@@ -1,5 +1,5 @@
 /* =====================================================================
-   voter-model.js  —  the page of the "Generalized voter model" sim
+   voter-model.js  —  the page of the "Generalized Voter Model" sim
    ---------------------------------------------------------------------
    What it does, in plain words:
      - Builds the domain: a box or torus of cells (on the square grid,
@@ -103,12 +103,7 @@ function readRule() {
   if (window.katex) {
     katex.render("g(x) = " + tree.toTex({ parenthesis: "keep", implicit: "hide" }), byId("preview-g"), { throwOnError: false });
   }
-  const holder = byId("sliders");
-  holder.innerHTML = "";
-  for (const letter of sliderLetters(tree)) {
-    if (!sliders[letter]) sliders[letter] = Object.assign({}, NEW_SLIDER);   // a fresh copy
-    holder.appendChild(makeSlider(letter, sliders[letter], sendParams));
-  }
+  showSliders(byId("sliders"), sliderLetters(tree), sliders, sendParams);
   rule = tree.compile();
   return true;
 }
@@ -118,8 +113,7 @@ function readRule() {
 function currentTable() {
   let maxDegree = 1;
   for (let v = 0; v < domain.n; v++) maxDegree = Math.max(maxDegree, domain.first[v + 1] - domain.first[v]);
-  const scope = {};
-  for (const letter in sliders) scope[letter] = sliders[letter].value;
+  const scope = sliderValues(sliders);
   let failed = "";
   const table = makeTable(function (x) {
     scope.x = x;

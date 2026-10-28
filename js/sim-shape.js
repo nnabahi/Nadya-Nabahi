@@ -6,8 +6,9 @@
    Walk (the hull and holes of the cells the walker has visited), and
    by their check pages. A sim's second thread (a "Web Worker") can't
    see the page's scripts, so a sim hands these functions to runInWorker
-   (js/sim-page.js) in its list of helpers, which copies them in. That
-   is also why each one keeps everything it needs inside it.
+   (js/sim-page.js) in its list of helpers, which copies them in:
+   shapeHelpers() lists them, with the two of js/sim-domains.js they
+   use.
 
    Contents:
      convexHull(points)        the corners of the smallest convex polygon
@@ -19,10 +20,13 @@
                                any tiling's cells), with the step each
                                one opened and closed
      bettiOverTime(holes, times)   the number of holes at given steps
+     holeReporter()            the holes for a sim's reports, kept up
+                               to date without slowing a run down
      frontierLength(set)       the length of the set's outer boundary
      cellWindow(...)           the cells around a set that these two
                                look at (squareWindow, tilingWindow,
                                finiteWindow)
+     shapeHelpers()            all of them, for a second thread
    ===================================================================== */
 
 
@@ -80,16 +84,9 @@ function growingHull() {
   };
 }
 
-// The area inside a polygon, from its corners in order (the "shoelace
-// formula").
-function polygonArea(corners) {
-  let twice = 0;
-  for (let k = 0; k < corners.length; k++) {
-    const p = corners[k], q = corners[(k + 1) % corners.length];
-    twice += p[0] * q[1] - q[0] * p[1];
-  }
-  return Math.abs(twice) / 2;
-}
+// The area inside a polygon, from its corners in order, either way
+// around (signedArea, js/sim-domains.js).
+function polygonArea(corners) { return Math.abs(signedArea(corners)); }
 
 // The length around a polygon, from its corners in order (for the flat
 // hull [a, b] of two points: there and back, twice the distance).
@@ -282,12 +279,7 @@ function cellWindow(set, inside) {
 // round, so its edge is outside the set. Square (x, y) is number
 // (y - ymin) * across + (x - xmin).
 function squareWindow(set, inside) {
-  let xmin = Infinity, xmax = -Infinity, ymin = Infinity, ymax = -Infinity;
-  for (const i of inside) {
-    xmin = Math.min(xmin, set.siteX[i]); xmax = Math.max(xmax, set.siteX[i]);
-    ymin = Math.min(ymin, set.siteY[i]); ymax = Math.max(ymax, set.siteY[i]);
-  }
-  xmin -= 1; xmax += 1; ymin -= 1; ymax += 1;
+  const { xmin, xmax, ymin, ymax } = boxAround(set.siteX, set.siteY, 1, inside);   // (js/sim-domains.js)
   const across = xmax - xmin + 1, down = ymax - ymin + 1, count = across * down;
   return {
     count: count,
@@ -309,23 +301,17 @@ function squareWindow(set, inside) {
 }
 
 // The window of another tiling's cells: whole blocks, around the set's
-// blocks with "margin" more blocks all round. A cell's neighbors are at
-// most "reach" blocks away (each cell's list "next" says which), so with
-// a margin of reach + 1, the cells of the outermost blocks and all
-// their neighbors are empty, and reach far away through empty blocks.
+// blocks with reach + 1 more blocks all round, where a cell's neighbors
+// are at most "reach" blocks away (each cell's list "next" says which).
+// So the cells of the outermost blocks and all their neighbors are
+// empty, and reach far away through empty blocks.
 // Cell z of block (x, y) is number
 //   ((y - ymin) * across + (x - xmin)) * parts + z.
 function tilingWindow(set, inside) {
   const cells = set.tiling.cells, parts = cells.length;
   let reach = 1;
   for (const cell of cells) for (const [, dx, dy] of cell.next) reach = Math.max(reach, Math.abs(dx), Math.abs(dy));
-  const margin = reach + 1;
-  let xmin = Infinity, xmax = -Infinity, ymin = Infinity, ymax = -Infinity;
-  for (const i of inside) {
-    xmin = Math.min(xmin, set.siteX[i]); xmax = Math.max(xmax, set.siteX[i]);
-    ymin = Math.min(ymin, set.siteY[i]); ymax = Math.max(ymax, set.siteY[i]);
-  }
-  xmin -= margin; xmax += margin; ymin -= margin; ymax += margin;
+  const { xmin, xmax, ymin, ymax } = boxAround(set.siteX, set.siteY, reach + 1, inside);
   const across = xmax - xmin + 1, up = ymax - ymin + 1;
   // The window's number for cell z of the window's block (i, j), or -1
   // if that block isn't in the window.
@@ -409,4 +395,43 @@ function bettiOverTime(holes, times) {
     beta[k] = b - d;
   });
   return beta;
+}
+
+// The holes of a set that grows step by step, for a sim's second
+// thread to send its page: report(set, step, busy, times) gives the
+// holes of "set" (as in holeHistory) at step "step", as
+//   step           the step they are for
+//   now, closed    how many holes are open, and how many have closed
+//   births, deaths the steps the closed ones were born and died
+//   cells, sizes   the open ones' cells (holeCells) and sizes
+//   times, beta    beta_1 at the steps "times" up to "step"
+// They are worked out again at each new step, but while "busy" (the
+// sim is playing) at most a fifth of the time; in between, the last
+// ones are given again, for an older step. A new run gets a new
+// reporter (the holes kept are the old run's).
+function holeReporter() {
+  let holes = null, holesStep = -1, free = 0;
+  return function report(set, step, busy, times) {
+    const start = performance.now();
+    if (holesStep !== step && (!busy || start >= free)) {
+      holes = holeHistory(set, step);
+      holesStep = step;
+      free = start + 4 * (performance.now() - start);
+    }
+    const upTo = times.filter(function (t) { return t <= holesStep; });
+    return {
+      step: holesStep, now: holes.openBirths.length, closed: holes.deaths.length,
+      births: Float64Array.from(holes.births), deaths: Float64Array.from(holes.deaths),
+      cells: Int32Array.from(holes.holeCells), sizes: Int32Array.from(holes.holeSizes),
+      times: Float64Array.from(upTo), beta: bettiOverTime(holes, upTo),
+    };
+  };
+}
+
+// What a second thread needs to use this file, for runInWorker
+// (js/sim-page.js): its functions, and signedArea and boxAround
+// (js/sim-domains.js).
+function shapeHelpers() {
+  return [convexHull, growingHull, polygonArea, polygonPerimeter, holeHistory, bettiOverTime, holeReporter,
+          frontierLength, cellWindow, squareWindow, tilingWindow, finiteWindow, signedArea, boxAround];
 }

@@ -1,6 +1,6 @@
 /* =====================================================================
-   sinusoid-ish-roots.js  —  the math behind the "Random sine function"
-   sim (nadya's Desmos idea D1, "random roots")
+   sinusoid-ish-roots.js  —  the math behind the "Sinusoid-ish" sim
+   (nadya's Desmos idea D1, "random roots")
    ---------------------------------------------------------------------
    What it does, in plain words:
      Put roots at random points ... < R(-2) < R(-1) < 0 < R(0) < R(1) < ...
@@ -120,15 +120,7 @@ function makeUniforms(seed, N) {
 // The letters in the box that need a slider: everything except u and
 // names math.js already knows (pi, e, sqrt, ...).
 function gapSetLetters(text) {
-  const tree = readTree(bracketsAsList(text));
-  const names = tree
-    .filter(function (node, path, parent) {
-      return node.isSymbolNode && !isFunctionName(path, parent);
-    })
-    .map(function (node) { return node.name; });
-  return [...new Set(names)].filter(function (name) {
-    return name !== "u" && math[name] === undefined;
-  });
+  return sliderLetters(readTree(bracketsAsList(text)), ["u"]);   // (js/formulas.js)
 }
 
 // Read the text and return its gap law (see above). Throws an Error

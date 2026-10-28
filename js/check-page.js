@@ -15,16 +15,20 @@
    and the tests several pages use (the p-values come from the library
    jStat, which those pages load):
      pooledChiSquare(odds, seen, runs)   do counts match exact odds?
+     exactOddsTest(odds, seen, runs, what)   ... as a pass or FAIL with its text
      equalChiSquare(counts)              are some outcomes equally likely?
      binomialZ(count, trials, p)         how far a count is from its mean
    and, to test the holes found by holeHistory (js/sim-shape.js):
      countHoles(cells)                   the holes of a set of cells, counted plainly
    and, for the pages that test tilings (they load js/sim-tilings.js,
-   whose tilingBlock(code, corners) builds a tiling as the sims do):
-     middleAt, cornersAt(tiling, x, y, z)   where a cell is: its middle, its corners
+   whose tilingBlock(code, corners) builds a tiling as the sims do, and
+   js/sim-domains.js, whose middleAt and cornersAt say where its cells
+   are):
      spotKey(u, w), sideKeysAt(...)      points and sides as text, to match them up
      eulerCounter(tiling)                the holes of a growing set of cells, by Euler's formula
      holesFromPolygons(set)              its holes and outer boundary, from the polygons alone
+     holesAgainstEuler(set, h, steps)    holeHistory's answer against Euler's formula ...
+     holesAgainstPolygons(set, h)        ... and against the polygons
    and, to test the counting of regions (js/sim-domains.js):
      unionFindRegions(d, colors)         each cell's region, found another way
      testRegions()                       the regions counted and highlighted, on many domains
@@ -106,6 +110,21 @@ function pooledChiSquare(odds, seen, runs) {
   return { statistic: statistic, groups: groups, degrees: degrees, pValue: 1 - jStat.chisquare.cdf(statistic, degrees) };
 }
 
+// The same test as a result for a row of the table: { pass, text }. An
+// outcome the odds don't list can't happen, and fails the test at once.
+// "what" names the outcomes in the text (like "mountains").
+function exactOddsTest(odds, seen, runs, what) {
+  for (const outcome of seen.keys()) {
+    if (!odds.has(outcome)) return { pass: false, text: "The sim made an outcome the exact odds rule out: " + outcome };
+  }
+  const test = pooledChiSquare(odds, seen, runs);
+  return {
+    pass: test.pValue > 0.001,
+    text: odds.size + " possible " + what + ", " + runs + " runs: chi-square " + test.statistic.toFixed(1) +
+          " with " + test.degrees + " degrees of freedom, p = " + test.pValue.toFixed(3),
+  };
+}
+
 // Are the outcomes equally likely? "counts" is how often each came up.
 // Returns { statistic, degrees, pValue }.
 function equalChiSquare(counts) {
@@ -168,17 +187,6 @@ function countHoles(cells) {
   return holes;
 }
 
-
-// Where cell z of block (x, y) of a tiling is: its middle, and its corners.
-function middleAt(tiling, x, y, z) {
-  const m = tiling.cells[z].middle;
-  return [m[0] + x * tiling.a[0] + y * tiling.b[0], m[1] + x * tiling.a[1] + y * tiling.b[1]];
-}
-function cornersAt(tiling, x, y, z) {
-  return tiling.cells[z].corners.map(function (c) {
-    return [c[0] + x * tiling.a[0] + y * tiling.b[0], c[1] + x * tiling.a[1] + y * tiling.b[1]];
-  });
-}
 
 // A point as text, rounded to 6 decimals, so the same point worked out
 // from two cells gets the same text.
@@ -271,6 +279,48 @@ function holesFromPolygons(set) {
     sizes.push(size);
   }
   return { sizes: sizes, cells: holeCells, frontier: frontier };
+}
+
+// holeHistory's answer h (js/sim-shape.js) for a set of a tiling's
+// cells ("set" as holeHistory has it, its cells in the order they
+// joined, connected at every step), against Euler's formula: beta_1
+// from h's births and deaths = eulerCounter's at every step 0 .. steps.
+// Returns { problem, most }: what is wrong ("" if nothing), and the most
+// holes there were at once.
+function holesAgainstEuler(set, h, steps) {
+  const beta = bettiOverTime(h, Array.from({ length: steps + 1 }, function (_, step) { return step; }));
+  const counter = eulerCounter(set.tiling);
+  let i = 0, most = 0;
+  for (let step = 0; step <= steps; step++) {
+    for (; i < set.siteX.length && set.bornAt[i] === step; i++) counter.add(set.siteX[i], set.siteY[i], set.siteZ[i]);
+    const euler = counter.holes();
+    most = Math.max(most, euler);
+    if (euler !== beta[step]) {
+      return { problem: "step " + step + ": " + beta[step] + " holes from the births and deaths, " + euler + " by Euler's formula",
+               most: most };
+    }
+  }
+  return { problem: "", most: most };
+}
+
+// holeHistory's answer h for the same set, now: its holes (how many,
+// their sizes and their cells) and the set's outer boundary
+// (frontierLength, js/sim-shape.js) against those found from the
+// polygons alone (holesFromPolygons). Returns { problems (none if they
+// agree), holes, cells, frontier }.
+function holesAgainstPolygons(set, h) {
+  const plain = holesFromPolygons(set), frontier = frontierLength(set), problems = [];
+  const ours = new Set();
+  for (let k = 0; k < h.holeCells.length; k += 3) ours.add(h.holeCells[k] + "," + h.holeCells[k + 1] + "," + h.holeCells[k + 2]);
+  const sizes = function (list) { return Array.from(list).sort(function (a, b) { return a - b; }).join(" "); };
+  const sameCells = ours.size === plain.cells.size && [...ours].every(function (key) { return plain.cells.has(key); });
+  if (plain.sizes.length !== h.openBirths.length) {
+    problems.push(plain.sizes.length + " holes from the polygons, " + h.openBirths.length + " open");
+  }
+  if (sizes(plain.sizes) !== sizes(h.holeSizes)) problems.push("hole sizes " + sizes(h.holeSizes) + ", from the polygons " + sizes(plain.sizes));
+  if (!sameCells) problems.push("the holes' cells differ from the polygons'");
+  if (frontier !== plain.frontier) problems.push("outer boundary " + frontier + ", from the polygons " + plain.frontier);
+  return { problems: problems, holes: plain.sizes.length, cells: ours.size, frontier: frontier };
 }
 
 // The window of cells holesFromPolygons looks at, as [x, y, z, edge]

@@ -92,7 +92,7 @@ const CELL_OPACITY = 0.85;        // painted cells are slightly see-through, lik
 const UNIT = 20;            // size of one cell, in Cytoscape units
 const MAX_CELLS = 250000;    // biggest grid allowed (e.g. 100 x 100)
 
-// (A new slider's settings, NEW_SLIDER, are in js/formulas.js.)
+// (The sliders, and a new slider's settings, NEW_SLIDER, are in js/formulas.js.)
 
 
 /* =====================================================================
@@ -928,8 +928,9 @@ function loadEdgeList(text) {
    Accept (or Enter in the formula box), keeps the result, and the whole
    formula session becomes one Undo step. (Its state, "formula",
    "beforeFormula" and "sliders", is in section 2.) Reading the formula
-   (readTree), finding its slider letters (sliderLetters) and the slider
-   rows (makeSlider) are shared with the sims, in js/formulas.js.
+   (readTree), finding its slider letters (sliderLetters), the slider
+   rows (showSliders) and their values (sliderValues) are shared with
+   the sims, in js/formulas.js.
    ===================================================================== */
 
 // Runs on every keystroke in the formula box.
@@ -938,7 +939,7 @@ function readFormula() {
   if (text === "") {                // box emptied: undo the live preview
     formula = null;
     byId("formula-preview").innerHTML = "";
-    showSliders([]);
+    showSliders(byId("sliders"), [], sliders, applyFormula);
     cancelFormula();
     return showFormulaMessage("");
   }
@@ -953,7 +954,7 @@ function readFormula() {
   katex.render(tree.toTex({ parenthesis: "keep", implicit: "hide" }), byId("formula-preview"),
                { throwOnError: false });
   formula = tree.compile();
-  showSliders(sliderLetters(tree));
+  showSliders(byId("sliders"), sliderLetters(tree), sliders, applyFormula);   // (js/formulas.js)
   applyFormula();
 }
 
@@ -963,8 +964,7 @@ function applyFormula() {
   if (beforeFormula === null) beforeFormula = Object.assign({}, colorOf);   // remember the grid first
 
   // The values the formula can use: the slider letters, then x and y.
-  const scope = {};
-  for (const name in sliders) scope[name] = sliders[name].value;
+  const scope = sliderValues(sliders);
 
   const mode = byId("formula-mode").value;
   const paint = paintColor();
@@ -1022,20 +1022,6 @@ function cancelFormula() {
 }
 
 function showFormulaMessage(text) { byId("formula-message").textContent = text; }
-
-
-// --- Sliders, like Desmos ---------------------------------------------
-// One row per letter:   r = [1]  ====o====   min [-10]  max [10]  step [0.1]
-// A letter keeps its slider settings even if it leaves the formula and
-// comes back.
-function showSliders(names) {
-  const holder = byId("sliders");
-  holder.innerHTML = "";
-  for (const name of names) {
-    if (!sliders[name]) sliders[name] = Object.assign({}, NEW_SLIDER);   // a fresh copy
-    holder.appendChild(makeSlider(name, sliders[name], applyFormula));
-  }
-}
 
 byId("formula").addEventListener("input", readFormula);
 byId("formula-mode").addEventListener("change", applyFormula);

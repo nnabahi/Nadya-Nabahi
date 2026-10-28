@@ -186,7 +186,8 @@ function heightList(top) {
 // The color of height h on a cell that topples at "top" grains.
 function colorOfHeight(h, top) {
   if (palette === "smooth" && h >= top) {
-    // At the threshold or above: light blue at the threshold, dark blue at the tallest.
+    // At the threshold or above: light blue at the threshold, dark blue
+    // at the tallest.
     const t = tallest > top ? (h - top) / (tallest - top) : 0;
     return alongColors(TALL_RGB, Math.max(0, Math.min(1, t)));
   }

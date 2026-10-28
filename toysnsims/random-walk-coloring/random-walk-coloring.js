@@ -1,5 +1,5 @@
 /* =====================================================================
-   random-walk-coloring.js  —  the page of the "Random walk coloring"
+   random-walk-coloring.js  —  the page of the "Random Walk Coloring"
    sim
    ---------------------------------------------------------------------
    What it does, in plain words:
@@ -111,8 +111,8 @@ function showTime(t) {
    the middle of the ball.
    ===================================================================== */
 function defaultStarts(d, count) {
-  if (domains.kind === "graph") return spreadThroughRegion(d, count, 0);
-  if (domains.kind === "custom" || d.lattice) return spreadThroughRegion(d, count, topLeftCell(d));
+  if (domains.kind === "graph") return spreadOut(d, count, 0);   // (js/sim-domains.js)
+  if (domains.kind === "custom" || d.lattice) return spreadOut(d, count, topLeftCell(d));
   if (onLine()) return lineStarts(d, count);
   return gridStarts(d, count);
 }
@@ -164,20 +164,6 @@ function topLeftCell(d) {
   let corner = 0;
   for (let v = 1; v < d.n; v++) if (fromCorner(v) < fromCorner(corner)) corner = v;
   return corner;
-}
-
-// "count" cells, the first one "firstCell", then each time the cell
-// farthest (in steps) from all those picked so far.
-function spreadThroughRegion(d, count, firstCell) {
-  const picked = [firstCell];
-  let steps = stepsFrom(d, picked);
-  while (picked.length < count) {
-    let far = 0;
-    for (let v = 1; v < d.n; v++) if (steps[v] > steps[far]) far = v;
-    picked.push(far);
-    steps = stepsFrom(d, picked);
-  }
-  return picked;
 }
 
 
@@ -613,13 +599,7 @@ const domains = connectDomains({
   custom: {
     help: "Paint the cells the walkers live on (any color counts). The region must be one connected piece. " +
           "Then press Done, and drag the walkers to where they should start.",
-    check: function (drawing) {
-      if (drawing.graph.vertices.length === 0) return ["Paint the region first.", ""];
-      const region = drawnDomain(drawing.graph, drawing.grid);
-      const reached = stepsFrom(region, [0]).filter(function (s) { return s !== -1; }).length;
-      return reached < region.n ? ["The region must be one connected piece.", ""]
-        : ["", region.n + " cells in one connected piece."];
-    },
+    check: oneConnectedPiece,   // (js/sim-controls.js)
   },
   use: function (d) {
     domain = d;

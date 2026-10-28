@@ -22,9 +22,10 @@
 
    The file has one function, treeWorker(). The sim page
    (uniform-spanning-tree.js) runs it in a second thread (a "Web
-   Worker"), with newWilson copied in, so the page never freezes. It
-   talks to the page the way every sim's worker does (serveRun,
-   js/sim-worker.js). Its one message of its own:
+   Worker"), with newWilson and the search through the domain
+   (searchFrom and stepsFrom, js/sim-domains.js) copied in, so the page
+   never freezes. It talks to the page the way every sim's worker does
+   (serveRun, js/sim-worker.js). Its one message of its own:
      setup  { n, first, nbr, root, seed }   a new tree from the start
    One step is one step of Wilson's algorithm (a walk starts, or moves
    one cell). The run is done, and pauses by itself, once every cell of
@@ -48,20 +49,13 @@ function treeWorker() {
     return nbr[first[v] + Math.floor(random() * (first[v + 1] - first[v]))];
   }
 
-  // The cells of the root's piece, in their own order (a search through
-  // neighbors finds them; then they are sorted back into number order,
-  // the order the walks start in).
-  function pieceOf(n, root) {
-    const seen = new Uint8Array(n), cells = [root];
-    seen[root] = 1;
-    for (let head = 0; head < cells.length; head++) {
-      const v = cells[head];
-      for (let e = first[v]; e < first[v + 1]; e++) {
-        const w = nbr[e];
-        if (!seen[w]) { seen[w] = 1; cells.push(w); }
-      }
-    }
-    return cells.sort(function (a, b) { return a - b; });
+  // The cells of the root's piece (the domain m: n, first, nbr), in
+  // number order, the order the walks start in: the cells a search from
+  // the root reaches.
+  function pieceOf(m, root) {
+    const steps = stepsFrom(m, [root]), cells = [];
+    for (let v = 0; v < m.n; v++) if (steps[v] !== -1) cells.push(v);
+    return cells;
   }
 
   function setup(m) {
@@ -69,7 +63,7 @@ function treeWorker() {
     nbr = m.nbr;
     random = new Math.seedrandom(String(m.seed));
     wilson = newWilson(m.n, randomNeighbor);
-    const cells = pieceOf(m.n, m.root);
+    const cells = pieceOf(m, m.root);
     pieceSize = cells.length;
     wilson.start([m.root], cells);
   }
