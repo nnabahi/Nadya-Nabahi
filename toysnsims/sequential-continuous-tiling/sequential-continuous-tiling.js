@@ -127,10 +127,10 @@ function readFormulas() {
   // One slider per letter, in the order the letters first appear (a Set
   // keeps that order, and each letter once). A curve's t gets none.
   const letters = new Set(FORMULA_NAMES.flatMap(function (name) {
-    const curve = trees[name].length === 2;
-    return trees[name].flatMap(sliderLetters).filter(function (letter) { return !(curve && letter === "t"); });
+    const own = trees[name].length === 2 ? ["x", "y", "t"] : ["x", "y"];
+    return trees[name].flatMap(function (tree) { return sliderLetters(tree, own); });
   }));
-  showSliders(byId("sliders"), letters, sliders, sendSetup);   // (js/formulas.js)
+  showSliders(byId("sliders"), letters, sliders, sendSetup);
 
   // The worker gets each formula written out with every "*" shown, so it
   // reads exactly what the preview shows (a curve as { x, y }).
@@ -215,8 +215,7 @@ const sim = runInWorker(packingWorker, [packingCore], function (message) {
 function sendSetup() {
   if (!formulas) return;
   player.setPlaying(false);
-  const values = {};
-  for (const letter in sliders) values[letter] = sliders[letter].value;
+  const values = sliderValues(sliders);
   sim.setup({
     S: formulas.S, T: formulas.T, f: formulas.f, values: values,
     seed: byId("seed").value, clicks: clicks, target: wanted,

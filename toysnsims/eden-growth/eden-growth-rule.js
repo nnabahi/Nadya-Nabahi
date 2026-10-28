@@ -109,16 +109,19 @@
         which every mountain shares. The check page
         (eden-growth-check.html) tests it in the browser.
      1b. newGraphMountain(options): the same rule on any graph.
-     1c. the holes of a 2D mountain's base (holeHistory, js/sim-shape.js), with the
-        step each one was born and the step it died.
+     1c. the holes of a 2D mountain's base (holeHistory,
+        js/sim-shape.js), with the step each one was born and the step
+        it died.
      1d. the base's shape (newShape, js/sim-shape.js): its convexity,
         and how far it reaches in each direction.
      2. mountainWorker(): runs a mountain in a second thread (a "Web
         Worker") for the sim page, eden-growth.js, so the page never
         freezes. runInWorker (js/sim-page.js) starts it, with
-        newMountain, mountainSteps, ballTile, newGraphMountain, the hyperbolic tilings
-        and trees, the trace and random numbers (js/sim-worker.js) and
-        the hull and holes (js/sim-shape.js) copied in.
+        newMountain, mountainSteps, ballTile, newGraphMountain, the
+        hyperbolic tilings and trees, the trace and random numbers
+        (js/sim-worker.js), where a tiling's cells are (middleAt and
+        cornersAt, js/sim-domains.js) and the hull and holes
+        (js/sim-shape.js) copied in.
    ===================================================================== */
 
 
@@ -169,6 +172,9 @@ function newMountain(options) {
   // tiling.cells[z] moved by x a + y b; on the grids, the square of side
   // 1 around (x, y), as the one cell of a block of size 1 (z is always 0).
   // A Penrose tiling has one block, and on the whole plane it grows.
+  // Where a site's cell is in the plane, in side lengths: its middle
+  // and its corners are middleAt and cornersAt (js/sim-domains.js) of
+  // this block (on the grids, its middle is (x, y) itself).
   const block = tiling || { a: [1, 0], b: [0, 1],
     cells: [{ middle: [0, 0], corners: [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5]] }] };
   const finite = Boolean(tiling && tiling.finite), plane = finite && domain.kind === "whole";
@@ -267,17 +273,6 @@ function newMountain(options) {
     return parts === 1 ? [siteX[i], siteY[i]] : [siteX[i], siteY[i], siteZ[i]];
   }
 
-  // Where site (x, y, z) is in the plane, in side lengths: the middle of
-  // its cell (on the grids, (x, y) itself), and its cell's corners.
-  function placeOf(x, y, z) {
-    const middle = block.cells[z].middle;
-    return [x * block.a[0] + y * block.b[0] + middle[0], x * block.a[1] + y * block.b[1] + middle[1]];
-  }
-  function polygonOf(x, y, z) {
-    const u = x * block.a[0] + y * block.b[0], w = x * block.a[1] + y * block.b[1];
-    return block.cells[z].corners.map(function (c) { return [c[0] + u, c[1] + w]; });
-  }
-
   // The mountain's numbers, kept up to date by step() below.
   const m = {
     dim: dim,
@@ -294,8 +289,6 @@ function newMountain(options) {
     start: -1,         // the start site's number
     // step(u) and dropOn(i): one step (mountainSteps, below)
     heightAt: heightAt,
-    placeOf: placeOf,
-    polygonOf: polygonOf,
   };
 
   // The steps (mountainSteps, below). A site joining the base makes its
@@ -306,7 +299,7 @@ function newMountain(options) {
     orderOf: dim === 2 ? null : function (i) { return siteX[i]; },
     joinsBase: function (i) {
       bornAt[i] = m.blocks - 1;   // the start's block is block 1, step n's is block n + 1
-      if (m.shape) m.shape.add(placeOf(siteX[i], siteY[i], siteZ[i]), polygonOf(siteX[i], siteY[i], siteZ[i]));
+      if (m.shape) m.shape.add(middleAt(block, siteX[i], siteY[i], siteZ[i]), cornersAt(block, siteX[i], siteY[i], siteZ[i]));
       for (const [dx, dy, z] of tileOf(siteZ[i])) makeAvailable(siteX[i] + dx, siteY[i] + dy, z);
     },
   });
@@ -341,7 +334,7 @@ function newMountain(options) {
   const s = options.start;
   m.start = makeAvailable(s[0], dim === 2 ? s[1] : 0, s[2] || 0);
   if (m.start < 0) throw new Error("The start site is outside the domain.");
-  if (bins) m.shape = newShape(placeOf(siteX[m.start], siteY[m.start], siteZ[m.start]), bins);
+  if (bins) m.shape = newShape(middleAt(block, siteX[m.start], siteY[m.start], siteZ[m.start]), bins);
   rule.drop(m.start);
 
   return m;
@@ -659,11 +652,9 @@ function mountainWorker() {
   // has to be sent once: each message carries the places of the sites
   // made since the last message, starting with site number placesFrom.
   let placesSent = 0;
-  // The holes (part 1c), in 2D off a torus. Worked out again for each
-  // message, but while playing at most a fifth of the time: "holes" is
-  // the last answer, for the step holesStep, and holesFree is when the
-  // next one may start.
-  let holes = null, holesStep = -1, holesFree = 0;
+  // The holes (part 1c), in 2D off a torus, for the messages
+  // (holeReporter, js/sim-shape.js).
+  let reportHoles = null;
   // On a Penrose tiling's whole plane: the plane (penrosePlane,
   // js/sim-penrose.js), and how many of its cells the page has.
   let plane = null, cellsSent = 0;
@@ -672,7 +663,7 @@ function mountainWorker() {
   function setup(steps) {
     problem = "";
     placesSent = 0;
-    holesStep = -1;    // (the holes kept are the old mountain's)
+    reportHoles = holeReporter();
     try {
       const withClocks = Object.assign({}, options, { clocks: String(options.seed), shapeBins: holesWanted() ? SHAPE_BINS : 0 });
       if (onPlane()) {
@@ -789,7 +780,7 @@ function mountainWorker() {
       traceGrowing: Float64Array.from(trace.lists.growing),
       traceCovered: Float64Array.from(trace.lists.covered),
     };
-    if (holesWanted()) addHoles(message);
+    if (holesWanted()) message.holes = reportHoles(m, m.steps, loop.playing, trace.times);
     if (m.shape) {
       message.convexity = m.shape.convexity();
       message.radii = Float64Array.from(m.shape.radii);
@@ -819,26 +810,6 @@ function mountainWorker() {
   function holesWanted() {
     const d = options.domain;
     return options.dim === 2 && !(d.kind === "box" && d.torus) && !(d.kind === "cells" && d.wrap);
-  }
-
-  // The holes now, their births and deaths, and beta_1 at the times of
-  // the charts' samples.
-  function addHoles(message) {
-    const m = mountain, now = performance.now();
-    if (holesStep !== m.steps && (!loop.playing || now >= holesFree)) {
-      holes = holeHistory(m, m.steps);
-      holesStep = m.steps;
-      holesFree = now + 4 * (performance.now() - now);
-    }
-    // beta_1 at step t: births up to t minus deaths up to t (at the
-    // samples up to holesStep; the holes may be a little behind).
-    const times = trace.times.filter(function (t) { return t <= holesStep; });
-    const beta = bettiOverTime(holes, times);
-    message.holes = {
-      step: holesStep, now: holes.openBirths.length, closed: holes.deaths.length,
-      births: Float64Array.from(holes.births), deaths: Float64Array.from(holes.deaths),
-      cells: Int32Array.from(holes.holeCells), times: Float64Array.from(times), beta: beta,
-    };
   }
 
   // On a Penrose tiling's whole plane: the plane's cells the page doesn't

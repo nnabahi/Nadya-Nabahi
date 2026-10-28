@@ -59,7 +59,7 @@
         for the sim page, random-walk.js, so the page never freezes.
         runInWorker (js/sim-page.js) starts it, with newWalk, the trace
         and random numbers (js/sim-worker.js), the hull, holes and outer
-        boundary (js/sim-shape.js) and blockStart (js/sim-domains.js)
+        boundary (js/sim-shape.js) and middleAt (js/sim-domains.js)
         copied in.
    ===================================================================== */
 
@@ -116,13 +116,8 @@ function newWalk(options) {
 
   // 2D: where site (x, y, z) is in the plane, in side lengths: on the
   // square grid (x, y) itself; on another tiling the middle of cell z
-  // of block (x, y) (blockStart, js/sim-domains.js: the walk carries its
-  // tiling the way a domain does).
-  function placeOf(x, y, z) {
-    if (!tiling) return [x, y];
-    const [u, v] = blockStart(w, x, y), middle = tiling.cells[z].middle;
-    return [u + middle[0], v + middle[1]];
-  }
+  // of block (x, y) (middleAt, js/sim-domains.js).
+  function placeOf(x, y, z) { return tiling ? middleAt(tiling, x, y, z) : [x, y]; }
 
   // The walker is at (x, y, z) at step n: note the site, if it is new.
   function visit(x, y, z, n) {
@@ -278,9 +273,8 @@ function walkWorker() {
   // (a log-log chart needs no more): at frontierSteps[k] it was
   // frontierValues[k].
   let frontierSteps = [], frontierValues = [], frontierNext = 1;
-  // 2D: the holes (holeHistory, js/sim-shape.js). Worked out again for
-  // each message, but while playing at most a fifth of the time.
-  let holes = null, holesStep = -1, holesFree = 0;
+  // 2D: the holes, for the messages (holeReporter, js/sim-shape.js).
+  let reportHoles = null;
   // On a Penrose tiling: its plane (penrosePlane, js/sim-penrose.js),
   // and how many of the plane's cells the page has.
   let plane = null, cellsSent = 0;
@@ -291,7 +285,7 @@ function walkWorker() {
     sitesSent = pathSent = 0;
     path = [0];
     frontierSteps = []; frontierValues = []; frontierNext = 1;
-    holes = null; holesStep = -1;
+    reportHoles = holeReporter();
     try {
       const finite = options.tiling && options.tiling.finite;
       if (finite) { plane = penrosePlane(plane, options.tiling); cellsSent = options.cellsKnown; }
@@ -377,7 +371,10 @@ function walkWorker() {
       cellsSent = plane.cells.length;
     }
     if (w.dim === 1) addNewPath(message);
-    if (w.dim === 2) { addShape2D(message); addHoles(message); }
+    if (w.dim === 2) {
+      addShape2D(message);
+      message.holes = reportHoles(w, w.steps, loop.playing, trace.times);
+    }
     if (w.dim === 3) message.hullPoints = Float64Array.from(hullCandidates3D(w));
     send(message);
   }
@@ -407,23 +404,5 @@ function walkWorker() {
     message.traceArea = Float64Array.from(trace.lists.area);
     message.frontierSteps = Float64Array.from(frontierSteps);
     message.frontierValues = Float64Array.from(frontierValues);
-  }
-
-  // 2D: the holes now, their births and deaths, their sizes, and beta_1
-  // at the times of the charts' samples (as in Eden Growth).
-  function addHoles(message) {
-    const w = walk, now = performance.now();
-    if (holesStep !== w.steps && (!loop.playing || now >= holesFree)) {
-      holes = holeHistory(w, w.steps);
-      holesStep = w.steps;
-      holesFree = now + 4 * (performance.now() - now);
-    }
-    const times = trace.times.filter(function (t) { return t <= holesStep; });
-    message.holes = {
-      step: holesStep, now: holes.openBirths.length, closed: holes.deaths.length,
-      births: Float64Array.from(holes.births), deaths: Float64Array.from(holes.deaths),
-      cells: Int32Array.from(holes.holeCells), sizes: Int32Array.from(holes.holeSizes),
-      times: Float64Array.from(times), beta: bettiOverTime(holes, times),
-    };
   }
 }

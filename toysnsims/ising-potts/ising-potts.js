@@ -1,5 +1,5 @@
 /* =====================================================================
-   ising-potts.js  —  the page of the "Ising and Potts model" sim
+   ising-potts.js  —  the page of the "Ising & Potts Model" sim
    ---------------------------------------------------------------------
    What it does, in plain words:
      - Builds the domain: a box or torus of cells (on the square grid,
@@ -238,8 +238,9 @@ const domains = connectDomains({
    ===================================================================== */
 
 // The critical point beta_c of the box or torus in use, as in
-// EXACT_BETA, or null if it isn't known: on the square grid, and on the lattices of TILING_CRITICAL (both in section 3
-// of ising-potts-chain.js).
+// EXACT_BETA, or null if it isn't known: on the square grid, and on
+// the lattices of TILING_CRITICAL (both in section 3 of
+// ising-potts-chain.js).
 function criticalBeta() {
   if (domains.kind === "custom" || domains.kind === "graph") return null;
   if (!domain.lattice) return EXACT_BETA.square(q);

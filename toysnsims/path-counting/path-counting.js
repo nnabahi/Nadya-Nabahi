@@ -110,7 +110,7 @@ function readFormulas() {
   }
   letters.delete("N");                     // N is the grid size, not a slider
   for (const def of definitions) letters.delete(def.name);
-  showSliders(byId("sliders"), letters, sliders, recount);   // (js/formulas.js)
+  showSliders(byId("sliders"), letters, sliders, recount);
   recount();
 }
 
@@ -143,8 +143,7 @@ let stats = null;          // f along the line (lineStats)
 
 function recount() {
   if (!trees) return;
-  const values = {};
-  for (const letter in sliders) values[letter] = sliders[letter].value;
+  const values = sliderValues(sliders);
   try {
     const weights = makeWeights(trees, definitions, values, N, byId("seed").value);
     paths = countPaths(N, weights.X, weights.Y);

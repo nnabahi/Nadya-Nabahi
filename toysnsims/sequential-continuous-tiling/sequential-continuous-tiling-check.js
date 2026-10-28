@@ -19,11 +19,11 @@
 
 
 // The shapes used below, as plain functions of x and y.
-const DISK = (x, y) => x * x + y * y <= 1;
-const SQUARE = (x, y) => Math.max(Math.abs(x), Math.abs(y)) <= 1;
-const STAR = (x, y) => Math.hypot(x, y) <= 0.6 + 0.3 * Math.cos(5 * Math.atan2(y, x));
-const HEART = (x, y) => Math.pow(x * x + y * y - 0.8, 3) - x * x * y * y * y <= 0;
-const ANNULUS = (x, y) => x * x + y * y <= 1 && x * x + y * y >= 0.09;
+const DISK = function (x, y) { return x * x + y * y <= 1; };
+const SQUARE = function (x, y) { return Math.max(Math.abs(x), Math.abs(y)) <= 1; };
+const STAR = function (x, y) { return Math.hypot(x, y) <= 0.6 + 0.3 * Math.cos(5 * Math.atan2(y, x)); };
+const HEART = function (x, y) { return Math.pow(x * x + y * y - 0.8, 3) - x * x * y * y * y <= 0; };
+const ANNULUS = function (x, y) { return x * x + y * y <= 1 && x * x + y * y >= 0.09; };
 const WINDOW = { xmin: -1.05, xmax: 1.05, ymin: -1.05, ymax: 1.05 };
 const HEART_WINDOW = { xmin: -1.3, xmax: 1.3, ymin: -1.3, ymax: 1.3 };
 
@@ -184,13 +184,13 @@ function checkUniform() {
    is infinite at 0, so f may go above its ceiling near 0; how often is
    shown. */
 function checkDensity(s) {
-  const packing = newPacking({ inS: DISK, inT: DISK, density: (x, y) => Math.pow(x * x + y * y, (1 / s - 2) / 2) });
+  const packing = newPacking({ inS: DISK, inT: DISK, density: function (x, y) { return Math.pow(x * x + y * y, (1 / s - 2) / 2); } });
   const total = 20000, radii = [];
   for (let n = 0; n < total; n++) {
     const [x, y] = packing.drawCenter(alea("density/" + s + "/" + n));
     radii.push(Math.hypot(x, y));
   }
-  radii.sort((a, b) => a - b);
+  radii.sort(function (a, b) { return a - b; });
   let D = 0;
   for (let k = 0; k < total; k++) {
     const F = Math.pow(radii[k], 1 / s);

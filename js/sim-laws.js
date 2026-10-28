@@ -142,15 +142,13 @@ function connectLaw(onChange, check) {
       return;
     }
     if (window.katex) katex.render("f(x) = " + formulaTex(tree), byId("law-preview"), { throwOnError: false });
-    showSliders(byId("law-sliders"), sliderLetters(tree), sliders, useLaw);
+    showSliders(byId("law-sliders"), sliderLetters(tree, ["x"]), sliders, useLaw);   // (js/formulas.js)
     useLaw();
   }
 
   // The law from the formula and the sliders' values now.
   function useLaw() {
-    const values = {};
-    for (const letter in sliders) values[letter] = sliders[letter].value;
-    const law = readLaw(tree, values);
+    const law = readLaw(tree, sliderValues(sliders));
     const problem = law.problem || (check ? check(law) : "");
     if (problem) { say(problem); return; }
     say(law.note);

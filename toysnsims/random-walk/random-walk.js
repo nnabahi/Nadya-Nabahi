@@ -174,17 +174,15 @@ function showWeights() {
    ---------------------------------------------------------------------
    The walk is walkWorker() in random-walk-rule.js, with newWalk(), its
    shape, the trace and the random numbers (js/sim-worker.js), the
-   hull, holes and outer boundary (js/sim-shape.js), blockStart and
+   hull, holes and outer boundary (js/sim-shape.js), middleAt and
    cellNeighbors (js/sim-domains.js) and what grows a Penrose tiling's
    plane (js/sim-penrose.js) copied in.
    runInWorker (js/sim-page.js) runs it in a second thread, so the page
    never freezes, and hands each report to showWalk.
    ===================================================================== */
 const sim = runInWorker(walkWorker,
-  [newWalk, cutsOf, walkHull, hullCandidates3D, newTrace, keepSample, seededUniform, blockStart, cellNeighbors,
-   convexHull, growingHull, polygonArea, polygonPerimeter, holeHistory, bettiOverTime, frontierLength,
-   cellWindow, squareWindow, tilingWindow, finiteWindow].concat(penroseHelpers()),
-  showWalk);
+  [newWalk, cutsOf, walkHull, hullCandidates3D, newTrace, keepSample, seededUniform, blockStart, middleAt, cellNeighbors]
+  .concat(shapeHelpers(), penroseHelpers()), showWalk);
 
 function showWalk(message) {
   if (message.problem) {
@@ -420,12 +418,8 @@ function drawGrid() {
 // The box the 2D picture shows: around the visited sites, with one
 // square to spare all round. It looks the sites up in the grid.
 function shownBox() {
-  let xmin = Infinity, xmax = -Infinity, ymin = Infinity, ymax = -Infinity;
-  for (let i = 0; i < sites; i++) {
-    xmin = Math.min(xmin, siteX[i]); xmax = Math.max(xmax, siteX[i]);
-    ymin = Math.min(ymin, siteY[i]); ymax = Math.max(ymax, siteY[i]);
-  }
-  return { xmin: xmin - 1, xmax: xmax + 1, ymin: ymin - 1, ymax: ymax + 1, wrap: null, lookup: gridSite };
+  const box = boxAround(siteX.subarray(0, sites), siteY.subarray(0, sites), 1);   // (js/sim-domains.js)
+  return Object.assign(box, { wrap: null, lookup: gridSite });
 }
 
 // The site at (x, y) in the grid, or -1.
@@ -667,9 +661,7 @@ for (const id of ["show-hull", "show-holes"]) byId(id).addEventListener("change"
 for (const radio of document.querySelectorAll("input[name=against]")) radio.addEventListener("change", drawSoon);
 
 // Go to step.
-byId("goto").addEventListener("click", function () {
-  sim.send({ type: "goto", steps: readWhole("goto-steps", 0, 2000000, 0) });
-});
+connectGoto(sim, 2000000, 10000);
 
 // Seed: the same seed gives the same walk every time.
 connectSeed(function () { restart(true); });
@@ -677,5 +669,4 @@ connectSeed(function () { restart(true); });
 
 // --- Start ------------------------------------------------------------
 byId("seed").value = DEFAULT_SEED;
-byId("goto-steps").value = 10000;
 setDimension(2);              // 2D by default

@@ -1,5 +1,5 @@
 /* =====================================================================
-   sinusoid-ish.js  —  the "Random sine function" sim page
+   sinusoid-ish.js  —  the "Sinusoid-ish" sim page
    ---------------------------------------------------------------------
    The math lives in sinusoid-ish-roots.js (placing the roots, f, the
    peaks and lobe areas), the same file sinusoid-ish-check.html tests.
@@ -118,14 +118,13 @@ function readSet() {
   }
 
   // One slider per letter.
-  showSliders(byId("sliders"), letters, sliders, useSet);   // (js/formulas.js)
+  showSliders(byId("sliders"), letters, sliders, useSet);
   useSet();
 }
 
 // Read the set with the sliders' current values, then make a new sample.
 function useSet() {
-  const values = {};
-  for (const letter in sliders) values[letter] = sliders[letter].value;
+  const values = sliderValues(sliders);
   try {
     law = readGapSet(byId("gap-set").value, values);
   } catch (problem) {

@@ -509,9 +509,11 @@ function testTreeBall(kind, degree, R, p) {
 
 // The kinds of corner a tiling's name in the Lattice menu says, the
 // short way and sorted: "Kagome (3.6.3.6)" says 3.6.3.6, and
-// "[3⁶; 3⁴.6]¹" says 3⁶ and 3⁴.6 (the ¹ is a label).
+// "[3⁶; 3⁴.6]¹" says 3⁶ and 3⁴.6 (the ¹ is a label). A note after a
+// comma is not a corner: "Truncated square (4.8², 8 neighbors square)"
+// says 4.8².
 function cornersInName(name) {
-  const inside = /\((.*)\)$/.exec(name);
+  const inside = /\(([^,]*)(, .*)?\)$/.exec(name);
   const list = inside ? inside[1] : name.replace(/\][¹²³⁴]$/, "").replace(/[\[\]]/g, "");
   return list.split(";").map(function (s) { return s.trim(); }).sort();
 }
@@ -772,17 +774,6 @@ function menuDomains() {
   return list;
 }
 
-// The area of a polygon from its corners (counterclockwise), by the
-// shoelace formula.
-function shoelace(corners) {
-  let twice = 0;
-  corners.forEach(function (p, k) {
-    const q = corners[(k + 1) % corners.length];
-    twice += p[0] * q[1] - q[0] * p[1];
-  });
-  return twice / 2;
-}
-
 function testTilingDomains() {
   const near = function (p, q) { return Math.hypot(p[0] - q[0], p[1] - q[1]) < 1e-6; };
   const problems = [];
@@ -793,7 +784,7 @@ function testTilingDomains() {
     let area = 0;
     for (let v = 0; v < d.n && !problem; v++) {
       const corners = cornersOf(d, v), next = t.cells[d.part[v]].next;
-      area += shoelace(corners);
+      area += signedArea(corners);   // (js/sim-domains.js)
       if (cellAtPoint(d, ...cellMiddle(d, v)) !== v) problem = "clicking a cell finds another one";
       if (d.wrap && d.first[v + 1] - d.first[v] !== corners.length) problem = "a cell of the torus has the wrong number of neighbors";
       next.forEach(function ([k, dI, dJ], e) {
@@ -802,8 +793,7 @@ function testTilingDomains() {
         if (!d.sides[w].includes(v)) problem = "a side is shared one way only";
         // The cell across, where it is next to v (not wrapped around):
         // it has both ends of the side.
-        const [u, z] = blockStart(d, d.x[v] + dI, d.y[v] + dJ);
-        const across = t.cells[k].corners.map(function (c) { return [c[0] + u, c[1] + z]; });
+        const across = cornersAt(t, d.x[v] + dI, d.y[v] + dJ, k);
         for (const end of [corners[e], corners[(e + 1) % corners.length]]) {
           if (!across.some(function (c) { return near(c, end); })) problem = "the cell across a side is in the wrong place";
         }

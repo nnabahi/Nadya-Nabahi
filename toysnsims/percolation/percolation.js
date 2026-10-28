@@ -263,16 +263,15 @@ function clusterGroups() {
 }
 
 // Bond percolation, big cells: the dots and the open edges. Each square
-// looks at the squares to its right and above (and, with 8 neighbors,
-// diagonally), and if their cells share an open edge, a line joins the
-// two middles.
+// looks at the squares to its right and above, and if their cells share
+// an open edge, a line joins the two middles.
 function drawEdges(pen) {
   const cells = cellsShown(view, domain);
   const cols = view.cols, rows = view.rows, size = view.cell;
   pen.fillStyle = CLOSED;
   pen.fillRect(view.left, 0, view.width, view.height);
   const bonds = bondPaths(size);
-  const looks = [[1, 0], [0, -1], [1, -1], [1, 1]];   // right, up, up-right, down-right (rows go down)
+  const looks = [[1, 0], [0, -1]];   // right, up (rows go down)
   const middleX = function (i) { return squareLeft(view, view.firstI + i) + size / 2; };
   const middleY = function (k) { return squareTop(view, view.firstK + k) + size / 2; };
 
@@ -308,7 +307,7 @@ function drawTilingEdges(pen) {
   pen.fillStyle = CLOSED;
   pen.fillRect(view.left, 0, view.width, view.height);
   const copies = screenCopies(view, domain);      // (js/sim-view.js; sets view.cell)
-  const bonds = bondPaths(view.cell), tiles = domain.tiling.cells;
+  const bonds = bondPaths(view.cell), tiling = domain.tiling;
   for (const { sx, sy } of copies) {
     for (let v = 0; v < domain.n; v++) {
       const [u, w] = cellMiddle(domain, v);
@@ -316,12 +315,12 @@ function drawTilingEdges(pen) {
       if (!nearScreen(view, x, y)) continue;
       const lines = bonds.dot(v, x, y);
       if (lines === null) continue;
-      tiles[domain.part[v]].next.forEach(function ([k, dI, dJ], e) {
+      tiling.cells[domain.part[v]].next.forEach(function ([k, dI, dJ], e) {
         const other = domain.sides[v][e];
         if (other < v || !isOpenEdge(v, other)) return;
-        const [bu, bw] = blockStart(domain, domain.x[v] + dI, domain.y[v] + dJ);
+        const [ou, ow] = middleAt(tiling, domain.x[v] + dI, domain.y[v] + dJ, k);   // (js/sim-domains.js)
         lines.moveTo(x, y);
-        lines.lineTo(sx(bu + tiles[k].middle[0]), sy(bw + tiles[k].middle[1]));
+        lines.lineTo(sx(ou), sy(ow));
       });
     }
   }
@@ -510,9 +509,8 @@ function drawSizesChart() {
 }
 
 // The critical point for the domain in use: for a box or torus, where
-// the cells sit on the square grid, or on a
-// tiling where it is known exactly (tilingCritical), and for a tree of
-// degree d, where it is 1/(d - 1) for both site and bond percolation
+// the cells sit on the square grid, or on a tiling where it is known
+// exactly (tilingCritical), and for a tree of degree d, where it is 1/(d - 1) for both site and bond percolation
 // (see "All the details"). No exact value is known for the hyperbolic
 // tilings.
 function criticalPoint() {

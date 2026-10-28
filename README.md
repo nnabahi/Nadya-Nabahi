@@ -69,7 +69,7 @@ a link back to the sim.
 | `js/sim-worker.js` | What the second threads share: Play, Pause and Speed (the run loop), the run so far for the charts over time, and random numbers tied to a seed and a place or step (for coupled sliders) |
 | `js/sim-charts.js` | The small charts: lines over time, histograms, power-of-2 bars, perimeter against area, hole lifetimes, log-log lines, zooming a chart in time |
 | `js/sim-colors.js` | The old site's colors, color conversions, and the blue-to-red colors of heights |
-| `js/sim-domains.js` | Domains: box, torus, Aztec diamond, a region drawn in the graph tool, boxes and tori of triangles or hexagons, a hexagon of triangles, boxes and tori of any tiling's cells (a Penrose tiling's box centered on it; with each cell's middle and how far its sides are, and where the cells are in whole numbers, for starts), a growing set of a tiling's cells to draw, and counting connected pieces (with their areas and perimeters) |
+| `js/sim-domains.js` | Domains: box, torus, Aztec diamond, a region drawn in the graph tool, and boxes, tori and hexagons of any tiling's cells (triangles, hexagons, any tiling by regular polygons, a Penrose tiling's box centered on it), with where each cell is in the picture (its middle, how far its sides are, and where the cells are in whole numbers, for starts); a growing set of a tiling's cells to draw; distances through a domain, and counting connected pieces (with their areas and perimeters) |
 | `js/sim-view.js` | The picture of a domain of square (or polygon) cells: where it goes, painting the cells (paintDomain picks squares or a tiling's polygons, pixel by pixel when they are tiny), moving and zooming it (dragging, pinching, clicking), and its zoom buttons; lines between neighbors' middles (a tree, a walk, with a dot where the walker is), and where the cells stand on the 3D floor |
 | `js/sim-tilings.js` | Tilings by regular polygons read from their GomJau-Hogg codes, exactly (in whole numbers and square roots): the repeating block, its kinds of corner, the corners as cells, any tiling ready for the sims from its code, and the tilings in the Lattice menus |
 | `js/sim-penrose.js` | Penrose's kites and darts (P2) and rhombs (P3), built exactly by splitting Robinson triangles: a patch around the point of five-fold symmetry that grows to fit a box and keeps its cells' numbers, the corners as cells, and the kinds of corner (for the check page) |
@@ -93,7 +93,7 @@ a link back to the sim.
      folder, as `toysnsims/<name>/<name>.html`. Its shared links
      (`../../css/style.css`, `../../js/...`) already point the right way;
      change its own scripts to `<name>.js` and so on.
-  2. Fill in the four boxes, and write the page's code in `<name>.js` and
+  2. Fill in the five boxes, and write the page's code in `<name>.js` and
      its math in `<name>-<something>.js`.
   3. Add a card for it on `toysnsims.html`, linking to `toysnsims/<name>/<name>.html`,
      with its genre labels (`<li>` items in the card's `<ul class="tags">`).

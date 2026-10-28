@@ -398,12 +398,11 @@ const TINY_CELL = 2;
 // Paint domain d after fitPicture, whatever shape its cells are: squares
 // (paintCells) or polygons (paintLattice, or paintTinyCells when they
 // are tiny, on a background of outsideRGB, which shows around a box's
-// ragged edge). groupOf and rgbOf are as in
-// paintCells. With "lines" (a color; null for none), a line goes
-// between cells of different groups once the cells are big enough to
-// see it: squares at least "smallest" pixels across, polygons with sides
-// at least twice that (a triangle is much smaller than a square with the
-// same side).
+// ragged edge). groupOf and rgbOf are as in paintCells. With "lines"
+// (a color; null for none), a line goes between cells of different
+// groups once the cells are big enough to see it: squares at least
+// "smallest" pixels across, polygons with sides at least twice that (a
+// triangle is much smaller than a square with the same side).
 function paintDomain(view, pen, d, groupOf, rgbOf, outsideRGB, lines, smallest) {
   if (!d.lattice) {
     const shown = paintCells(view, pen, d, groupOf, rgbOf, outsideRGB);
@@ -568,6 +567,7 @@ function drawWalk(pen, walk, width, linesPath, dotsPath) {
   pen.stroke(line);
   pen.fill(dotsPath(now, 1.9 * width));
 }
+
 // The copy of the point p nearest the point "from", on a torus that
 // repeats by the two steps "steps" (torusSteps; null off a torus: p
 // itself).

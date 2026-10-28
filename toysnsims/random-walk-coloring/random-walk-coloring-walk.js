@@ -1,6 +1,6 @@
 /* =====================================================================
-   random-walk-coloring-walk.js  —  the walkers behind the "Random walk
-   coloring" sim
+   random-walk-coloring-walk.js  —  the walkers behind the "Random Walk
+   Coloring" sim
    ---------------------------------------------------------------------
    What it does, in plain words:
      N random walkers move on the domain (a graph: the cells, joined to

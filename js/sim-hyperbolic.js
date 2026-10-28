@@ -1005,9 +1005,10 @@ function readGraphOptions(dv) {
       "-gons (their corners are on the edge of the disk, infinitely far away).";
   } else {
     const p = readWhole("set-p", 3, 12, 7), q = readWhole("set-q", 3, 12, 3);
-    if (1 / p + 1 / q >= 1 / 2) {
+    // 1/p + 1/q < 1/2 is p q > 2 (p + q): in whole numbers, so it is exact.
+    if (p * q <= 2 * (p + q)) {
       info.textContent = "{" + p + ", " + q + "} isn't hyperbolic: that needs 1/p + 1/q < 1/2. " +
-        (1 / p + 1 / q === 1 / 2 ? "It tiles the flat plane." : "It tiles a sphere.");
+        (p * q === 2 * (p + q) ? "It tiles the flat plane." : "It tiles a sphere.");
       return false;
     }
     next = { kind: "tiling", p: p, q: q };

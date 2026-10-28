@@ -2,7 +2,7 @@
    formulas.js  —  typed formulas and their sliders, like Desmos
    ---------------------------------------------------------------------
    Shared by the graph tool's formula box and the sims that take typed
-   formulas (like the random sequential packing). A page that loads this
+   formulas (like Sequential Continuous Tiling). A page that loads this
    file loads math.js (https://mathjs.org) before it, which does the
    actual reading of the formulas.
 
@@ -10,11 +10,12 @@
      readTree(text)                 read a typed formula, Desmos style
      formulaTex(tree)               the formula typeset by KaTeX, with
                                       {condition: a, b} drawn as cases
-     sliderLetters(tree)            the letters in it that need a slider
+     sliderLetters(tree, own)       the letters in it that need a slider
      isFunctionName(path, parent)   is this name used as a function?
      NEW_SLIDER, SMALLEST_STEP      a new slider's settings
      makeSlider(name, s, onChange)  one slider row:  r = [1] ===o=== min max step
      showSliders(holder, letters, sliders, onChange)   a row for each letter
+     sliderValues(sliders)          the sliders' values, { letter: value }
    ===================================================================== */
 
 
@@ -125,16 +126,18 @@ function formulaTex(tree) {
   }
 }
 
-// The letters in the formula that need a slider: everything except x, y
-// and names math.js already knows (pi, e, sqrt, ...).
-function sliderLetters(tree) {
+// The letters in the formula that need a slider: everything except its
+// own variables "own" (x and y if left out) and names math.js already
+// knows (pi, e, sqrt, ...).
+function sliderLetters(tree, own) {
+  if (own === undefined) own = ["x", "y"];
   const names = tree
     .filter(function (node, path, parent) {
       return node.isSymbolNode && !isFunctionName(path, parent);
     })
     .map(function (node) { return node.name; });
-  return [...new Set(names)].filter(function (name) {
-    return name !== "x" && name !== "y" && math[name] === undefined;
+  return Array.from(new Set(names)).filter(function (name) {
+    return !own.includes(name) && math[name] === undefined;
   });
 }
 
@@ -218,15 +221,23 @@ function makeSlider(name, s, onChange) {
   return row;
 }
 
-// One slider row (makeSlider) for each of "letters", in that order, in
-// the box "holder" (emptied first). "sliders" maps each letter to its
-// numbers and is kept by the page, so a letter that leaves the formulas
-// and comes back keeps its settings; a new letter gets a fresh copy of
-// NEW_SLIDER. onChange runs whenever a slider changes.
+// One slider row per letter (makeSlider), in the box "holder", in place
+// of the rows it had. "sliders" maps each letter to its numbers: a new
+// letter gets a fresh copy of NEW_SLIDER, and a letter keeps its numbers
+// even if it leaves the formula and comes back. "onChange" is as for
+// makeSlider.
 function showSliders(holder, letters, sliders, onChange) {
   holder.innerHTML = "";
   for (const letter of letters) {
     if (!sliders[letter]) sliders[letter] = Object.assign({}, NEW_SLIDER);   // a fresh copy
     holder.appendChild(makeSlider(letter, sliders[letter], onChange));
   }
+}
+
+// The sliders' values now, as { letter: value } (what math.js needs to
+// work a formula out).
+function sliderValues(sliders) {
+  const values = {};
+  for (const letter in sliders) values[letter] = sliders[letter].value;
+  return values;
 }
