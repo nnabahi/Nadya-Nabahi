@@ -695,9 +695,9 @@ a.card:hover {
   overflow-x: auto;        /* a long formula scrolls instead of spilling out */
 }
 
-/* The Random variables box's menu of laws (js/sim-random.js): its
-   longest name would make it wider than a phone, so it shrinks to fit. */
-.option-row select.law-menu {
+/* A menu whose longest choice is wider than a phone (the Random
+   variables box's laws, Matrix Products' presets) shrinks to fit. */
+.option-row select {
   max-width: 100%;
 }
 

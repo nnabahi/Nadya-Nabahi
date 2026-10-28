@@ -2,7 +2,7 @@
    matrix-products-check.js  —  the tests on
    matrix-products-check.html
    ---------------------------------------------------------------------
-   Six kinds of test of matrix-products-math.js:
+   Seven kinds of test of matrix-products-math.js:
 
      1. Exact odds. With fixed matrices, after t steps there are only
         (number of matrices)^t possible products, and each one's
@@ -39,9 +39,31 @@
         (Durrett, same book, Theorem 2.4.1), and the bottom-right
         entry stays 1. So the growth rate is (log 2)/2 = 0.34657...
 
-     6. Small things: the eigenvalues of a few matrices, the letters
+     6. Random entries. The average matrix of entries with random
+        variables, against averages known exactly: E[g] = 1/2 for
+        g ~ exp(2), the average of a sum of a family, and E[max(v, z)]
+        = 2/3 for two independent uniform numbers (P(max <= x) = x^2).
+        And the coupling: moving a slider in a law moves every run only
+        a little, and the same seed gives the same runs.
+
+     7. Small things: the eigenvalues of a few matrices, the letters
         that get a slider, and boxes that must give an error.
+
+   Each test's matrices come with the lines of their Random variables
+   box, like the presets: { lines, matrices }.
    ===================================================================== */
+
+
+// The model of { lines, matrices }, with the sliders' values "values".
+function modelOf(preset, values) {
+  const variables = makeRandomVariables(readRandomVariables(preset.lines, []), values || {});
+  return readModel(preset.matrices, variables);
+}
+
+// Fixed matrices, with no random variables.
+function fixedPreset(matrices) {
+  return { lines: "", matrices: matrices };
+}
 
 
 /* ===================================================================
@@ -75,7 +97,7 @@ function exactOdds(fixed, chances, steps) {
 // The exact-odds test for the typed matrices (all fixed numbers), their
 // chances "should" (worked out by hand), and "steps" steps.
 function chiSquareTest(matrices, should, steps, runs) {
-  const model = readModel(matrices, {});
+  const model = modelOf(fixedPreset(matrices));
   // The chances must be the ones worked out by hand.
   for (let i = 0; i < should.length; i++) {
     if (Math.abs(model.chances[i] - should[i]) > 1e-12) {
@@ -101,14 +123,15 @@ function chiSquareTest(matrices, should, steps, runs) {
    =================================================================== */
 
 // "shouldMean" is E[X] worked out by hand. Checks averageMatrix against
-// it, then the cloud's average of v_t against E[X]^t (1, 0).
-function averageTest(matrices, sliders, shouldMean, steps, runs) {
-  const model = readModel(matrices, sliders);
+// it (to within "within"), then the cloud's average of v_t against
+// E[X]^t (1, 0).
+function averageTest(preset, sliders, shouldMean, within, steps, runs) {
+  const model = modelOf(preset, sliders);
   const mean = averageMatrix(model);
-  for (let k = 0; k < 4; k++) {
-    if (Math.abs(mean[k] - shouldMean[k]) > 1e-9) {
-      return { pass: false, text: "averageMatrix gave " + mean.join(", ") + ", should be " + shouldMean.join(", ") };
-    }
+  let off = 0;
+  for (let k = 0; k < 4; k++) off = Math.max(off, Math.abs(mean[k] - shouldMean[k]));
+  if (!(off <= within)) {
+    return { pass: false, text: "averageMatrix gave " + mean.join(", ") + ", should be " + shouldMean.join(", ") };
   }
   let power = [1, 0, 0, 1];
   for (let k = 0; k < steps; k++) power = times(shouldMean, power);
@@ -121,7 +144,7 @@ function averageTest(matrices, sliders, shouldMean, steps, runs) {
     const p = pointOf(cloud, n, 1, 0, "none", 1);
     xs.push(p[0]); ys.push(p[1]);
   }
-  const words = [];
+  const words = ["E[X] off by " + off.toExponential(1)];
   let pass = true;
   [xs, ys].forEach(function (values, k) {
     const s = meanAndSpread(values);
@@ -139,8 +162,8 @@ function averageTest(matrices, sliders, shouldMean, steps, runs) {
    3. INVARIANTS: x + y stays 1 for stochastic matrices
    =================================================================== */
 
-function sumTest(matrices, steps, runs) {
-  const cloud = newCloud(readModel(matrices, {}), runs, String(Math.random()));
+function sumTest(preset, steps, runs) {
+  const cloud = newCloud(modelOf(preset), runs, String(Math.random()));
   let worst = 0;
   for (let k = 1; k <= steps; k++) {
     cloud.step();
@@ -159,24 +182,21 @@ function sumTest(matrices, steps, runs) {
    4. THE RESCALING LOSES NOTHING
    =================================================================== */
 
-// Multiply run n out step by step, reading its random numbers the same
-// way the cloud does, and compare with the cloud's e^(logSize) * Q.
+// Multiply run n out step by step, with the same picks as the cloud
+// (step s of run n picks with the uniform number for (n, s)), and
+// compare with the cloud's e^(logSize) * Q.
 function rescalingTest(matrices, steps, runs) {
-  const model = readModel(matrices, {});
+  const model = modelOf(fixedPreset(matrices));
   const seed = String(Math.random());
   const cloud = newCloud(model, runs, seed);
   for (let k = 0; k < steps; k++) cloud.step();
   const fixed = matrices.map(function (m) { return m.entries.map(Number); });
+  const pick = seededUniform(seed);
 
   let worst = 0;
   for (let n = 0; n < runs; n++) {
-    const random = alea(seed + ":" + n);
     let product = [1, 0, 0, 1];
-    for (let k = 0; k < steps; k++) {
-      const i = pickMatrix(model, random());
-      random(); random(); random(); random();   // u1..u4, not used here
-      product = times(fixed[i], product);
-    }
+    for (let s = 1; s <= steps; s++) product = times(fixed[pickMatrix(model, pick.uniform(n, s))], product);
     const factor = Math.exp(cloud.logSize[n]);
     const stored = [cloud.q0[n] * factor, cloud.q1[n] * factor, cloud.q2[n] * factor, cloud.q3[n] * factor];
     const size = Math.max(...product.map(Math.abs));
@@ -187,7 +207,7 @@ function rescalingTest(matrices, steps, runs) {
 
 // After 1000 steps a plain product would overflow; the stored one must not.
 function noOverflowTest(matrices, steps, runs) {
-  const cloud = newCloud(readModel(matrices, {}), runs, String(Math.random()));
+  const cloud = newCloud(modelOf(fixedPreset(matrices)), runs, String(Math.random()));
   for (let k = 0; k < steps; k++) cloud.step();
   const rates = growthRates(cloud);
   let ok = true;
@@ -210,7 +230,7 @@ function growthTest(steps, runs) {
     { entries: ["2", "0", "0", "1"], weight: "3" },
     { entries: ["1/2", "0", "0", "1"], weight: "1" },
   ];
-  const cloud = newCloud(readModel(matrices, {}), runs, String(Math.random()));
+  const cloud = newCloud(modelOf(fixedPreset(matrices)), runs, String(Math.random()));
   for (let k = 0; k < steps; k++) cloud.step();
   const s = meanAndSpread(growthRates(cloud));
   const exact = Math.log(2) / 2;
@@ -220,7 +240,40 @@ function growthTest(steps, runs) {
 
 
 /* ===================================================================
-   6. SMALL THINGS: eigenvalues, slider letters, error messages
+   6. RANDOM ENTRIES
+   =================================================================== */
+
+// The red dots of a cloud after "steps" steps.
+function redDots(model, seed, steps, runs) {
+  const cloud = newCloud(model, runs, seed);
+  for (let k = 0; k < steps; k++) cloud.step();
+  const dots = [];
+  for (let n = 0; n < runs; n++) dots.push(pointOf(cloud, n, 1, 0, "none", 1));
+  return dots;
+}
+
+// Coupling: u ~ unif(0, a) in a stochastic matrix, with a = 1 and then
+// a = 1.001. Every run's red dot after 20 steps moves by about 0.001
+// at most; a run's dot is a long product, so a little more is fine.
+// And the same seed twice gives exactly the same dots.
+function couplingTest() {
+  const preset = { lines: "u ~ unif(0, a)", matrices: [{ entries: ["u", "1/2", "1 - u", "1/2"], weight: "" }] };
+  const seed = String(Math.random());
+  const before = redDots(modelOf(preset, { a: 1 }), seed, 20, 2000);
+  const again = redDots(modelOf(preset, { a: 1 }), seed, 20, 2000);
+  const after = redDots(modelOf(preset, { a: 1.001 }), seed, 20, 2000);
+  let moved = 0, differ = 0;
+  before.forEach(function (p, n) {
+    moved = Math.max(moved, Math.abs(after[n][0] - p[0]), Math.abs(after[n][1] - p[1]));
+    if (again[n][0] !== p[0] || again[n][1] !== p[1]) differ++;
+  });
+  return { pass: moved < 0.01 && moved > 0 && differ === 0,
+           text: "largest move of a red dot: " + moved.toExponential(2) + "; runs that differ for the same seed: " + differ };
+}
+
+
+/* ===================================================================
+   7. SMALL THINGS: eigenvalues, slider letters, error messages
    =================================================================== */
 
 function smallTests() {
@@ -234,18 +287,25 @@ function smallTests() {
   e = eigenvalues(0, -1, 1, 0);             // i and -i
   if (!(near(e.re[0], 0) && near(Math.abs(e.im[0]), 1))) problems.push("eigenvalues of [[0,-1],[1,0]]");
 
-  const letters = matrixLetters([{ entries: ["u1", "a u2", "1 - u1", "sin(b)"], weight: "p" },
-                                 { entries: ["1", "0", "0", "1"], weight: "1 - p" }]);
-  if (letters.slice().sort().join(",") !== "a,b,p") problems.push("slider letters: got " + letters.join(","));
+  // The box's letters first, then the matrices'; the random variables
+  // get none, and without its line u2 is a letter like any other.
+  const matrices = [{ entries: ["u1", "a u2", "1 - u1", "sin(b)"], weight: "p" },
+                    { entries: ["1", "0", "0", "1"], weight: "1 - p" }];
+  const box = readRandomVariables("u1 ~ unif(0, s)\nu2 ~ unif(0, 1)", []);
+  let letters = matrixLetters(matrices, box);
+  if (letters.join(",") !== "s,a,b,p") problems.push("slider letters: got " + letters.join(","));
+  letters = matrixLetters(matrices, readRandomVariables("u1 ~ unif(0, 1)", []));
+  if (letters.join(",") !== "a,u2,b,p") problems.push("slider letters without u2's line: got " + letters.join(","));
 
   const bad = [
-    [{ entries: ["1", "", "0", "1"], weight: "" }],
-    [{ entries: ["1", "0", "0", "1"], weight: "-1" }],
-    [{ entries: ["1", "0", "0", "1"], weight: "0" }],
-    [{ entries: ["sqrt(-1)", "0", "0", "1"], weight: "" }],
+    fixedPreset([{ entries: ["1", "", "0", "1"], weight: "" }]),
+    fixedPreset([{ entries: ["1", "0", "0", "1"], weight: "-1" }]),
+    fixedPreset([{ entries: ["1", "0", "0", "1"], weight: "0" }]),
+    fixedPreset([{ entries: ["sqrt(-1)", "0", "0", "1"], weight: "" }]),
+    { lines: "u ~ unif(0, 1)", matrices: [{ entries: ["1", "0", "0", "1"], weight: "u" }] },
   ];
-  for (const matrices of bad) {
-    try { readModel(matrices, {}); problems.push("no error for " + JSON.stringify(matrices)); }
+  for (const preset of bad) {
+    try { modelOf(preset); problems.push("no error for " + JSON.stringify(preset)); }
     catch (error) { /* an error is what should happen */ }
   }
   return { pass: problems.length === 0, text: problems.join("; ") || "eigenvalues, slider letters and bad boxes all right" };
@@ -269,24 +329,36 @@ function testRow(name, run) {
 
 // The list of tests, run one at a time by the "Run the checks" button.
 function allTests() {
-  const d13 = PRESETS.d13, d12 = PRESETS.d12, ab = PRESETS.randmatAB;
+  const d13 = PRESETS.d13.matrices, ab = PRESETS.randmatAB.matrices;
   const weighted = d13.map(function (m, i) { return { entries: m.entries, weight: i === 0 ? "1" : "3" }; });
   // randmatprod.py's pair with weights 2 and 1: E[X] = (2A + B)/3.
-  const withP = PRESETS.randmatprod.map(function (m, i) {
+  const withP = fixedPreset(PRESETS.randmatprod.matrices.map(function (m, i) {
     return { entries: m.entries, weight: i === 0 ? "p" : "1 - p" };
-  });
+  }));
   const prodMean = [(2 * 5 / 4 + 1) / 3, (2 * 3 / 4 - 1) / 3, (2 * 3 / 4 + 0) / 3, (2 * 5 / 4 + 1) / 3];
+
+  // Random entries with averages known exactly. The family's sum has
+  // E = sum over k of (1/2) / 2^k = (1 - 2^-20) / 2.
+  const exponential = { lines: "g ~ exp(2)", matrices: [{ entries: ["g", "0", "0", "1"], weight: "" }] };
+  const family = { lines: "d_k ~ bernoulli(1/2)", matrices: [{ entries: ["sum(k, 1, 20, d_k / 2^k)", "0", "0", "1"], weight: "" }] };
+  const larger = { lines: "v ~ unif(0, 1)\nz ~ unif(0, 1)\nm = max(v, z)",
+                   matrices: [{ entries: ["m", "1 - m", "1 - m", "m"], weight: "" }] };
+  const familyMean = (1 - Math.pow(2, -20)) / 2;
 
   return [
     testRow("Exact odds: D13, equally likely, 6 steps", function () { return chiSquareTest(d13, [0.5, 0.5], 6, 50000); }),
     testRow("Exact odds: D13 with weights 1 and 3, 6 steps", function () { return chiSquareTest(weighted, [0.25, 0.75], 6, 50000); }),
-    testRow("Average: D12 (E[X] = all 1/2), 5 steps", function () { return averageTest(d12, {}, [0.5, 0.5, 0.5, 0.5], 5, 20000); }),
-    testRow("Average: randmatprod.py pair, weights p = 2/3 and 1 - p, 4 steps", function () { return averageTest(withP, { p: 2 / 3 }, prodMean, 4, 20000); }),
-    testRow("Invariant: D13 keeps x + y = 1", function () { return sumTest(d13, 60, 500); }),
-    testRow("Invariant: D12 keeps x + y = 1", function () { return sumTest(d12, 60, 500); }),
+    testRow("Average: D12 (E[X] = all 1/2), 5 steps", function () { return averageTest(PRESETS.d12, {}, [0.5, 0.5, 0.5, 0.5], 1e-9, 5, 20000); }),
+    testRow("Average: randmatprod.py pair, weights p = 2/3 and 1 - p, 4 steps", function () { return averageTest(withP, { p: 2 / 3 }, prodMean, 1e-9, 4, 20000); }),
+    testRow("Average: [[g, 0], [0, 1]] with g ~ exp(2) (E[g] = 1/2, on the grid), 3 steps", function () { return averageTest(exponential, {}, [0.5, 0, 0, 1], 1e-4, 3, 20000); }),
+    testRow("Average: a sum of a family d_k ~ bernoulli(1/2) (from draws), 3 steps", function () { return averageTest(family, {}, [familyMean, 0, 0, 1], 1e-9, 3, 5000); }),
+    testRow("Average: m = max(v, z) for uniform v, z (E[m] = 2/3, on the grid), 3 steps", function () { return averageTest(larger, {}, [2 / 3, 1 / 3, 1 / 3, 2 / 3], 1e-4, 3, 20000); }),
+    testRow("Invariant: D13 keeps x + y = 1", function () { return sumTest(PRESETS.d13, 60, 500); }),
+    testRow("Invariant: D12 keeps x + y = 1 (u1 is one number in both its entries)", function () { return sumTest(PRESETS.d12, 60, 500); }),
     testRow("Rescaling: randmatAB.py pair, 15 steps, same as multiplying out", function () { return rescalingTest(ab, 15, 500); }),
     testRow("No overflow: randmatAB.py pair, 1000 steps", function () { return noOverflowTest(ab, 1000, 200); }),
     testRow("Growth rate: diag(2, 1) and diag(1/2, 1), weights 3 and 1", function () { return growthTest(2000, 500); }),
+    testRow("Coupling: u ~ unif(0, a), a from 1 to 1.001, 20 steps", couplingTest),
     testRow("Small things", smallTests),
   ];
 }
@@ -300,7 +372,7 @@ function drawHistogram() {
   const steps = readWhole("hist-steps", 0, 200, 20);
   const width = Math.max(Number(byId("hist-bin").value) || 0.001, 1e-5);
   const runs = 20000;
-  const cloud = newCloud(readModel(PRESETS.d13, {}), runs, "1");
+  const cloud = newCloud(modelOf(PRESETS.d13), runs, "1");
   for (let k = 0; k < steps; k++) cloud.step();
   const xs = [];
   for (let n = 0; n < runs; n++) xs.push(pointOf(cloud, n, 1, 0, "none", 1)[0]);

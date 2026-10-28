@@ -61,15 +61,18 @@
         <div class="option-row">
           <button class="tool-button" id="add-matrix">+ Add matrix</button>
         </div>
-        <div id="sliders"></div>
         <p class="muted small" id="matrix-message"></p>
         <p class="muted small">
           Every step picks one matrix, with chance proportional to its weight
           (a blank weight counts as 1, so with no weights they are all equally
           likely), and multiplies the vector by it on the left. An entry can be
-          a number or a formula. <i>u1</i>, <i>u2</i>, <i>u3</i>, <i>u4</i> are
-          new uniform numbers in [0, 1] at every step, and any other letter gets a slider.
+          a number or a formula. It can use the random variables of the box
+          below, and any other letter gets a slider.
         </p>
+        <!-- The Random variables box (js/sim-random.js fills it in), and
+             the sliders, for the matrices and the box. -->
+        <div class="random-box" data-about="Each step of each run gets new, independent copies of these, one number per name in all the entries of the step."></div>
+        <div id="sliders"></div>
 
         <h3 class="option-heading">Runs</h3>
         <div class="option-row play-row" data-step="One more step" data-restart="Back to t = 0">
@@ -198,10 +201,15 @@
         <p>
           The red dots are <span class="tex">P_t (1, 0)</span> and the blue dots
           <span class="tex">P_t (0, 1)</span>, the two columns of
-          <span class="tex">P_t</span>. Entries using
-          <span class="tex">u_1, \dots, u_4</span> get new independent uniform values at
-          every step: your D12 is the one matrix
-          <span class="tex">\begin{pmatrix} u_1 &amp; u_2 \\ 1 - u_1 &amp; 1 - u_2 \end{pmatrix}</span>.
+          <span class="tex">P_t</span>. An entry can use the random variables of the
+          Random variables box: each step gets new, independent copies of every name, one
+          number per name in all the entries of the step. Your D12 is the one matrix
+          <span class="tex">\begin{pmatrix} u_1 &amp; u_2 \\ 1 - u_1 &amp; 1 - u_2 \end{pmatrix}</span>
+          with <span class="tex">u_1, u_2 \sim \mathrm{unif}(0, 1)</span>. The average
+          matrix <span class="tex">E[X]</span> in the Statistics averages such entries
+          numerically: on a fine grid of the uniform numbers behind them when they use at
+          most four names, which is exact for entries linear in each of those numbers (like
+          D12's), and otherwise over many draws.
         </p>
         <p>
           <strong>Growth rate.</strong> If the average of
@@ -240,12 +248,18 @@
           randmatcltmultraj.py.
         </p>
         <p>
-          <strong>Random numbers.</strong> Run <span class="tex">n</span> has its own
-          seeded stream [4]; step <span class="tex">s</span> reads one number
-          <span class="tex">c</span> to pick the matrix (matrix <span class="tex">i</span>
-          when <span class="tex">c</span> falls in its interval of length equal to its
-          chance) and then <span class="tex">u_1, \dots, u_4</span>. Changing a matrix or
-          a weight keeps every number, so the cloud moves continuously.
+          <strong>Random numbers.</strong> Step <span class="tex">s</span> of run
+          <span class="tex">n</span> picks its matrix with a uniform number
+          <span class="tex">c</span> fixed by the seed, <span class="tex">n</span> and
+          <span class="tex">s</span> (matrix <span class="tex">i</span> when
+          <span class="tex">c</span> falls in its interval of length equal to its chance).
+          Each random variable's copy there is <span class="tex">F^{-1}(U)</span>, where
+          <span class="tex">F</span> is its law and <span class="tex">U</span> a uniform
+          number fixed by the seed, the name, <span class="tex">n</span> and
+          <span class="tex">s</span>, so it has the law <span class="tex">F</span>
+          [4, Theorem 1.2.2]. Changing a matrix, a weight or a law keeps every uniform
+          number, so the cloud moves continuously
+          (<a href="../../help/random-variables.html">how the random variables work</a>).
         </p>
         <p><strong>References</strong></p>
         <ol class="references">
@@ -255,8 +269,8 @@
             <em>SIAM Review</em> 41 (1999) 45&ndash;76.</li>
           <li>J. E. Hutchinson, "Fractals and self-similarity",
             <em>Indiana Univ. Math. J.</em> 30 (1981) 713&ndash;747.</li>
-          <li>D. Bau, seedrandom.js,
-            <a href="https://github.com/davidbau/seedrandom">github.com/davidbau/seedrandom</a>.</li>
+          <li>R. Durrett, <em>Probability: Theory and Examples</em>, 5th ed., Cambridge
+            University Press, 2019.</li>
         </ol>
         </div>
       </section>
@@ -264,25 +278,29 @@
     </div>
   </main>
 
-  <!-- math.js (https://mathjs.org) reads the typed entries, KaTeX
-       (https://katex.org) typesets formulas, and seedrandom's "alea"
-       (https://github.com/davidbau/seedrandom) makes random numbers that
-       repeat for the same seed. Version numbers are fixed so an update can
-       never change the site by surprise. -->
+  <!-- math.js (https://mathjs.org) reads the typed entries and random
+       variables, KaTeX (https://katex.org) typesets formulas, and jStat
+       (https://jstat.github.io) works out the incomplete gamma and beta
+       functions some laws need. Version numbers are fixed so an update
+       can never change the site by surprise. -->
   <script src="https://cdn.jsdelivr.net/npm/mathjs@15.2.0/lib/browser/math.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/katex.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/seedrandom@3.0.5/lib/alea.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jstat@1.9.6/dist/jstat.min.js"></script>
 
   <!-- The code the sims share (in js/, see the README): page helpers
-       (they also typeset the formulas, so they come after KaTeX),
-       charts, and reading formulas with sliders. Then the math of this toy
-       (matrix-products-math.js, the same file the check page tests),
-       then this page. -->
+       (they also typeset the formulas, so they come after KaTeX), the
+       seeded random numbers, charts, reading formulas with sliders, and
+       the random variables (the laws, their catalog and the Random
+       variables box). Then the math of this toy (matrix-products-math.js,
+       the same file the check page tests), then this page. -->
   <script src="../../js/sim-page.js"></script>
   <script src="../../js/sim-worker.js"></script>
   <script src="../../js/sim-charts.js"></script>
   <script src="../../js/sim-view.js"></script>
   <script src="../../js/formulas.js"></script>
+  <script src="../../js/sim-laws.js"></script>
+  <script src="../../js/sim-law-catalog.js"></script>
+  <script src="../../js/sim-random.js"></script>
   <script src="matrix-products-math.js"></script>
   <script src="matrix-products.js"></script>
 

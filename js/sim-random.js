@@ -42,12 +42,14 @@
    Contents:
      1. Reading the lines        readRandomVariables(text, reserved)
      2. Page formulas            randomLetters(tree, declared, own),
+                                 randomNamesIn(tree, declared),
                                  prepareFormula(tree, declared)
      3. sum and prod             seriesSum, seriesProd (in math.js)
      4. The laws                 makeRandomVariables(declared, values)
      5. Drawing, place by place  newDrawer(variables, seed),
                                  placeUniforms(seed, name)
-     6. Many draws at once       sampleRandomVariables(variables, work)
+     6. Many draws at once       sampleRandomVariables(variables, work),
+                                 averagesOf(variables, formulas)
      7. The box on the page      connectRandomBox(options)
    ===================================================================== */
 
@@ -228,9 +230,10 @@ function usesLetter(tree, letter) {
    2. PAGE FORMULAS THAT USE RANDOM VARIABLES
    ---------------------------------------------------------------------
    A page's own formulas (Matrix Products' entries, say) can use the
-   names too. randomLetters finds the letters in one that need a slider;
-   prepareFormula turns it into a formula math.js can work out, in which
-   each name is drawRandom("name", index) (section 5 gives drawRandom).
+   names too. randomLetters finds the letters in one that need a slider,
+   and randomNamesIn the random variables it uses; prepareFormula turns
+   it into a formula math.js can work out, in which each name is
+   drawRandom("name", index) (section 5 gives drawRandom).
    ===================================================================== */
 
 // The letters of a page formula that need a slider: not its own
@@ -238,6 +241,12 @@ function usesLetter(tree, letter) {
 // the names math.js already knows (pi, e, sqrt, ...).
 function randomLetters(tree, declared, own) {
   return lettersAndUses(tree, declared, own || []).letters;
+}
+
+// The random variables a page formula uses, as their lines' names (a
+// family by its letter: "d" for d_3 or d_k).
+function randomNamesIn(tree, declared) {
+  return Array.from(lettersAndUses(tree, declared, []).uses);
 }
 
 // What the symbol "name" is, if it is a random variable: the line's
@@ -484,10 +493,11 @@ function seededPlaceUniform(seed) {
 function makeDrawer(variables, uniformOf) {
   const declared = variables.declared, scope = new Map(Object.entries(variables.values));
   const drawer = { scope: scope, place: [] };
-  let kept = new Map();      // "name|index" -> its value at this place
+  let kept = new Map();      // valueId(name, index) -> its value at this place
+  const atPlace = [];        // (the place of drawer.at, one list filled anew each time)
   scope.set("drawRandom", function (name, index) { return drawer.value(name, index); });
 
-  drawer.at = function () { drawer.place = foldNumbers(arguments); kept.clear(); };
+  drawer.at = function () { drawer.place = foldNumbers(arguments, atPlace); kept.clear(); };
   drawer.within = function (place, work) {
     const outerPlace = drawer.place, outerKept = kept;
     drawer.place = foldNumbers(place);
@@ -496,15 +506,16 @@ function makeDrawer(variables, uniformOf) {
     finally { drawer.place = outerPlace; kept = outerKept; }
   };
   drawer.value = function (name, index) {
-    const id = name + "|" + index;
-    if (kept.has(id)) return kept.get(id);
+    const id = valueId(name, index);
+    let v = kept.get(id);
+    if (v !== undefined) return v;
     const line = declared.byName.get(name);
-    const v = line.kind === "law" ? drawLaw(line, index) : workOut(line, index);
+    v = line.kind === "law" ? drawLaw(line, index, id) : workOut(line, index);
     kept.set(id, v);
     return v;
   };
-  function drawLaw(line, index) {
-    const law = variables.laws.get(line.name), key = nameKey(line.name, index);
+  function drawLaw(line, index, id) {
+    const law = variables.laws.get(line.name), key = nameKey(line.name, index, id);
     return drawWith(law, function (j) { return uniformOf(key, j, drawer.place); });
   }
   // A formula line's value; a family's line with its own letter set to
@@ -548,12 +559,25 @@ function foldNumbers(numbers, into) {
 
 // A name and an index as a list of whole numbers: the name's text
 // scrambled into two (textToNumbers, js/sim-worker.js), then the index
-// folded (foldNumbers). Each is made once, and then always the same list.
+// folded (foldNumbers). Each is made once, and then always the same
+// list. ("id", if given, is valueId(name, index), already made.)
 const KEYS = new Map(), TEXT_NUMBERS = seededUniform("").textToNumbers;
-function nameKey(name, index) {
-  const id = name + "|" + index;
-  if (!KEYS.has(id)) KEYS.set(id, TEXT_NUMBERS(name).concat(foldNumbers([index])));
-  return KEYS.get(id);
+function nameKey(name, index, id) {
+  const known = id || valueId(name, index);
+  let key = KEYS.get(known);
+  if (key === undefined) {
+    key = TEXT_NUMBERS(name).concat(foldNumbers([index]));
+    KEYS.set(known, key);
+  }
+  return key;
+}
+
+// A name and an index as one text, to look its value or key up by:
+// the name itself for index 0 (a name with no index, or d_0), so that
+// most lookups need no new text, else "name|index". (A name is either a
+// family's or not, so these never clash.)
+function valueId(name, index) {
+  return index === 0 ? name : name + "|" + index;
 }
 
 
@@ -562,8 +586,10 @@ function nameKey(name, index) {
    ---------------------------------------------------------------------
    sampleRandomVariables(variables, work) runs work(drawer) for n
    samples of every random variable and returns the list of answers. A
-   formula line's law is worked out this way (lawOf, section 4), and so
-   is an average (Matrix Products' average matrix).
+   formula line's law is worked out this way (lawOf, section 4).
+   averagesOf(variables, formulas) gives the averages of page formulas
+   (Matrix Products' average matrix): on a grid when it can, otherwise
+   from these samples.
 
    The samples are a "Latin hypercube" (M. D. McKay, R. J. Beckman and
    W. J. Conover, "A comparison of three methods for selecting values of
@@ -638,6 +664,87 @@ function latinColumn(random, key, n) {
   return column;
 }
 
+// The averages of page formulas of the random variables and sliders
+// (Matrix Products' entries), E[g] for each: formulas[i] is
+// { tree, label }, the label naming it in a problem.
+//
+// A formula whose random variables come down to at most four names
+// with laws (namesBehind), not families, each drawn from one uniform
+// number, is g(F1^-1(U1), ..., Fk^-1(Uk)) for independent uniform U's
+// (section 5), so its average is the average of that over the cube
+// [0, 1]^k. Here
+// that is the midpoint rule: the average over the centers of a grid of
+// about 20,000 small cubes (GRID_POINTS). It is exact when the formula
+// is linear in each U (the center of a small cube then gives its
+// average over the cube), like D12's entries u1 and 1 - u1, and very
+// close for smooth ones. Every other formula is averaged over the
+// samples of sampleRandomVariables, all of them in one go.
+const GRID_POINTS = 20736;     // 12^4: 20,736 points for one name, 144 a side for two, ...
+
+function averagesOf(variables, formulas) {
+  const averages = [], drawn = [];
+  formulas.forEach(function (formula, i) {
+    const names = namesBehind(randomNamesIn(formula.tree, variables.declared), variables.declared);
+    const code = prepareFormula(formula.tree, variables.declared).compile();
+    const work = function (drawer) { return numberOf(code.evaluate(drawer.scope), formula.label); };
+    if (onGrid(variables, names)) averages[i] = gridAverage(variables, names, work);
+    else drawn.push({ i: i, work: work });
+  });
+  if (drawn.length > 0) {
+    const samples = sampleRandomVariables(variables, function (drawer) {
+      return drawn.map(function (one) { return one.work(drawer); });
+    });
+    drawn.forEach(function (one, m) {
+      let sum = 0;
+      for (const sample of samples) sum += sample[m];
+      averages[one.i] = sum / samples.length;
+    });
+  }
+  return averages;
+}
+
+// The names with laws behind the names "names": a formula line's name
+// stands for the names its own formula uses, and so on (m = max(v, z)
+// comes down to v and z).
+function namesBehind(names, declared) {
+  const behind = [];
+  (function look(list) {
+    for (const name of list) {
+      const line = declared.byName.get(name);
+      if (line.kind === "formula") look(line.uses);
+      else if (!behind.includes(name)) behind.push(name);
+    }
+  })(names);
+  return behind;
+}
+
+// Can the grid average a formula that comes down to these names with
+// laws? (See above.)
+function onGrid(variables, names) {
+  return names.length <= 4 && names.every(function (name) {
+    const line = variables.declared.byName.get(name);
+    return line.kind === "law" && !line.family && !variables.laws.get(name).draw;
+  });
+}
+
+// The midpoint rule: work(drawer) averaged over the centers of the
+// grid, G points on the side of each of the k names (G^k at most
+// GRID_POINTS). The uniform number behind name a is the center of the
+// stretch at[a] of its side.
+function gridAverage(variables, names, work) {
+  const k = names.length, G = k === 0 ? 1 : Math.floor(Math.pow(GRID_POINTS, 1 / k) + 1e-9);
+  const sideOf = new Map(names.map(function (name, a) { return [nameKey(name, 0), a]; }));
+  const at = new Array(k).fill(0), total = Math.pow(G, k);
+  const drawer = makeDrawer(variables, function (key) { return (at[sideOf.get(key)] + 0.5) / G; });
+  let sum = 0;
+  for (let i = 0; i < total; i++) {
+    for (let a = 0, rest = i; a < k; a++, rest = Math.floor(rest / G)) at[a] = rest % G;
+    drawer.at(i);
+    sum += work(drawer);
+  }
+  return sum / total;
+}
+
 
 /* =====================================================================
    7. THE BOX ON THE PAGE
@@ -665,7 +772,7 @@ function randomBoxHTML(settings) {
     '<div class="formula-preview" id="random-preview"></div>' +
     '<p class="muted small" id="random-message"></p>' +
     '<div class="option-row">Chart of <select id="random-chart-of"></select>' +
-      '<select class="law-menu" id="random-new-law"><option value="">Give it a new law</option>' + groups.join("") +
+      '<select id="random-new-law"><option value="">Give it a new law</option>' + groups.join("") +
       '<optgroup label="Formulas of random variables">' + examples.join("") + "</optgroup></select></div>" +
     '<canvas class="chart" id="random-chart"></canvas>' +
     '<p class="muted small" id="random-note"></p>' +

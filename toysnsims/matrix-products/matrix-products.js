@@ -15,7 +15,8 @@
    It uses the shared helpers in js/sim-page.js (byId, showMessage,
    ...), the charts and number labels in js/sim-charts.js (histogram,
    niceNumber, ...), the plane picture in js/sim-view.js (makePlaneView,
-   ...), and the formula reading and sliders in js/formulas.js.
+   ...), the formula reading and sliders in js/formulas.js, and the
+   Random variables box in js/sim-random.js (connectRandomBox).
 
    Everything runs right here, in the page's own thread. A step of 2000
    runs takes well under a thousandth of a second for fixed matrices,
@@ -52,7 +53,7 @@ const COLOR_BLUE = "#1f5fbf";
 const simCanvas = byId("sim-canvas");
 
 let matrices = [];        // what's typed: [{ entries: [4 texts], weight: text }]
-let sliders = {};         // letter -> { value, min, max, step }
+let sliders = {};         // letter -> { value, min, max, step }, for the matrices and the box
 let model = null;         // the matrices read with the sliders' values (readModel)
 let meanMatrix = null;    // E[X], from averageMatrix
 let rho = 1;              // the spectral radius of E[X]
@@ -71,6 +72,10 @@ let trajectory = [];
 
 let viewKind = "cloud";   // "cloud", "histogram" or "trajectory"
 
+// Why the runs can't go on ("" if they can): an entry gave no number at
+// some step.
+let stuck = "";
+
 
 /* =====================================================================
    3. THE MATRIX BOXES AND THEIR SLIDERS
@@ -79,9 +84,11 @@ let viewKind = "cloud";   // "cloud", "histogram" or "trajectory"
        M1  [ 0.9 ][ 0.8 ]   weight       ×
            [ 0.1 ][ 0.2 ]   [    ]
                             chance 0.5
-   Typing in any box re-reads everything (readMatrices). Every letter
-   other than u1..u4 gets a slider (makeSlider, js/formulas.js); moving
-   one re-reads the numbers only (useMatrices).
+   Typing in any box re-reads everything (readMatrices). The entries
+   can use the random variables of the Random variables box under the
+   matrices (connectRandomBox, js/sim-random.js); every other letter,
+   there or in the box, gets a slider (makeSlider, js/formulas.js), and
+   moving one re-reads the numbers only (useMatrices).
    ===================================================================== */
 
 function buildMatrixRows() {
@@ -137,11 +144,19 @@ function typedByHand() {
   readMatrices();
 }
 
+// The Random variables box. Typing in it re-reads everything too.
+const box = connectRandomBox({
+  reserved: [],
+  onTyped: function () { byId("preset").value = "custom"; },
+  onRead: readMatrices,
+  sliders: function () { return sliders; },
+});
+
 // Find the letters, make their sliders, then use the numbers.
 function readMatrices() {
   let letters;
   try {
-    letters = matrixLetters(matrices);
+    letters = matrixLetters(matrices, box.declared);
   } catch (problem) {
     // Usually just a half-typed formula: keep the last good picture.
     byId("matrix-message").textContent = "Can't read that yet: " + problem.message;
@@ -151,17 +166,24 @@ function readMatrices() {
   useMatrices();
 }
 
-// Read the matrices with the sliders' current values, then replay.
+// Read the matrices and the random variables with the sliders' current
+// values, then replay. While something can't be used, the last good
+// picture stays (and the box, or the line under the matrices, says
+// why).
 function useMatrices() {
-  const values = sliderValues(sliders);
+  const variables = box.build(sliderValues(sliders));
+  if (!variables) return;
+  let read, mean;
   try {
-    model = readModel(matrices, values);
+    read = readModel(matrices, variables);
+    mean = averageMatrix(read);
   } catch (problem) {
     byId("matrix-message").textContent = problem.message;
     return;
   }
   byId("matrix-message").textContent = "";
-  meanMatrix = averageMatrix(model);
+  model = read;
+  meanMatrix = mean;
   rho = spectralRadius(meanMatrix);
 
   // Each matrix's chance, next to its weight box.
@@ -171,14 +193,16 @@ function useMatrices() {
   replaySoon();
 }
 
+// The preset's matrices and random variables (putting its lines in the
+// box reads them, then the matrices).
 function usePreset(key) {
   // A copy, so typing never changes the preset itself.
-  matrices = PRESETS[key].map(function (m) {
+  matrices = PRESETS[key].matrices.map(function (m) {
     return { entries: m.entries.slice(), weight: m.weight };
   });
   sliders = {};
   buildMatrixRows();
-  readMatrices();
+  box.setText(PRESETS[key].lines);
 }
 
 
@@ -186,9 +210,12 @@ function usePreset(key) {
    4. THE RUNS: STEPPING, REPLAYING, PLAY
    ===================================================================== */
 
-// One step for every run, and remember the shown run's product.
+// One step for every run, and remember the shown run's product. If an
+// entry gives no number (log(u) for a u that came out negative, say),
+// the runs stop there, and the line under the picture says why.
 function stepOnce() {
-  cloud.step();
+  try { cloud.step(); }
+  catch (problem) { stuck = problem.message; return; }
   remember();
 }
 
@@ -206,7 +233,6 @@ function replay() {
   if (!model) return;
   if (!cloud || cloud.runs !== runs || cloud.seed !== seed) {
     cloud = newCloud(model, runs, seed);
-    cloud.seed = seed;
   } else {
     cloud.setModel(model);
   }
@@ -214,7 +240,8 @@ function replay() {
   byId("set-run").value = shownRun;   // N may have dropped below it
   trajectory = [];
   remember();
-  while (cloud.t < wantedT) stepOnce();
+  stuck = "";
+  while (!stuck && cloud.t < wantedT) stepOnce();
   draw();
   showStats();
   player.showDone();    // at "Stop at t", Play and Step are grayed out
@@ -234,7 +261,7 @@ function playStep() {
 }
 const showStatsSlowly = notTooOften(250, function () { return stepping.playing; }, showStats);
 const stepping = makeRunLoop(playStep, function () { draw(); showStatsSlowly(); player.showDone(); },
-  function () { return cloud === null || cloud.t >= tMax; });
+  function () { return cloud === null || cloud.t >= tMax || stuck !== ""; });
 
 // Restart: back to t = 0, paused.
 function restart() {
@@ -343,7 +370,8 @@ function draw() {
     pen.globalAlpha = 1;
   }
 
-  showMessage(lost > 0
+  showMessage(stuck ? "The runs stopped before step " + (cloud.t + 1) + ": " + stuck
+    : lost > 0
     ? lost.toLocaleString() + " dots are too big (or too small) for the computer at this scale, " +
       "so they aren't drawn. Try the scale \"divide by ρ^t\" or \"length 1\"."
     : "");
@@ -479,7 +507,7 @@ function showStats() {
   byId("stat-t").textContent = "t = " + cloud.t + ", N = " + cloud.runs.toLocaleString();
   const m = meanMatrix.map(niceNumber);
   byId("stat-mean").textContent = "[[" + m[0] + ", " + m[1] + "], [" + m[2] + ", " + m[3] + "]]" +
-                                  (model.random ? " (entries with u's: averaged numerically)" : "");
+                                  (model.random ? " (the entries with random variables averaged numerically)" : "");
   byId("stat-rho").textContent = niceNumber(rho);
   byId("stat-logrho").textContent = rho > 0 ? niceNumber(Math.log(rho)) : "−∞";
 
@@ -561,8 +589,8 @@ window.addEventListener("resize", function () { draw(); showStats(); });
 
 // Start: your D13, 2000 runs, seed 1, at t = 0, paused at a low speed.
 // The libraries come from the internet; without them the toy can't run.
-if (!window.math || !window.alea) {
-  showMessage("The toy couldn't start. It loads two small libraries (math.js and seedrandom) from " +
+if (!window.math || !window.jStat) {
+  showMessage("The toy couldn't start. It loads two small libraries (math.js and jStat) from " +
               "cdn.jsdelivr.net; check the internet connection and reload.");
 } else {
   byId("seed").value = seed;
