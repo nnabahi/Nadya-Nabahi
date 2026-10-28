@@ -98,7 +98,11 @@ function chainWorker() {
   let random = Math.random;
   let proposed = 0;        // moves tried
   let accepted = 0;        // moves accepted
-  let boundaryTrace = null;   // the boundary edges against the moves accepted, for the chart (keepSample, js/sim-worker.js)
+  let sweeps = 1;          // sweeps of flips between two moves (1 sweep = n flips; section 2b)
+  let flips = 0, flipped = 0;   // flips tried, and flips accepted
+  let stale = null;        // stale[c]: a flip changed color c, so logTau[c] must be worked out again
+  let owner = null, ownerStamp = 1;   // marks for the flips' connectivity check (staysConnected)
+  let boundaryTrace = null;   // the boundary edges after each step (sweeps and moves alike), for the chart (keepSample, js/sim-worker.js)
   let alphaTrace = null;      // each move's acceptance probability alpha, against the move number, for the chart
   let alphaSum = 0;           // the sum of every move's alpha, for their average
   let film = null;         // "watch each move": what this move did, for the page to show (section 4)
@@ -121,6 +125,10 @@ function chainWorker() {
     random = new Math.seedrandom(String(message.seed));
     proposed = 0;
     accepted = 0;
+    flips = flipped = 0;
+    sweeps = message.sweeps;
+    owner = new Int32Array(n);
+    stale = new Uint8Array(N);
 
     inM = new Int32Array(n);
     side = new Int8Array(n);
@@ -155,12 +163,10 @@ function chainWorker() {
     keepSample(boundaryTrace, 0, { boundary: boundary });
   }
 
-  // After each move, samples for the charts: its alpha, against the
-  // move number, and the boundary edges, against the moves accepted.
-  function takeSamples(alpha) {
+  // After each move, its alpha for the chart, against the move number.
+  function sampleAlpha(alpha) {
     alphaSum += alpha;
     keepSample(alphaTrace, proposed, { alpha: alpha });
-    keepSample(boundaryTrace, accepted, { boundary: boundary });
   }
 
   // Where the pair of colors a, b is stored in "between".
@@ -188,6 +194,9 @@ function chainWorker() {
     const key = touching[Math.floor(random() * touching.length)];
     const i = Math.floor(key / N), j = key % N;
     if (film) film.pair = [i, j];
+    for (const c of [i, j]) {                  // flips changed these colors: count their trees again
+      if (stale[c]) { logTau[c] = treeCounter.logCount(cellsOfColor(c)); stale[c] = 0; }
+    }
     const pairsBefore = pairs;                 // A(X)
     const kBefore = between[key];              // k(C_i, C_j)
 
@@ -221,7 +230,7 @@ function chainWorker() {
     if (changed === 0) {                       // Y = X: alpha = 1 and nothing moves
       accepted++;
       if (film) { film.alpha = 1; film.accepted = true; }
-      takeSamples(1);
+      sampleAlpha(1);
       return;
     }
 
@@ -248,7 +257,101 @@ function chainWorker() {
     } else {
       recolor(M, oldColor);                  // rejected: back to X
     }
-    takeSamples(alpha);
+    sampleAlpha(alpha);
+  }
+
+
+  /* ===================================================================
+     2b. SINGLE-CELL FLIPS
+     -------------------------------------------------------------------
+     Between two moves above, the chain makes "sweeps" sweeps of n
+     flips each. Every sweep is a step of its own, like a move, so the
+     page shows each one at the Speed: with 2 sweeps, the steps go
+     sweep, sweep, move, sweep, sweep, move, ... (oneStep, section 4). A flip
+     picks a uniformly random cell v and a uniformly random neighbor w of
+     v, and proposes giving v the color of w. With
+       a = how many neighbors of v have v's color now, and
+       b = how many have w's color,
+     the chance of proposing this flip is (1/n)(b/deg v), and of the flip
+     back (1/n)(a/deg v), so the Metropolis-Hastings rule for the uniform
+     target accepts with min(1, a/b). The flip only happens if v's old
+     color stays one connected piece without v (v's new color stays
+     connected, since v touches it). Every flip and every move keeps the
+     uniform distribution, so doing them in a fixed order does too. The
+     flips roughen the borders cheaply; the moves make the big changes.
+     =================================================================== */
+  // One sweep: n flips, so each cell is tried once on average. Watching
+  // each move, the film lists the cells that changed color.
+  function oneSweep() {
+    const before = film ? color.slice() : null;
+    for (let k = n; k > 0; k--) oneFlip();
+    if (film) {
+      film.flipped = [];
+      for (let v = 0; v < n; v++) if (color[v] !== before[v]) film.flipped.push(v);
+    }
+  }
+
+  function oneFlip() {
+    flips++;
+    const v = Math.floor(random() * n);
+    const start = first[v], degree = first[v + 1] - start;
+    const c = color[nbr[start + Math.floor(random() * degree)]], old = color[v];
+    if (c === old) return;
+    let a = 0, b = 0;
+    for (let e = start; e < first[v + 1]; e++) {
+      if (color[nbr[e]] === old) a++;
+      else if (color[nbr[e]] === c) b++;
+    }
+    if (a < b && random() >= a / b) return;   // rejected: accepted only with min(1, a/b)
+    if (a === 0 || !staysConnected(v, old)) return;   // v alone in its color, or v holds it together
+    mStamp++;
+    inM[v] = mStamp;
+    newColor[v] = c;
+    recolor([v], newColor);
+    stale[old] = stale[c] = 1;
+    flipped++;
+  }
+
+  // Do the cells of color "old" next to v stay connected without v?
+  // A search through color "old" (never entering v) starts from each of
+  // them at once, and they take turns, one cell each. Two searches that
+  // meet join into one; if they all join, the color stays connected. If
+  // one runs out of cells first, its piece is cut off from the rest: v
+  // holds the color together. Taking turns keeps the work to about the
+  // size of the smallest piece, which is small when v is near a tip.
+  function staysConnected(v, old) {
+    const starts = [];
+    for (let e = first[v]; e < first[v + 1]; e++) {
+      const w = nbr[e];
+      if (color[w] === old && !starts.includes(w)) starts.push(w);
+    }
+    if (starts.length === 1) return true;
+    // owner[u] - base = the search that reached u first (any smaller
+    // number: not reached yet). joined[k]: the search that k has joined.
+    const base = ownerStamp;
+    ownerStamp += starts.length;
+    const queues = starts.map(function (w, k) { owner[w] = base + k; return [w]; });
+    const heads = starts.map(function () { return 0; });
+    const joined = starts.map(function (w, k) { return k; });
+    const rootOf = function (k) { while (joined[k] !== k) k = joined[k]; return k; };
+    let searches = starts.length;
+    for (;;) {
+      for (let k = 0; k < starts.length; k++) {
+        if (joined[k] !== k) continue;               // it is part of another search now
+        if (heads[k] === queues[k].length) return false;   // out of cells: cut off
+        const u = queues[k][heads[k]++];
+        for (let e = first[u]; e < first[u + 1]; e++) {
+          const w = nbr[e];
+          if (w === v || color[w] !== old) continue;
+          if (owner[w] < base) { owner[w] = base + k; queues[k].push(w); continue; }
+          const other = rootOf(owner[w] - base);
+          if (other === k) continue;
+          joined[other] = k;                         // the two meet: one search from now on
+          for (let h = heads[other]; h < queues[other].length; h++) queues[k].push(queues[other][h]);
+          if (--searches === 1) return true;
+        }
+      }
+    }
   }
 
   // Give each cell v of "cells" the color target[v], keeping between,
@@ -333,43 +436,61 @@ function chainWorker() {
      -------------------------------------------------------------------
      The worker talks to the page the way every sim's worker does
      (serveRun, js/sim-worker.js). Its own messages:
-       setup  { n, first, nbr, colors, N, seed, watch, most }   a new run
+       setup  { n, first, nbr, colors, N, seed, watch, sweeps, most }   a new run
                         ("watch": is "watch each move" on? "most": the
                         most samples each chart keeps)
        watch  { on }    "watch each move" on or off
-       next   {}        (watching) the page has shown the last move
+       sweeps { sweeps }   sweeps of flips between two moves (section 2b)
+       next   {}        (watching) the page has shown the last step
      It reports the colors, the numbers for the Statistics box, and the
      run so far for the two charts (the boundary edges, and the
      acceptance probability alpha of the moves, with its average).
 
-     Watching each move, each move also sends what it did ("film": the
-     two colors, every walk of Wilson's algorithm, the root, the cut
-     edge, the proposed colors, alpha, and accepted or not), and the
-     next move waits until the page has shown this one and sends
-     "next". The moves are the same as without watching: the same seed
-     gives the same run.
+     Watching each move, each step also sends what it did ("film"): a
+     move, the two colors, every walk of Wilson's algorithm, the root,
+     the cut edge, the proposed colors, alpha, and accepted or not; a
+     sweep, the cells it changed ({ flips: true, flipped }). The next
+     step waits until the page has shown this one and sends "next".
+     The steps are the same as without watching: the same seed gives
+     the same run.
      =================================================================== */
   let watching = false;    // "watch each move" is on
-  let showing = false;     // watching: the page is still showing the last move
-  let lastReported = -1;   // the move count last sent to the page
+  let showing = false;     // watching: the page is still showing the last step
+  let lastReported = -1;   // the step count last sent to the page
 
-  // One step: one move, or, watching, one move with its film once the
-  // page has shown the last one (until then it waits: false).
+  // One step: "sweeps" sweeps of flips, each a step, then one move.
+  // Watching, a step waits until the page has shown the last one (until
+  // then it returns false). After every step, the boundary edges go on
+  // their chart, against the step number.
+  let steps = 0;           // steps made, sweeps and moves alike
+  let sweepsMade = 0;      // sweeps made since the last move
   function oneStep() {
     if (watching && showing) return false;
+    steps++;
     film = watching ? {} : null;
-    oneMove();
+    if (sweepsMade < sweeps) {
+      if (film) film.flips = true;
+      oneSweep();
+      sweepsMade++;
+    } else {
+      oneMove();
+      sweepsMade = 0;
+    }
+    keepSample(boundaryTrace, steps, { boundary: boundary });
     showing = watching;
   }
 
   function report(send) {
-    if (proposed === lastReported) return;   // nothing new to show
-    lastReported = proposed;
+    if (steps === lastReported) return;      // nothing new to show
+    lastReported = steps;
     const copy = color.slice();
     send({
       colors: copy,
+      steps: steps,
       proposed: proposed,
       accepted: accepted,
+      flips: flips,
+      flipped: flipped,
       boundary: boundary,
       pairs: pairs,
       boundaryTimes: Float64Array.from(boundaryTrace.times),
@@ -388,10 +509,13 @@ function chainWorker() {
       watching = message.watch;
       showing = false;
       lastReported = -1;
+      steps = 0;
+      sweepsMade = 0;
     },
     steps: oneStep, report: report,
     messages: {
       watch: function (message) { watching = message.on; showing = false; },
+      sweeps: function (message) { sweeps = message.sweeps; },
       next: function () { showing = false; },
     },
   });

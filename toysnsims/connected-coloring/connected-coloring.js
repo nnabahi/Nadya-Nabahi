@@ -50,7 +50,8 @@ const TRACE_POINTS = 4000;        // the most points each chart over time keeps 
 // exponentially with R).
 const BALL = { R: 5, most: 20, cells: 20000 };
 
-// The speeds on the Speed slider, in moves per second.
+// The speeds on the Speed slider, in steps per second (a step is a
+// sweep of flips or a move: section 2b of connected-coloring-chain.js).
 // Infinity means "as fast as the computer can". The default is low, so
 // you can follow the moves; the Speed slider goes faster.
 const SPEEDS = [1, 100, Infinity];   // the slider's starting min and max (boxes at its ends change them)
@@ -187,14 +188,14 @@ function restart() {
   alphaZoom.from = alphaZoom.to = null;
   latest = null;
   sim.setup({ n: domain.n, first: domain.first, nbr: domain.nbr, colors: colors, N: N, seed: byId("seed").value,
-              watch: watching, most: TRACE_POINTS });
+              watch: watching, sweeps: readSweeps(), most: TRACE_POINTS });
   showStartInfo();
   drawSoon();
 }
 
 // Play / Pause, Step, Restart and the Speed slider (connectPlay,
 // js/sim-page.js). player.playing is true while the sim plays.
-const player = connectPlay(sim, SPEEDS, DEFAULT_SPEED, "move", "moves", restart);
+const player = connectPlay(sim, SPEEDS, DEFAULT_SPEED, "step", "steps", restart);
 
 
 /* =====================================================================
@@ -245,7 +246,7 @@ function drawColoring() {
   const shown = film ? film.shown : colors;
   paintDomain(view, pen, domain, function (v) { return shown[v]; },
     function (c) { return paint[c]; }, outsideRGB, CELL_LINES, 0);
-  if (film) drawFilm(pen);
+  if (film) (film.flipped ? drawFlips : drawFilm)(pen);
 }
 
 // Hyperbolic plane or tree: the ball's cells in their colors, with the
@@ -331,8 +332,9 @@ connectPicture(view, {
      4. the coin: the pieces get their new colors;
      5. accept or reject, with alpha: a rejected move puts the old
         colors back.
-   The chain (connected-coloring-chain.js, section 4) sends each move's
-   "film" and waits for "next" before making another one, so the moves
+   A sweep of flips stops once, with a dot on each cell it changed.
+   The chain (connected-coloring-chain.js, section 4) sends each step's
+   "film" and waits for "next" before making another one, so the steps
    are the same ones as without watching. The Steps slider sets how
    many steps of the walk show per second; Pause stops in the middle of
    a move, and Step shows one whole move (the rest of the move being
@@ -340,12 +342,14 @@ connectPicture(view, {
    ===================================================================== */
 let watching = false;          // is "Watch each move" ticked?
 let watchSpeed = DEFAULT_WATCH_SPEED;   // steps of the walk per second
-let film = null;               // the move being shown, or null
+let film = null;               // the move or sweep being shown, or null
 
 // A new move to show. One still being shown is finished at once.
+// A sweep of flips is shown for one stop, its new colors at once.
 function startFilm(message) {
   if (film) useMessage(film.message);
   const log = message.film;
+  if (log.flips) { startFlipsFilm(message); return; }
   if (!log.pair) { useMessage(message); sim.send({ type: "next" }); return; }   // nothing to show
   film = {
     message: message,
@@ -360,6 +364,17 @@ function startFilm(message) {
   // and wilson.path the walk so far, with its loops erased.
   film.wilson = newWilson(domain.n, function () { return film.walks[film.walk][film.step++]; });
   film.wilson.start([film.root], film.walks.map(function (walk) { return walk[0]; }));
+  showFilmInfo();
+  requestAnimationFrame(playFilm);
+}
+
+function startFlipsFilm(message) {
+  film = {
+    message: message, flipped: message.film.flipped,   // the cells the sweep changed
+    stepping: !player.playing,
+    shown: message.colors.slice(),
+    stage: "flips", wait: stopTime(), last: performance.now(),
+  };
   showFilmInfo();
   requestAnimationFrame(playFilm);
 }
@@ -423,6 +438,12 @@ function walkStep() {
 
 // The line under the picture says what is happening.
 function showFilmInfo() {
+  if (film.flipped) {
+    const changed = film.flipped.length;
+    byId("highlight-info").textContent = "A sweep of flips: " + changed.toLocaleString() +
+      (changed === 1 ? " cell" : " cells") + " changed color (marked).";
+    return;
+  }
   const f = film, [i, j] = f.pair, alpha = f.message.film.alpha;
   const cells = f.message.film.proposal.length;
   const name = "colors " + (i + 1) + " and " + (j + 1);
@@ -466,12 +487,34 @@ function drawFilm(pen) {
   drawWalk(pen, path, width, cellLinesPath.bind(null, view, domain), cellDotsPath.bind(null, view, domain));
 }
 
+// A sweep of flips: a dot on each cell that changed color.
+// (cellSize, js/sim-view.js: the pixels per side length.)
+function drawFlips(pen) {
+  pen.fillStyle = TREE;
+  pen.fill(cellDotsPath(view, domain, film.flipped, Math.max(1.5, cellSize(view) * 0.2)));
+}
+
 // The "Watch each move" box and its Steps slider.
 byId("watch").addEventListener("change", function () { setWatching(this.checked); });
 connectSpeedSlider("watch-speed", WATCH_SPEEDS, DEFAULT_WATCH_SPEED, function (speed) {
   watchSpeed = speed;
   byId("watch-speed-label").textContent = speed === Infinity ? "at once" : speedText(speed, "step", "steps");
 });
+
+// Sweeps of flips between two moves, each a step of its own (1 sweep
+// = one flip per cell on average; section 2b of
+// connected-coloring-chain.js). 0 = moves only.
+// A slider in whole steps, with min and max boxes at its ends
+// (addRangeBoxes, js/sim-page.js).
+function readSweeps() {
+  const sweeps = Number(byId("set-sweeps").value);
+  byId("sweeps-label").textContent = sweeps === 0 ? "moves only" : sweeps + (sweeps === 1 ? " sweep" : " sweeps") + " between moves";
+  return sweeps;
+}
+function sendSweeps() { sim.send({ type: "sweeps", sweeps: readSweeps() }); }
+addRangeBoxes(byId("set-sweeps"), 0, 5, sendSweeps);
+byId("set-sweeps").addEventListener("input", sendSweeps);
+readSweeps();
 
 function setWatching(on) {
   watching = on;
@@ -494,10 +537,13 @@ function showStats() {
   if (!domain || !colors) return;
   byId("stat-cells").textContent = domain.n;
   byId("stat-colors").textContent = N;
-  const s = latest || { proposed: 0, accepted: 0, boundary: "", pairs: "" };
+  const s = latest || { steps: 0, proposed: 0, accepted: 0, flips: 0, boundary: "", pairs: "" };
+  byId("stat-steps").textContent = s.steps.toLocaleString();
   byId("stat-proposed").textContent = s.proposed.toLocaleString();
   byId("stat-accepted").textContent = s.accepted.toLocaleString() +
     (s.proposed > 0 ? " (" + (100 * s.accepted / s.proposed).toFixed(1) + "%)" : "");
+  byId("stat-flips").textContent = s.flips ? s.flipped.toLocaleString() + " of " + s.flips.toLocaleString() +
+    " (" + (100 * s.flipped / s.flips).toFixed(1) + "%)" : "0";
   byId("stat-boundary").textContent = s.boundary;
   byId("stat-pairs").textContent = s.pairs;
   showHighlightInfo();
@@ -521,7 +567,9 @@ function largestFirst(sizes) {
   return order;
 }
 
-// One bar per color, as tall as its number of cells, largest first.
+// One bar per color, as tall as its number of cells, largest first,
+// on a log scale (every color has at least 1 cell, at the bottom), so
+// tiny colors still show beside huge ones.
 // The bars go from the largest on the left to the smallest on the
 // right; each keeps its own color, so you can follow a color as it
 // grows and shrinks. A highlighted color's bar stays bright.
@@ -534,7 +582,7 @@ function drawSizes() {
   });
   sizesFrame = barChart(byId("sizes-chart"), bars,
     { from: 0.5, to: N + 0.5, whole: true, word: "largest first" },
-    { from: 0, to: Math.max(...sizes), round: true, whole: true, word: "cells" });
+    { from: 1, to: Math.max(...sizes), scale: "log", round: true, whole: true, word: "cells" });
 }
 
 // Clicking a bar highlights its color (section 5b).
@@ -546,7 +594,8 @@ byId("sizes-chart").addEventListener("click", function (event) {
   if (place >= 0 && place < N) highlight(order[place]);
 });
 
-// The number of boundary edges against the number of moves accepted. It
+// The number of boundary edges after each step (sweeps of flips and
+// moves alike), against the step number, as on the Speed slider. It
 // shows the whole run (the chain keeps evenly spaced samples of it, at
 // most TRACE_POINTS: keepSample, js/sim-worker.js), rescaled to fit as
 // the run goes on; zoom in with the mouse wheel or a pinch, drag to move
@@ -567,7 +616,7 @@ function drawTrace() {
   while (lastK - 1 >= 0 && points[lastK - 1][0] >= to) lastK--;
   const series = [{ points: points.slice(firstK, lastK + 1) }];
   const [low, high] = seriesRange(series, 1);
-  const frame = lineChart(byId("trace-chart"), series, { from: from, to: to, word: "moves" },
+  const frame = lineChart(byId("trace-chart"), series, { from: from, to: to, word: "steps" },
                           { from: low, to: high, round: true, whole: true });
   traceZoom.left = frame.left;
   traceZoom.right = frame.right;
