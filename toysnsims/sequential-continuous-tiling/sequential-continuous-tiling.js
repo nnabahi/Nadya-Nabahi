@@ -130,12 +130,7 @@ function readFormulas() {
     const curve = trees[name].length === 2;
     return trees[name].flatMap(sliderLetters).filter(function (letter) { return !(curve && letter === "t"); });
   }));
-  const holder = byId("sliders");
-  holder.innerHTML = "";
-  for (const letter of letters) {
-    if (!sliders[letter]) sliders[letter] = Object.assign({}, NEW_SLIDER);   // a fresh copy
-    holder.appendChild(makeSlider(letter, sliders[letter], sendSetup));
-  }
+  showSliders(byId("sliders"), letters, sliders, sendSetup);   // (js/formulas.js)
 
   // The worker gets each formula written out with every "*" shown, so it
   // reads exactly what the preview shows (a curve as { x, y }).

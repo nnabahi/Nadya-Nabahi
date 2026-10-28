@@ -118,12 +118,7 @@ function readSet() {
   }
 
   // One slider per letter.
-  const holder = byId("sliders");
-  holder.innerHTML = "";
-  for (const letter of letters) {
-    if (!sliders[letter]) sliders[letter] = Object.assign({}, NEW_SLIDER);   // a fresh copy
-    holder.appendChild(makeSlider(letter, sliders[letter], useSet));
-  }
+  showSliders(byId("sliders"), letters, sliders, useSet);   // (js/formulas.js)
   useSet();
 }
 

@@ -14,6 +14,7 @@
      isFunctionName(path, parent)   is this name used as a function?
      NEW_SLIDER, SMALLEST_STEP      a new slider's settings
      makeSlider(name, s, onChange)  one slider row:  r = [1] ===o=== min max step
+     showSliders(holder, letters, sliders, onChange)   a row for each letter
    ===================================================================== */
 
 
@@ -215,4 +216,17 @@ function makeSlider(name, s, onChange) {
 
   show();
   return row;
+}
+
+// One slider row (makeSlider) for each of "letters", in that order, in
+// the box "holder" (emptied first). "sliders" maps each letter to its
+// numbers and is kept by the page, so a letter that leaves the formulas
+// and comes back keeps its settings; a new letter gets a fresh copy of
+// NEW_SLIDER. onChange runs whenever a slider changes.
+function showSliders(holder, letters, sliders, onChange) {
+  holder.innerHTML = "";
+  for (const letter of letters) {
+    if (!sliders[letter]) sliders[letter] = Object.assign({}, NEW_SLIDER);   // a fresh copy
+    holder.appendChild(makeSlider(letter, sliders[letter], onChange));
+  }
 }

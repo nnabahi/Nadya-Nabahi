@@ -103,12 +103,7 @@ function readRule() {
   if (window.katex) {
     katex.render("g(x) = " + tree.toTex({ parenthesis: "keep", implicit: "hide" }), byId("preview-g"), { throwOnError: false });
   }
-  const holder = byId("sliders");
-  holder.innerHTML = "";
-  for (const letter of sliderLetters(tree)) {
-    if (!sliders[letter]) sliders[letter] = Object.assign({}, NEW_SLIDER);   // a fresh copy
-    holder.appendChild(makeSlider(letter, sliders[letter], sendParams));
-  }
+  showSliders(byId("sliders"), sliderLetters(tree), sliders, sendParams);   // (js/formulas.js)
   rule = tree.compile();
   return true;
 }

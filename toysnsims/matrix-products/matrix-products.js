@@ -147,12 +147,7 @@ function readMatrices() {
     byId("matrix-message").textContent = "Can't read that yet: " + problem.message;
     return;
   }
-  const holder = byId("sliders");
-  holder.innerHTML = "";
-  for (const letter of letters) {
-    if (!sliders[letter]) sliders[letter] = Object.assign({}, NEW_SLIDER);   // a fresh copy
-    holder.appendChild(makeSlider(letter, sliders[letter], useMatrices));
-  }
+  showSliders(byId("sliders"), letters, sliders, useMatrices);   // (js/formulas.js)
   useMatrices();
 }
 
