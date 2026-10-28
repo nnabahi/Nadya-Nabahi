@@ -165,7 +165,9 @@ function newShape(from, bins) {
        forwards, died at that step;
      - a cell joining several groups is, forwards, a split: the group
        that dies last (the outside never dies) carries on, and each of
-       the others was born at that step.
+       the others was born at that step;
+     - the groups left at the end, other than the outside, are the holes
+       of the set at the start: born at step 0.
    Every group carries the step it dies at. Groups that are still holes
    now die "later than now", and the outside later than everything.
 
@@ -266,6 +268,16 @@ function holeHistory(set, now) {
     }
     diesAt[c] = diesAt[elder];
     for (const g of groups) join(c, g);
+  }
+
+  // What is left is the set at the start (the cells born at step 0). If
+  // it has holes of its own (First Passage Percolation's ball at time 0,
+  // when some times are 0), each was born at step 0.
+  const startHoles = new Set();
+  for (let c = 0; c < count; c++) if (filledAt[c] < 0 && find(c) !== find(OUTSIDE)) startHoles.add(find(c));
+  for (const g of startHoles) {
+    if (diesAt[g] === LATER) result.openBirths.push(0);
+    else { result.births.push(0); result.deaths.push(diesAt[g]); }
   }
   return result;
 }

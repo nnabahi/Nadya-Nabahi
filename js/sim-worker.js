@@ -279,6 +279,7 @@ function seededUniform(seed) {
 // first; First Passage Percolation's search, the nearest site first.)
 //   heap.add(key, item)   add "item" (a whole number) with the number "key"
 //   heap.firstKey()       the smallest number waiting
+//   heap.firstItem()      the item with it (still waiting)
 //   heap.take()           take out the item with the smallest number
 //   heap.size()           how many are waiting
 // keys[k] is never bigger than keys[2k + 1] or keys[2k + 2], so the
@@ -320,6 +321,7 @@ function newHeap() {
   return {
     add: add, take: take,
     firstKey: function () { return keys[0]; },
+    firstItem: function () { return items[0]; },
     size: function () { return keys.length; },
   };
 }

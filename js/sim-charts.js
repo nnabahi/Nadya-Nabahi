@@ -638,13 +638,15 @@ function perimeterChart(canvas, regions, colorNames, border) {
 // both start at 1, in time at the first birth (or death) and the
 // shortest life. A hole that lived no time at all (born and filled at
 // the same moment, when several cells join at once) is left out: the
-// set never has it. Dots are see-through, so where many fall together
-// the color is darker.
+// set never has it. So is a hole born at time 0, against its birth (it
+// was there from the start, and 0 has no place on a log scale). Dots
+// are see-through, so where many fall together the color is darker.
 function persistenceChart(canvas, births, deaths, against, now, unit) {
   const inTime = unit === "time";
   const points = [];
   for (let k = 0; k < births.length; k++) {
-    if (deaths[k] > births[k]) points.push([against === "death" ? deaths[k] : births[k], deaths[k] - births[k]]);
+    const x = against === "death" ? deaths[k] : births[k];
+    if (deaths[k] > births[k] && x > 0) points.push([x, deaths[k] - births[k]]);
   }
   const series = [{ points: points, dots: true, alpha: 0.35 }];
   if (inTime && !(now > 0)) { chartPen(canvas); return; }
