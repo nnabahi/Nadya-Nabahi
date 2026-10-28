@@ -74,29 +74,35 @@ function placeOf(d, v) {
 function newWeights(d, seed, onCells) {
   const random = seededUniform(seed), places = [];
   for (let v = 0; v < d.n; v++) places.push(placeOf(d, v));
-  if (onCells) return { onCells: true, U: Float64Array.from(places, function (p) { return random.uniform(CELL_TAG, ...p); }) };
+  if (onCells) {
+    const U = new Float64Array(d.n);
+    for (let v = 0; v < d.n; v++) U[v] = random.uniform(CELL_TAG, places[v][0], places[v][1], places[v][2]);
+    return { onCells: true, U: U };
+  }
   const U = new Float64Array(d.nbr.length);
   for (let v = 0; v < d.n; v++) {
-    for (let e = d.first[v]; e < d.first[v + 1]; e++) {
-      const [a, b] = inOrder(places[v], places[d.nbr[e]]);
-      U[e] = random.uniform(EDGE_TAG, ...a, ...b);
-    }
+    for (let e = d.first[v]; e < d.first[v + 1]; e++) U[e] = edgeUniform(random, places[v], places[d.nbr[e]]);
   }
   return { onCells: false, U: U };
 }
 
-// Two places, the smaller first (comparing the first numbers, then the
-// second, then the third).
-function inOrder(p, q) {
-  for (let k = 0; k < 3; k++) if (p[k] !== q[k]) return p[k] < q[k] ? [p, q] : [q, p];
-  return [p, q];
+// The U of the edge between the places p and q: from the two places,
+// the smaller first (comparing the first numbers, then the second, then
+// the third), so it is the same both ways.
+function edgeUniform(random, p, q) {
+  let k = 0;
+  while (k < 2 && p[k] === q[k]) k++;
+  if (q[k] < p[k]) [p, q] = [q, p];
+  return random.uniform(EDGE_TAG, p[0], p[1], p[2], q[0], q[1], q[2]);
 }
 
 // The passage times: tau = F^-1(U) for each U of "weights", with F the
 // distribution function of "law" (readLaw, js/sim-laws.js). Returns
 // { onCells, tau }, tau lined up with weights.U.
 function passageTimes(weights, law) {
-  return { onCells: weights.onCells, tau: Float64Array.from(weights.U, function (u) { return drawFromLaw(law, u); }) };
+  const U = weights.U, tau = new Float64Array(U.length);
+  for (let k = 0; k < U.length; k++) tau[k] = drawFromLaw(law, U[k]);
+  return { onCells: weights.onCells, tau: tau };
 }
 
 // The time of the step from a cell along its neighbor entry e (d.nbr[e]
@@ -207,18 +213,14 @@ function randomOrder(d, seed, cells) {
   return cells.slice().sort(function (v, w) { return key.get(v) - key.get(w); });
 }
 
-// The cells of domain d on its edge, as a list of 0s and 1s: those with
-// a neighbor missing. On the square grid, the cells with fewer than 4
-// neighbors; on another tiling, those with a side that has no cell
-// across it (d.sides); on a ball of the hyperbolic plane or a tree, its
-// outermost layer, R steps from the start (whose cells have neighbors
-// one step further out).
+// The cells of domain d (a box of the square grid or of another
+// tiling) on its edge, as a list of 0s and 1s: those with a neighbor
+// missing. On the square grid, the cells with fewer than 4 neighbors;
+// on another tiling, those with a side that has no cell across it
+// (d.sides).
 function edgeCells(d) {
   const edge = new Uint8Array(d.n);
-  if (!d.x) {
-    const steps = stepsFrom(d, [0]);       // (js/sim-domains.js)
-    for (let v = 0; v < d.n; v++) edge[v] = steps[v] === d.R ? 1 : 0;
-  } else if (d.sides) {
+  if (d.sides) {
     for (let v = 0; v < d.n; v++) edge[v] = d.sides[v].includes(-1) ? 1 : 0;
   } else {
     for (let v = 0; v < d.n; v++) edge[v] = d.first[v + 1] - d.first[v] < 4 ? 1 : 0;
