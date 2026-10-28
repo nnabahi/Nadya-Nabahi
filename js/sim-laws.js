@@ -117,11 +117,14 @@ function lawOptionsHTML() {
 // Connect the box. onChange(law) runs with the new law (readLaw) each
 // time the formula or a slider changes and the law can be read; while
 // it can't (a half-typed formula, say), the last good law stays, and
-// the line under the sliders says what is wrong. Starts on the first
+// the line under the sliders says what is wrong. "check" (optional) is
+// the sim's own test of a law that can be read: check(law) is what is
+// wrong with it for this sim ("" if nothing), shown the same way (First
+// Passage Percolation's times can't be negative). Starts on the first
 // preset. Returns "box":
 //   box.law             the law in use
 //   box.usePreset(key)  switch to a preset of LAW_PRESETS
-function connectLaw(onChange) {
+function connectLaw(onChange, check) {
   const box = { law: null };
   const sliders = {};      // letter -> { value, min, max, step } (makeSlider, js/formulas.js)
   let tree = null;         // the formula, read
@@ -148,7 +151,8 @@ function connectLaw(onChange) {
     const values = {};
     for (const letter in sliders) values[letter] = sliders[letter].value;
     const law = readLaw(tree, values);
-    if (law.problem) { say(law.problem); return; }
+    const problem = law.problem || (check ? check(law) : "");
+    if (problem) { say(problem); return; }
     say(law.note);
     box.law = law;
     lawChart(byId("law-chart"), law);
