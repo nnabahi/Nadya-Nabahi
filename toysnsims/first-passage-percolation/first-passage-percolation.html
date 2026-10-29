@@ -271,14 +271,16 @@
         <p>
           <strong>Geodesics</strong> [2, Section 4]. With a law that has no
           point masses, the geodesic between two cells is unique (almost
-          surely). Geodesics heading the same way from far apart tend to merge:
+          surely); with point masses there can be several, and the sim
+          draws one with the fewest steps. Geodesics heading the same way
+          from far apart tend to merge:
           Licea and Newman showed it for almost every direction, under a
           curvature assumption on <span class="tex">\mathcal{B}</span>
           [14, 15], and Damron and Hanson a form of it under much weaker
           assumptions [16]. Under general conditions there are, almost surely,
           at least 4 different infinite geodesics from the start (one-sided:
-          they start there and go off to infinity) [17]. Whether there is a geodesic infinite in both directions is
-          open; Damron and Hanson rule them out in fixed directions, under
+          they start there and go off to infinity) [17]. Whether there is a
+          geodesic infinite in both directions is open; Damron and Hanson rule them out in fixed directions, under
           assumptions [18]. A geodesic of length
           <span class="tex">n</span> is believed to stray about
           <span class="tex">n^{2/3}</span> from the straight line; the relation
@@ -327,8 +329,17 @@
           the cells in order of <span class="tex">T(0, x)</span>, the nearest
           first, one at a time; each step of the run is one more cell, so
           watching it is watching <span class="tex">B(t)</span> grow, and
-          <span class="tex">t</span> is the time of the last cell found. In
-          Pairs mode, each pair's geodesic is found by Dijkstra's algorithm from
+          <span class="tex">t</span> is the time of the last cell found.
+          Cells with the same <span class="tex">T</span> are found in order
+          of the fewest steps on a path that takes
+          <span class="tex">T</span>, as if every edge took a tiny extra
+          time. That matters when many times are 0: on the square grid with
+          <span class="tex">F(0) &gt; 1/2</span>, the edges with time 0 have
+          an infinite cluster [7], so <span class="tex">B(0)</span> can be
+          infinite, and the ball shown at <span class="tex">t = 0</span> is
+          then every cell within <span class="tex">k</span> steps of the
+          start along edges with time 0, for a growing
+          <span class="tex">k</span>. In Pairs mode, each pair's geodesic is found by Dijkstra's algorithm from
           one particle, stopped when it reaches the other. The whole plane is a
           box around the start that grows: a path that leaves the box crosses a
           cell on its edge first, so the box gives the plane's
