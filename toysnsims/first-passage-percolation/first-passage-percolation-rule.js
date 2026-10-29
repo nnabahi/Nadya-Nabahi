@@ -156,6 +156,14 @@ function stepTime(times, e, w) {
    cells are kept in a heap (newHeap, js/sim-worker.js), so the least is
    always first; a cell whose time goes down is added again, and its
    older, larger entry is skipped when it comes up.
+   TIES. Cells with the same T (a law with point masses has many: with
+   most times 0, a whole infinite cluster has T = 0) are settled in
+   order of the fewest steps on a path that takes exactly T, as if every
+   edge took a tiny extra time epsilon. Without that, the heap takes
+   them in an arbitrary order, and the ball at T = 0 shoots off along
+   one line. It is the same algorithm, with each time a pair (T, steps)
+   compared T first, so T itself is unchanged, and each geodesic is one
+   with the fewest steps.
    --------------------------------------------------------------------- */
 
 // Dijkstra's algorithm on domain d with the passage times "times"
@@ -168,15 +176,18 @@ function stepTime(times, e, w) {
 //   search.order      the cells settled so far, in order
 //   search.T[v]       T(start, v) once v is settled (before that, the
 //                     least time found so far, Infinity if none)
+//   search.steps[v]   the steps of v's geodesic: the fewest of any path
+//                     to v that takes T (see TIES above)
 //   search.parent[v]  the cell before v on its geodesic (-1 for the
 //                     start, and for a cell not reached yet)
 //   search.settled[v] 1 once v is settled
 function newSearch(d, times, start) {
   const T = new Float64Array(d.n).fill(Infinity), parent = new Int32Array(d.n).fill(-1);
-  const settled = new Uint8Array(d.n), heap = newHeap();
-  const search = { start: start, T: T, parent: parent, settled: settled, order: [] };
+  const steps = new Float64Array(d.n).fill(Infinity), settled = new Uint8Array(d.n), heap = newHeap();
+  const search = { start: start, T: T, steps: steps, parent: parent, settled: settled, order: [] };
   T[start] = 0;
-  heap.add(0, start);
+  steps[start] = 0;
+  heap.add(0, start, 0);
 
   search.peek = function () {
     while (heap.size() > 0 && settled[heap.firstItem()]) heap.take();   // older entries of settled cells
@@ -192,8 +203,8 @@ function newSearch(d, times, start) {
     for (let e = d.first[v]; e < d.first[v + 1]; e++) {
       const w = d.nbr[e];
       if (settled[w]) continue;
-      const t = T[v] + stepTime(times, e, w);
-      if (t < T[w]) { T[w] = t; parent[w] = v; heap.add(t, w); }
+      const t = T[v] + stepTime(times, e, w), s = steps[v] + 1;
+      if (t < T[w] || (t === T[w] && s < steps[w])) { T[w] = t; steps[w] = s; parent[w] = v; heap.add(t, w, s); }
     }
     return v;
   };

@@ -20,9 +20,12 @@
         algorithm, a slower and plainer way to the same distances, on
         boxes, tori, tilings, a Penrose tiling, a hyperbolic ball and a
         tree, with the times on the edges and on the cells, and with
-        laws that have ties and zeros. Every geodesic is a path of
-        neighbors whose times add up to T, and the cells come in order
-        of T.
+        laws that have ties and zeros. Cells with the same T come in
+        order of the fewest steps on a path taking T (Bellman-Ford finds
+        those too). Every geodesic is a path of neighbors whose times add
+        up to T, with that fewest number of steps. With times that are
+        all 0, the cells come in order of their steps from the start, as
+        a breadth-first search finds them: a ball of the graph.
      4. T is a distance: T(x, y) = T(y, x) with the times on the edges
         (on the cells, T(x, y) + tau_x = T(y, x) + tau_y, as the start's
         own time isn't paid), and T(x, z) <= T(x, y) + T(y, z).
@@ -58,6 +61,7 @@ function variablesOf(text, values) { return makeRandomVariables(readRandomVariab
 const EXPONENTIAL = variablesOf("w ~ exp(1)");
 const GEOMETRIC = variablesOf("w ~ geometric(q)", { q: 0.5 });
 const HERS = variablesOf("w ~ {x = 0: p_0, x = 3: p_3, x >= 5: (1 - p_0 - p_3) e^(-x + 5), 0}", { p_0: 0.2, p_3: 0.3 });
+const MOSTLY_ZERO = variablesOf("w ~ bernoulli(0.1)");
 
 // The times of domain d with the U's of the seed, on the edges or the
 // cells, for the random variables "variables" (as the sim finds them).
@@ -188,21 +192,23 @@ function testDomains() {
 // The passage times from "start" by the Bellman-Ford algorithm (R.
 // Bellman, "On a routing problem", Quart. Appl. Math. 16 (1958) 87-90):
 // lower each cell's time through each neighbor, over and over, until
-// nothing changes. Slow, but plain.
+// nothing changes. Slow, but plain. With each time, the fewest steps of
+// a path taking it: { T, steps }.
 function bellmanFord(d, times, start) {
-  const T = new Float64Array(d.n).fill(Infinity);
+  const T = new Float64Array(d.n).fill(Infinity), steps = new Float64Array(d.n).fill(Infinity);
   T[start] = 0;
+  steps[start] = 0;
   for (let changed = true; changed;) {
     changed = false;
     for (let v = 0; v < d.n; v++) {
       if (T[v] === Infinity) continue;
       for (let e = d.first[v]; e < d.first[v + 1]; e++) {
-        const w = d.nbr[e], t = T[v] + stepTime(times, e, w);
-        if (t < T[w]) { T[w] = t; changed = true; }
+        const w = d.nbr[e], t = T[v] + stepTime(times, e, w), s = steps[v] + 1;
+        if (t < T[w] || (t === T[w] && s < steps[w])) { T[w] = t; steps[w] = s; changed = true; }
       }
     }
   }
-  return T;
+  return { T: T, steps: steps };
 }
 
 // Is w a neighbor of v? Returns its entry e (d.nbr[e] = w), or -1.
@@ -212,18 +218,24 @@ function entryOf(d, v, w) {
 }
 
 // What is wrong with a whole search from "start" ("" if nothing): its
-// T against Bellman-Ford's, its order, and its geodesics.
+// T and steps against Bellman-Ford's, its order, and its geodesics.
+// (The steps are compared only where the times are whole numbers, as
+// there two paths' times are equal exactly when they should be.)
 function searchProblem(d, times, start) {
   const search = newSearch(d, times, start);
   while (search.next() !== -1);
-  const T = bellmanFord(d, times, start);
+  const { T, steps } = bellmanFord(d, times, start);
+  const whole = times.tau.every(Number.isInteger);
   for (let v = 0; v < d.n; v++) {
     if (Math.abs(search.T[v] - T[v]) > 1e-9 * (1 + T[v]) && !(search.T[v] === Infinity && T[v] === Infinity)) {
       return "cell " + v + ": Dijkstra " + search.T[v] + ", Bellman-Ford " + T[v];
     }
+    if (whole && search.steps[v] !== steps[v]) return "cell " + v + ": Dijkstra's geodesic has " + search.steps[v] + " steps, the fewest is " + steps[v];
   }
   for (let k = 1; k < search.order.length; k++) {
-    if (search.T[search.order[k]] < search.T[search.order[k - 1]]) return "the cells don't come in order of T";
+    const [a, b] = [search.order[k - 1], search.order[k]];
+    if (search.T[b] < search.T[a]) return "the cells don't come in order of T";
+    if (whole && search.T[b] === search.T[a] && search.steps[b] < search.steps[a]) return "cells with the same T don't come in order of steps";
   }
   for (const v of search.order) {
     const path = geodesic(search, v);
@@ -235,12 +247,14 @@ function searchProblem(d, times, start) {
       total += stepTime(times, e, path[k + 1]);
     }
     if (Math.abs(total - search.T[v]) > 1e-9 * (1 + total)) return "the geodesic to cell " + v + " takes " + total + ", not T = " + search.T[v];
+    if (path.length - 1 !== search.steps[v]) return "the geodesic to cell " + v + " has " + (path.length - 1) + " steps, not " + search.steps[v];
   }
   return "";
 }
 
 function testDijkstra() {
-  const laws = [["exponential", EXPONENTIAL], ["geometric (ties and zeros)", GEOMETRIC], ["nadya's example", HERS]];
+  const laws = [["exponential", EXPONENTIAL], ["geometric (ties and zeros)", GEOMETRIC], ["nadya's example", HERS],
+                ["bernoulli(0.1) (mostly zeros)", MOSTLY_ZERO]];
   for (const { name, d } of testDomains()) {
     const problems = [];
     let runs = 0;
@@ -255,10 +269,35 @@ function testDijkstra() {
       }
     }
     addRow("Dijkstra = Bellman-Ford, " + name, problems.length === 0,
-           problems.length === 0 ? runs + " searches (3 laws, times on the edges and on the cells, 2 seeds each), " + d.n +
-             " cells: the same T everywhere, cells in order of T, and every geodesic a path of neighbors taking exactly T."
+           problems.length === 0 ? runs + " searches (4 laws, times on the edges and on the cells, 2 seeds each), " + d.n +
+             " cells: the same T everywhere, cells in order of T (and of steps where T ties), and every geodesic a path of" +
+             " neighbors taking exactly T, with the fewest steps."
              : problems[0]);
   }
+}
+
+
+// With every time 0, T is 0 everywhere, and the ties go by steps: the
+// cells come in order of their steps from the start, as found by a
+// plain breadth-first search (stepsFrom, js/sim-domains.js), so the
+// cells found at any moment are a ball of the graph (not a line, as an
+// arbitrary order among the ties could give).
+function testZeroTimes() {
+  const problems = [];
+  for (const { name, d } of testDomains()) {
+    for (const onCells of [false, true]) {
+      const times = { onCells: onCells, tau: new Float64Array(onCells ? d.n : d.nbr.length) };
+      const start = Math.floor(d.n / 2), search = newSearch(d, times, start), bfs = stepsFrom(d, [start]);
+      while (search.next() !== -1);
+      const wrong = search.order.findIndex(function (v, k) {
+        return search.steps[v] !== bfs[v] || (k > 0 && bfs[v] < bfs[search.order[k - 1]]);
+      });
+      if (wrong !== -1) problems.push(name + (onCells ? ", on cells" : ", on edges") + ": cell number " + (wrong + 1) + " in the order is out of place");
+    }
+  }
+  addRow("All times 0: the ball grows as a ball of the graph", problems.length === 0,
+         problems.length === 0 ? "On all " + testDomains().length + " domains, with the times on the edges and on the cells: the cells come " +
+           "in order of their steps from the start, as a breadth-first search finds them." : problems[0]);
 }
 
 
@@ -498,5 +537,5 @@ function testPairs() {
 
 
 runChecksOnClick(function () {
-  return [testTimes, testDraws, testDijkstra, testDistance, testEden, testCoupling, testWholePlane, testHoles, testPairs];
+  return [testTimes, testDraws, testDijkstra, testZeroTimes, testDistance, testEden, testCoupling, testWholePlane, testHoles, testPairs];
 });

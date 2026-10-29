@@ -279,43 +279,48 @@ function seededUniform(seed) {
 // Adding one or taking out the first takes about log2(size) steps, so
 // even millions stay quick. (Eden Growth's clocks, the soonest alarm
 // first; First Passage Percolation's search, the nearest site first.)
-//   heap.add(key, item)   add "item" (a whole number) with the number "key"
+//   heap.add(key, item, tie)  add "item" (a whole number) with the number
+//                             "key"; among equal keys, the smaller "tie"
+//                             comes first (0 if left out)
 //   heap.firstKey()       the smallest number waiting
 //   heap.firstItem()      the item with it (still waiting)
 //   heap.take()           take out the item with the smallest number
 //   heap.size()           how many are waiting
-// keys[k] is never bigger than keys[2k + 1] or keys[2k + 2], so the
-// smallest is keys[0].
+// No entry k comes before its parent (k - 1) >> 1, so the first is at 0.
 function newHeap() {
-  const keys = [], items = [];
+  const keys = [], ties = [], items = [];
 
-  function add(key, item) {
-    // Add it at the end, and move it up while it is smaller than its parent.
+  // Does (key a, tie a) come before (key b, tie b)?
+  function before(keyA, tieA, keyB, tieB) { return keyA < keyB || (keyA === keyB && tieA < tieB); }
+
+  function add(key, item, tie) {
+    if (tie === undefined) tie = 0;
+    // Add it at the end, and move it up while it comes before its parent.
     let k = keys.length;
     while (k > 0) {
       const up = (k - 1) >> 1;
-      if (keys[up] <= key) break;
-      keys[k] = keys[up]; items[k] = items[up]; k = up;
+      if (!before(key, tie, keys[up], ties[up])) break;
+      keys[k] = keys[up]; ties[k] = ties[up]; items[k] = items[up]; k = up;
     }
-    keys[k] = key; items[k] = item;
+    keys[k] = key; ties[k] = tie; items[k] = item;
   }
 
   function take() {
     const item = items[0];
-    // Put the last one in front, then move it down while a child is smaller.
-    const lastKey = keys.pop(), lastItem = items.pop();
+    // Put the last one in front, then move it down while a child comes first.
+    const lastKey = keys.pop(), lastTie = ties.pop(), lastItem = items.pop();
     const n = keys.length;
     if (n > 0) {
       let k = 0;
       for (;;) {
         const a = 2 * k + 1, b = a + 1;
-        let smallest = -1, smallestKey = lastKey;
-        if (a < n && keys[a] < smallestKey) { smallest = a; smallestKey = keys[a]; }
-        if (b < n && keys[b] < smallestKey) { smallest = b; smallestKey = keys[b]; }
-        if (smallest < 0) break;
-        keys[k] = keys[smallest]; items[k] = items[smallest]; k = smallest;
+        let first = -1, firstKey = lastKey, firstTie = lastTie;
+        if (a < n && before(keys[a], ties[a], firstKey, firstTie)) { first = a; firstKey = keys[a]; firstTie = ties[a]; }
+        if (b < n && before(keys[b], ties[b], firstKey, firstTie)) { first = b; firstKey = keys[b]; firstTie = ties[b]; }
+        if (first < 0) break;
+        keys[k] = keys[first]; ties[k] = ties[first]; items[k] = items[first]; k = first;
       }
-      keys[k] = lastKey; items[k] = lastItem;
+      keys[k] = lastKey; ties[k] = lastTie; items[k] = lastItem;
     }
     return item;
   }
