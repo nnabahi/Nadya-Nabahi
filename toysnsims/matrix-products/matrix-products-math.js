@@ -15,10 +15,12 @@
      product of the picked matrices (newest on the left).
 
      The entries of a matrix are typed formulas. Besides slider letters
-     (a, b, p, ...) they may use u1, u2, u3, u4: uniform numbers in
-     [0, 1], drawn fresh at every step. So Desmos D12, a random
+     (a, b, p, ...) they may use the random variables of the Random
+     variables box (js/sim-random.js), like u1 ~ unif(0, 1): each step
+     of each run gets new, independent copies of every name, one number
+     per name in all the entries of the step. So Desmos D12, a random
      column-stochastic matrix with uniform entries, is the one matrix
-         [[u1, u2], [1 - u1, 1 - u2]].
+         [[u1, u2], [1 - u1, 1 - u2]]   with  u1, u2 ~ unif(0, 1).
 
    Many independent runs are made at once (the "cloud"). For every run
    the whole product P_t is kept, not just v_t, so that:
@@ -43,13 +45,14 @@
    by at most a constant factor, which (1/t) log kills. Here it is the
    largest entry in size, which is exactly logSize.
 
-   Random numbers. Run n has its own stream of random numbers, from
-   seedrandom's "alea" generator (https://github.com/davidbau/seedrandom),
-   which repeats exactly for the same seed. Step t of run n always reads
-   the same five numbers: one to pick the matrix, then u1, u2, u3, u4.
-   So when a slider moves, every run reads the same numbers through the
-   new matrices, and the cloud morphs instead of reshuffling (the
-   Desmos feel). More steps or more runs only add numbers at the end.
+   Random numbers. Step s of run n picks its matrix with a uniform
+   number fixed by the seed, n and s (seededUniform, js/sim-worker.js),
+   and (n, s) is the "place" of its random variables: each name's copy
+   there is F^-1(U), for a uniform U fixed by the seed, the name, n and
+   s (newDrawer, js/sim-random.js). So when a slider moves, every run
+   keeps all its uniform numbers, through the new matrices and laws,
+   and the cloud morphs instead of reshuffling (the Desmos feel). More
+   steps or more runs only add new numbers.
 
    The file is split into numbered sections:
      1. Presets
@@ -59,15 +62,17 @@
      5. Statistics
    Nothing here draws or touches the page, so the check page
    (matrix-products-check.html) can test it on its own.
-   The page loads math.js, seedrandom's alea and js/formulas.js
-   (for readTree) before this file.
+   The page loads before this file: math.js, js/sim-worker.js
+   (seededUniform), js/formulas.js (readTree) and the random variables
+   (js/sim-laws.js, js/sim-law-catalog.js, js/sim-random.js).
    ===================================================================== */
 
 
 /* =====================================================================
    1. PRESETS
    ---------------------------------------------------------------------
-   Each preset is a list of matrices, and each matrix is
+   Each preset is its Random variables box's lines, and a list of
+   matrices: each matrix is
    { entries: [top left, top right, bottom left, bottom right], weight },
    all as typed text. A blank weight means "no weight given". (Their
    names, shown in the menu, are in matrix-products.html.)
@@ -75,28 +80,25 @@
 
 const PRESETS = {
   // Desmos D13: two fixed column-stochastic matrices A, B, each half the time.
-  d13: [
+  d13: { lines: "", matrices: [
     { entries: ["0.9", "0.8", "0.1", "0.2"], weight: "" },
     { entries: ["0.6", "0.3", "0.4", "0.7"], weight: "" },
-  ],
+  ] },
   // Desmos D12: a random column-stochastic matrix, uniform entries.
-  d12: [
+  d12: { lines: "u1 ~ unif(0, 1)\nu2 ~ unif(0, 1)", matrices: [
     { entries: ["u1", "u2", "1 - u1", "1 - u2"], weight: "" },
-  ],
+  ] },
   // randmatAB.py and randmatcltmul.py: [[2, 1], [1, 1]] and [[3, 1], [2, 1]].
-  randmatAB: [
+  randmatAB: { lines: "", matrices: [
     { entries: ["2", "1", "1", "1"], weight: "" },
     { entries: ["3", "1", "2", "1"], weight: "" },
-  ],
+  ] },
   // randmatprod.py: [[5/4, 3/4], [3/4, 5/4]] and [[1, -1], [0, 1]].
-  randmatprod: [
+  randmatprod: { lines: "", matrices: [
     { entries: ["5/4", "3/4", "3/4", "5/4"], weight: "" },
     { entries: ["1", "-1", "0", "1"], weight: "" },
-  ],
+  ] },
 };
-
-// The fresh uniform numbers a formula may use at every step.
-const UNIFORM_NAMES = ["u1", "u2", "u3", "u4"];
 
 
 /* =====================================================================
@@ -107,76 +109,74 @@ const UNIFORM_NAMES = ["u1", "u2", "u3", "u4"];
    tool's formula box ("ab" means a times b, and so on).
    ===================================================================== */
 
-// The letters in all the boxes that need a slider: everything except
-// u1..u4 and names math.js already knows (pi, e, sqrt, ...).
-function matrixLetters(matrices) {
-  const names = [];
+// The letters that need a slider: the Random variables box's
+// ("declared", js/sim-random.js), then the others in the matrices'
+// boxes, which are everything but the random variables and names
+// math.js already knows (pi, e, sqrt, ...).
+function matrixLetters(matrices, declared) {
+  const letters = declared.letters.slice();
   for (const m of matrices) {
     for (const text of m.entries.concat([m.weight])) {
       if (text.trim() === "") continue;
-      readTree(text)
-        .filter(function (node, path, parent) {
-          return node.isSymbolNode && !isFunctionName(path, parent);
-        })
-        .forEach(function (node) { names.push(node.name); });
+      for (const letter of randomLetters(readTree(text), declared)) {
+        if (!letters.includes(letter)) letters.push(letter);
+      }
     }
   }
-  return [...new Set(names)].filter(function (name) {
-    return !UNIFORM_NAMES.includes(name) && math[name] === undefined;
-  });
+  return letters;
 }
 
-// Read one box into a function of the uniform numbers u = [u1..u4].
-// "where" names the box in error messages. An entry that doesn't use
-// u1..u4 is worked out once here, so the runs never re-read it.
-function readEntry(text, sliders, where) {
+// Read one box into { tree, random, valueAt(scope) }: "random" says
+// whether it uses random variables, and valueAt works it out with the
+// scope of a drawer at a step (drawer.scope, js/sim-random.js). An
+// entry without random variables is worked out once here, so the runs
+// never re-read it. "where" names the box in problems; "variables" are
+// the random variables with the sliders' values (makeRandomVariables).
+function readEntry(text, variables, where) {
   if (text.trim() === "") throw new Error(where + " is empty.");
   let tree;
   try { tree = readTree(text); }
   catch (error) { throw new Error(where + ": " + error.message); }
-  const usesUniforms = tree.filter(function (node) {
-    return node.isSymbolNode && UNIFORM_NAMES.includes(node.name);
-  }).length > 0;
+  const random = randomNamesIn(tree, variables.declared).length > 0;
+  const code = prepareFormula(tree, variables.declared).compile();
 
-  const compiled = tree.compile();
-  const scope = Object.assign({}, sliders);
-  function valueAt(u) {
-    scope.u1 = u[0]; scope.u2 = u[1]; scope.u3 = u[2]; scope.u4 = u[3];
-    const value = compiled.evaluate(scope);
+  function valueAt(scope) {
+    const value = code.evaluate(scope);
     if (typeof value !== "number" || !isFinite(value)) {
-      throw new Error(where + " should give one number" + (usesUniforms ? " for every u1, u2, u3, u4 in [0, 1]." : "."));
+      throw new Error(where + " should give one number" + (random ? " for every value of its random variables." : "."));
     }
     return value;
   }
 
-  if (!usesUniforms) {
-    const fixed = valueAt([0, 0, 0, 0]);
-    return { usesUniforms: false, valueAt: function () { return fixed; } };
+  if (!random) {
+    const fixed = valueAt(new Map(Object.entries(variables.values)));
+    return { tree: tree, random: false, valueAt: function () { return fixed; } };
   }
-  return { usesUniforms: true, valueAt: valueAt };
+  return { tree: tree, random: true, valueAt: valueAt };
 }
 
 // Read the whole list into a "model":
 //   matrices   for each matrix, its four entries (from readEntry)
 //   chances    the probability of picking each matrix
-//   random     true if some entry uses u1..u4
+//   random     true if some entry uses random variables
+//   variables  the random variables (as given)
 // Throws an Error with a plain message if something can't be used.
-function readModel(matrices, sliders) {
+function readModel(matrices, variables) {
   if (matrices.length === 0) throw new Error("Add at least one matrix.");
   const where = function (i) { return "Matrix " + (i + 1); };
   const corner = ["top left", "top right", "bottom left", "bottom right"];
 
   const read = matrices.map(function (m, i) {
     return m.entries.map(function (text, k) {
-      return readEntry(text, sliders, where(i) + ", " + corner[k] + " entry");
+      return readEntry(text, variables, where(i) + ", " + corner[k] + " entry");
     });
   });
 
   // Weights: a blank box counts as 1, so all blank = all equally likely.
   const weights = matrices.map(function (m, i) {
     if (m.weight.trim() === "") return 1;
-    const w = readEntry(m.weight, sliders, where(i) + "'s weight");
-    if (w.usesUniforms) throw new Error(where(i) + "'s weight can't use u1, u2, u3 or u4.");
+    const w = readEntry(m.weight, variables, where(i) + "'s weight");
+    if (w.random) throw new Error(where(i) + "'s weight can't use random variables (sliders are fine).");
     const value = w.valueAt();
     if (value < 0) throw new Error(where(i) + "'s weight is negative.");
     return value;
@@ -188,8 +188,9 @@ function readModel(matrices, sliders) {
     matrices: read,
     chances: weights.map(function (w) { return w / total; }),
     random: read.some(function (entries) {
-      return entries.some(function (e) { return e.usesUniforms; });
+      return entries.some(function (e) { return e.random; });
     }),
+    variables: variables,
   };
 }
 
@@ -213,38 +214,29 @@ function pickMatrix(model, c) {
 }
 
 // The average matrix  E[X] = sum over i of chances[i] * E[M_i],  as
-// [top left, top right, bottom left, bottom right]. An entry that uses
-// u1..u4 is averaged with the midpoint rule: its average over the cube
-// [0, 1]^k (k = the number of u's it uses) is the average of its values
-// at the centers of a grid of 12^k small cubes. That is exact for
-// entries that are linear in each u (like D12's), and close otherwise.
-// Because the steps are independent, the average of v_t is exactly
-// E[X]^t v_0 (the average of a product of independent factors is the
-// product of their averages).
+// [top left, top right, bottom left, bottom right]. The entries with
+// random variables are averaged numerically (averagesOf,
+// js/sim-random.js: on a grid, exact for entries linear in each
+// uniform number, like D12's; otherwise from many draws). Because the
+// steps are independent, the average of v_t is exactly E[X]^t v_0 (the
+// average of a product of independent factors is the product of their
+// averages).
 function averageMatrix(model) {
-  const GRID = 12;
+  const random = [];
+  model.matrices.forEach(function (entries, i) {
+    entries.forEach(function (entry, k) {
+      if (entry.random) random.push({ tree: entry.tree, label: "Matrix " + (i + 1) + "'s entry " + entry.tree.toString(), i: i, k: k });
+    });
+  });
+  const averages = averagesOf(model.variables, random);
+
   const mean = [0, 0, 0, 0];
   model.matrices.forEach(function (entries, i) {
     entries.forEach(function (entry, k) {
-      let average;
-      if (!entry.usesUniforms) {
-        average = entry.valueAt();
-      } else {
-        // Every u1..u4 runs over the grid centers (it's simplest to grid
-        // all four; 12^4 = 20736 values, done once per change).
-        let sum = 0;
-        const u = [0, 0, 0, 0];
-        for (let a = 0; a < GRID; a++) for (let b = 0; b < GRID; b++)
-        for (let c = 0; c < GRID; c++) for (let d = 0; d < GRID; d++) {
-          u[0] = (a + 0.5) / GRID; u[1] = (b + 0.5) / GRID;
-          u[2] = (c + 0.5) / GRID; u[3] = (d + 0.5) / GRID;
-          sum += entry.valueAt(u);
-        }
-        average = sum / GRID ** 4;
-      }
-      mean[k] += model.chances[i] * average;
+      if (!entry.random) mean[k] += model.chances[i] * entry.valueAt();
     });
   });
+  random.forEach(function (entry, m) { mean[entry.k] += model.chances[entry.i] * averages[m]; });
   return mean;
 }
 
@@ -281,44 +273,46 @@ function spectralRadius(m) {
        q0[n] q1[n]       Q for run n is  [[q0, q1],
        q2[n] q3[n]                         [q2, q3]]
        logSize[n]        P_t = e^(logSize) * Q   (see the top)
-   cloud.setModel(model) swaps in new matrices (a slider moved); the
-   page then starts again from t = 0 with the same random numbers.
+   cloud.setModel(model) swaps in new matrices (a slider moved), and
+   starts again from t = 0, with the same random numbers.
    ===================================================================== */
 
 function newCloud(model, runs, seed) {
   const cloud = {
     model: model,
     runs: runs,
+    seed: seed,
     t: 0,
     q0: new Float64Array(runs), q1: new Float64Array(runs),
     q2: new Float64Array(runs), q3: new Float64Array(runs),
     logSize: new Float64Array(runs),
-    streams: [],         // run n's random numbers
     step: step,
     setModel: function (m) { cloud.model = m; restart(); },
   };
+  const pick = seededUniform(seed);     // the picks' uniform numbers
+  let drawer = null;                    // the random variables, step by step
 
-  // Back to t = 0: identity matrices, and each run's random numbers
-  // from the start of its stream again.
+  // Back to t = 0: identity matrices (and a drawer for the new laws).
   function restart() {
     cloud.t = 0;
     for (let n = 0; n < runs; n++) {
       cloud.q0[n] = 1; cloud.q1[n] = 0; cloud.q2[n] = 0; cloud.q3[n] = 1;
       cloud.logSize[n] = 0;
-      cloud.streams[n] = alea(seed + ":" + n);
     }
+    drawer = cloud.model.random ? newDrawer(cloud.model.variables, seed) : null;
   }
 
-  // One step for every run:  P <- X P,  with X the picked matrix.
-  const u = [0, 0, 0, 0];
+  // One step for every run:  P <- X P,  with X the picked matrix. Step s
+  // of run n picks with the uniform number pick.uniform(n, s), and its
+  // random variables are at the place (n, s).
   function step() {
-    const model = cloud.model;
+    const model = cloud.model, s = cloud.t + 1;
     for (let n = 0; n < runs; n++) {
-      const random = cloud.streams[n];
-      const entries = model.matrices[pickMatrix(model, random())];
-      u[0] = random(); u[1] = random(); u[2] = random(); u[3] = random();
-      const a = entries[0].valueAt(u), b = entries[1].valueAt(u);
-      const c = entries[2].valueAt(u), d = entries[3].valueAt(u);
+      const entries = model.matrices[pickMatrix(model, pick.uniform(n, s))];
+      if (drawer) drawer.at(n, s);
+      const scope = drawer && drawer.scope;
+      const a = entries[0].valueAt(scope), b = entries[1].valueAt(scope);
+      const c = entries[2].valueAt(scope), d = entries[3].valueAt(scope);
 
       // [[a, b], [c, d]] times [[q0, q1], [q2, q3]]:
       const q0 = cloud.q0[n], q1 = cloud.q1[n], q2 = cloud.q2[n], q3 = cloud.q3[n];

@@ -17,10 +17,11 @@
     <p>
       These tests check <code>path-counting-math.js</code>, the math behind the sim,
       against things worked out separately: binomial coefficients, every path listed
-      one by one on small grids, and the bell curve. Press the button; it takes a
-      second or two. The test of u(&hellip;) uses a statistical test, so a correct
-      program fails it about 1 time in 1000 seeds (it always uses the same seed here,
-      so it either always passes or always fails).
+      one by one on small grids, and the bell curve (the random variables have
+      <a href="../../help/random-variables-check.html">their own check page</a> too).
+      Press the button; it takes a second or two. The test of the random variables
+      uses a statistical test, so a correct program fails it about 1 time in 1000 seeds
+      (it always uses the same seed here, so it either always passes or always fails).
     </p>
 
     <p><button id="run-checks">Run the checks</button></p>
@@ -30,15 +31,20 @@
     </table>
   </main>
 
-  <!-- jStat, for the chi-square p-values, and math.js
+  <!-- jStat, for the chi-square p-values (and the laws that need the
+       incomplete gamma and beta functions), and math.js
        (https://mathjs.org), which reads the typed formulas. Versions are
        fixed so an update can never change the tests by surprise. -->
   <script src="https://cdn.jsdelivr.net/npm/jstat@1.9.6/dist/jstat.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mathjs@15.2.0/lib/browser/math.js"></script>
   <script src="../../js/site.js"></script>
   <script src="../../js/sim-page.js"></script>
+  <script src="../../js/sim-worker.js"></script>
   <script src="../../js/check-page.js"></script>
   <script src="../../js/formulas.js"></script>
+  <script src="../../js/sim-laws.js"></script>
+  <script src="../../js/sim-law-catalog.js"></script>
+  <script src="../../js/sim-random.js"></script>
   <script src="path-counting-math.js"></script>
   <script src="path-counting-check.js"></script>
 </body>

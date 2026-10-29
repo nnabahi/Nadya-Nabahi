@@ -10,8 +10,8 @@
        tree. The domain code is shared with the other
        sims (js/sim-domains.js, js/sim-tilings.js, js/sim-controls.js,
        js/sim-hyperbolic.js).
-     - Gives every edge (or every cell) its random passage time, with
-       the law typed in the law box (js/sim-laws.js), and finds passage
+     - Gives every edge (or every cell) its random passage time w, from
+       the Random variables box (js/sim-random.js), and finds passage
        times and geodesics with Dijkstra's algorithm
        (first-passage-percolation-rule.js).
      - Ball mode: Play finds the cells one at a time in order of their
@@ -49,8 +49,10 @@
    ===================================================================== */
 
 // The default box (in cells, or on another tiling in side lengths),
-// seed and number of pairs.
+// seed and number of pairs, and the line the Random variables box
+// starts with.
 const DEFAULTS = { width: 80, height: 80, seed: "1", pairs: 20 };
+const FIRST_LINES = "w ~ exp(1)";
 const MAX_SIDE = 300;             // the biggest box or torus
 const MAX_PICTURE_HEIGHT = 600;   // in screen pixels
 
@@ -110,8 +112,9 @@ for (let k = 0; k < 256; k++) PALETTE.push(heatColor(k / 255));
 let domain = null;      // the domain graph (js/sim-domains.js), or a ball (makeBall, js/sim-hyperbolic.js); its kind is domains.kind (section 12)
 let edge = null;        // for a domain that grows (the whole plane), its cells on its edge (edgeCells); else null
 let weights = null;     // one uniform U per edge or cell (newWeights)
-let passage = null;     // the passage times, F^-1(U) (passageTimes)
-let law = null;         // the law in the law box (readLaw, js/sim-laws.js)
+let passage = null;     // the passage times, w at each edge or cell (passageTimes)
+let variables = null;   // the Random variables box's random variables (js/sim-random.js): w is the passage time
+const sliders = {};     // the box's sliders ({ letter: { value, min, max, step } }, js/formulas.js)
 let mode = "ball";      // "ball" or "pairs"
 
 // Ball mode.
@@ -134,11 +137,12 @@ let shownPairs = 0;     // how many pairs Play has added
 /* =====================================================================
    3. THE PASSAGE TIMES
    ---------------------------------------------------------------------
-   Each edge (or cell) keeps its uniform U from the seed and its place
-   (newWeights), and its time is F^-1(U) for the law in the box
-   (passageTimes). A new law, or moving the times from the edges to the
-   cells, gives new times; the run then goes back over the same number
-   of cells, or the same pairs, with them (coupled: section 5).
+   Each edge (or cell) keeps the uniform U behind its w, from the seed
+   and its place (newWeights), and its time is w there: F^-1(U) for w ~
+   a law (passageTimes). A new law, a slider moved, or moving the times
+   from the edges to the cells, gives new times; the run then goes back
+   over the same number of cells, or the same pairs, with them (coupled:
+   section 5).
    ===================================================================== */
 
 function onCells() { return checked("weights") === "cells"; }
@@ -146,18 +150,35 @@ function onCells() { return checked("weights") === "cells"; }
 // New U's: a new domain or seed, or the times moved to the cells.
 function newNumbers() {
   weights = newWeights(domain, byId("seed").value, onCells());
-  passage = passageTimes(weights, law);
+  passage = findTimes();
 }
 
 // New times from the same U's, for a new law: then the same run again.
 function newTimes() {
-  passage = passageTimes(weights, law);
+  passage = findTimes();
   redoRun();
 }
 
-// The law box can't take a law with negative times.
-function lawProblem(newLaw) {
-  return newLaw.least < 0 ? "Passage times can't be negative: f must be 0 for every x < 0." : "";
+// The times with the box's random variables. A formula for w can come
+// out negative somewhere (the box can only check a law): then the line
+// under the box says so, and the times come from the starting line,
+// w ~ exp(1), until it is fixed.
+const FIRST_VARIABLES = makeRandomVariables(readRandomVariables(FIRST_LINES), {});
+function findTimes() {
+  try { return passageTimes(domain, weights, variables); }
+  catch (problem) {
+    box.say(problem.message + " Until that is fixed, the times are from " + FIRST_LINES + ".");
+    return passageTimes(domain, weights, FIRST_VARIABLES);
+  }
+}
+
+// What the box can't take: w as a family (it is one number per edge),
+// or a law for w that can be negative.
+function timesProblem(v) {
+  const line = v.declared.byName.get("w");
+  if (line.family) return "w is one number for each edge (or cell): type it without a subscript, like  w ~ exp(1).";
+  if (line.kind === "law" && v.lawOf("w").least < 0) return "Passage times can't be negative: w's law must be 0 for every x < 0.";
+  return "";
 }
 
 
@@ -928,12 +949,24 @@ function middleCell(d) {
    13. CONNECTING THE BUTTONS ON THE PAGE
    ===================================================================== */
 
-// The law box (js/sim-laws.js): a new law gives new times (it starts on
-// the first preset, before there is a domain).
-connectLaw(function (newLaw) {
-  law = newLaw;
+// The Random variables box (js/sim-random.js): new lines, or a slider
+// moved, give new times (it starts on FIRST_LINES, before there is a
+// domain).
+const box = connectRandomBox({
+  needs: ["w"],
+  check: timesProblem,
+  onRead: function (declared) {
+    showSliders(byId("sliders"), declared.letters, sliders, useBox);   // (js/formulas.js)
+    useBox();
+  },
+  sliders: function () { return sliders; },
+});
+function useBox() {
+  const built = box.build(sliderValues(sliders));
+  if (!built) return;
+  variables = built;
   if (domain) newTimes();
-}, lawProblem);
+}
 
 // Mode: Ball or Pairs. Each keeps its run (found again, as the times or
 // the domain may have changed while the other was shown); switching
@@ -976,6 +1009,7 @@ connectSeed(function () {
 
 
 // --- Start ------------------------------------------------------------
+box.setText(FIRST_LINES);
 fillDomainOptions(DEFAULTS, MAX_SIDE, BALL);
 byId("seed").value = DEFAULTS.seed;
 showPairs(nPairs);

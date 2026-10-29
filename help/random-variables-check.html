@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Random Variables — Check Page</title>
+  <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+
+  <!-- A test page for the code behind the Random variables box that the
+       sims share: the laws (js/sim-laws.js and js/sim-law-catalog.js)
+       and the named random variables (js/sim-random.js). It opens from
+       the help page, random-variables.html. -->
+  <main class="page">
+    <p><a href="random-variables.html">&larr; Back to how to type random variables</a></p>
+    <h1>Random Variables: Check Page</h1>
+    <p>
+      These tests check the math behind the Random variables box: every law
+      in the list against its formulas (its F against its density or
+      masses, F<sup>&minus;1</sup> against F, its mean and variance), laws
+      that are the same law made two ways, the special functions some laws
+      need (the normal F, the Airy function, the Tracy&ndash;Widom laws,
+      Minkowski's ?), the lines the box refuses, and the named random
+      variables themselves: one number per name in each place, coupled
+      sliders, independent names, random series and the many draws behind
+      a formula's chart. Press the button; it takes about 10 to 20 seconds. The
+      tests use fixed random seeds, so they do the same thing every time.
+    </p>
+
+    <p><button id="run-checks">Run the checks</button></p>
+
+    <table class="check-table">
+      <tbody id="results"></tbody>
+    </table>
+  </main>
+
+  <!-- math.js (reads the typed lines) and jStat (the incomplete gamma
+       and beta functions some laws need). The versions are fixed so an
+       update can never change the tests. -->
+  <script src="https://cdn.jsdelivr.net/npm/mathjs@15.2.0/lib/browser/math.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jstat@1.9.6/dist/jstat.min.js"></script>
+  <!-- byId(), the results table shared by the check pages, the seeded
+       random numbers (seededUniform), the charts, typed formulas, the
+       laws, the catalog of laws and the random variables, then the
+       tests. -->
+  <script src="../js/site.js"></script>
+  <script src="../js/sim-page.js"></script>
+  <script src="../js/check-page.js"></script>
+  <script src="../js/sim-worker.js"></script>
+  <script src="../js/sim-charts.js"></script>
+  <script src="../js/formulas.js"></script>
+  <script src="../js/sim-laws.js"></script>
+  <script src="../js/sim-law-catalog.js"></script>
+  <script src="../js/sim-random.js"></script>
+  <script src="random-variables-check.js"></script>
+</body>
+</html>

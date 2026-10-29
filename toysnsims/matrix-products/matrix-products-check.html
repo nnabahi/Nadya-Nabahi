@@ -15,7 +15,9 @@
     <p><a href="matrix-products.html">&larr; Back to the toy</a></p>
     <h1>Matrix Products: Check Page</h1>
     <p>
-      These tests check <code>matrix-products-math.js</code>, the math behind the toy.
+      These tests check <code>matrix-products-math.js</code>, the math behind the toy,
+      with its random entries (the shared random variables have
+      <a href="../../help/random-variables-check.html">their own check page</a>).
       Press the button; it takes a few seconds.
       The random tests use new random numbers every time, so a correct program
       still fails one of them about 1 time in 1000. If one fails, press the button again.
@@ -41,18 +43,21 @@
     <canvas class="check-picture short" id="histogram"></canvas>
   </main>
 
-  <!-- jStat, for the chi-square p-values; math.js (https://mathjs.org)
-       reads the typed entries; seedrandom's "alea" gives random numbers
-       that repeat for the same seed. Versions are fixed so an update can
-       never change the tests by surprise. -->
+  <!-- jStat, for the chi-square p-values (and the laws that need the
+       incomplete gamma and beta functions); math.js (https://mathjs.org)
+       reads the typed entries and random variables. Versions are fixed
+       so an update can never change the tests by surprise. -->
   <script src="https://cdn.jsdelivr.net/npm/jstat@1.9.6/dist/jstat.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mathjs@15.2.0/lib/browser/math.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/seedrandom@3.0.5/lib/alea.min.js"></script>
   <script src="../../js/site.js"></script>
   <script src="../../js/sim-page.js"></script>
+  <script src="../../js/sim-worker.js"></script>
   <script src="../../js/sim-charts.js"></script>
   <script src="../../js/check-page.js"></script>
   <script src="../../js/formulas.js"></script>
+  <script src="../../js/sim-laws.js"></script>
+  <script src="../../js/sim-law-catalog.js"></script>
+  <script src="../../js/sim-random.js"></script>
   <script src="matrix-products-math.js"></script>
   <script src="matrix-products-check.js"></script>
 </body>

@@ -73,8 +73,8 @@
         </div>
         <div class="tex">f(0, 0) = 1,</div>
         <div class="tex">f(x, y) = X\, f(x-1, y) + Y\, f(x, y-1)</div>
-        <!-- The two formulas. Any letter other than x, y and N gets a
-             slider below them. -->
+        <!-- The two formulas. Any letter other than x, y, N and the
+             random variables gets a slider below them. -->
         <p class="small"><span class="tex">X(x, y)</span>, the weight of the step left from <span class="tex">(x, y)</span>:</p>
         <input type="text" class="formula-input" id="formula-X" spellcheck="false">
         <div class="formula-preview" id="preview-X"></div>
@@ -85,20 +85,20 @@
         <p class="small">Your own functions, one per line (optional):</p>
         <textarea class="formula-input" id="definitions" rows="2" spellcheck="false"></textarea>
         <div class="formula-preview" id="preview-definitions"></div>
-        <div id="sliders"></div>
         <p class="muted small" id="formula-message"></p>
         <p class="muted small">Type them as in Desmos: <code>{x &gt; 2: 1, 0}</code> is 1 when
-          x &gt; 2 and 0 otherwise, and <code>mod(x, 3)</code> is the remainder.
-          <code>random()</code> is a random number from 0 to 1, drawn once and kept, as on
-          the old site: one for each random() in a formula and each place it is worked
-          out. So <code>d(y) = {random() &lt; p: 3, 2}</code> draws one number per row y, and
-          moving a slider never redraws them. N is the size of the grid.</p>
+          x &gt; 2 and 0 otherwise, and <code>mod(x, 3)</code> is the remainder. They can use
+          the random variables of the box below. N is the size of the grid.</p>
+        <!-- The Random variables box (js/sim-random.js fills it in), and
+             the sliders, for the formulas and the box. -->
+        <div class="random-box" data-about="Each point (x, y) gets new, independent copies of these, the same in X and Y, and so does each input of your own functions: d(y) = {u &amp;lt; p: 3, 2} draws one u per row y. Moving a slider never redraws them. x, y and N are the sim's own letters."></div>
+        <div id="sliders"></div>
 
         <div class="option-row">
           Grid size N <input type="range" class="wide-range" id="size" min="10" max="250" step="1" value="60">
           <span class="muted" id="size-label"></span>
         </div>
-        <div class="option-row seed-row" data-new="New randomness" data-new-title="Draw every random() again"></div>
+        <div class="option-row seed-row" data-new="New randomness" data-new-title="Draw every random variable again"></div>
 
         <h3 class="option-heading">The line <span class="tex">x \cos t + y \sin t = c</span></h3>
         <div class="option-row">
@@ -320,9 +320,21 @@
           The statistics treat <span class="tex">f</span> along the line, divided by its
           sum, as chances for the position <span class="tex">x</span> (or
           <span class="tex">y</span> for a line with one point per row); the Gaussian has
-          their mean and standard deviation. Each <code>random()</code> mixes the seed, the
-          formula, where it is worked out and which random() it is with the hash function
-          cyrb53 [7], so it is the same number every time it is worked out again.
+          their mean and standard deviation.
+        </p>
+        <p>
+          <strong>Random numbers.</strong> Each point <span class="tex">(x, y)</span> gets its
+          own copy of every random variable of the box, one number in both
+          <span class="tex">X</span> and <span class="tex">Y</span> there, and each of your
+          functions gets its own for each input it is given, so
+          <span class="tex">d(4)</span> is the same wherever it is used. Each copy is
+          <span class="tex">F^{-1}(U)</span>, where <span class="tex">F</span> is its law and
+          <span class="tex">U</span> a uniform number fixed by the seed, the name and the
+          place, so it has the law <span class="tex">F</span> [7, Theorem 1.2.2] and is the
+          same number every time it is worked out again. Moving a slider never changes
+          <span class="tex">U</span>, so in <code>{u &lt; p: 1, 0}</code> with
+          <code>u ~ unif(0, 1)</code>, edges only open as <span class="tex">p</span> goes up
+          (<a href="../../help/random-variables.html">how the random variables work</a>).
         </p>
         <p><strong>References</strong></p>
         <ol class="references">
@@ -339,8 +351,8 @@
             in Mathematics 2175, Springer, 2017.</li>
           <li>K. Johansson, &ldquo;Shape fluctuations and random matrices&rdquo;,
             <em>Communications in Mathematical Physics</em> 209 (2000), 437&ndash;476.</li>
-          <li>bryc, cyrb53,
-            <a href="https://github.com/bryc/code/blob/master/jshash/experimental/cyrb53.js">github.com/bryc/code</a>.</li>
+          <li>R. Durrett, <em>Probability: Theory and Examples</em>, 5th ed., Cambridge
+            University Press, 2019.</li>
         </ol>
         </div>
       </section>
@@ -348,24 +360,33 @@
     </div>
   </main>
 
-  <!-- KaTeX (https://katex.org) typesets the formulas, and math.js
-       (https://mathjs.org) reads the typed ones. The version numbers
-       are fixed so an update can never change the site by surprise. -->
+  <!-- KaTeX (https://katex.org) typesets the formulas, math.js
+       (https://mathjs.org) reads the typed ones, and jStat
+       (https://jstat.github.io) works out the incomplete gamma and beta
+       functions some laws need. The version numbers are fixed so an
+       update can never change the site by surprise. -->
   <script src="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/katex.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mathjs@15.2.0/lib/browser/math.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jstat@1.9.6/dist/jstat.min.js"></script>
 
   <!-- The code the sims share (in js/, see the README): page helpers
-       (they also typeset the formulas, so they come after KaTeX),
-       charts, colors, domains, the picture's view (moving and zooming
-       it), the picture's mouse and finger controls, and reading formulas
-       with sliders. Then the math, then this page's code. -->
+       (they also typeset the formulas, so they come after KaTeX), the
+       seeded random numbers, charts, colors, domains, the picture's view
+       (moving and zooming it), the picture's mouse and finger controls,
+       reading formulas with sliders, and the random variables (the laws,
+       their catalog and the Random variables box). Then the math, then
+       this page's code. -->
   <script src="../../js/sim-page.js"></script>
+  <script src="../../js/sim-worker.js"></script>
   <script src="../../js/sim-charts.js"></script>
   <script src="../../js/sim-colors.js"></script>
   <script src="../../js/sim-domains.js"></script>
   <script src="../../js/sim-view.js"></script>
   <script src="../../js/sim-controls.js"></script>
   <script src="../../js/formulas.js"></script>
+  <script src="../../js/sim-laws.js"></script>
+  <script src="../../js/sim-law-catalog.js"></script>
+  <script src="../../js/sim-random.js"></script>
   <script src="path-counting-math.js"></script>
   <script src="path-counting.js"></script>
 

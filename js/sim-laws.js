@@ -1,75 +1,60 @@
 /* =====================================================================
-   sim-laws.js  —  the law of a random number, typed like a density in
-                   Desmos, and drawing from it
+   sim-laws.js  —  the law of a random number: kept as its distribution
+                   function F, read from a typed density, and drawn from
    ---------------------------------------------------------------------
-   Shared by the sims that let you choose the law (the distribution) of
-   a random number, so every one offers the same box and the same
-   presets (First Passage Percolation's passage times, so far). A page
-   that loads this file loads math.js (https://mathjs.org) and
+   Shared by every sim that lets you choose the law (the distribution)
+   of a random number, through the Random variables box
+   (js/sim-random.js). The named laws, like normal(0, 1), are in
+   js/sim-law-catalog.js; this file is what they are all built from. A
+   page that loads this file loads math.js (https://mathjs.org) and
    js/formulas.js before it.
 
-   You type the law as its density f(x), Desmos style (readTree,
-   js/formulas.js): {condition: value, ...} is a piecewise formula. A
-   piece whose condition is an equation is a point mass instead of
-   density:
-       {x = 0: p, x = 3: q, x >= 5: (1 - p - q) e^(5 - x), 0}
-   puts mass p at 0 and q at 3, and spreads the rest over [5, infinity)
-   with density (1 - p - q) e^(5 - x). A condition x = c puts its mass
-   at c; any other equation, like mod(x, 1) = 0, puts mass at each
-   whole number where it holds:
-       {x < 0: 0, mod(x, 1) = 0: (1 - q) q^x, 0}
-   is the geometric law on 0, 1, 2, ... (where the pieces don't say,
-   as in {x >= 0: e^(-x)}, f is 0). The masses and the integral of the
-   density should add up to 1; if they don't, everything is scaled so
-   they do, and the box says so.
+   A LAW, here, is the distribution of one random number X, kept as an
+   object with:
+     xs, Fs       a table of its distribution function F(x) = P(X <= x):
+                  F(xs[i]) = Fs[i], with straight lines between. xs only
+                  goes up; two equal xs in a row are a jump, a point
+                  mass. The table is what the law's chart shows.
+     least, most  where X can be: P(least <= X <= most) = 1 (they may be
+                  -Infinity and Infinity)
+     mean         the mean E[X] (Infinity, -Infinity, or NaN when X has
+                  no mean, like the Cauchy law)
+     masses       the point masses, as [x, mass]
+     quantile(u)  F^-1(u) exactly, for a law that has a formula for it
+     cdf(x)       F(x) exactly, for a law that has a formula for it
+     draw(uniform)  for the few laws that need more than one uniform
+                  number for a draw (stable laws, say): a draw, from
+                  uniform(0), uniform(1), ...
+     estimated    for a law worked out from draws (a formula of other
+                  random variables), how many; 0 otherwise
+     note         a line to show under the box ("" if nothing)
 
-   HOW. The law becomes its distribution function F(x) = P(X <= x),
-   kept as a table of points (x, F) with straight lines between them;
-   a point mass is two points at the same x, a jump. The density is
-   added up cell by cell on a fine grid, each cell's mass being f at
-   its middle times its width (the "midpoint rule"). The grid's steps
-   are powers of 2 (like 1/256), so its cells start and end exactly at
-   0, 1, 5 and every number with a short binary expansion: a density
-   that jumps there, like the uniform one on [0, 1], comes out exact.
-   Elsewhere F is off by about f' h^2 (h the step), around 1e-6 for
-   the exponential law.
-
-   A random number with this law is X = F^-1(U), for U uniform in
+   DRAWING. A random number with law F is X = F^-1(U), for U uniform in
    (0, 1), where F^-1(u) is the least x with F(x) >= u (the "inverse
    transform"; R. Durrett, "Probability: Theory and Examples", 5th ed.,
-   Cambridge University Press, 2019, Theorem 1.2.2): exact at point
-   masses, and in between exact for the table. F^-1(u) only goes up as
-   u does, and moves a little when the law moves a little, so a sim
-   that keeps the same U for each place keeps its sliders coupled.
+   Cambridge University Press, 2019, Theorem 1.2.2). F^-1(u) only goes
+   up as u does, and moves a little when the law moves a little, so a
+   sim that keeps the same U for each place keeps its sliders coupled.
 
    Contents:
-     LAW_PRESETS                the laws to start from
-     lawOptionsHTML()           the box (filled into .law-options)
-     connectLaw(onChange)       the box on the page: the formula, its
-                                sliders, the presets and the chart of F
-     readLaw(tree, values)      a typed density (and its sliders'
-                                values) -> the law, as its table
+     readLaw(tree, values)      a typed density -> its law
+     lawFromCDF(spec)           a law from its exact F (and F^-1, if known)
+     lawFromDensity(spec)       a law from its density, added up
+     lawFromMasses(spec)        a law on whole numbers, from its masses
+     lawFromDraws(values)       a law worked out from many draws
+     pointMassLaw(c)            all the mass at c
+     sizeBiasedLaw(law)         the law with each value's chance times the value
+     gaussLegendre(n)           the points and weights of Gauss-Legendre quadrature
      drawFromLaw(law, u)        F^-1(u)
+     drawWith(law, uniform)     a draw, from as many uniform numbers as it needs
      lawCDF(law, x)             F(x)
      lawChart(canvas, law)      F drawn as a chart
    ===================================================================== */
 
 
-// The laws to start from, in the order of the menu. Each has its name,
-// its density f(x), and the settings of its sliders (if it has any).
-// The exponential law with mean 1 is the default: with it, First
-// Passage Percolation's ball on the sites grows exactly like Eden
-// growth.
-const LAW_PRESETS = {
-  exponential: { name: "Exponential, mean 1", f: "{x >= 0: e^(-x), 0}" },
-  uniform: { name: "Uniform on [0, 1]", f: "{0 <= x <= 1: 1, 0}" },
-  geometric: { name: "Geometric from 0: P(k) = (1 - q) q^k", f: "{x < 0: 0, mod(x, 1) = 0: (1 - q) q^x, 0}",
-               sliders: { q: { value: 0.5, min: 0, max: 0.99, step: 0.01 } } },
-};
-
-// How finely the density is added up: the fine grid has about this many
-// cells across the part of the line where f isn't 0, and the search for
-// that part looks at this many cells at a time.
+// How finely a typed density is added up: the fine grid has about this
+// many cells across the part of the line where f isn't 0, and the
+// search for that part looks at this many cells at a time.
 const LAW_CELLS = 16384;
 const LAW_SEARCH_CELLS = 1024;
 
@@ -85,127 +70,56 @@ const LAW_TINY = 1e-12;
 const LAW_EMPTY_RUN = 1000;
 const LAW_TINY_RUN = 1000;
 
+// A typed density must add up to 1. Adding it up on the grid is off by
+// a little (most for a density that goes to infinity at an end, like
+// 1/sqrt(x) near 0: about 0.003 there), so a total this close to 1
+// counts as 1 and is scaled to exactly 1; anything further is refused.
+const LAW_ADDS_UP = 0.005;
 
-/* ---------------------------------------------------------------------
-   THE BOX ON THE PAGE
-   --------------------------------------------------------------------- */
+// Tables made from an exact F: how many points to start with, the most
+// any straight piece may rise (a piece that rises more is split until
+// it doesn't), and how little may be left beyond the table's ends.
+const TABLE_POINTS = 2048;
+const TABLE_RISE = 1 / 4096;
+const TABLE_TAIL = 1e-15;
 
-fillBlocks(".law-options", lawOptionsHTML);
+// Tables made from a density: how many cells it is added up over.
+const DENSITY_CELLS = 8192;
 
-// The box, as HTML: the presets menu, the formula for f and its
-// typeset preview, its sliders, a line for problems and notes, the
-// chart of F, and how to type a law.
-function lawOptionsHTML() {
-  const presets = Object.keys(LAW_PRESETS).map(function (key) {
-    return '<option value="' + key + '">' + LAW_PRESETS[key].name + "</option>";
-  });
-  return '<div class="option-row">Start from <select id="law-preset">' + presets.join("") +
-      '<option value="custom" hidden>Your own</option></select></div>' +
-    '<p class="small">The density <span class="tex">f(x)</span>:</p>' +
-    '<input type="text" class="formula-input" id="law-formula" spellcheck="false">' +
-    '<div class="formula-preview" id="law-preview"></div>' +
-    '<div id="law-sliders"></div>' +
-    '<p class="muted small" id="law-message"></p>' +
-    '<canvas class="chart" id="law-chart"></canvas>' +
-    '<p class="muted small">Type it as in Desmos: <code>{x &gt;= 0: e^(-x), 0}</code> is ' +
-      "e<sup>&minus;x</sup> for x &ge; 0 and 0 otherwise. A piece with an equation is a point " +
-      "mass: <code>{x = 3: p, ...}</code> puts mass p at 3, and another equation, like " +
-      "<code>mod(x, 1) = 0</code>, puts mass on each whole number where it holds. " +
-      "Any other letter gets a slider. The chart is F(x) = P(X &le; x).</p>";
-}
-
-// Connect the box. onChange(law) runs with the new law (readLaw) each
-// time the formula or a slider changes and the law can be read; while
-// it can't (a half-typed formula, say), the last good law stays, and
-// the line under the sliders says what is wrong. "check" (optional) is
-// the sim's own test of a law that can be read: check(law) is what is
-// wrong with it for this sim ("" if nothing), shown the same way (First
-// Passage Percolation's times can't be negative). Starts on the first
-// preset. Returns "box":
-//   box.law             the law in use
-//   box.usePreset(key)  switch to a preset of LAW_PRESETS
-function connectLaw(onChange, check) {
-  const box = { law: null };
-  const sliders = {};      // letter -> { value, min, max, step } (makeSlider, js/formulas.js)
-  let tree = null;         // the formula, read
-
-  function say(text) { byId("law-message").textContent = text; }
-
-  // Read the formula: its preview, its sliders, and the law.
-  function readFormula() {
-    const text = byId("law-formula").value.trim();
-    try {
-      if (text === "") throw new Error("f is empty.");
-      tree = readTree(text);
-    } catch (problem) {
-      say("Can't read it yet. " + problem.message);
-      return;
-    }
-    if (window.katex) katex.render("f(x) = " + formulaTex(tree), byId("law-preview"), { throwOnError: false });
-    showSliders(byId("law-sliders"), sliderLetters(tree, ["x"]), sliders, useLaw);   // (js/formulas.js)
-    useLaw();
-  }
-
-  // The law from the formula and the sliders' values now.
-  function useLaw() {
-    const law = readLaw(tree, sliderValues(sliders));
-    const problem = law.problem || (check ? check(law) : "");
-    if (problem) { say(problem); return; }
-    say(law.note);
-    box.law = law;
-    lawChart(byId("law-chart"), law);
-    onChange(law);
-  }
-
-  box.usePreset = function (key) {
-    const preset = LAW_PRESETS[key];
-    byId("law-preset").value = key;
-    byId("law-formula").value = preset.f;
-    for (const letter in preset.sliders || {}) sliders[letter] = Object.assign({}, preset.sliders[letter]);
-    readFormula();
-  };
-
-  byId("law-preset").addEventListener("change", function () { box.usePreset(byId("law-preset").value); });
-  byId("law-formula").addEventListener("input", function () {
-    byId("law-preset").value = "custom";
-    readFormula();
-  });
-  box.usePreset(Object.keys(LAW_PRESETS)[0]);
-  return box;
-}
-
-// F drawn as a chart, from a little left of where the law starts to
-// where F reaches 0.999 (the far tail would squash the rest), from 0
-// to 1 up. Point masses are the jumps.
-function lawChart(canvas, law) {
-  const from = Math.min(0, law.least), to = Math.max(from + 1e-9, drawFromLaw(law, 0.999));
-  const points = [[from - 0.05 * (to - from), 0]];
-  // The table's points in that range (at most about 2000 of them, which
-  // is plenty for a chart), keeping every jump.
-  const every = Math.max(1, Math.floor(law.xs.length / 2000));
-  for (let i = 0; i < law.xs.length; i++) {
-    const jump = (i > 0 && law.xs[i] === law.xs[i - 1]) || (i + 1 < law.xs.length && law.xs[i + 1] === law.xs[i]);
-    if (law.xs[i] > to) { points.push([to, lawCDF(law, to)]); break; }
-    if (jump || i % every === 0) points.push([law.xs[i], law.Fs[i]]);
-  }
-  lineChart(canvas, [{ points: points }], { from: points[0][0], to: to, word: "x" }, { from: 0, to: 1, word: "F(x)" });
-}
+// A law worked out from draws keeps at most about this many points.
+const DRAWS_TABLE = 8192;
 
 
 /* ---------------------------------------------------------------------
-   READING A LAW
+   READING A TYPED DENSITY
+   ---------------------------------------------------------------------
+   You type the law as its density f(x), Desmos style (readTree,
+   js/formulas.js): {condition: value, ...} is a piecewise formula. A
+   piece whose condition is an equation is a point mass instead of
+   density:
+       {x = 0: p, x = 3: q, x >= 5: (1 - p - q) e^(5 - x), 0}
+   puts mass p at 0 and q at 3, and spreads the rest over [5, infinity)
+   with density (1 - p - q) e^(5 - x). A condition x = c puts its mass
+   at c; any other equation, like mod(x, 1) = 0, puts mass at each
+   whole number where it holds:
+       {x < 0: 0, mod(x, 1) = 0: (1 - q) q^x, 0}
+   is the geometric law on 0, 1, 2, ... (where the pieces don't say,
+   as in {x >= 0: e^(-x)}, f is 0). The masses and the integral of the
+   density must add up to 1: if they don't, the law is refused, and the
+   box says what they add up to.
+
+   HOW. The law becomes its table of F. The density is added up cell
+   by cell on a fine grid, each cell's mass being f at its middle times
+   its width (the "midpoint rule"). The grid's steps are powers of 2
+   (like 1/256), so its cells start and end exactly at 0, 1, 5 and every
+   number with a short binary expansion: a density that jumps there,
+   like the uniform one on [0, 1], comes out exact. Elsewhere F is off
+   by about f' h^2 (h the step), around 1e-6 for the exponential law.
    --------------------------------------------------------------------- */
 
 // The law of the density "tree" (read by readTree), with the sliders'
-// values "values" ({ letter: number }). Returns the law:
-//   xs, Fs      the table of F: F(xs[i]) = Fs[i], straight between
-//               (xs only goes up; two equal xs in a row are a jump)
-//   least       where the law starts: P(X < least) = 0
-//   mean        the mean of X
-//   masses      the point masses, as [x, mass] (after scaling)
-//   note        a line to show under the box ("" if there is nothing
-//               to say), e.g. that the law was scaled to add up to 1
-// or { problem } if it can't be one (f negative somewhere, say).
+// values "values" ({ letter: number }). Returns the law, or { problem }
+// if it can't be one (f negative somewhere, or not adding up to 1).
 function readLaw(tree, values) {
   let parts;
   try { parts = splitMasses(tree); } catch (problem) { return { problem: problem.message }; }
@@ -367,11 +281,11 @@ function cellMass(density, a, h) {
 }
 
 // The law from its point masses (sorted [x, mass]) and its density's
-// grid (or null): the table of F, scaled to end at 1, and the rest of
-// what readLaw returns. The table goes along the grid's points, and
-// each point mass is a jump on top of the density's mass up to its
-// place (a mass on a grid point comes just after that point, so the
-// jump starts at F's value there).
+// grid (or null): the table of F, and the rest of what readLaw returns.
+// The table goes along the grid's points, and each point mass is a
+// jump on top of the density's mass up to its place (a mass on a grid
+// point comes just after that point, so the jump starts at F's value
+// there).
 function lawFromParts(masses, grid) {
   const xs = [], Fs = [];
   const densityUpTo = grid ? gridMassUpTo(grid) : function () { return 0; };
@@ -393,7 +307,7 @@ function lawFromParts(masses, grid) {
     }
   }
   jumpsBefore(Infinity);
-  return finishLaw(xs, Fs, densityUpTo(Infinity) + massSum, masses);
+  return finishTypedLaw(xs, Fs, densityUpTo(Infinity) + massSum, masses);
 }
 
 // The density's mass up to z, from its grid: whole cells, and the
@@ -411,22 +325,369 @@ function gridMassUpTo(grid) {
   };
 }
 
-// Scale F to end at 1, and the law's other numbers.
-function finishLaw(xs, Fs, total, masses) {
+// A typed law's table, once it adds up to 1 (within LAW_ADDS_UP): F
+// scaled to end at exactly 1, and the law's other numbers.
+function finishTypedLaw(xs, Fs, total, masses) {
   if (!(total > 0)) return { problem: "f adds up to 0: there is nothing to draw from." };
-  const law = { xs: Float64Array.from(xs), Fs: Float64Array.from(Fs, function (F) { return F / total; }) };
+  if (Math.abs(total - 1) > LAW_ADDS_UP) {
+    return { problem: "f adds up to " + Number(total.toPrecision(4)) + ", not 1. A density (with its point masses) " +
+                      "must add up to 1." };
+  }
+  const law = finishTable(xs, Fs.map(function (F) { return F / total; }));
+  law.masses = masses.map(function ([x, m]) { return [x, m / total]; });
   law.Fs[law.Fs.length - 1] = 1;
-  // Where it starts: the first point of the table after which F goes up.
+  return law;
+}
+
+
+/* ---------------------------------------------------------------------
+   LAWS FROM THEIR FORMULAS (the catalog's laws, js/sim-law-catalog.js)
+   ---------------------------------------------------------------------
+   A law with a formula for F gets a table of exact values of F. The
+   table's points are spread so that every part of the line where X
+   has mass gets many of them:
+     - on a bounded stretch [a, b], at x = a + (b - a)(1 - cos(pi t))/2
+       for t evenly spaced in [0, 1], closer together near the ends,
+       where densities like the arcsine law's go to infinity;
+     - on a half line [a, infinity), at x = a + s t / (1 - t), with s
+       the distance from a to the median;
+     - on the whole line, at x = m + s tan(pi (t - 1/2)), with m the
+       median and s half the distance between the quartiles.
+   Then every straight piece where F rises more than TABLE_RISE is cut
+   in half until it doesn't, and the table goes on out (doubling its
+   reach) until less than TABLE_TAIL of the mass is left beyond it.
+   A draw beyond the table's ends (a chance below TABLE_TAIL) comes
+   from F itself, by halving (bisection).
+   --------------------------------------------------------------------- */
+
+// A law from its exact distribution function. "spec" has:
+//   cdf(x)          F(x), exactly (or as near as the computer can)
+//   least, most     where X can be (may be -Infinity, Infinity)
+//   quantile(u)     F^-1(u), if there is a formula for it (optional)
+//   mean            E[X], if known (optional; else from the table)
+function lawFromCDF(spec) {
+  const cdf = spec.cdf, quantile = spec.quantile || function (u) { return invertCDF(cdf, u, spec.least, spec.most); };
+  const xs = startingPoints(spec.least, spec.most, quantile);
+  const table = refineTable(xs, xs.map(cdf), cdf);
+  extendTails(table, cdf, spec.least, spec.most, quantile(0.5));
+  const law = finishTable(table.xs, table.Fs);
+  law.cdf = cdf;
+  if (spec.quantile) law.quantile = spec.quantile;
+  law.least = spec.least;
+  law.most = spec.most;
+  if (spec.mean !== undefined) law.mean = spec.mean;
+  return law;
+}
+
+// The table's first points (see above), from where X can be and its
+// quantiles (for the median and quartiles).
+function startingPoints(least, most, quantile) {
+  const xs = [], n = TABLE_POINTS;
+  if (isFinite(least) && isFinite(most)) {
+    for (let i = 0; i <= n; i++) xs.push(least + (most - least) * (1 - Math.cos(Math.PI * i / n)) / 2);
+  } else if (isFinite(least) || isFinite(most)) {
+    // A half line: [least, infinity), or (-infinity, most] the other way round.
+    const end = isFinite(least) ? least : most, side = isFinite(least) ? 1 : -1;
+    const s = Math.abs(quantile(0.5) - end) || 1;
+    for (let i = 0; i < n; i++) xs.push(end + side * s * (i / n) / (1 - i / n));
+    if (side < 0) xs.reverse();
+  } else {
+    const m = quantile(0.5), s = (quantile(0.75) - quantile(0.25)) / 2 || 1;
+    for (let i = 1; i < n; i++) xs.push(m + s * Math.tan(Math.PI * (i / n - 0.5)));
+  }
+  return xs;
+}
+
+// Cut every straight piece of the table where F rises more than
+// TABLE_RISE in half, again and again (at most 50 times over), so that
+// a law whose mass sits in a small part of the line still gets enough
+// points there. Returns { xs, Fs } (plain lists).
+function refineTable(xs, Fs, cdf) {
+  const outX = [xs[0]], outF = [Fs[0]];
+  // (F never goes down, though rounding in a formula could make it look
+  // so: each point's F is at least the one before it.)
+  for (let i = 1; i < xs.length; i++) {
+    const F0 = outF[outF.length - 1];
+    addPiece(xs[i - 1], F0, xs[i], Math.max(Fs[i], F0), 0);
+  }
+  return { xs: outX, Fs: outF };
+  function addPiece(x0, F0, x1, F1, depth) {
+    if (F1 - F0 > TABLE_RISE && depth < 60 && x1 - x0 > 1e-15 * Math.max(Math.abs(x0), Math.abs(x1))) {
+      const xm = (x0 + x1) / 2, Fm = Math.min(Math.max(cdf(xm), F0), F1);
+      addPiece(x0, F0, xm, Fm, depth + 1);
+      addPiece(xm, Fm, x1, F1, depth + 1);
+    } else {
+      outX.push(x1);
+      outF.push(F1);
+    }
+  }
+}
+
+// Go on out past the table's ends, doubling the distance from the
+// median each time, until less than TABLE_TAIL is left beyond them.
+function extendTails(table, cdf, least, most, median) {
+  const { xs, Fs } = table;
+  for (let k = 0; k < 2000 && isFinite(xs[xs.length - 1]) && 1 - Fs[Fs.length - 1] > TABLE_TAIL; k++) {
+    const last = xs[xs.length - 1];
+    const x = Math.min(most, last + Math.max(last - median, 1));
+    xs.push(x);
+    Fs.push(Math.max(cdf(x), Fs[Fs.length - 1]));
+    if (x === most) break;
+  }
+  for (let k = 0; k < 2000 && isFinite(xs[0]) && Fs[0] > TABLE_TAIL; k++) {
+    const first = xs[0];
+    const x = Math.max(least, first - Math.max(median - first, 1));
+    xs.unshift(x);
+    Fs.unshift(Math.min(cdf(x), Fs[0]));
+    if (x === least) break;
+  }
+}
+
+// F^-1(u) from F itself: the least x with F(x) >= u, found by halving
+// (bisection), after first doubling outward from the median-ish guess
+// until the answer is caught between two points. For a law on whole
+// numbers ("whole"), the answer is a whole number.
+function invertCDF(cdf, u, least, most, whole) {
+  let lo, hi;
+  const start = isFinite(least) ? least : isFinite(most) ? most : 0;
+  if (cdf(start) >= u) {
+    hi = start;
+    lo = start;
+    for (let step = 1; cdf(lo) >= u; step *= 2) {
+      if (lo <= least || step > 1e300) return Math.max(lo, least);
+      lo = Math.max(least, hi - step);
+    }
+  } else {
+    lo = start;
+    hi = start;
+    for (let step = 1; cdf(hi) < u; step *= 2) {
+      if (hi >= most || step > 1e300) return Math.min(hi, most);
+      hi = Math.min(most, lo + step);
+    }
+  }
+  // Now F(lo) < u <= F(hi).
+  for (let k = 0; k < 200; k++) {
+    if (whole ? hi - lo <= 1 : hi - lo <= 1e-15 * Math.max(1, Math.abs(lo))) break;
+    const mid = whole ? Math.floor((lo + hi) / 2) : (lo + hi) / 2;
+    if (cdf(mid) >= u) hi = mid; else lo = mid;
+  }
+  return hi;
+}
+
+// A law from its density, added up: for the catalog's laws with no
+// formula for F. "spec" has:
+//   density(x)      the density (it should add up to 1)
+//   least, most     where X can be
+//   middle, scale   for a law on a half line or the whole line, about
+//                   where its mass is and how spread out (like the
+//                   points above: its median and half the distance
+//                   between its quartiles, roughly)
+//   cells           how many cells to add it up over (default DENSITY_CELLS)
+//   mean            E[X], if known
+// The density is added up over the cells of t, x = x(t) as above, each
+// cell by Gauss-Legendre quadrature with 4 points (exact for
+// polynomials of degree 7; W. H. Press et al., "Numerical Recipes", 3rd
+// ed., Cambridge University Press, 2007, Section 4.6), of f(x(t)) x'(t).
+function lawFromDensity(spec) {
+  const n = spec.cells || DENSITY_CELLS, h = 1 / n;
+  const map = stretchOfT(spec);
+  // The table's points are at the cells' ends, except an end that is
+  // infinitely far away, which moves to the middle of its cell (the
+  // mass of that last cell is next to nothing).
+  const pointAt = function (t) { return isFinite(map.x(t)) ? map.x(t) : map.x(t === 0 ? h / 2 : 1 - h / 2); };
+  const xs = [pointAt(0)], Fs = [0];
+  let total = 0;
+  for (let i = 0; i < n; i++) {
+    let mass = 0;
+    for (let g = 0; g < 4; g++) {
+      const t = i * h + h * (1 + GAUSS4.points[g]) / 2, f = spec.density(map.x(t));
+      if (f > 0 && isFinite(f)) mass += GAUSS4.weights[g] * f * map.dx(t);
+    }
+    total += mass * h / 2;
+    xs.push(pointAt((i + 1) * h));
+    Fs.push(total);
+  }
+  const law = finishTable(xs, Fs.map(function (F) { return F / total; }));
+  law.least = spec.least;
+  law.most = spec.most;
+  if (spec.mean !== undefined) law.mean = spec.mean;
+  return law;
+}
+
+// x(t) and its derivative x'(t) for t in [0, 1], spreading the points
+// as for a table made from F (see above).
+function stretchOfT(spec) {
+  const { least, most } = spec;
+  if (isFinite(least) && isFinite(most)) {
+    return { x: function (t) { return least + (most - least) * (1 - Math.cos(Math.PI * t)) / 2; },
+             dx: function (t) { return (most - least) * Math.PI * Math.sin(Math.PI * t) / 2; } };
+  }
+  const s = spec.scale || 1;
+  if (isFinite(least)) {
+    return { x: function (t) { return t >= 1 ? Infinity : least + s * t / (1 - t); },
+             dx: function (t) { return s / ((1 - t) * (1 - t)); } };
+  }
+  if (isFinite(most)) {
+    return { x: function (t) { return t <= 0 ? -Infinity : most - s * (1 - t) / t; },
+             dx: function (t) { return s / (t * t); } };
+  }
+  const m = spec.middle || 0;
+  return { x: function (t) { return t <= 0 ? -Infinity : t >= 1 ? Infinity : m + s * Math.tan(Math.PI * (t - 0.5)); },
+           dx: function (t) { const c = Math.cos(Math.PI * (t - 0.5)); return s * Math.PI / (c * c); } };
+}
+
+// The n Gauss-Legendre points and weights on [-1, 1]: the points are
+// the roots of the Legendre polynomial P_n, found by Newton's method
+// (Numerical Recipes, Section 4.6, routine "gauleg"). A weighted sum of
+// f at these n points is exact for polynomials up to degree 2n - 1.
+function gaussLegendre(n) {
+  const points = [], weights = [];
+  for (let i = 1; i <= n; i++) {
+    let z = Math.cos(Math.PI * (i - 0.25) / (n + 0.5));   // first guess
+    let slope = 1;
+    for (let step = 0; step < 100; step++) {
+      // p1 = Legendre polynomial P_n(z), from the three-term recurrence.
+      let p1 = 1, p2 = 0;
+      for (let j = 1; j <= n; j++) {
+        const p3 = p2;
+        p2 = p1;
+        p1 = ((2 * j - 1) * z * p2 - (j - 1) * p3) / j;
+      }
+      slope = n * (z * p1 - p2) / (z * z - 1);             // P_n'(z)
+      const previous = z;
+      z = previous - p1 / slope;                           // Newton step
+      if (Math.abs(z - previous) < 1e-15) break;
+    }
+    points.push(z);
+    weights.push(2 / ((1 - z * z) * slope * slope));
+  }
+  return { points: points, weights: weights };
+}
+const GAUSS4 = gaussLegendre(4);
+
+// A law on whole numbers, from its masses. "spec" has:
+//   mass(k)         P(X = k)
+//   least, most     the smallest and largest k (may be -Infinity, Infinity)
+//   middle          for a law on all the whole numbers, where to start
+//                   looking (the masses are found outward from there)
+//   cdf(k)          F(k) exactly, for a law whose masses go on so long
+//                   (like the zeta law's) that they can't all be listed
+//   reach           with cdf, how many whole numbers to list at most
+//                   (default 2^20), when listing them all would be slow
+//   mean            E[X], if known
+// The masses are listed until all but 1e-14 of the mass is found (or
+// "reach" of them); with "cdf", a draw past them comes from F itself.
+function lawFromMasses(spec) {
+  const found = new Map(), reach = spec.cdf && spec.reach ? spec.reach : LAW_REACH;
+  let total = 0;
+  function add(k) {
+    const m = spec.mass(k);
+    if (m > 0 && isFinite(m)) { found.set(k, m); total += m; }
+  }
+  if (isFinite(spec.least) && isFinite(spec.most) && spec.most - spec.least <= LAW_REACH) {
+    for (let k = spec.least; k <= spec.most; k++) add(k);
+  } else {
+    const middle = isFinite(spec.least) ? spec.least : isFinite(spec.most) ? spec.most : Math.round(spec.middle || 0);
+    add(middle);
+    for (let r = 1; r <= reach && total < 1 - 1e-14; r++) {
+      if (middle + r <= spec.most) add(middle + r);
+      if (middle - r >= spec.least) add(middle - r);
+    }
+  }
+  const masses = Array.from(found).sort(function (a, b) { return a[0] - b[0]; });
+  if (masses.length === 0) throw new Error("This law has no mass anywhere.");
+  // The table of jumps. F before the first listed mass is what lies
+  // left of it (from cdf, or 0).
+  const xs = [], Fs = [];
+  let F = spec.cdf ? spec.cdf(masses[0][0] - 1) : 0;
+  for (const [k, m] of masses) {
+    xs.push(k, k);
+    Fs.push(F, F + m);
+    F += m;
+  }
+  if (!spec.cdf) { const top = Fs[Fs.length - 1]; for (let i = 0; i < Fs.length; i++) Fs[i] /= top; }
+  const law = finishTable(xs, Fs);
+  law.masses = masses;
+  law.least = spec.least;
+  law.most = spec.most;
+  if (spec.cdf) { law.cdf = spec.cdf; law.whole = true; }
+  if (spec.mean !== undefined) law.mean = spec.mean;
+  return law;
+}
+
+// All the mass at the one point c.
+function pointMassLaw(c) {
+  const law = finishTable([c, c], [0, 1]);
+  law.masses = [[c, 1]];
+  law.quantile = function () { return c; };
+  law.cdf = function (x) { return x >= c ? 1 : 0; };
+  return law;
+}
+
+// A law worked out from many draws ("values", a list of numbers): its
+// table is the empirical F, F(x) = (how many draws are <= x) / n, with
+// a draw that comes up again and again (a point mass) kept as a jump,
+// and the rest (points in a row with no repeats) as straight pieces
+// through the middles of their steps, thinned to about DRAWS_TABLE
+// points.
+function lawFromDraws(values) {
+  const sorted = Float64Array.from(values).sort(), n = sorted.length;
+  const xs = [], Fs = [];
+  const every = Math.max(1, Math.floor(n / DRAWS_TABLE));
+  let i = 0, sum = 0;
+  for (const v of sorted) sum += v;
+  while (i < n) {
+    let j = i;
+    while (j + 1 < n && sorted[j + 1] === sorted[i]) j++;
+    if (j > i || i === 0 || i === n - 1) {
+      // A repeated value (a jump), or an end.
+      xs.push(sorted[i], sorted[i]);
+      Fs.push(i / n, (j + 1) / n);
+    } else if (i % every === 0) {
+      xs.push(sorted[i]);
+      Fs.push((i + 0.5) / n);
+    }
+    i = j + 1;
+  }
+  const law = finishTable(xs, Fs);
+  law.mean = sum / n;
+  law.estimated = n;
+  law.masses = [];
+  return law;
+}
+
+// The size-biased law of a law on [0, infinity) with a finite mean:
+// each value's chance times the value, divided by the mean,
+//   P*(X in dx) = x P(X in dx) / E[X],
+// the law of the gap that covers a given point in a stationary renewal
+// process (W. Feller, "An Introduction to Probability Theory and Its
+// Applications", Vol. II, 2nd ed., Wiley, 1971, Section XI.4). From the
+// table: a straight piece of F from x0 to x1 is a uniform stretch of
+// mass F1 - F0, whose size-biased mass is (F1 - F0)(x0 + x1)/2, and a
+// jump at x of mass m becomes m x; the whole is scaled to add up to 1.
+function sizeBiasedLaw(law) {
+  const xs = law.xs, Fs = law.Fs, out = [0];
+  for (let i = 1; i < xs.length; i++) out.push(out[i - 1] + (Fs[i] - Fs[i - 1]) * (xs[i] + xs[i - 1]) / 2);
+  const total = out[out.length - 1];
+  const biased = finishTable(xs, out.map(function (F) { return F / total; }));
+  biased.masses = law.masses.map(function ([x, m]) { return [x, m * x / total]; }).filter(function ([x, m]) { return m > 0; });
+  return biased;
+}
+
+// A table's law: the table as typed arrays, and the numbers that come
+// from it (where the law starts and ends, and its mean: each straight
+// piece of F is a uniform stretch, or for a jump a point, whose mean is
+// its middle).
+function finishTable(xs, Fs) {
+  const law = { xs: Float64Array.from(xs), Fs: Float64Array.from(Fs), masses: [], estimated: 0, note: "" };
   let i = 0;
   while (i + 1 < law.Fs.length && law.Fs[i + 1] === 0) i++;
   law.least = law.xs[i];
-  // The mean: each straight piece of F is a uniform stretch (or, for a
-  // jump, a point), whose mean is its middle.
+  let j = law.Fs.length - 1;
+  while (j > 0 && law.Fs[j - 1] >= law.Fs[law.Fs.length - 1]) j--;
+  law.most = law.xs[j];
   law.mean = 0;
-  for (let j = 1; j < law.xs.length; j++) law.mean += (law.Fs[j] - law.Fs[j - 1]) * (law.xs[j] + law.xs[j - 1]) / 2;
-  law.masses = masses.map(function ([x, m]) { return [x, m / total]; });
-  law.note = Math.abs(total - 1) > 1e-6
-    ? "f adds up to " + Number(total.toPrecision(6)) + ", not 1, so it is scaled to add up to 1." : "";
+  for (let k = 1; k < law.xs.length; k++) law.mean += (law.Fs[k] - law.Fs[k - 1]) * (law.xs[k] + law.xs[k - 1]) / 2;
   return law;
 }
 
@@ -435,24 +696,45 @@ function finishLaw(xs, Fs, total, masses) {
    DRAWING FROM A LAW
    --------------------------------------------------------------------- */
 
-// F^-1(u), for u in (0, 1): the least x with F(x) >= u. The first
-// point of the table with F at least u, and back along the straight
-// piece before it (at a jump, that is the jump's place, exactly).
+// F^-1(u), for u in (0, 1): the law's own formula if it has one;
+// otherwise the first point of the table with F at least u, and back
+// along the straight piece before it (at a jump, that is the jump's
+// place, exactly). Past the table's ends, from F itself. For a law with
+// an exact F, one more step makes it closer: with x the point found, F
+// is worked out at x, and the answer is found the same way again on the
+// piece of the table's line, now from x0 to x or from x to x1, where u
+// is (the "false position" method: W. H. Press et al., "Numerical
+// Recipes", 3rd ed., Cambridge University Press, 2007, Section 9.2).
 function drawFromLaw(law, u) {
-  const xs = law.xs, Fs = law.Fs;
-  let lo = 0, hi = Fs.length - 1;     // Fs[hi] = 1 >= u
+  if (law.quantile) return law.quantile(u);
+  const xs = law.xs, Fs = law.Fs, last = Fs.length - 1;
+  if (law.cdf && (u > Fs[last] || u <= Fs[0])) return invertCDF(law.cdf, u, law.least, law.most, law.whole);
+  let lo = 0, hi = last;     // Fs[hi] >= u
   while (lo < hi) {
     const mid = (lo + hi) >> 1;
     if (Fs[mid] >= u) hi = mid; else lo = mid + 1;
   }
   if (lo === 0) return xs[0];
-  const F0 = Fs[lo - 1], F1 = Fs[lo];
-  return xs[lo - 1] + (u - F0) / (F1 - F0) * (xs[lo] - xs[lo - 1]);
+  let x0 = xs[lo - 1], x1 = xs[lo], F0 = Fs[lo - 1], F1 = Fs[lo];
+  const x = x0 + (u - F0) / (F1 - F0) * (x1 - x0);
+  if (!law.cdf || law.whole || x0 === x1) return x;
+  const F = Math.min(Math.max(law.cdf(x), F0), F1);
+  if (F >= u) { x1 = x; F1 = F; } else { x0 = x; F0 = F; }
+  return F1 > F0 ? x0 + (u - F0) / (F1 - F0) * (x1 - x0) : x;
 }
 
-// F(x) = P(X <= x): from the last point of the table at or left of x
-// (the top of a jump there), along the straight piece after it.
+// A draw, from the uniform numbers uniform(0), uniform(1), ...: the
+// law's own way if it needs more than one (law.draw), otherwise
+// F^-1(uniform(0)).
+function drawWith(law, uniform) {
+  return law.draw ? law.draw(uniform) : drawFromLaw(law, uniform(0));
+}
+
+// F(x) = P(X <= x): the law's own formula if it has one; otherwise
+// from the last point of the table at or left of x (the top of a jump
+// there), along the straight piece after it.
 function lawCDF(law, x) {
+  if (law.cdf) return law.cdf(x);
   const xs = law.xs, Fs = law.Fs;
   if (x < xs[0]) return 0;
   let lo = 0, hi = xs.length - 1;     // the last i with xs[i] <= x
@@ -460,6 +742,33 @@ function lawCDF(law, x) {
     const mid = (lo + hi + 1) >> 1;
     if (xs[mid] <= x) lo = mid; else hi = mid - 1;
   }
-  if (lo === xs.length - 1) return 1;
+  if (lo === xs.length - 1) return Fs[lo];
   return Fs[lo] + (x - xs[lo]) / (xs[lo + 1] - xs[lo]) * (Fs[lo + 1] - Fs[lo]);
+}
+
+// F drawn as a chart, from F^-1(0.001) to F^-1(0.999) (the far tails
+// would squash the rest), or from where the law starts or ends if that
+// is near, with a little room on each side (or from c - 1 to c + 1, if
+// it is all at one point c); from 0 to 1 up. Point masses are the
+// jumps.
+function lawChart(canvas, law) {
+  let from = drawFromLaw(law, 0.001), to = drawFromLaw(law, 0.999);
+  const span = Math.max(to - from, 1e-9);
+  if (isFinite(law.least) && law.least > from - span) from = law.least;
+  if (isFinite(law.most) && law.most < to + span) to = law.most;
+  if (!(to - from > 1e-9 * Math.max(1, Math.abs(from)))) { from -= 1; to += 1; }   // all at one point
+  const room = 0.05 * (to - from);
+  const left = from - room, right = to + room;
+  // The table's points in that range (at most about 2000 of them, which
+  // is plenty for a chart), keeping every jump.
+  const points = [[left, lawCDF(law, left)]];
+  const every = Math.max(1, Math.floor(law.xs.length / 2000));
+  for (let i = 0; i < law.xs.length; i++) {
+    if (law.xs[i] <= left) continue;
+    if (law.xs[i] >= right) break;
+    const jump = (i > 0 && law.xs[i] === law.xs[i - 1]) || (i + 1 < law.xs.length && law.xs[i + 1] === law.xs[i]);
+    if (jump || i % every === 0) points.push([law.xs[i], law.Fs[i]]);
+  }
+  points.push([right, lawCDF(law, right)]);
+  lineChart(canvas, [{ points: points }], { from: left, to: right, word: "x" }, { from: 0, to: 1, word: "F(x)" });
 }

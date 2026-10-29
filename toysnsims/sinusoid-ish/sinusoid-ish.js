@@ -6,7 +6,7 @@
    This file does everything else:
      1. The starting sets (presets)
      2. The state of the page
-     3. Reading the gap set, with sliders
+     3. The Random variables box, with sliders
      4. The current sample
      5. Drawing the graph, moving and scaling
      6. Statistics of the current sample
@@ -15,7 +15,8 @@
    It uses the shared helpers in js/sim-page.js (byId, showMessage,
    ...), the charts and number labels in js/sim-charts.js (histogram,
    niceNumber, ...), the plane picture in js/sim-view.js (makePlaneView,
-   ...) and the formula reading and sliders in js/formulas.js.
+   ...), the sliders in js/formulas.js and the Random variables box in
+   js/sim-random.js.
 
    Everything runs right here, in the page's own thread. One sample
    takes a few thousandths of a second, so the graph follows a slider
@@ -27,22 +28,23 @@
 /* =====================================================================
    1. THE STARTING SETS (PRESETS)
    ---------------------------------------------------------------------
-   Each preset sets the root model, the typed set, and its sliders.
+   Each preset sets the root model, the lines of the Random variables
+   box (g is the gap), and their sliders.
    ===================================================================== */
 const PRESETS = {
-  "slowly":  { model: "walk", set: "[1, 1 + δ]", sliders: { δ: { value: 0.1, min: 0, max: 2, step: 0.01 } } },
-  "sine":    { model: "walk", set: "{1}" },
-  "d1":      { model: "walk", set: "[1 - d, 1 + d]", sliders: { d: { value: 0.5, min: 0, max: 0.99, step: 0.01 } } },
-  "two":     { model: "walk", set: "{2, 3}" },
-  "lattice": { model: "lattice", set: "[-1/2, 1/2]" },
-  "mirror":  { model: "mirror", set: "{1, 2}" },     // as in randomsinfuncs.py
+  "slowly":  { model: "walk", lines: "g ~ unif(1, 1 + δ)", sliders: { δ: { value: 0.1, min: 0, max: 2, step: 0.01 } } },
+  "sine":    { model: "walk", lines: "g ~ unif([1])" },
+  "d1":      { model: "walk", lines: "g ~ unif(1 - d, 1 + d)", sliders: { d: { value: 0.5, min: 0, max: 0.99, step: 0.01 } } },
+  "two":     { model: "walk", lines: "g ~ unif([2, 3])" },
+  "lattice": { model: "lattice", lines: "g ~ unif(-1/2, 1/2)" },
+  "mirror":  { model: "mirror", lines: "g ~ unif([1, 2])" },     // as in randomsinfuncs.py
 };
 
-// What the typed set means in each model.
+// What g means in each model.
 const SET_LABELS = {
-  walk: "Gaps between neighboring roots: uniform on",
-  lattice: "Jitter U(n), so R(n) = n + s + U(n): uniform on",
-  mirror: "Gaps between the roots 0 < r(1) < r(2) < ...: uniform on",
+  walk: "g is the gap between neighboring roots: each gap is its own copy of g (the one covering 0 is size-biased).",
+  lattice: "g is the jitter U(n), so R(n) = n + s + U(n): each root has its own copy of g.",
+  mirror: "g is the gap between the roots 0 < r(1) < r(2) < ...: each gap is its own copy of g.",
 };
 
 // Play speeds, in samples per second. The sim starts paused, at 10.
@@ -67,10 +69,10 @@ const simCanvas = byId("sim-canvas");
 
 let model = "walk";           // "walk", "lattice" or "mirror"
 let sliders = {};             // letter -> { value, min, max, step }
-let law = null;               // the gap law read from the box (sinusoid-ish-roots.js, section 2)
+let variables = null;         // the box's random variables, g among them (js/sim-random.js); null until they work
+let coverLaw = null;          // the law of the gap covering 0, for the walk (coverLawOf, sinusoid-ish-roots.js)
 let N = 300;                  // roots on each side of 0
 let seed = "1";
-let uniforms = null;          // the fixed random numbers for this seed and N
 let roots = null;             // the current sample's roots, smallest first
 
 // Many samples (section 7).
@@ -79,59 +81,31 @@ let collected = { areas: [], offsets: [], peaks: [], logders: [] };
 
 
 /* =====================================================================
-   3. READING THE GAP SET, WITH SLIDERS
+   3. THE RANDOM VARIABLES BOX, WITH SLIDERS
    ---------------------------------------------------------------------
-   The box is read by readGapSet (sinusoid-ish-roots.js). Every letter
-   other than u gets a slider (makeSlider, js/formulas.js); moving one
-   re-reads the set and redraws.
+   The box (connectRandomBox, js/sim-random.js) holds g, the gap, and
+   whatever g is made from. Every other letter gets a slider
+   (showSliders, js/formulas.js); moving one makes a new sample.
    ===================================================================== */
-function readSet() {
-  const text = byId("gap-set").value;
-  let letters;
-  try {
-    letters = gapSetLetters(text);
-  } catch (problem) {
-    // Usually just a half-typed set: keep the last good picture.
-    byId("set-message").textContent = "Can't read that yet: " + problem.message;
-    return;
-  }
+const box = connectRandomBox({
+  needs: ["g"],
+  check: function (v) { return gapProblem(model, v); },
+  onTyped: function () { byId("preset").value = "custom"; },
+  onRead: function (declared) {
+    showSliders(byId("sliders"), declared.letters, sliders, useSet);
+    useSet();
+  },
+  sliders: function () { return sliders; },
+});
 
-  // Typeset preview, with KaTeX. A set or interval is read as a list
-  // (an "ArrayNode", whose "items" are its entries) and shown entry by
-  // entry, inside { } or [ ].
-  if (window.katex) {
-    let tex;
-    try {
-      const trimmed = text.trim();
-      if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
-        const items = readTree("[" + trimmed.slice(1, -1) + "]").items.map(function (item) {
-          return item.toTex({ parenthesis: "keep", implicit: "hide" });
-        });
-        tex = trimmed.startsWith("{") ? "\\{" + items.join(", ") + "\\}" : "[" + items.join(", ") + "]";
-      } else {
-        tex = readTree(trimmed).toTex({ parenthesis: "keep", implicit: "hide" });
-      }
-    } catch (problem) {
-      tex = "";                          // half-typed: no preview
-    }
-    katex.render(tex, byId("gap-preview"), { throwOnError: false });
-  }
-
-  // One slider per letter.
-  showSliders(byId("sliders"), letters, sliders, useSet);
-  useSet();
-}
-
-// Read the set with the sliders' current values, then make a new sample.
+// The random variables with the sliders' values now, then a new sample.
+// (If they can't be made, the box says why, and the last good picture
+// stays.)
 function useSet() {
-  const values = sliderValues(sliders);
-  try {
-    law = readGapSet(byId("gap-set").value, values);
-  } catch (problem) {
-    byId("set-message").textContent = problem.message;
-    return;
-  }
-  byId("set-message").textContent = "";
+  const built = box.build(sliderValues(sliders));
+  if (!built) return;
+  variables = built;
+  coverLaw = model === "walk" ? coverLawOf(variables) : null;
   newSample();
 }
 
@@ -140,8 +114,7 @@ function usePreset(key) {
   sliders = {};
   for (const letter in preset.sliders || {}) sliders[letter] = Object.assign({}, preset.sliders[letter]);
   setModel(preset.model);
-  byId("gap-set").value = preset.set;
-  readSet();
+  box.setText(preset.lines);
 }
 
 function setModel(m) {
@@ -150,26 +123,27 @@ function setModel(m) {
   byId("set-label").textContent = SET_LABELS[m];
 }
 
+// The mean gap m (1 for the jittered lattice, whose roots are 1 apart
+// on average).
+function meanGap() {
+  return model === "lattice" ? 1 : variables.lawOf("g").mean;
+}
+
 
 /* =====================================================================
    4. THE CURRENT SAMPLE
    ---------------------------------------------------------------------
-   The fixed random numbers depend only on the seed and N, so they are
-   made again only when one of those changes. Everything else (the set,
-   a slider, the model) just re-reads the same numbers.
+   Each gap's copy of g depends only on the seed and where the gap is,
+   so a new set, a slider or another N reads the same uniform numbers
+   again (newGaps, sinusoid-ish-roots.js).
    ===================================================================== */
 function newSample() {
-  if (!law) return;
-  if (!uniforms || uniforms.seed !== seed || uniforms.N !== N) {
-    uniforms = makeUniforms(seed, N);
-    uniforms.seed = seed;
-    uniforms.N = N;
-  }
+  if (!variables) return;
   try {
-    roots = makeRoots(model, law, uniforms, N);
+    roots = makeRoots(model, newGaps(variables, coverLaw, seed), N);
   } catch (problem) {
-    byId("set-message").textContent = problem.message;
-    law = null;                          // nothing to sample until the set is fixed
+    box.say(problem.message);
+    variables = null;                    // nothing to sample until the box is fixed
     player.setPlaying(false);
     player.showDone();
     return;
@@ -289,7 +263,7 @@ function draw() {
 // sin(pi (R(0) - x) / m) / sin(pi R(0) / m), which is 1 at x = 0 like f.
 // (For the mirror model, which has a root at 0: (m / pi) sin(pi x / m).)
 function matchingSine() {
-  const m = model === "lattice" ? 1 : law.mean;
+  const m = meanGap();
   if (model === "mirror") return function (x) { return m / Math.PI * Math.sin(Math.PI * x / m); };
   const r0 = roots.find(function (r) { return r > 0; });
   return function (x) { return Math.sin(Math.PI * (r0 - x) / m) / Math.sin(Math.PI * r0 / m); };
@@ -344,7 +318,7 @@ function showSampleStats() {
   const lobes = lobesIn(-A, A, roots);
   const right = roots.findIndex(function (r) { return r > 0; });
 
-  byId("stat-mean").textContent = model === "lattice" ? "1" : niceNumber(law.mean);
+  byId("stat-mean").textContent = niceNumber(meanGap());
   byId("stat-r0").textContent = niceNumber(roots[right]);
   byId("stat-cover").textContent = model === "mirror" ? "none (0 is a root)"
     : niceNumber(roots[right] - roots[right - 1]);
@@ -385,7 +359,7 @@ function restartSamples() {
 
 function addSample() {
   samples++;
-  const sample = makeRoots(model, law, makeUniforms(seed + ":" + samples, N), N);
+  const sample = makeRoots(model, newGaps(variables, coverLaw, seed + ":" + samples), N);
   const A = readA();
   for (const lobe of lobesIn(-A, A, sample)) {
     collected.areas.push(lobe.area);
@@ -397,7 +371,7 @@ function addSample() {
 
 const sampling = makeRunLoop(addSample,
   notTooOften(250, function () { return sampling.playing; }, showHistograms),
-  function () { return law === null || samples >= MOST_SAMPLES; });   // nothing (more) to sample
+  function () { return variables === null || samples >= MOST_SAMPLES; });   // nothing (more) to sample
 
 // Play / Pause, Step, Restart and the Speed slider (connectPlay,
 // js/sim-page.js).
@@ -437,10 +411,6 @@ for (const radio of document.querySelectorAll('input[name="model"]')) {
     useSet();
   });
 }
-byId("gap-set").addEventListener("input", function () {
-  byId("preset").value = "custom";
-  readSet();
-});
 
 byId("set-n").addEventListener("change", function () {
   N = Math.max(10, Math.min(20000, Math.round(Number(byId("set-n").value)) || 300));
@@ -469,11 +439,11 @@ byId("set-a").addEventListener("change", function () { showSampleStats(); restar
 byId("hist-mode").addEventListener("change", showHistograms);
 window.addEventListener("resize", function () { draw(); showViewBoxes(); showHistograms(); });
 
-// Start: slowly random gaps [1, 1 + δ] with δ = 0.1, seed 1, paused at
-// a low speed. The libraries come from the internet; without them the
-// sim can't run.
-if (!window.math || !Math.seedrandom) {
-  showMessage("The sim couldn't start. It loads two small libraries (math.js and seedrandom) from " +
+// Start: slowly random gaps, g ~ unif(1, 1 + δ) with δ = 0.1, seed 1,
+// paused at a low speed. The libraries come from the internet; without
+// them the sim can't run.
+if (!window.math || !window.jStat) {
+  showMessage("The sim couldn't start. It loads two small libraries (math.js and jStat) from " +
               "cdn.jsdelivr.net; check the internet connection and reload.");
 } else {
   byId("seed").value = seed;

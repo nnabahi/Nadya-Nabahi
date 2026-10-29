@@ -3,9 +3,11 @@
    Passage Percolation" sim
    ---------------------------------------------------------------------
    What it does, in plain words:
-     Every edge of the domain (or, with "Weights on cells", every cell)
-     gets a random passage time tau >= 0, all independent, all with the
-     law chosen in the law box (js/sim-laws.js). Crossing an edge takes
+     Every edge of the domain (or, with the times on the cells, every
+     cell) gets a random passage time tau >= 0, all independent, all
+     with the law of w in the Random variables box (js/sim-random.js):
+     w ~ exp(1), say, or w a formula of other random variables, worked
+     out anew at each edge. Crossing an edge takes
      its time; with the times on the cells, stepping onto a cell takes
      that cell's time (the start's own time is never paid). The passage
      time T(x, y) is the least total time of a path from x to y, and a
@@ -16,14 +18,15 @@
      the cells in exactly that order, the nearest (in time) first, one
      at a time, so watching it work is watching B(t) grow.
 
-   THE RANDOM TIMES. Each edge (or cell) has its own uniform number U in
-   (0, 1), from the seed and where it is (seededUniform,
-   js/sim-worker.js), and its time is tau = F^-1(U), F being the law's
-   distribution function (drawFromLaw, js/sim-laws.js). So the same seed
-   gives the same times, a box that grows keeps the times it had, and
-   moving a slider of the law moves every time a little, the same way
-   (F^-1 only goes up as U does): the sliders are coupled, as the p of
-   Bernoulli percolation is.
+   THE RANDOM TIMES. Each edge (or cell) is a place of its own for the
+   random variables (forEachPlace): there every name gets its own
+   uniform number U in (0, 1), from the seed, the name and the place
+   (js/sim-random.js), and w ~ a law has the time tau = F^-1(U), F being
+   the law's distribution function (drawFromLaw, js/sim-laws.js). So the
+   same seed gives the same times, a box that grows keeps the times it
+   had, and moving a slider of the law moves every time a little, the
+   same way (F^-1 only goes up as U does): the sliders are coupled, as
+   the p of Bernoulli percolation is.
 
    This file has no drawing and no buttons. The sim's page
    (first-passage-percolation.js) and its check page
@@ -32,8 +35,9 @@
 
    Contents:
      placeOf(d, v)                  where cell v is, as three whole numbers
+     forEachPlace(d, places, onCells, visit)   the place of every edge (or cell)
      newWeights(d, seed, onCells)   one U per edge (or per cell)
-     passageTimes(weights, law)     the times tau = F^-1(U)
+     passageTimes(d, weights, variables)   the times: w at every edge (or cell)
      stepTime(times, e, w)          the time of a step along neighbor entry e, onto w
      newSearch(d, times, start)     Dijkstra's algorithm, one cell at a time
      geodesic(search, v)            the geodesic from the start to v
@@ -44,9 +48,9 @@
    ===================================================================== */
 
 
-// Which kind of number seededUniform is asked for, so an edge's U, a
-// cell's U and a cell's place in the random order (randomOrder) are
-// never the same number.
+// Which kind of place a number is for, so an edge's time, a cell's
+// time and a cell's place in the random order (randomOrder) are never
+// the same number.
 const EDGE_TAG = 1, CELL_TAG = 2, ORDER_TAG = 3;
 
 // Where cell v of domain d is, as three whole numbers that are the same
@@ -65,43 +69,71 @@ function placeOf(d, v) {
   return [d.x[v], d.y[v], d.part ? d.part[v] : 0];
 }
 
-// One uniform number U in (0, 1) for every edge of domain d, or, with
-// "onCells", for every cell, from the seed and their places (placeOf).
-// Returns { onCells, U }: with the numbers on the edges, U[e] belongs to
-// entry e of the neighbor lists (d.nbr[e]), and the two entries of an
-// edge, v -> w and w -> v, get the same number (from the two places in
-// the same order, the smaller first).
-function newWeights(d, seed, onCells) {
-  const random = seededUniform(seed), places = [];
-  for (let v = 0; v < d.n; v++) places.push(placeOf(d, v));
+// The places of the random times, one at a time: visit(k, place) for
+// each edge entry k of the neighbor lists (d.nbr[k]), or, with
+// "onCells", each cell k. A cell's place is [CELL_TAG, its placeOf]; an
+// edge's is [EDGE_TAG, its two cells' placeOf], the smaller first
+// (comparing the first numbers, then the second, then the third), so
+// the two entries of an edge, v -> w and w -> v, have the same place.
+// "places" lists every cell's placeOf. (One list is filled anew for
+// each place: visit mustn't keep it.)
+function forEachPlace(d, places, onCells, visit) {
+  const place = [];
   if (onCells) {
-    const U = new Float64Array(d.n);
-    for (let v = 0; v < d.n; v++) U[v] = random.uniform(CELL_TAG, places[v][0], places[v][1], places[v][2]);
-    return { onCells: true, U: U };
+    for (let v = 0; v < d.n; v++) {
+      place.length = 0;
+      place.push(CELL_TAG, places[v][0], places[v][1], places[v][2]);
+      visit(v, place);
+    }
+    return;
   }
-  const U = new Float64Array(d.nbr.length);
   for (let v = 0; v < d.n; v++) {
-    for (let e = d.first[v]; e < d.first[v + 1]; e++) U[e] = edgeUniform(random, places[v], places[d.nbr[e]]);
+    for (let e = d.first[v]; e < d.first[v + 1]; e++) {
+      let p = places[v], q = places[d.nbr[e]], k = 0;
+      while (k < 2 && p[k] === q[k]) k++;
+      if (q[k] < p[k]) [p, q] = [q, p];
+      place.length = 0;
+      place.push(EDGE_TAG, p[0], p[1], p[2], q[0], q[1], q[2]);
+      visit(e, place);
+    }
   }
-  return { onCells: false, U: U };
 }
 
-// The U of the edge between the places p and q: from the two places,
-// the smaller first (comparing the first numbers, then the second, then
-// the third), so it is the same both ways.
-function edgeUniform(random, p, q) {
-  let k = 0;
-  while (k < 2 && p[k] === q[k]) k++;
-  if (q[k] < p[k]) [p, q] = [q, p];
-  return random.uniform(EDGE_TAG, p[0], p[1], p[2], q[0], q[1], q[2]);
+// One uniform number U in (0, 1) for every edge of domain d, or, with
+// "onCells", for every cell: the U behind w's value there (w ~ a law
+// gives w = F^-1(U)), from the seed and the place (forEachPlace,
+// placeUniforms in js/sim-random.js). Returns { onCells, seed, places,
+// U }, U[k] belonging to edge entry k (or cell k).
+function newWeights(d, seed, onCells) {
+  const places = [];
+  for (let v = 0; v < d.n; v++) places.push(placeOf(d, v));
+  const uniformAt = placeUniforms(seed, "w"), U = new Float64Array(onCells ? d.n : d.nbr.length);
+  forEachPlace(d, places, onCells, function (k, place) { U[k] = uniformAt(place); });
+  return { onCells: onCells, seed: seed, places: places, U: U };
 }
 
-// The passage times: tau = F^-1(U) for each U of "weights", with F the
-// distribution function of "law" (readLaw, js/sim-laws.js). Returns
-// { onCells, tau }, tau lined up with weights.U.
-function passageTimes(weights, law) {
-  const U = weights.U, tau = new Float64Array(U.length);
-  for (let k = 0; k < U.length; k++) tau[k] = drawFromLaw(law, U[k]);
+// The passage times: w's value at each edge (or cell), with the random
+// variables "variables" of the Random variables box (js/sim-random.js).
+// For w ~ a law, that is F^-1(U) for each U of "weights"; for w a
+// formula of other random variables (or a law that needs more than one
+// uniform number), the drawer works it out place by place, which is
+// slower. Returns { onCells, tau }, tau lined up with weights.U. Throws
+// an Error saying so if a time comes out negative.
+function passageTimes(d, weights, variables) {
+  const tau = new Float64Array(weights.U.length);
+  const law = variables.declared.byName.get("w").kind === "law" ? variables.lawOf("w") : null;
+  if (law && !law.draw) {
+    for (let k = 0; k < tau.length; k++) tau[k] = drawFromLaw(law, weights.U[k]);
+  } else {
+    const drawer = newDrawer(variables, weights.seed);
+    forEachPlace(d, weights.places, weights.onCells, function (k, place) {
+      drawer.at(...place);
+      tau[k] = drawer.value("w", 0);
+    });
+  }
+  for (let k = 0; k < tau.length; k++) {
+    if (tau[k] < 0) throw new Error("w came out negative (" + tau[k].toPrecision(3) + ") on " + (weights.onCells ? "a cell" : "an edge") + ": passage times can't be negative.");
+  }
   return { onCells: weights.onCells, tau: tau };
 }
 

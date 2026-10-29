@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Random Variables — Toys n' Sims</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/katex.min.css">
+  <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+
+  <!-- A help page: how to type random variables in the Random variables
+       box that the sims with randomness share. The "Try it" box is the
+       sims' own box (js/sim-random.js); the table of laws is made from
+       the catalog itself (js/sim-law-catalog.js) by random-variables.js,
+       so it always lists exactly the laws the box knows. -->
+  <header class="topbar" data-active="toysnsims.html"></header>
+  <script src="../js/site.js"></script>
+
+  <main class="page help-page">
+    <p><a href="../toysnsims.html">&larr; All sims</a></p>
+    <h1>Random Variables</h1>
+    <p>
+      The sims whose formulas use randomness have a Random variables box.
+      Each line of it names one random variable and says what it is:
+      <code>u ~ unif(0, 1)</code> is a uniform number in [0, 1] called u,
+      and <code>X = 2 u + 1</code> is a random variable made from it. The
+      sim's own formulas then use the names. The chart under the box shows
+      the distribution function F(x) = P(X &le; x) of any of them.
+    </p>
+
+    <section class="card help-try">
+      <h2>Try it</h2>
+      <div class="random-box"></div>
+      <div id="sliders"></div>
+    </section>
+
+    <h2>How a line reads</h2>
+    <table class="check-table">
+      <tbody>
+        <tr><th>Line</th><th>What it says</th></tr>
+        <tr><td><code>u ~ unif(0, 1)</code></td><td>u has a law from the list below, here the
+          uniform law on [0, 1]. The parameters can be numbers, letters (each gets a slider), or
+          formulas of them, like <code>normal(0, 2 s)</code>.</td></tr>
+        <tr><td><code>w ~ {x &gt;= 0: e^(-x), 0}</code></td><td>w has this density, a formula in
+          x, written as in Desmos: <code>{condition: value, ...}</code> is a piecewise formula, and
+          the last value, with no condition, is "otherwise".</td></tr>
+        <tr><td><code>w ~ {x = 0: 1/2, x &gt; 0: e^(-x)/2}</code></td><td>A piece whose condition
+          is an equation is a point mass: here w is 0 half the time, and otherwise exponential. A
+          condition like <code>mod(x, 1) = 0</code> puts a mass at every whole number where it
+          holds. The masses and the density must add up to 1, or the box says what they add up
+          to and refuses the line.</td></tr>
+        <tr><td><code>X = max(u, v)</code></td><td>X is a formula of other random variables (and
+          sliders): any formula the sims take, like <code>{c = 1: u, v}</code>, <code>abs(u)</code>
+          or <code>floor(6 u) + 1</code>.</td></tr>
+        <tr><td><code>d_k ~ unif([0, 2])</code></td><td>A whole family: d<sub>1</sub>,
+          d<sub>2</sub>, &hellip; are independent, each 0 or 2 with chance 1/2. Square brackets
+          are a list.</td></tr>
+        <tr><td><code>X = sum(k, 1, 40, d_k / 3^k)</code></td><td>The sum of d<sub>k</sub>/3<sup>k</sup>
+          for k = 1, 2, &hellip;, 40 (here, nearly the Cantor law). <code>prod(k, a, b, ...)</code>
+          is the product the same way. The ends are whole numbers, at most 10,000 terms apart.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Names</h3>
+    <ul>
+      <li>
+        A name is one letter, Latin or Greek, maybe with digits after it:
+        <code>u</code>, <code>u1</code>, <code>&beta;2</code>. It can also have a subscript after
+        an underscore: <code>e_5</code> is a name of its own, and <code>d_k</code>, with a letter
+        as its subscript, is a family. A family is used as <code>d_3</code>, or as
+        <code>d_k</code> or <code>d_(k + 1)</code> inside a sum or a product over k.
+      </li>
+      <li>
+        Names that formulas already know, like <code>e</code>, <code>i</code> and
+        <code>pi</code>, can't be random variables, and neither can <code>x</code> (the density's
+        letter) or the letters a sim uses itself (each sim's box says which).
+      </li>
+      <li>
+        Any other letter in a line is a slider. A family's law can't depend on its own index,
+        and the lines can't go round in a circle (<code>X = Y</code> and <code>Y = X</code>).
+      </li>
+    </ul>
+    <p>
+      The menu next to the chart puts in any law from the list with its
+      starting parameters, for the name being charted, or one of a few
+      formulas of random variables (random digits, a Bernoulli
+      convolution, Weierstrass's function at a uniform point, a perpetuity,
+      a mixture, the larger of two).
+    </p>
+
+    <h2>Where the numbers come from</h2>
+    <p>
+      Each time a sim works out its formulas somewhere, a name is one
+      number, the same everywhere it appears: in the matrix
+      <code>[[u, 1 - u], [1 - u, u]]</code> both u's are the same number.
+      Each <strong>place</strong> where the sim works its formulas out gets
+      new, independent copies of every name (and of every d<sub>k</sub>):
+    </p>
+    <table class="check-table">
+      <tbody>
+        <tr><th>Sim</th><th>Its names</th><th>A place is</th></tr>
+        <tr><td><a href="../toysnsims/first-passage-percolation/first-passage-percolation.html">First
+          Passage Percolation</a></td><td>w, the passage time</td><td>an edge (or a cell, with the
+          times on the cells)</td></tr>
+        <tr><td><a href="../toysnsims/sinusoid-ish/sinusoid-ish.html">Sinusoid-ish</a></td>
+          <td>g, the gap between two points</td><td>a gap</td></tr>
+        <tr><td><a href="../toysnsims/matrix-products/matrix-products.html">Matrix Products</a></td>
+          <td>any, used in the matrices</td><td>a step of the product</td></tr>
+        <tr><td><a href="../toysnsims/path-counting/path-counting.html">Lattice Path Counting</a></td>
+          <td>any, used in X, Y and the definitions</td><td>a point (x, y), and each new input of a
+          definition like d(y)</td></tr>
+      </tbody>
+    </table>
+    <p>
+      Each copy is F<sup>&minus;1</sup>(U), where F is its law and U is a
+      uniform number fixed by the seed, the name, its index and the place.
+      F<sup>&minus;1</sup>(U) has the law F (the "inverse transform" [1,
+      Theorem 1.2.2]), and F<sup>&minus;1</sup>(U) only goes up as U does.
+      So the sliders are coupled: moving a slider in u's law moves every u
+      a little, all the same way, and leaves the other names alone, and the
+      same seed always gives the same numbers.
+    </p>
+
+    <h2>How the chart is worked out</h2>
+    <p>The line under the chart says which of these it is.</p>
+    <ul>
+      <li><strong>F from its formula.</strong> The law's own F. Where the law has a formula for
+        F<sup>&minus;1</sup> too, like the exponential law's &minus;log(1 &minus; u)/&lambda;, the
+        sim uses it; otherwise F<sup>&minus;1</sup> is read off a fine table of F.</li>
+      <li><strong>F added up from its density.</strong> The density is added up on a fine grid,
+        for the laws whose F has no formula (and for typed densities).</li>
+      <li><strong>F worked out from draws.</strong> For a formula of random variables, the chart
+        is the F of many draws of it (up to 16,384, fewer if the formula is slow, so the chart
+        takes about half a second), spread evenly over the uniform numbers by a Latin hypercube
+        [2]. That is only for the chart: the sim works the formula out exactly at each place. A
+        few laws in the list need more than one uniform number for each draw (stable laws,
+        Bernoulli convolutions); their charts come from 20,000 draws, and the sim's own draws
+        are exact.</li>
+    </ul>
+
+    <h2>Every law</h2>
+    <p>
+      Each law is typed as its name with its parameters, like
+      <code>normal(0, 1)</code>. Unless a row gives its own source, the
+      formulas are the standard ones in [3] (continuous laws) and [4]
+      (discrete laws).
+    </p>
+    <div id="law-tables"></div>
+
+    <h2>Checks</h2>
+    <p>
+      The <a href="random-variables-check.html">check page</a> tests every
+      law in the list (its F against its density or masses,
+      F<sup>&minus;1</sup> against F, its mean and variance against their
+      formulas), pairs of laws that are the same law made two ways, and the
+      random variables themselves: one number per name in each place,
+      coupled sliders, independent names, and random series.
+    </p>
+
+    <h2>Sources</h2>
+    <ol class="references">
+      <li>R. Durrett, <em>Probability: Theory and Examples</em>, 5th ed., Cambridge University
+        Press, 2019.</li>
+      <li>M. D. McKay, R. J. Beckman, W. J. Conover, &ldquo;A comparison of three methods for
+        selecting values of input variables in the analysis of output from a computer
+        code&rdquo;, <em>Technometrics</em> 21 (1979) 239&ndash;245.</li>
+      <li>N. L. Johnson, S. Kotz, N. Balakrishnan, <em>Continuous Univariate Distributions</em>,
+        Vols. 1&ndash;2, 2nd ed., Wiley, 1994&ndash;95.</li>
+      <li>N. L. Johnson, A. W. Kemp, S. Kotz, <em>Univariate Discrete Distributions</em>, 3rd
+        ed., Wiley, 2005.</li>
+    </ol>
+  </main>
+
+  <!-- KaTeX (https://katex.org) typesets the lines, math.js
+       (https://mathjs.org) reads them, and jStat
+       (https://jstat.github.io) works out the incomplete gamma and beta
+       functions some laws need. The versions are fixed so an update can
+       never change the page by surprise. -->
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/katex.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjs@15.2.0/lib/browser/math.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jstat@1.9.6/dist/jstat.min.js"></script>
+  <!-- byId and the sliders' helpers, the seeded random numbers, the
+       charts, typed formulas, the laws, the catalog of laws and the
+       random variables, then this page's code. -->
+  <script src="../js/sim-page.js"></script>
+  <script src="../js/sim-worker.js"></script>
+  <script src="../js/sim-charts.js"></script>
+  <script src="../js/formulas.js"></script>
+  <script src="../js/sim-laws.js"></script>
+  <script src="../js/sim-law-catalog.js"></script>
+  <script src="../js/sim-random.js"></script>
+  <script src="random-variables.js"></script>
+</body>
+</html>
