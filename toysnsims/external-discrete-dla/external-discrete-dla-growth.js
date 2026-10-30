@@ -131,7 +131,7 @@ function newExternalDLA(options) {
     if (!lattice.periodic && !lattice.reaches(start, FAR_LAUNCHES * R + 4)) return null;
     let j = 0;
     const draw = function () { return random.uniform(p, j++); };
-    let s = siteNear(lattice, pointOnSphere(dims, R, draw));
+    let s = siteNear(lattice, fromStart(pointOnSphere(dims, R, draw)));
     let known = null;    // the last search of the edge sites: { place, room }
     while (!cluster.onEdge(s)) {
       const place = lattice.placeOf(s.I, s.J, s.K, s.k), r = distanceBetween(place, start);
@@ -158,68 +158,21 @@ function newExternalDLA(options) {
   }
 
   // Where a walker at "place", farther than R from the origin, comes
-  // back to the circle (sphere) of radius R, or in 3D, if it wanders off
-  // for good, where a new walker starts instead.
+  // back to the circle (sphere) of radius R (brownianReturn,
+  // js/sim-continuum.js), or in 3D, if it wanders off for good, where a
+  // new walker starts instead.
   function broughtBack(place, R, draw) {
     g.returns++;
-    if (dims === 2) return returnPoint2D(place, R, draw());
-    const r = distanceBetween(place, start);
-    if (draw() < R / r) return returnPoint3D(place, R, draw(), draw());
+    const back = brownianReturn(place.map(function (x, d) { return x - start[d]; }), R, draw);
+    if (back) return fromStart(back);
     g.replaced++;
-    return pointOnSphere(3, R, draw);
+    return fromStart(pointOnSphere(3, R, draw));
   }
 
+  // A point given from the origin (the middle of cell 0), as a place.
+  function fromStart(point) { return point.map(function (x, d) { return x + start[d]; }); }
+
   return g;
-}
-
-// A point taken uniformly on the circle (dims = 2) or sphere (3) of
-// radius R around the origin, from uniform numbers draw().
-function pointOnSphere(dims, R, draw) {
-  const angle = 2 * Math.PI * draw();
-  if (dims === 2) return [R * Math.cos(angle), R * Math.sin(angle)];
-  const z = 2 * draw() - 1, across = Math.sqrt(1 - z * z);    // (Archimedes: z is uniform on a sphere)
-  return [R * across * Math.cos(angle), R * across * Math.sin(angle), R * z];
-}
-
-// Where Brownian motion from "place" (at distance r > R) first reaches
-// the circle of radius R. Its angle from the direction of the place has
-// the density (1 - q^2) / (2 pi (1 + q^2 - 2 q cos t)) with q = R / r
-// (the Poisson kernel for the outside of a disk), the wrapped Cauchy
-// law, which is t = 2 arctan((1 - q) / (1 + q) tan(pi (u - 1/2))).
-function returnPoint2D(place, R, u) {
-  const r = Math.hypot(place[0], place[1]), q = R / r;
-  const angle = Math.atan2(place[1], place[0]) + 2 * Math.atan((1 - q) / (1 + q) * Math.tan(Math.PI * (u - 0.5)));
-  return [R * Math.cos(angle), R * Math.sin(angle)];
-}
-
-// Where Brownian motion from "place" (at distance r > R) first reaches
-// the sphere of radius R, given that it does. By inversion in the
-// sphere (the Kelvin transform), that is where Brownian motion from the
-// inside point s = R^2 / r (in the same direction) first leaves the
-// ball, whose density at the angle t from that direction is
-// proportional to (R^2 - s^2) / (R^2 + s^2 - 2 R s cos t)^(3/2). Its
-// cos t, from the uniform u by inverting the distribution function,
-// is (R^2 + s^2 - 1/w^2) / (2 R s) with
-// w = 2 s u / (R^2 - s^2) + 1 / (R + s); the turn around that direction
-// is uniform (from v).
-function returnPoint3D(place, R, u, v) {
-  const r = Math.hypot(place[0], place[1], place[2]), s = R * R / r;
-  const w = 2 * s * u / (R * R - s * s) + 1 / (R + s);
-  const cos = Math.min(1, Math.max(-1, (R * R + s * s - 1 / (w * w)) / (2 * R * s))), sin = Math.sqrt(1 - cos * cos);
-  const toward = place.map(function (x) { return x / r; });
-  const [e1, e2] = perpendicularPair(toward), turn = 2 * Math.PI * v;
-  return [0, 1, 2].map(function (d) {
-    return R * (cos * toward[d] + sin * (Math.cos(turn) * e1[d] + Math.sin(turn) * e2[d]));
-  });
-}
-
-// Two unit vectors at right angles to each other and to the unit
-// vector "toward".
-function perpendicularPair(toward) {
-  const other = Math.abs(toward[0]) < 0.9 ? [1, 0, 0] : [0, 1, 0];
-  const e1 = cross3(toward, other), size = length3(e1);
-  const first = e1.map(function (x) { return x / size; });
-  return [first, cross3(toward, first)];
 }
 
 // The site whose middle is nearest "place", or near it: from the

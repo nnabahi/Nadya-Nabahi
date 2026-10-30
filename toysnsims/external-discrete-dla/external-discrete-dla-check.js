@@ -219,7 +219,7 @@ function checkLanding(name, cells, runs) {
    ---------------------------------------------------------------------
    A walker farther than FAR_LAUNCHES launch radii is brought back to
    the launch circle (sphere) the way Brownian motion would come back
-   (returnPoint2D and returnPoint3D, in the growth file). Brownian
+   (returnPoint2D and returnPoint3D, js/sim-continuum.js). Brownian
    motion from x, at distance r from the middle, first reaches the
    circle or sphere of radius R < r at y with density proportional to
    1 / |x - y|^d on it (d = 2, 3; the Poisson kernels for the outside of

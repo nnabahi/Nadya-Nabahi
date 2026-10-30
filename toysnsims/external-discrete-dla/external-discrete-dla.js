@@ -89,8 +89,9 @@ function haveCluster() { return Boolean(latest && latest.traceParticles && lates
    3. RUNNING THE GROWTH
    ---------------------------------------------------------------------
    The growth is growthWorker() in external-discrete-dla-growth.js, with
-   newExternalDLA() and its launch and return, the lattices, steps and
-   jumps (js/sim-walk.js), the cluster and the growth's second thread
+   newExternalDLA(), the Brownian launch and return
+   (js/sim-continuum.js), the lattices, steps and jumps
+   (js/sim-walk.js), the cluster and the growth's second thread
    (js/sim-cluster.js), the trace, heap and random numbers
    (js/sim-worker.js), where cells are (js/sim-domains.js,
    js/sim-honeycombs.js) and what grows a Penrose tiling's plane
@@ -99,10 +100,10 @@ function haveCluster() { return Boolean(latest && latest.traceParticles && lates
    showGrowth.
    ===================================================================== */
 const sim = runInWorker(growthWorker,
-  [newExternalDLA, pointOnSphere, returnPoint2D, returnPoint3D, perpendicularPair, siteNear, dot3, cross3, length3,
+  [newExternalDLA, siteNear, dot3, cross3, length3,
    newTrace, keepSample, seededUniform, newHeap, honeycombMiddle, blockStart, middleAt, cellNeighbors,
    { MOST_PARTICLES: MOST_PARTICLES, FAR_LAUNCHES: FAR_LAUNCHES }]
-  .concat(walkHelpers(), clusterHelpers(), penroseHelpers()), showGrowth);
+  .concat(continuumHelpers(), walkHelpers(), clusterHelpers(), penroseHelpers()), showGrowth);
 
 function showGrowth(message) {
   if (message.problem) {
