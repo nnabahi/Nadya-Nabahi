@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>3D Tilings — Check Page</title>
+  <link rel="stylesheet" href="../css/style.css">
+  <!-- Where the 3D library three.js lives on the internet, for the 3D
+       picture (js/sim-3d.js). The version number is fixed so an update
+       can never change the site by surprise. -->
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.186.1/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+
+  <!-- A look at, and a test page for, the 3D tilings the sims can live on
+       (js/sim-honeycombs.js), their boxes and tori (js/sim-domains.js),
+       and the 3D picture of their cells (drawCells in js/sim-3d.js). -->
+  <main class="page">
+    <h1>3D Tilings: Check Page</h1>
+    <p>
+      The sims can live on the 28 uniform tilings of 3-space: tilings by
+      polyhedra with regular faces, meeting face to face, where every vertex
+      looks like every other (B. Grünbaum, "Uniform tilings of 3-space",
+      Geombinatorics 4 (1994), 49&ndash;56, List&nbsp;1; #22, the cubes, is
+      the cubic grid Z<sup>3</sup>). A sim's cells can be the tiling's
+      vertices (neighbors when an edge joins them), its edges (neighbors when
+      they share a vertex), its faces (when they share an edge) or its
+      polyhedra (when they share a face).
+    </p>
+
+    <h2>Look at one</h2>
+    <div class="option-row">
+      <label>Tiling <select id="tiling"></select></label>
+    </div>
+    <div class="option-row">
+      <label>Cells <select id="kind"></select></label>
+      <label>Box <input type="number" id="size" min="1" max="16" step="1" value="6"> side lengths each way</label>
+      <button id="draw">Draw</button>
+    </div>
+    <p class="muted small" id="sim-message"></p>
+    <div class="sim-picture">
+      <canvas id="picture" hidden></canvas>
+    </div>
+    <p class="muted small help-3d"></p>
+    <p class="muted small">Colors: one for each type of cell (the polygons around a
+      polyhedron's corner, or the polyhedra around a vertex, as the paper writes them).</p>
+    <ul id="types" class="small"></ul>
+
+    <h2>The checks</h2>
+    <p>
+      For every tiling: each vertex has the polyhedra around it that List 1
+      says; the polyhedra come in the ratio that this says (the paper prints
+      its own ratio too, shown next to it); every edge is 1 long and every
+      face a flat regular polygon; the polyhedra of one block fill it exactly
+      (their volumes add up to the block's), and so do the vertices' cells;
+      each polyhedron has V &minus; E + F = 2; every cell is its neighbors'
+      neighbor, for all four kinds of cell; and every vertex sees the other
+      vertices around it at the same distances. Then: the tilings the paper
+      lists with the same vertex are really different, and boxes and tori of
+      cells are built right. Press the button; it takes about a minute.
+    </p>
+
+    <p><button id="run-checks">Run the checks</button></p>
+
+    <table class="check-table">
+      <tbody id="results"></tbody>
+    </table>
+  </main>
+
+  <!-- byId(), make3D() and the 3D help (sim-page.js), the results table
+       (check-page.js), colors, domains, the plane tilings (for the
+       prisms), the 3D tilings, then this page's own code. -->
+  <script src="../js/site.js"></script>
+  <script src="../js/sim-page.js"></script>
+  <script src="../js/check-page.js"></script>
+  <script src="../js/sim-colors.js"></script>
+  <script src="../js/sim-domains.js"></script>
+  <script src="../js/sim-tilings.js"></script>
+  <script src="../js/sim-honeycombs.js"></script>
+  <script src="honeycombs-check.js"></script>
+</body>
+</html>

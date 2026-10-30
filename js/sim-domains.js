@@ -76,6 +76,9 @@
                               corners go clockwise)
      tilingCells(...)         some cells of a tiling, to draw (a growing set)
      widestCell(tiling)       the farthest a cell's corner is from its middle
+   3D tilings (js/sim-honeycombs.js):
+     honeycombBox(...)        a box or torus of a 3D tiling's cells
+     honeycombCell(d, I, J, K, k)   cell k of block (I, J, K)
 
    (The colors the sims share are in js/sim-colors.js.)
    ===================================================================== */
@@ -748,4 +751,84 @@ function widestCell(tiling) {
     for (const c of cell.corners) widest = Math.max(widest, Math.hypot(c[0] - cell.middle[0], c[1] - cell.middle[1]));
   }
   return widest;
+}
+
+
+/* ---------------------------------------------------------------------
+   3D tilings (js/sim-honeycombs.js)
+   ---------------------------------------------------------------------
+   As for the plane tilings: the tiling comes as its block (from
+   honeycombBlock, with cells that are its vertices, edges, faces or
+   polyhedra), blocks sit at I a + J b + K c for whole numbers I, J, K,
+   and each has the same cells, cell k of block (I, J, K) being
+   d.part[v] = k with d.x[v] = I, d.y[v] = J and d.z[v] = K. A torus
+   wraps I, J and K around. On the cubes (#22) every block has one cell,
+   so (x, y, z) is just where the cell is in the cubic grid Z^3.
+   --------------------------------------------------------------------- */
+
+// A box or torus of a 3D tiling's cells. A box is the cells whose middles
+// are in 0 <= x < width, 0 <= y < height, 0 <= z < depth (in side
+// lengths). A torus is a whole number of blocks each way, as near width
+// x height x depth as it can be, but at least enough that a cell's
+// neighbors are all different cells. The domain has n, first and nbr as
+// every domain (section 1), and
+//   x, y, z, part   cell v is cell part[v] of block (x[v], y[v], z[v])
+//   wrap            for a torus, { xmin, xmax, ymin, ymax, zmin, zmax }:
+//                   the blocks that wrap around; else null
+//   lattice         "honeycomb"
+//   honeycomb       the block
+//   index           "I,J,K,k" -> v
+//   sides[v][e]     the cell that is the block's next[e] of cell v (-1:
+//                   none, outside the box)
+function honeycombBox(block, width, height, depth, torus) {
+  const size = [width, height, depth], steps = [block.a[0], block.b[1], block.c[2]], cells = [];
+  if (torus) {
+    let reach = 1;    // the farthest block a neighbor is in
+    for (const cell of block.cells) for (const [, I, J, K] of cell.next) reach = Math.max(reach, Math.abs(I), Math.abs(J), Math.abs(K));
+    const count = size.map(function (s, k) { return Math.max(2 * reach + 1, Math.round(s / steps[k])); });
+    for (let K = 0; K < count[2]; K++) for (let J = 0; J < count[1]; J++) for (let I = 0; I < count[0]; I++) {
+      block.cells.forEach(function (cell, k) { cells.push([I, J, K, k]); });
+    }
+    return makeHoneycombDomain(block, cells, { xmin: 0, xmax: count[0] - 1, ymin: 0, ymax: count[1] - 1, zmin: 0, zmax: count[2] - 1 });
+  }
+  // The blocks that can hold a middle inside the box (a middle is in
+  // its own block), row by row.
+  const last = size.map(function (s, k) { return Math.ceil(s / steps[k]); });
+  for (let K = 0; K < last[2]; K++) for (let J = 0; J < last[1]; J++) for (let I = 0; I < last[0]; I++) {
+    block.cells.forEach(function (cell, k) {
+      const m = honeycombMiddle(block, I, J, K, k);
+      if (m[0] < width && m[1] < height && m[2] < depth) cells.push([I, J, K, k]);
+    });
+  }
+  return makeHoneycombDomain(block, cells, null);
+}
+
+// The domain of the 3D tiling's cells listed ([I, J, K, k] for cell v = 0,
+// 1, ...), as honeycombBox describes it, each joined to its neighbors.
+// "wrapRange" is the torus's (or null).
+function makeHoneycombDomain(block, cells, wrapRange) {
+  const index = new Map();
+  cells.forEach(function ([I, J, K, k], v) { index.set(I + "," + J + "," + K + "," + k, v); });
+  const edges = [];
+  const sides = cells.map(function ([I, J, K, k], v) {
+    return block.cells[k].next.map(function ([k2, dI, dJ, dK]) {
+      let I2 = I + dI, J2 = J + dJ, K2 = K + dK;
+      if (wrapRange) { I2 = wrap(I2, 0, wrapRange.xmax); J2 = wrap(J2, 0, wrapRange.ymax); K2 = wrap(K2, 0, wrapRange.zmax); }
+      const w = index.has(I2 + "," + J2 + "," + K2 + "," + k2) ? index.get(I2 + "," + J2 + "," + K2 + "," + k2) : -1;
+      if (w > v) edges.push([v, w]);
+      return w;
+    });
+  });
+  const { first, nbr } = neighborLists(cells.length, edges);
+  const column = function (c) { return Int32Array.from(cells.map(function (cell) { return cell[c]; })); };
+  return { n: cells.length, first: first, nbr: nbr, x: column(0), y: column(1), z: column(2), part: column(3),
+           wrap: wrapRange, lattice: "honeycomb", honeycomb: block, index: index, sides: sides };
+}
+
+// Cell k of block (I, J, K) of a 3D tiling's domain (wrapped around on a
+// torus), or -1 if the domain doesn't have it.
+function honeycombCell(d, I, J, K, k) {
+  if (d.wrap) { I = wrap(I, 0, d.wrap.xmax); J = wrap(J, 0, d.wrap.ymax); K = wrap(K, 0, d.wrap.zmax); }
+  const v = d.index.get(I + "," + J + "," + K + "," + k);
+  return v === undefined ? -1 : v;
 }
