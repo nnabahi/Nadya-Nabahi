@@ -169,12 +169,11 @@ function cutsOf(weights, count) {
    away. A walker starting at its middle stays inside for a while and
    then leaves it, at a site exactly r + 1 steps away. Where it leaves
    has a law of its own (the "exit law"), and by the strong Markov
-   property (R. Durrett, "Probability: Theory and Examples", 5th ed.,
-   Cambridge University Press, 2019, Theorem 4.1.3) the walk after
-   that is a fresh walk from there. So, as long as nothing inside the
-   ball could have stopped the walker (no cluster, no wall), jumping
-   straight to a site drawn from the exit law is EXACTLY the same as
-   taking all the steps.
+   property (J. R. Norris, "Markov Chains", Cambridge University Press,
+   1997, Theorem 1.4.2) the walk after that is a fresh walk from there.
+   So, as long as nothing inside the ball could have stopped the walker
+   (no cluster, no wall), jumping straight to a site drawn from the
+   exit law is EXACTLY the same as taking all the steps.
 
    Working out the exit law. Let G(x) be how many times, on average,
    the walker is at site x before it leaves (the "Green's function" of
@@ -203,10 +202,14 @@ function cutsOf(weights, count) {
    closer than "room" (straight-line distance, from the walker's middle)
    could stop it. Every site of the ball of radius r is at most
    r * longestMove away, so the biggest radius with r * longestMove
-   below the room is safe.
+   below the room is safe. Distances are worked out in floating point,
+   a little off in the last digits, so "below" leaves ROOM_SPARE to
+   spare: a site exactly r * longestMove away (as on a straight line of
+   r moves) must not count as outside the ball.
    ===================================================================== */
 
 const MOST_BALL_SITES = 200000;
+const ROOM_SPARE = 1e-6;
 
 // The jumps of a lattice. jump(s, room, u) moves the walker at site s
 // (in place) across the biggest safe ball, using the uniform u, and
@@ -227,7 +230,7 @@ function ballJumps(lattice) {
     if (!lattice.periodic) return 0;
     // The biggest j whose radius 2^(j+1) is safe.
     let j = -1;
-    while (j < biggest && Math.pow(2, j + 2) * lattice.longestMove < room) j++;
+    while (j < biggest && Math.pow(2, j + 2) * lattice.longestMove < room - ROOM_SPARE) j++;
     for (; j >= 0; j--) {
       const table = tableFor(s.k, j);
       if (table === null) { biggest = j - 1; continue; }
@@ -357,5 +360,5 @@ function solveBall(ball) {
 function walkHelpers() {
   return [siteKeyMaker, gridLattice, tilingLattice, honeycombLattice, longestMoveOf, distanceBetween, newSite, walkStep, cutsOf,
     ballJumps, pickFromCumulative, exitLaw, ballAround, solveBall,
-    { GRID_MOVES: GRID_MOVES, MOST_BALL_SITES: MOST_BALL_SITES }];
+    { GRID_MOVES: GRID_MOVES, MOST_BALL_SITES: MOST_BALL_SITES, ROOM_SPARE: ROOM_SPARE }];
 }
