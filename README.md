@@ -21,11 +21,11 @@ the special functions some laws of random variables need).
 | `about.html` | About Me |
 | `writing.html` | Writing: posts as cards that open when clicked |
 | `resume-and-publications.html` | Resume & Publications |
-| `toysnsims.html` | Toys n' Sims: a list of all simulations |
+| `toysnsims.html` | Toys n' Sims: model families, sporadic models and tools |
 | `css/style.css` | The single stylesheet for every page |
 | `js/site.js` | The top bar's links, written once for every page, and `fillBlocks`, which fills a page's placeholders with shared pieces of HTML |
 | `js/writing.js` | Sorts the posts on `writing.html` newest first, turns their Markdown into formatted text with math, and adds the giscus comment box to an open post |
-| `js/genre-filter.js` | Sorts the cards on `toysnsims.html` A to Z (the graph tool pinned first), builds the genre buttons and hides/shows cards |
+| `js/toysnsims.js` | The `toysnsims.html` list: sorts every group A to Z, opens one model family's panel at a time, and builds the genre buttons for the sporadic models |
 | `help/gomjau-hogg.html` | Help page: how to write a tiling as a GomJau-Hogg code (linked from the Lattice code box), with `gomjau-hogg.js` for its "Try a code" box |
 | `help/random-variables.html` | Help page: how to type random variables in the Random variables box (linked from the box), with `random-variables.js` for its "Try it" box and the tables of every law (made from the catalog); `random-variables-check.html` tests the laws and the random variables |
 | `SIMS.md` | Planning list of candidate sims and their status (not shown on the site) |
@@ -46,7 +46,7 @@ a link back to the sim.
 
 | Folder | The sim | Its math | Its check page tests |
 | --- | --- | --- | --- |
-| `toysnsims/graph-tool/` | Graph & domain tool: paint a domain on a grid (pinned first on `toysnsims.html`); sims open it for a custom domain | | |
+| `toysnsims/graph-tool/` | Graph & domain tool: paint a domain on a grid (under Tools on `toysnsims.html`); sims open it for a custom domain | | |
 | `toysnsims/cellular-automata/` | Cellular automata (a tape over time or a grid; b states, any neighborhood, any rule number; wrapping, fixed or random edges) | `-rule.js`: the rule (Wolfram's numbering), in a second thread | reading the rule number, rule 30, the Game of Life, the edges, repeats |
 | `toysnsims/uniform-spanning-tree/` | Uniform Spanning Tree (Wilson's algorithm, shown step by step; the tree, its colors, and distances to the root or to a path, from above or in 3D; box, torus, drawn domain, hyperbolic tilings and trees; on the square grid or any tiling's tiles or corners) | `-wilson.js`: the tree, grown in a second thread (Wilson's algorithm itself is in `js/sim-spanning.js`) | counting spanning trees, uniform on small graphs whatever the order and root, colors independent of the tree, the path is a loop-erased walk, distances and paths |
 | `toysnsims/connected-coloring/` | Connected Coloring (box, torus, drawn domain, hyperbolic tilings and trees; on the square grid or any tiling's tiles or corners) | `-chain.js`: the Markov chain (ReCom with a uniform correction), in a second thread | |
