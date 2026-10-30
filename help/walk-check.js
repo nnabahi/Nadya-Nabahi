@@ -34,14 +34,20 @@ function testLattices() {
    1. THE LATTICES
    ===================================================================== */
 
-// Every move of every cell of the block (on a Penrose plane, of its
-// first 500 cells): the cell it goes to has a move back, no move is
-// listed twice, and it goes no farther than longestMove.
+// Every move of every cell of the block (on a Penrose plane, of the
+// cells within 10 of the middle, the plane first grown to 20): the cell
+// it goes to has a move back, no move is listed twice, and on a
+// repeating lattice it goes no farther than longestMove.
 function checkMoves(t) {
   const lattice = t.lattice;
-  const count = lattice.periodic ? lattice.cellCount : 500;
+  if (!lattice.periodic) lattice.reaches([0, 0], 20);
+  const cells = [];
+  for (let k = 0; k < (lattice.periodic ? lattice.cellCount : lattice.tiling.cells.length); k++) {
+    if (lattice.periodic || distanceBetween(lattice.placeOf(0, 0, 0, k), [0, 0]) < 10) cells.push(k);
+  }
   let problem = "", moves = 0;
-  for (let k = 0; k < count && !problem; k++) {
+  for (const k of cells) {
+    if (problem) break;
     const keys = new Set(), p = lattice.placeOf(0, 0, 0, k);
     for (const [k2, dI, dJ, dK] of lattice.movesOf(k)) {
       moves++;
@@ -55,7 +61,7 @@ function checkMoves(t) {
     }
   }
   addRow(t.name + ": every move can be undone", !problem,
-         problem || moves + " moves from " + count + " cells" + (lattice.periodic ? ", the longest " + fourDigits(lattice.longestMove) : ""));
+         problem || moves + " moves from " + cells.length + (cells.length === 1 ? " cell" : " cells") + (lattice.periodic ? ", the longest " + fourDigits(lattice.longestMove) : ""));
 }
 
 
