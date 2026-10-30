@@ -40,11 +40,11 @@
      readLaw(tree, values)      a typed density -> its law
      lawFromCDF(spec)           a law from its exact F (and F^-1, if known)
      lawFromDensity(spec)       a law from its density, added up
-     lawFromMasses(spec)        a law on whole numbers, from its masses
-     lawFromDraws(values)       a law worked out from many draws
-     pointMassLaw(c)            all the mass at c
-     sizeBiasedLaw(law)         the law with each value's chance times the value
      gaussLegendre(n)           the points and weights of Gauss-Legendre quadrature
+     lawFromMasses(spec)        a law on whole numbers, from its masses
+     pointMassLaw(c)            all the mass at c
+     lawFromDraws(values)       a law worked out from many draws
+     sizeBiasedLaw(law)         the law with each value's chance times the value
      drawFromLaw(law, u)        F^-1(u)
      drawWith(law, uniform)     a draw, from as many uniform numbers as it needs
      lawCDF(law, x)             F(x)

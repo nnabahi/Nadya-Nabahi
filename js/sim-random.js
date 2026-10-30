@@ -45,7 +45,8 @@
                                  randomNamesIn(tree, declared),
                                  prepareFormula(tree, declared)
      3. sum and prod             seriesSum, seriesProd (in math.js)
-     4. The laws                 makeRandomVariables(declared, values)
+     4. The laws                 makeRandomVariables(declared, values),
+                                 randomVariablesOf(text, values, reserved)
      5. Drawing, place by place  newDrawer(variables, seed),
                                  placeUniforms(seed, name)
      6. Many draws at once       sampleRandomVariables(variables, work),
@@ -405,6 +406,13 @@ function makeRandomVariables(declared, values) {
     return estimates.get(name);
   };
   return variables;
+}
+
+// The lines "text" read and their laws made in one go, with the
+// sliders' values "values" (none if left out): for a page's starting
+// lines, and the check pages.
+function randomVariablesOf(text, values, reserved) {
+  return makeRandomVariables(readRandomVariables(text, reserved), values || {});
 }
 
 // A catalog law: its parameters worked out (a list, like [1, 2, 3], as

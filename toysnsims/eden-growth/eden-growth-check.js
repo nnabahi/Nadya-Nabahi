@@ -738,9 +738,9 @@ function convexityOfDomain(domain, start) {
   return m.shape.convexity();
 }
 
-// After "steps" steps, compare the kept radii (m.shape.radii) with the radii found again from
-// every base site (from the middles of the cells, on another tiling
-// with middleAt, js/sim-domains.js).
+// After "steps" steps, compare the kept radii (m.shape.radii) with the
+// radii found again from every base site (from the middles of the
+// cells, on another tiling with middleAt, js/sim-domains.js).
 function checkRadii(options, steps) {
   const m = newMountain(options);
   for (let k = 0; k < steps && m.available.length > 0; k++) m.step();

@@ -59,6 +59,7 @@
      pictureBox(d)            the box around the domain's picture
      torusSteps(d)            the steps by which a torus's picture repeats
      cellAtPoint(d, u, w)     which cell is at the point (u, w)
+     cellNearestPoint(d, u, w)   the cell whose middle is nearest (u, w)
    Tilings:
      tilingBox(...)           a box or torus of a tiling's cells
      tilingHexagon(...)       a hexagon of a tiling's cells (of triangles:
@@ -446,6 +447,17 @@ function torusSteps(d) {
 // cell whose corners go around it (tilingCellAt).
 function cellAtPoint(d, u, w) {
   return d.lattice ? tilingCellAt(d, u, w) : cellAt(d, Math.round(u), Math.round(w));
+}
+
+// The cell of domain d whose middle (cellMiddle) is nearest the point
+// (u, w) of the picture: the first of them, if several are as near.
+function cellNearestPoint(d, u, w) {
+  let best = 0, bestFar = Infinity;
+  for (let v = 0; v < d.n; v++) {
+    const [x, y] = cellMiddle(d, v), far = Math.hypot(x - u, y - w);
+    if (far < bestFar) { best = v; bestFar = far; }
+  }
+  return best;
 }
 
 

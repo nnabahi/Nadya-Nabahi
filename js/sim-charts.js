@@ -683,20 +683,20 @@ function radiusChart(canvas, radii) {
   pen.textAlign = "left";
   pen.textBaseline = "top";
   pen.fillText("gray: the average", 0, 0);
+  // Where direction k's radius is on the canvas: the middle of its slice.
+  function spot(k) {
+    const angle = -Math.PI + (k + 0.5) * 2 * Math.PI / radii.length, r = unit * (radii[k] / average);
+    return [cx + r * Math.cos(angle), cy - r * Math.sin(angle)];
+  }
   pen.beginPath();
   let drawing = false;
   radii.forEach(function (r, k) {
     if (r === 0) { drawing = false; return; }
-    const angle = -Math.PI + (k + 0.5) * 2 * Math.PI / radii.length;
-    const x = cx + unit * (r / average) * Math.cos(angle), y = cy - unit * (r / average) * Math.sin(angle);
+    const [x, y] = spot(k);
     if (drawing) pen.lineTo(x, y); else pen.moveTo(x, y);
     drawing = true;
   });
-  if (drawing && radii[0] > 0) {   // close the loop
-    const r = radii[0];
-    const angle = -Math.PI + 0.5 * 2 * Math.PI / radii.length;
-    pen.lineTo(cx + unit * (r / average) * Math.cos(angle), cy - unit * (r / average) * Math.sin(angle));
-  }
+  if (drawing && radii[0] > 0) pen.lineTo(...spot(0));   // close the loop
   pen.strokeStyle = CHART_LINE;
   pen.lineWidth = 1.5;
   pen.stroke();

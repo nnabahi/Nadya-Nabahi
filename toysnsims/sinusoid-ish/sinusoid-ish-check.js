@@ -16,10 +16,6 @@ function check(what, shouldBe, got, passed) {
 // A number shown with a few digits.
 function show(x) { return Number(x).toPrecision(6); }
 
-// Random variables typed as in the sim's box (js/sim-random.js), with
-// the sliders' values "values".
-function variablesOf(text, values) { return makeRandomVariables(readRandomVariables(text), values || {}); }
-
 // The roots of one sample, as the sim makes them (the gap covering 0
 // size-biased, for the walk).
 function rootsOf(model, variables, seed, N) {
@@ -43,7 +39,7 @@ function largestGap(a, b, from, to) {
 // The product is cut at N roots on each side, so it is only close:
 // the error is about x^2 / N.
 function testSineWave() {
-  const N = 20000, one = variablesOf("g ~ unif([1])");
+  const N = 20000, one = randomVariablesOf("g ~ unif([1])");
 
   const walk = rootsOf("walk", one, 7, N);
   const a = walk[N];                                         // R(0), the first root right of 0
@@ -52,7 +48,7 @@ function testSineWave() {
   check("Walk, g ~ unif([1]): f(x) = sin(π(a − x)) / sin(πa) on [−5, 5] (relative to its height)",
         "under 0.005", show(errorWalk), errorWalk < 0.005);
 
-  const lattice = rootsOf("lattice", variablesOf("g ~ unif([0])"), 7, N);
+  const lattice = rootsOf("lattice", randomVariablesOf("g ~ unif([0])"), 7, N);
   const s = lattice[N];
   const sineS = function (x) { return Math.sin(Math.PI * (s - x)) / Math.sin(Math.PI * s); };
   const errorLattice = largestGap(function (x) { return fValue(x, lattice); }, sineS, -5, 5) * Math.abs(Math.sin(Math.PI * s));
@@ -81,7 +77,7 @@ function testSineWave() {
 // --- B. One peak per lobe, for random gaps -------------------------
 // f' should change sign at each peak found.
 function testPeaks() {
-  const N = 300, roots = rootsOf("walk", variablesOf("g ~ unif([2, 3])"), 3, N);
+  const N = 300, roots = rootsOf("walk", randomVariablesOf("g ~ unif([2, 3])"), 3, N);
   const lobes = lobesIn(-30, 30, roots);
   let good = 0;
   for (const lobe of lobes) {
@@ -111,22 +107,22 @@ function testGapSets() {
   const letters2 = readRandomVariables("g ~ unif(1 - d, 1 + d)").letters.join(", ");
   check('Sliders for "g ~ unif(1 - d, 1 + d)"', "d", letters2, letters2 === "d");
 
-  const set = averageSizeBiased(variablesOf("g ~ unif([2, 3])"));
+  const set = averageSizeBiased(randomVariablesOf("g ~ unif([2, 3])"));
   check("g ~ unif([2, 3]): average size-biased gap = (4 + 9)/(2 + 3)", "2.6", show(set), Math.abs(set - 2.6) < 1e-4);
 
-  const weighted = variablesOf("g ~ unif([2, 2, 2, 3])").lawOf("g").mean;
+  const weighted = randomVariablesOf("g ~ unif([2, 2, 2, 3])").lawOf("g").mean;
   check("g ~ unif([2, 2, 2, 3]): repeats are weights, mean gap", "2.25", show(weighted), Math.abs(weighted - 2.25) < 1e-12);
 
-  const interval = averageSizeBiased(variablesOf("g ~ unif(1, 1 + δ)", { δ: 0.5 }));
+  const interval = averageSizeBiased(randomVariablesOf("g ~ unif(1, 1 + δ)", { δ: 0.5 }));
   const exactInterval = ((1 + 1.5 + 2.25) / 3) / 1.25;           // E[g^2]/E[g] for g uniform on [1, 1.5]
   check("g ~ unif(1, 1.5): average size-biased gap", show(exactInterval), show(interval), Math.abs(interval - exactInterval) < 1e-6);
 
-  const formula = averageSizeBiased(variablesOf("g = 2 + u^2\nu ~ unif(0, 1)"));
+  const formula = averageSizeBiased(randomVariablesOf("g = 2 + u^2\nu ~ unif(0, 1)"));
   const exactFormula = (83 / 15) / (7 / 3);                      // E[g^2] = 4 + 4/3 + 1/5, E[g] = 2 + 1/3
   check("g = 2 + u^2, a formula: average size-biased gap = 83/35", show(exactFormula), show(formula), Math.abs(formula - exactFormula) < 1e-3);
 
   // nadya's D1: L = sqrt(4 d u + (1 - d)^2) for g ~ unif(1 - d, 1 + d).
-  const d = 0.3, cover = coverLawOf(variablesOf("g ~ unif(1 - d, 1 + d)", { d: d }));
+  const d = 0.3, cover = coverLawOf(randomVariablesOf("g ~ unif(1 - d, 1 + d)", { d: d }));
   let worst = 0;
   for (let i = 0; i <= 10; i++) {
     const u = i / 10;
@@ -136,15 +132,15 @@ function testGapSets() {
 
   // The formula 1 + δ u and the law unif(1, 1 + δ) are the same law, so
   // their covering gaps have the same law too.
-  const asFormula = coverLawOf(variablesOf("g = 1 + δ u\nu ~ unif(0, 1)", { δ: 0.1 }));
-  const asLaw = coverLawOf(variablesOf("g ~ unif(1, 1 + δ)", { δ: 0.1 }));
+  const asFormula = coverLawOf(randomVariablesOf("g = 1 + δ u\nu ~ unif(0, 1)", { δ: 0.1 }));
+  const asLaw = coverLawOf(randomVariablesOf("g ~ unif(1, 1 + δ)", { δ: 0.1 }));
   let worstDraw = 0;
   for (let i = 0; i <= 100; i++) worstDraw = Math.max(worstDraw, Math.abs(drawFromLaw(asFormula, i / 100) - drawFromLaw(asLaw, i / 100)));
   check('"g = 1 + δ u" gives the covering gap the same law as "g ~ unif(1, 1 + δ)"', "under 0.001", show(worstDraw), worstDraw < 1e-3);
 
   // Laws the walk can't take.
   const refusals = [["g ~ unif(-1, 1)", "walk"], ["g ~ pareto(1, 1)", "walk"], ["g ~ unif([0, 1])", "mirror"]].map(function ([text, model]) {
-    return gapProblem(model, variablesOf(text));
+    return gapProblem(model, randomVariablesOf(text));
   });
   check("Refused: gaps that can be 0 or less (walk, mirror), and an infinite mean (walk)", "3 refusals",
         refusals.filter(Boolean).length + " (" + refusals.join(" / ") + ")", refusals.every(Boolean));
@@ -166,7 +162,7 @@ function testStationary() {
     }
     return total / samples;
   }
-  const two = variablesOf("g ~ unif([1, 3])");      // mean gap 2, so 1/2 a root per unit length
+  const two = randomVariablesOf("g ~ unif([1, 3])");      // mean gap 2, so 1/2 a root per unit length
   for (const from of [0, 2.5, 7]) {
     const got = averageCount("walk", two, coverLawOf(two), from, from + 1);
     check("Walk, g ~ unif([1, 3]): average roots in [" + from + ", " + (from + 1) + ")", "0.5", show(got), Math.abs(got - 0.5) < 0.02);
@@ -176,7 +172,7 @@ function testStationary() {
   const wrong = averageCount("walk", two, two.lawOf("g"), 0, 1);
   check("For comparison: the same without the size-biased gap, roots in [0, 1)", "not 0.5 (should look wrong)", show(wrong), Math.abs(wrong - 0.5) > 0.03);
 
-  const jitter = variablesOf("g ~ unif(-1/2, 1/2)");
+  const jitter = randomVariablesOf("g ~ unif(-1/2, 1/2)");
   for (const from of [0, 0.3]) {
     const got = averageCount("lattice", jitter, null, from, from + 0.37);
     check("Jittered lattice, g ~ unif(−1/2, 1/2): average roots in [" + from + ", " + (from + 0.37).toFixed(2) + ")", "0.37", show(got), Math.abs(got - 0.37) < 0.02);
@@ -205,7 +201,7 @@ const N_PLOT = 300;
 function drawSample() {
   const delta = Number(byId("delta").value);
   byId("delta-value").textContent = delta;
-  const variables = variablesOf("g ~ unif(1, 1 + δ)", { δ: delta });
+  const variables = randomVariablesOf("g ~ unif(1, 1 + δ)", { δ: delta });
   const roots = rootsOf("walk", variables, 1, N_PLOT);
   const R0 = roots[N_PLOT], m = variables.lawOf("g").mean;
   const f = curvePoints(function (x) { return fValue(x, roots); }, -10, 10);
@@ -223,7 +219,7 @@ drawSample();
 // Section 3: histogram of peak offsets for gaps {2, 3}, as the sim's
 // offsets chart draws it (histogram, js/sim-charts.js).
 function drawOffsets() {
-  const variables = variablesOf("g ~ unif([2, 3])"), N = 60, offsets = [];
+  const variables = randomVariablesOf("g ~ unif([2, 3])"), N = 60, offsets = [];
   for (let k = 0; k < 300; k++) {
     const roots = rootsOf("walk", variables, "python " + k, N);
     for (const lobe of lobesIn(-15, 15, roots)) offsets.push(lobe.offset);

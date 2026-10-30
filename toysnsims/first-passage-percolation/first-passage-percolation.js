@@ -163,7 +163,7 @@ function newTimes() {
 // out negative somewhere (the box can only check a law): then the line
 // under the box says so, and the times come from the starting line,
 // w ~ exp(1), until it is fixed.
-const FIRST_VARIABLES = makeRandomVariables(readRandomVariables(FIRST_LINES), {});
+const FIRST_VARIABLES = randomVariablesOf(FIRST_LINES);
 function findTimes() {
   try { return passageTimes(domain, weights, variables); }
   catch (problem) {
@@ -480,11 +480,11 @@ function showColorKey() {
   for (let k = 0; k <= 10; k++) stops.push(rgbToHex(PALETTE[Math.round(25.5 * k)]));
   byId("key-strip").style.background = "linear-gradient(to right, " + stops.join(", ") + ")";
   byId("key-low").textContent = "T = 0";
-  byId("key-high").textContent = "T = t = " + shortTime(ballTime());
+  byId("key-high").textContent = "T = t = " + shortNumber(ballTime());
 }
 
-// A time, to 4 significant digits.
-function shortTime(t) { return Number(t.toPrecision(4)).toLocaleString(); }
+// A number (a time, a distance), to 4 significant digits.
+function shortNumber(x) { return Number(x.toPrecision(4)).toLocaleString(); }
 
 
 /* =====================================================================
@@ -772,11 +772,11 @@ function ballTable() {
   const order = search.order, t = ballTime();
   let far = 0;
   for (const v of order) far = Math.max(far, farness[v]);
-  byId("stat-time").textContent = shortTime(t);
+  byId("stat-time").textContent = shortNumber(t);
   byId("stat-cells").textContent = order.length.toLocaleString();
-  byId("stat-farthest").textContent = Number(far.toPrecision(4)).toLocaleString() + (domains.kind === "graph" ? " steps" : "");
+  byId("stat-farthest").textContent = shortNumber(far) + (domains.kind === "graph" ? " steps" : "");
   byId("stat-clicked").textContent = clicked === -1 ? "none (click a cell of the ball)"
-    : "T = " + shortTime(search.T[clicked]) + ", " + (geodesic(search, clicked).length - 1) + " steps";
+    : "T = " + shortNumber(search.T[clicked]) + ", " + (geodesic(search, clicked).length - 1) + " steps";
   if (!shape) return;
   byId("stat-convexity").textContent = shape.convexity().toFixed(3);
   const h = currentHoles();
@@ -934,14 +934,9 @@ const domains = connectDomains({
 // ball of the hyperbolic plane or a tree, its middle cell.
 function middleCell(d) {
   if (!d.x) return 0;
+  if (d.grows) return cellNearestPoint(d, 0, 0);
   const box = pictureBox(d);
-  const [u0, w0] = d.grows ? [0, 0] : [(box.left + box.right) / 2, (box.bottom + box.top) / 2];
-  let best = 0, bestFar = Infinity;
-  for (let v = 0; v < d.n; v++) {
-    const [u, w] = cellMiddle(d, v), far = Math.hypot(u - u0, w - w0);
-    if (far < bestFar) { best = v; bestFar = far; }
-  }
-  return best;
+  return cellNearestPoint(d, (box.left + box.right) / 2, (box.bottom + box.top) / 2);
 }
 
 

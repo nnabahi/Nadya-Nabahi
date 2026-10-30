@@ -54,14 +54,12 @@
    ===================================================================== */
 
 
-// Random variables typed as in the sim's box (js/sim-random.js), with
-// the sliders' values "values".
-function variablesOf(text, values) { return makeRandomVariables(readRandomVariables(text), values || {}); }
-
-const EXPONENTIAL = variablesOf("w ~ exp(1)");
-const GEOMETRIC = variablesOf("w ~ geometric(q)", { q: 0.5 });
-const HERS = variablesOf("w ~ {x = 0: p_0, x = 3: p_3, x >= 5: (1 - p_0 - p_3) e^(-x + 5), 0}", { p_0: 0.2, p_3: 0.3 });
-const MOSTLY_ZERO = variablesOf("w ~ bernoulli(0.1)");
+// The laws of w the checks use most, typed as in the sim's Random
+// variables box (randomVariablesOf, js/sim-random.js).
+const EXPONENTIAL = randomVariablesOf("w ~ exp(1)");
+const GEOMETRIC = randomVariablesOf("w ~ geometric(q)", { q: 0.5 });
+const HERS = randomVariablesOf("w ~ {x = 0: p_0, x = 3: p_3, x >= 5: (1 - p_0 - p_3) e^(-x + 5), 0}", { p_0: 0.2, p_3: 0.3 });
+const MOSTLY_ZERO = randomVariablesOf("w ~ bernoulli(0.1)");
 
 // The times of domain d with the U's of the seed, on the edges or the
 // cells, for the random variables "variables" (as the sim finds them).
@@ -69,9 +67,6 @@ function timesOf(d, seed, onCells, variables) { return passageTimes(d, newWeight
 
 // Every cell of a domain, 0 .. n-1.
 function cellsOf(d) { return Array.from({ length: d.n }, function (_, v) { return v; }); }
-
-// A number to 4 significant digits, as text.
-function short(x) { return Number(x.toPrecision(4)).toString(); }
 
 
 /* ---------------------------------------------------------------------
@@ -96,7 +91,7 @@ function testTimes() {
 
   // A formula for w that comes out negative somewhere.
   let refused = "";
-  try { timesOf(d, "negative", false, variablesOf("w = n\nn ~ normal(0, 1)")); }
+  try { timesOf(d, "negative", false, randomVariablesOf("w = n\nn ~ normal(0, 1)")); }
   catch (problem) { refused = problem.message; }
   addRow("A formula for w that comes out negative is refused", refused !== "",
          refused ? "w = n with n ~ normal(0, 1): \"" + refused + "\"" : "w = n with n ~ normal(0, 1) was taken.");
@@ -134,15 +129,15 @@ function ksStatistic(sample, G) {
 function testDraws() {
   const continuous = [
     { name: "w ~ exp(1)", variables: EXPONENTIAL, G: function (x) { return 1 - Math.exp(-x); } },
-    { name: "w ~ unif(0, 1)", variables: variablesOf("w ~ unif(0, 1)"), G: function (x) { return Math.min(1, Math.max(0, x)); } },
-    { name: "the density x e^(-x), typed", variables: variablesOf("w ~ {x >= 0: x e^(-x), 0}"), G: function (x) { return 1 - Math.exp(-x) * (1 + x); } },
-    { name: "w = min(a, b), a and b ~ exp(1) (so w ~ exp(2))", variables: variablesOf("w = min(a, b)\na ~ exp(1)\nb ~ exp(1)"),
+    { name: "w ~ unif(0, 1)", variables: randomVariablesOf("w ~ unif(0, 1)"), G: function (x) { return Math.min(1, Math.max(0, x)); } },
+    { name: "the density x e^(-x), typed", variables: randomVariablesOf("w ~ {x >= 0: x e^(-x), 0}"), G: function (x) { return 1 - Math.exp(-x) * (1 + x); } },
+    { name: "w = min(a, b), a and b ~ exp(1) (so w ~ exp(2))", variables: randomVariablesOf("w = min(a, b)\na ~ exp(1)\nb ~ exp(1)"),
       G: function (x) { return 1 - Math.exp(-2 * x); } },
   ];
   for (const c of continuous) {
     const k = ksStatistic(drawnTimes(c.variables, "ks " + c.name), c.G);
     addRow("The drawn times, " + c.name + " (Kolmogorov-Smirnov)", k < 1.949,
-           "28,560 edge times: sqrt(n) D = " + short(k) + " (a correct sim is above 1.949 one time in 1000).");
+           "28,560 edge times: sqrt(n) D = " + fourDigits(k) + " (a correct sim is above 1.949 one time in 1000).");
   }
 
   // The geometric: how often each whole number comes.
@@ -151,7 +146,7 @@ function testDraws() {
   for (const x of geometric) seen.set(x, (seen.get(x) || 0) + 1);
   let result = pooledChiSquare(odds, seen, geometric.length);
   addRow("The drawn times, w ~ geometric(1/2) (chi-square)", result.pValue > 0.001,
-         "28,560 edge times in " + result.groups + " groups: p = " + short(result.pValue) + ".");
+         "28,560 edge times in " + result.groups + " groups: p = " + fourDigits(result.pValue) + ".");
 
   // nadya's example: the two masses, and the density's part in pieces.
   const hers = drawnTimes(HERS, "chi hers"), cuts = [5, 5.5, 6, 7, 8, Infinity];
@@ -166,7 +161,7 @@ function testDraws() {
   }
   result = pooledChiSquare(hersOdds, hersSeen, hers.length);
   addRow("The drawn times, nadya's example (chi-square)", result.pValue > 0.001 && !hersSeen.has("other"),
-         "28,560 edge times: exactly 0, exactly 3, and 5 pieces of [5, infinity); p = " + short(result.pValue) +
+         "28,560 edge times: exactly 0, exactly 3, and 5 pieces of [5, infinity); p = " + fourDigits(result.pValue) +
          (hersSeen.has("other") ? "; " + hersSeen.get("other") + " fell where the law has nothing." : "."));
 }
 
@@ -369,7 +364,7 @@ function testEden() {
            result.pValue > 0.001,
            RUNS.toLocaleString() + " seeds on the square grid: the first three cells to join, against the exact odds (" +
            (onCells ? "each new cell uniform among the cells next to the ball" : "each new cell in proportion to its edges to the ball") +
-           ", " + odds.size + " outcomes in " + result.groups + " groups): p = " + short(result.pValue) + ".");
+           ", " + odds.size + " outcomes in " + result.groups + " groups): p = " + fourDigits(result.pValue) + ".");
   }
 }
 
@@ -423,8 +418,8 @@ function testCoupling() {
 
   // Moving a slider moves every time the same way.
   const box = boxDomain(30, 30, 4, false), weights = newWeights(box, "slider", false);
-  const uniformA = function (a) { return passageTimes(box, weights, variablesOf("w ~ {0 <= x <= a: 1 / a, 0}", { a: a })).tau; };
-  const rate = function (r) { return passageTimes(box, weights, variablesOf("w ~ exp(r)", { r: r })).tau; };
+  const uniformA = function (a) { return passageTimes(box, weights, randomVariablesOf("w ~ {0 <= x <= a: 1 / a, 0}", { a: a })).tau; };
+  const rate = function (r) { return passageTimes(box, weights, randomVariablesOf("w ~ exp(r)", { r: r })).tau; };
   const [u1, u2] = [uniformA(1), uniformA(1.5)], [e1, e2] = [rate(1), rate(2)];
   let wrongWay = 0, worst = 0;
   for (let e = 0; e < u1.length; e++) {
@@ -434,7 +429,7 @@ function testCoupling() {
   }
   addRow("Moving a slider moves every time the same way", wrongWay === 0 && worst < 1e-4,
          "On " + u1.length + " edge entries: uniform on [0, a], a from 1 to 1.5, makes every time 1.5 times longer, and the " +
-         "exponential with rate r, r from 1 to 2, every time half as long (largest error " + short(worst) + "); " +
+         "exponential with rate r, r from 1 to 2, every time half as long (largest error " + fourDigits(worst) + "); " +
          wrongWay + " moved the other way.");
 }
 
@@ -459,12 +454,12 @@ function testWholePlane() {
       function (s, b) { return function (v) { return tilingCell(b, s.x[v], s.y[v], s.part[v]); }; }],
   ];
   for (const [name, small, big, match] of cases) {
-    const edge = edgeCells(small), sameCell = match(small, big);
+    const edge = edgeCells(small), sameCell = match(small, big), start = cellNearestPoint(small, 0, 0);
     let bad = 0, found = 0;
     for (let k = 0; k < 10; k++) {
       const onCells = k % 2 === 1, seed = "plane " + k;
-      const a = newSearch(small, timesOf(small, seed, onCells, EXPONENTIAL), middleCell(small));
-      const b = newSearch(big, timesOf(big, seed, onCells, EXPONENTIAL), sameCell(middleCell(small)));
+      const a = newSearch(small, timesOf(small, seed, onCells, EXPONENTIAL), start);
+      const b = newSearch(big, timesOf(big, seed, onCells, EXPONENTIAL), sameCell(start));
       while (a.peek() !== -1 && !edge[a.peek()]) a.next();
       while (b.order.length < a.order.length) b.next();
       for (const v of a.order) if (Math.abs(a.T[v] - b.T[sameCell(v)]) > 1e-12 || !b.settled[sameCell(v)]) bad++;
@@ -474,16 +469,6 @@ function testWholePlane() {
            "10 seeds (times on the edges and on the cells): the " + found.toLocaleString() + " cells a small box finds before " +
            "its first cell on the edge have the same T in a box three times bigger" + (bad === 0 ? "." : ", but " + bad + " didn't."));
   }
-}
-
-// The cell of a domain centered on 0 whose middle is nearest to 0.
-function middleCell(d) {
-  let best = 0, bestFar = Infinity;
-  for (let v = 0; v < d.n; v++) {
-    const [u, w] = cellMiddle(d, v), far = Math.hypot(u, w);
-    if (far < bestFar) { best = v; bestFar = far; }
-  }
-  return best;
 }
 
 
@@ -531,8 +516,8 @@ function testPairs() {
   for (let a = 0; a < 16; a++) for (let b = a + 1; b < 16; b++) counts.push(pairs.get(a * 16 + b) || 0);
   const one = equalChiSquare(firsts), two = equalChiSquare(counts);
   addRow("The particles are uniform, and so are the pairs", one.pValue > 0.001 && two.pValue > 0.001,
-         RUNS.toLocaleString() + " seeds on a 4 x 4 box: the first particle's cell (16 outcomes) p = " + short(one.pValue) +
-         ", the first pair (120 outcomes) p = " + short(two.pValue) + ".");
+         RUNS.toLocaleString() + " seeds on a 4 x 4 box: the first particle's cell (16 outcomes) p = " + fourDigits(one.pValue) +
+         ", the first pair (120 outcomes) p = " + fourDigits(two.pValue) + ".");
 }
 
 
