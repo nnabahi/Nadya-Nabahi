@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Walker — Check Page</title>
+  <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+
+  <!-- Tests of the walker the sims share (js/sim-walk.js): its lattices,
+       its steps, and its exact jumps across balls. -->
+  <main class="page">
+    <h1>Walker: Check Page</h1>
+    <p>
+      The sims with random walkers (Random Walk and the DLA family) share one
+      walker. It lives on any lattice: the grids Z, Z<sup>2</sup> and
+      Z<sup>3</sup>, every tiling of the plane (its tiles or its corners as
+      the cells, Penrose included) and every tiling of space. Each step goes
+      to one of the cell's neighbors, all equally likely.
+    </p>
+    <p>
+      Far from anything that could stop it, the walker can instead
+      <b>jump</b>: it skips all its steps inside a ball around it (the sites
+      at most r steps away) and lands straight where it first leaves the
+      ball. The chances of each landing place (the "exit law") are worked out
+      once by solving a linear system, and by the strong Markov property the
+      jump is exactly the same as taking the steps (details at the top of
+      js/sim-walk.js). The checks below test that: exact answers on the line,
+      the grids' symmetries, and the exit law against plain steps.
+    </p>
+
+    <p><button id="run-checks">Run the checks</button> (about half a minute)</p>
+
+    <table class="check-table">
+      <tbody id="results"></tbody>
+    </table>
+  </main>
+
+  <!-- jStat (chi-square p-values). The version is fixed so an update
+       can never change the tests by surprise. -->
+  <script src="https://cdn.jsdelivr.net/npm/jstat@1.9.6/dist/jstat.min.js"></script>
+  <!-- byId() (sim-page.js), the results table (check-page.js), the
+       seeded random numbers (sim-worker.js), the tilings of the plane
+       and of space, then the walker, then this page's own code. -->
+  <script src="../js/site.js"></script>
+  <script src="../js/sim-page.js"></script>
+  <script src="../js/check-page.js"></script>
+  <script src="../js/sim-worker.js"></script>
+  <script src="../js/sim-domains.js"></script>
+  <script src="../js/sim-tilings.js"></script>
+  <script src="../js/sim-penrose.js"></script>
+  <script src="../js/sim-honeycombs.js"></script>
+  <script src="../js/sim-walk.js"></script>
+  <script src="walk-check.js"></script>
+</body>
+</html>

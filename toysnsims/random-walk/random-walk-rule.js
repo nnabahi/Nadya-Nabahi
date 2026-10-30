@@ -50,17 +50,18 @@
      (x, y)
 
    The file has these parts, with no drawing and no buttons:
-     1. newWalk(options): the walk itself. The check page
+     1. newWalk(options): the walk itself. Its steps are the shared
+        walkStep on a lattice (js/sim-walk.js). The check page
         (random-walk-check.html) tests it in the browser.
      2. Its shape: the hull (2D: convexHull, js/sim-shape.js). The
         holes and the outer boundary are holeHistory and frontierLength
         (js/sim-shape.js).
      3. walkWorker(): runs a walk in a second thread (a "Web Worker")
         for the sim page, random-walk.js, so the page never freezes.
-        runInWorker (js/sim-page.js) starts it, with newWalk, the trace
-        and random numbers (js/sim-worker.js), the hull, holes and outer
-        boundary (js/sim-shape.js) and middleAt (js/sim-domains.js)
-        copied in.
+        runInWorker (js/sim-page.js) starts it, with newWalk, the
+        lattices and steps (js/sim-walk.js), the trace and random
+        numbers (js/sim-worker.js), the hull, holes and outer boundary
+        (js/sim-shape.js) and middleAt (js/sim-domains.js) copied in.
    ===================================================================== */
 
 
@@ -81,20 +82,18 @@
 // fields say where it has been (see the end of this function).
 function newWalk(options) {
   const dim = options.dim, tiling = options.tiling || null;
-  // The 2d directions, as moves [dx, dy, dz], and the cuts (on the grids).
-  const MOVES = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]].slice(0, 2 * dim);
-  const cut = tiling ? null : cutsOf(options.weights, MOVES.length);
+  // The lattice it walks on (js/sim-walk.js), and on the grids the cuts
+  // for the weights.
+  const lattice = tiling ? tilingLattice(tiling) : gridLattice(dim);
+  const cut = tiling ? null : cutsOf(options.weights, 2 * dim);
   const random = seededUniform(options.seed);
+  const site = newSite(0, 0, 0, 0);    // where the walker is (js/sim-walk.js)
 
   // Every visited site gets a number, 0, 1, 2, ..., in the order it
   // was first visited. For site number i:
   const siteX = [], siteY = [], siteZ = [];
   const bornAt = [];            // the step it was first visited (0 for the origin)
-  // A site's key, to look up its number: in 1D and 2D one whole number
-  // (the walk stays within 2^21 of the origin, so x * 2^22 + y never
-  // mixes two sites up); in 3D and on another tiling, text "x,y,z".
-  function keyOf(x, y, z) { return dim === 3 || tiling ? x + "," + y + "," + z : x * 4194304 + y; }
-  const numberOf = new Map();
+  const numberOf = new Map();   // a site's key (lattice.keyOf) -> its number
 
   const w = {
     dim: dim,
@@ -114,14 +113,14 @@ function newWalk(options) {
   };
   const start = placeOf(0, 0, 0);
 
-  // 2D: where site (x, y, z) is in the plane, in side lengths: on the
-  // square grid (x, y) itself; on another tiling the middle of cell z
-  // of block (x, y) (middleAt, js/sim-domains.js).
-  function placeOf(x, y, z) { return tiling ? middleAt(tiling, x, y, z) : [x, y]; }
+  // Where site (x, y, z) is, in side lengths: on the grids (x, y, z)
+  // itself (as many numbers as dimensions); on another tiling the middle
+  // of cell z of block (x, y).
+  function placeOf(x, y, z) { return tiling ? lattice.placeOf(x, y, 0, z) : lattice.placeOf(x, y, z, 0); }
 
   // The walker is at (x, y, z) at step n: note the site, if it is new.
   function visit(x, y, z, n) {
-    const key = keyOf(x, y, z);
+    const key = tiling ? lattice.keyOf(x, y, 0, z) : lattice.keyOf(x, y, z, 0);
     if (numberOf.has(key)) return;
     numberOf.set(key, siteX.length);
     siteX.push(x); siteY.push(y); siteZ.push(z); bornAt.push(n);
@@ -137,52 +136,24 @@ function newWalk(options) {
     }
   }
 
-  // On the grids: the direction for a uniform u, the first whose cut is
-  // above u, and the move.
-  function moveOnGrid(u) {
-    let k = 0;
-    while (cut[k] <= u) k++;
-    w.x += MOVES[k][0]; w.y += MOVES[k][1]; w.z += MOVES[k][2];
-  }
-
-  // On another tiling: to one of the cell's neighbors, all equally
-  // likely, neighbor number floor(u * how many) of its list from
-  // cellNeighbors (js/sim-domains.js), kept for each cell once made.
-  const neighbors = [];
-  function moveOnTiling(u) {
-    const near = neighbors[w.z] || (neighbors[w.z] = cellNeighbors(tiling.cells[w.z]));
-    const [z, dx, dy] = near[Math.floor(u * near.length)];
-    w.x += dx; w.y += dy; w.z = z;
-  }
-
   // On a Penrose tiling: can the walk go on from where it is? Its plane
   // must hold every cell within 8 of it (so the cells it can step to,
   // and the window the holes look at, 5 past the visited cells, are
   // there: js/sim-shape.js), and grows if it doesn't; it can't past
   // PENROSE_PLANE_MOST (js/sim-penrose.js).
-  function planeReaches() {
-    if (!tiling || !tiling.finite) return true;
-    const [x, y] = tiling.cells[w.z].middle;
-    return penroseReach(tiling, x, y, 8);
-  }
+  function planeReaches() { return lattice.periodic || lattice.reaches(placeOf(w.x, w.y, w.z), 8); }
 
-  // |S_n|: how far the walker is from where it started (on another
-  // tiling, from the middle of the first cell to the middle of this one).
-  function distanceNow() {
-    if (!tiling) return Math.sqrt(w.x * w.x + w.y * w.y + w.z * w.z);
-    const [u, v] = placeOf(w.x, w.y, w.z);
-    return Math.sqrt((u - start[0]) * (u - start[0]) + (v - start[1]) * (v - start[1]));
-  }
-
-  // One step: move as u_n says (see the top of this file), then update
-  // the numbers and note the site. At the edge of a Penrose tiling's
-  // plane, nothing happens.
+  // One step: move as u_n says (walkStep, js/sim-walk.js: on the grids
+  // by the cuts, on another tiling to neighbor number floor(u_n * the
+  // number of neighbors)), then update the numbers and note the site.
+  // At the edge of a Penrose tiling's plane, nothing happens.
   function step() {
     if (w.atEdge || !planeReaches()) { w.atEdge = true; return; }
-    const n = w.steps + 1, u = random.uniform(n);
-    if (tiling) moveOnTiling(u); else moveOnGrid(u);
+    const n = w.steps + 1;
+    walkStep(lattice, site, random.uniform(n), cut);
+    w.x = site.I; w.y = site.J; w.z = tiling ? site.k : site.K;
     w.steps = n;
-    w.distance = distanceNow();
+    w.distance = distanceBetween(placeOf(w.x, w.y, w.z), start);
     w.maxDistance = Math.max(w.maxDistance, w.distance);
     if (w.x === 0 && w.y === 0 && w.z === 0) w.returns += 1;
     visit(w.x, w.y, w.z, n);
@@ -191,24 +162,6 @@ function newWalk(options) {
   planeReaches();
   visit(0, 0, 0, 0);
   return w;
-}
-
-// The cuts for these weights, one per direction ("count" of them):
-// cut[k] = (w_1 + ... + w_(k+1)) / (all of them), the last one 1.
-// Says what is wrong if the weights can't be used.
-function cutsOf(weights, count) {
-  if (weights.length !== count) throw new Error("There should be " + count + " weights.");
-  let total = 0;
-  for (const w of weights) {
-    if (!(w >= 0)) throw new Error("Every weight must be a number, 0 or more.");
-    total += w;
-  }
-  if (!(total > 0)) throw new Error("At least one weight must be above 0.");
-  const cut = [];
-  let sum = 0;
-  for (const w of weights) { sum += w; cut.push(sum / total); }
-  cut[cut.length - 1] = 1;
-  return cut;
 }
 
 
