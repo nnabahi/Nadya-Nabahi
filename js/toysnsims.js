@@ -6,8 +6,9 @@
         the sporadic models and the tools. A pinned card
         (class="card pinned", the Graph & Domain Tool) goes first in its
         own group.
-     2. Families: put each family's colored bar on top of its panel,
-        and open one panel at a time when its family card is clicked.
+     2. Families: put a "Simple" arrow on top of each family's Simple
+        text, and open one panel at a time when its family card is
+        clicked.
      3. Genre buttons: make one button per genre written on the
         sporadic models' cards, and hide the cards that don't match.
 
@@ -48,16 +49,13 @@ function sortGrid(grid) {
    Families
    --------------------------------------------------------------------- */
 
-// Make a family's colored bar: the clickable top of its Simple text
-// (a <details>), showing the family card's name and one line, so that
-// text is written only once, on the card.
-function addFamilyBar(family) {
-  const bar = document.createElement("summary");
-  bar.className = "family-bar";
-  const words = document.createElement("div");
-  words.innerHTML = family.querySelector(".family-card").innerHTML;
-  bar.appendChild(words);
-  family.querySelector(".family-text").prepend(bar);
+// Make the "Simple" arrow: the clickable top of a family's Simple text
+// (a <details>). Written here once instead of in every family block.
+function addSimpleArrow(family) {
+  const arrow = document.createElement("summary");
+  arrow.className = "family-arrow";
+  arrow.textContent = "Simple";
+  family.querySelector(".family-text").prepend(arrow);
 }
 
 // Open one family's panel and close all the others.
@@ -92,7 +90,7 @@ function makeFamilyCardClickable(families, family) {
 function setUpFamilies() {
   const families = Array.from(document.querySelectorAll(".family"));
   for (const family of families) {
-    addFamilyBar(family);
+    addSimpleArrow(family);
     makeFamilyCardClickable(families, family);
   }
   showFamily(families, null);   // all closed to start
