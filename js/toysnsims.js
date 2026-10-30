@@ -3,7 +3,9 @@
    ---------------------------------------------------------------------
    What it does, in plain words:
      1. Sort A to Z by name: the families, the sims inside each family,
-        the sporadic models and the tools.
+        the sporadic models and the tools. A pinned card
+        (class="card pinned", the Graph & Domain Tool) goes first in its
+        own group.
      2. Families: put each family's colored bar on top of its panel,
         and open one panel at a time when its family card is clicked.
      3. Genre buttons: make one button per genre written on the
@@ -29,10 +31,13 @@ function nameOf(item) {
   return item.querySelector("h3").textContent;
 }
 
-// Put the items of a grid in A to Z order by name. Moving each item to
-// the end of the grid, in sorted order, leaves them sorted.
-function sortByName(grid) {
+// Put the items of a grid in order: pinned items (class="pinned") first,
+// then A to Z by name. Moving each item to the end of the grid, in that
+// order, leaves them sorted.
+function sortGrid(grid) {
   const items = Array.from(grid.children).sort(function (a, b) {
+    const aPinned = a.classList.contains("pinned"), bPinned = b.classList.contains("pinned");
+    if (aPinned !== bPinned) return aPinned ? -1 : 1;
     return nameOf(a).localeCompare(nameOf(b));
   });
   for (const item of items) grid.appendChild(item);
@@ -155,6 +160,6 @@ function setUpGenreButtons() {
 /* ---------------------------------------------------------------------
    Run the three steps.
    --------------------------------------------------------------------- */
-for (const grid of document.querySelectorAll(".card-grid")) sortByName(grid);
+for (const grid of document.querySelectorAll(".card-grid")) sortGrid(grid);
 setUpFamilies();
 setUpGenreButtons();

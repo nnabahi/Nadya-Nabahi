@@ -25,7 +25,7 @@ the special functions some laws of random variables need).
 | `css/style.css` | The single stylesheet for every page |
 | `js/site.js` | The top bar's links, written once for every page, and `fillBlocks`, which fills a page's placeholders with shared pieces of HTML |
 | `js/writing.js` | Sorts the posts on `writing.html` newest first, turns their Markdown into formatted text with math, and adds the giscus comment box to an open post |
-| `js/toysnsims.js` | The `toysnsims.html` list: sorts every group A to Z, opens one model family's panel at a time, and builds the genre buttons for the sporadic models |
+| `js/toysnsims.js` | The `toysnsims.html` list: sorts every group A to Z (a pinned card, the Graph & Domain Tool, first), opens one model family's panel at a time, and builds the genre buttons for the sporadic models |
 | `help/gomjau-hogg.html` | Help page: how to write a tiling as a GomJau-Hogg code (linked from the Lattice code box), with `gomjau-hogg.js` for its "Try a code" box |
 | `help/random-variables.html` | Help page: how to type random variables in the Random variables box (linked from the box), with `random-variables.js` for its "Try it" box and the tables of every law (made from the catalog); `random-variables-check.html` tests the laws and the random variables |
 | `SIMS.md` | Planning list of candidate sims and their status (not shown on the site) |
