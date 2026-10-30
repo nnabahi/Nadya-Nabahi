@@ -225,7 +225,8 @@ function determinant(rows) {
 // Markov Process. Related Fields 16 (2010) 803-866): each is a
 // Fredholm determinant, worked out as an ordinary determinant at the
 // points of Gauss-Legendre quadrature (50 of them: the error goes down
-// exponentially in their number, and 50 are plenty here). With A_s(x, y) = Ai((x + y)/2 + s)/2 on (0, infinity),
+// exponentially in their number, and 50 are plenty here). With
+// A_s(x, y) = Ai((x + y)/2 + s)/2 on (0, infinity),
 //   F_2(s) = det(I - K) on (s, infinity), K the Airy kernel
 //            (Ai(x) Ai'(y) - Ai'(x) Ai(y)) / (x - y),
 //   F_1(s) = det(I - A_s)  (P. L. Ferrari and H. Spohn, J. Phys. A 38
@@ -1095,7 +1096,8 @@ const LAW_CATALOG = {
     build: function (n, s) {
       return lawFromDensity({ least: 0, most: Infinity, scale: n + s, density: function (x) { return LAW_CATALOG.rice.density(x, n, s); } });
     },
-    // (x/s^2) e^(-(x^2 + n^2)/(2s^2)) I0(x n / s^2), with e^(-z) I0(z), so nothing overflows.
+    // (x/s^2) e^(-(x^2 + n^2)/(2s^2)) I0(x n / s^2), with e^(-z) I0(z),
+    // so nothing overflows.
     density: function (x, n, s) { return x <= 0 ? 0 : x / (s * s) * Math.exp(-(x - n) * (x - n) / (2 * s * s)) * besselI0Scaled(x * n / (s * s)); },
   },
 
