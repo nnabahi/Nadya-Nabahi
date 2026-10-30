@@ -70,7 +70,7 @@ Claude wrote from the formulas, so rename them freely.
 | Invasion percolation | | | idea | |
 | Random sequential adsorption (RSA) | | | idea | |
 | Directed percolation | | | idea | |
-| Heat flow (may take in D2, D3 and D15; being decided) | | | planning | Build heat flow sim |
+| Heat flow (may take in D2, D3 and D15; parked, see WANTS.md) | | | idea | Build heat flow sim |
 | Bernoulli Site Percolation | | | live | |
 | Bernoulli Bond Percolation | | | live | |
 | Ising & Potts Model | | | live | |

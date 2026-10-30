@@ -277,6 +277,28 @@ talk "What is a random surface?"), nadya 2026-10-21.
   semi-infinite geodesics in Brownian last-passage percolation", Ann.
   Inst. Henri Poincaré Probab. Stat. 59 (2023). On Z^2 the exponential LPP
   version is exact and easy.
+- **The broken line process and polymer pinning** (paper and picture
+  nadya shared, 2026-10-30: "look at how gorgeous this is"): Hammersley's
+  picture of Ulam's problem. Rotate by 45 degrees; every Poisson point in
+  a domain sends out two particles, at speeds +1 and -1, more particles
+  come in from the boundary, and two particles that meet both die. Their
+  paths are broken lines with slopes ±1, and the longest increasing path
+  from (0,0) to (n,n) collects exactly as many points as there are lines
+  between the two corners, about 2n of them. V. Beffara, V. Sidoravicius,
+  H. Spohn and M. E. Vares, "Polymer pinning in a random medium as
+  influence percolation", IMS Lecture Notes-Monograph Series 48 (2006)
+  1-15, arXiv:math/0507142 (Sec. 2.2 builds the lines); the limit 2 is
+  from J. M. Hammersley, "A few seedlings of research", Proc. Sixth
+  Berkeley Symp. 1 (1972) 345-394, and D. Aldous and P. Diaconis,
+  "Hammersley's interacting particle process and longest increasing
+  subsequences", Probab. Theory Related Fields 103 (1995) 199-213. The
+  paper's question is a slider: add extra Poisson points of intensity λ
+  on the diagonal and watch whether the geodesic gets pinned to it
+  (expected for every λ > 0, not proved). Geodesics wander about n^(2/3)
+  without the diagonal: K. Johansson, "Transversal fluctuations for
+  increasing subsequences on the plane", Probab. Theory Related Fields
+  116 (2000) 445-456. Exact and easy; the picture is the lines
+  themselves, drawn over the points.
 
 ## Loop O(n) model (new sim)
 
@@ -371,6 +393,20 @@ From nadya's Lyons and Peres figures (plan:
   USF, scaling limits, and squarings of rectangles (the square tilings of
   Lyons-Peres Sec. 9).
 
+## Uniform Discrete Tiling
+
+- **Percolation stats of the tiling** (nadya, 2026-10-30, thread "Tile
+  packing"): for each kind of cell, the clusters of touching cells of that
+  kind, with the distributions of their areas and perimeters, and "Betti
+  numbers if we really want to be crazy". The kinds follow the "Color by"
+  menu: by tile size, a tile and its rotations are one kind; by
+  direction, each rotation is its own kind. Area and perimeter are cheap:
+  the clusters come from findRegions (js/sim-domains.js) and the
+  perimeter chart from perimeterChart (js/sim-charts.js), as on the
+  Cellular Automata page. Betti numbers per cluster would be new code,
+  since the holes counter in js/sim-shape.js follows one growing set
+  rather than measuring a fixed picture.
+
 ## Forest fires (queued)
 
 - **Planar lattices do not recover** (talk: I. Manolescu): on a planar
@@ -404,6 +440,102 @@ From nadya's Lyons and Peres figures (plan:
   N. Sun, "Proof of the satisfiability conjecture for large k",
   Ann. of Math. 196 (2022) 1-388. A solver limits it to small n.
 - The temporal graphs above would fit here too.
+
+## Heat Flow (new sim, parked 2026-10-30)
+
+Plan draft 1: /mnt/project-files/heat-flow/plan.md (thread "Build heat
+flow sim"). SIMS.md lists it as an idea and keeps D2, D3 and D15.
+
+- **Operators on bi-infinite sequences** (nadya, 2026-10-30): f(a)_n =
+  (1/2)(a_{n-1} + a_{n+1}) on A^Z, the same for sin(1/x), then 2D and any
+  tiling. f - I is half the discrete Laplacian, so iterating f is the
+  discrete heat equation, and f^t(a)_n = 2^(-t) Σ_m C(t,m) a_{n+2m-t} is
+  her D3: G. Lawler, *Random Walk and the Heat Equation*, AMS Student
+  Math. Library 55 (2010), ch. 1. As an infinite matrix it is a
+  tridiagonal Toeplitz operator with spectrum [-1, 1]: A. Böttcher and
+  B. Silbermann, *Analysis of Toeplitz Operators*, 2nd ed., Springer
+  (2006), ch. 1. The bi-infinite case is exact with no boundary, since
+  W sites after t steps only need the W + 2t starting values around them.
+- **The general version in the plan**: f(a)_x = λ a_x + (1 - λ)(average
+  over the neighbors of x) on every domain, optionally weights on chosen
+  offsets (D2 as a preset), starting values from a formula or the shared
+  Random variables box, a graph view and a space-time view (shared with
+  Cellular Automata).
+- **Open questions in the plan**: what A is (the reals, or Z/p with p odd,
+  which gives Pascal's triangle mod p); sin(1/x) at 0 and on which grid;
+  the edge rule on finite domains; D15's random environment now or later;
+  λ and the offset weights together or just λ.
+
+## Brownian motion (new sim, parked 2026-10-30)
+
+- **Brownian motion** (nadya, 2026-10-30, thread "Build Brownian motion
+  sim": "brownian motion thread!"). Not yet scoped; she has not said
+  which model she means. Candidates found then: the continuous version of
+  Random Walk (1D, 2D, 3D paths with its range, hull, holes and frontier
+  stats; the Brownian frontier has dimension 4/3: G. Lawler, O. Schramm
+  and W. Werner, "The dimension of the planar Brownian frontier is 4/3",
+  Math. Res. Lett. 8 (2001) 401-411), her Brownian bridge "rough ellipse"
+  (SIMS.md, Random bridges / mountains) and randombrowniansin.py
+  (MODELS.md). Whatever it is shares the Brownian code planned for the
+  continuous DLA sims (js/sim-continuum.js, walk on spheres;
+  /mnt/project-files/dla/plan.md), so that code is written once.
+
+## Fractal domains (every sim with the Domain options, parked 2026-10-30)
+
+Plan draft 2: /mnt/project-files/fractal-domains/plan.md (thread "Add
+fractal domains"), covering the whole Wikipedia list of fractals by
+Hausdorff dimension. Fractal percolation is already an idea in SIMS.md.
+
+- **Her Sierpinski, both ways** (nadya, 2026-10-30): site, S_0 = {(0,0)},
+  S_{n+1} = S_n ∪ (S_n + (2^n, 0)) ∪ (S_n + (0, 2^n)); edge, S_0 = {e_1,
+  e_2}, the same rule. The site version is Pascal's triangle mod 2, and by
+  Lucas' theorem it extends to every prime p (A. Granville, "Arithmetic
+  properties of binomial coefficients I", CMS Conf. Proc. 20 (1997)).
+  With square neighbors the site version is a tree; the edge version has
+  one loop per hole.
+- **Five general ways to turn a fractal into a domain**, each its own PR:
+  a grid digit rule (Sierpinski, carpet, Vicsek, Cantor dust, T-square),
+  self-similar graphs from a list of maps (J. Hutchinson, "Fractals and
+  self-similarity", Indiana Univ. Math. J. 30 (1981) 713-747), the cells
+  inside a fractal region (Koch snowflake, Julia sets, Apollonian gasket,
+  attractors), a sim's own result saved as a domain (percolation
+  clusters, Eden clusters, her Sequential Continuous Tiling's leftover
+  space), and fractal shapes for the continuous sims. The plan ends with
+  four choices for her: order, presets, the random digit rule, and
+  neighbors and walls.
+- **The T-square** (nadya: "ive drawn the T-square fractal more than a
+  million times when i was younger, there has to be some way of using it
+  here"): an IFS with condensation (M. Barnsley, *Fractals Everywhere*,
+  Academic Press (1988), Sec. 3.9). The filled set has dimension 2 and
+  its boundary log 3 / log 2. Every square has a power-of-2 side, so on
+  the grid it is exact. Uses in the plan: a domain, a "color by level"
+  picture, its boundary for exit times, and a preset of the IFS sim.
+- **Her question: a recurrent walk inside Z^3** (nadya, 2026-10-30: a
+  non-trivial, maybe random, subset of Z^3 whose walk is recurrent, or a
+  special dimension above 2 where one still exists). The plan's answer:
+  which edges are kept decides it, not the points (the UST of Z^3 spans
+  every point and is one-ended, so recurrent: R. Pemantle, Ann. Probab.
+  19 (1991) 1559-1574; I. Benjamini, R. Lyons, Y. Peres and O. Schramm,
+  Ann. Probab. 29 (2001) 1-65); the right parameter is the spectral
+  dimension, and every d_f >= 1 with 2 <= d_w <= d_f + 1 occurs (M.
+  Barlow, "Which values of the volume growth and escape time exponent
+  are possible for a graph?", Rev. Mat. Iberoam. 20 (2004) 1-31), so no
+  special threshold above 2 exists. A candidate of her own kind: Pascal
+  mod p in Z^3, of dimension log C(p+2,3) / log p, recurrent if one
+  resistance number is > 1 (not yet checked; a check page could compute
+  it). Waits for the 3D thread.
+
+## IFS sim (new sim, nadya's call)
+
+- **Iterated function systems** (nadya, 2026-10-30: "i think this will
+  eventually spawn (at the very least) an IFS sim"): maps you edit (and
+  maybe drag, as in Desmos), the level-n picture against the chaos game,
+  condensation sets (the T-square), and optional weights on the maps
+  (renormalized, blank = uniform). The chaos game draws the attractor:
+  M. Barnsley and S. Demko, "Iterated function systems and the global
+  construction of fractals", Proc. R. Soc. Lond. A 399 (1985) 243-275.
+  The fractal domains above need the same machinery, so it would be
+  shared code (plan: /mnt/project-files/fractal-domains/plan.md).
 
 ## Other new sims
 
