@@ -3,7 +3,9 @@
 A clean list of the models in nadya's Programming folder, written by Claude on
 2026-10-03 after reading the folder. Nothing in the folder was changed.
 `SIMS.md` is still the master idea list. This file only sorts what's actually
-there.
+there. Each family says which sim on the site it became, if any (updated
+2026-10-30); what gets built next comes from nadya's own lists (`SIMS.md`,
+`WANTS.md`).
 
 File paths are relative to `Programming/Python/` unless they start with another
 folder name. Each family names its main file first.
@@ -13,9 +15,12 @@ and the Numbers/ plot images are left out.
 
 ---
 
-## 1. Random packings: your favorites, build these first
+## 1. Random packings: your favorites
 
 ### 1a. Random disk packing in the unit disk (your "gasket" model)
+**On the site:** Sequential Continuous Tiling, as its "Your gasket" and "Your s
+model" presets.
+
 Centers land at random in the unit disk, at a distance from the middle set by a
 parameter **s**. One value of s gives uniform spread. A center that falls inside an
 earlier disk is thrown away. Otherwise the new disk grows until it touches the
@@ -35,6 +40,9 @@ This is the most developed body of work in the folder.
 - 1D version: `random1dpacking`, `1dpacking.py` (distribution of R_2)
 
 ### 1b. Fixed tileset packing a grid
+**On the site:** Uniform Discrete Tiling (with or without gaps; its chain drops a
+disk at a random spot and resamples the tiles it touches).
+
 You described the version you want like this. Tiles from a fixed set fill a grid,
 with gaps allowed but maximal: any tile that fits is placed. It's sampled uniformly
 by MCMC: pick a region, delete the tiles that touch it, and put back a uniformly
@@ -43,10 +51,13 @@ random valid packing of the hole.
 The folder has the two halves of this but not one file that does both:
 - **The MCMC, for exact tilings (no gaps):** `RANDOMTILINGS/tiling_mcmc.py`. It picks a connected patch of about k tiles (2x2 and 3x3 squares), erases it, finds every retiling of the hole with Knuth's Algorithm X (Knuth, "Dancing Links", arXiv:cs/0011047), and picks one uniformly. Solved hole shapes are cached up to rotation and reflection. Also: `tiling_animation.py` (the GIF), `testing.py` (timing), `canibetiled.py` (which L×L squares can be tiled by 2x2 and 3x3), older drafts `drawpolygon.py`, `main.py`, `Board.py`, `ComputeTiling.py`, and `gemini/`.
 - **Maximal packings with gaps:** `randpackagain.py`. `FastRSA_2D` drops p×q rectangles at random on an m×n grid until no more fit (random sequential adsorption), then draws a heatmap and checks symmetry. Pictures: `rsa_heatmap.png`, `rsa_final_grid.png`.
-- **Worth checking when we build it:** `tiling_mcmc.py` chooses the patch by walking over the *current* tiles, so the patch probabilities depend on the tiling. Uniformity then needs an extra check. Your description picks a region of space first, which makes the move symmetric, and re-sampling a region uniformly given the rest is the standard heat-bath move that keeps the uniform distribution (Levin, Peres & Wilmer, *Markov Chains and Mixing Times*, 2nd ed. 2017, §3.3).
+- **Why the site's chain differs from `tiling_mcmc.py`:** `tiling_mcmc.py` chooses the patch by walking over the *current* tiles, so the patch probabilities depend on the tiling, and uniformity would need an extra check. Your description, which the site follows, picks a region of space first, which makes the move symmetric, and re-sampling a region uniformly given the rest is the standard heat-bath move that keeps the uniform distribution (Levin, Peres & Wilmer, *Markov Chains and Mixing Times*, 2nd ed. 2017, §3.3).
 - Older: `randomtilingpython.py` (random dominoes), `InteractiveSetups/RandomTilings.js`, `randtiling.py`
 
 ### 1c. Growing circles in a square (geology grains)
+**On the site:** not as such. The closest is Sequential Continuous Tiling's "Disks
+in a square" preset; the squashing and clipping study isn't on the site.
+
 Circles grow one at a time in the unit square until they touch a neighbor or the
 edge (max radius 0.1). The square is then squashed into ellipses (aspect ratios 1:1,
 2:1 and 3:1) and clipped to a sub-box to see how clipping biases the
@@ -69,6 +80,8 @@ uniform point. You sweep s, including negative values, looking for a critical po
 - `randintervalbs.py`, `randstickbreaklimit.py`, `randstickbreakingeverywhere`, `randomintsplit`, `randstickdist.py`
 
 ## 3. Random mountain / block stacking
+**On the site:** Eden Growth (the mountain grew into it).
+
 Drop a block uniformly on the current base or one site past either end. The base
 grows only when a block lands past an end. You compared the height correlations
 with a bulk formula, and there's a d-dimensional version with an exact sampler and
@@ -76,7 +89,9 @@ a fast sampler built on first-passage percolation.
 - `RandBlockStack.py`, `randmountain.py`, `randonesidedmountain.py`, `claudeakadeleteme.py` (the d-dim samplers and tests)
 - Old site: `js/sims/blockgrowth.js`
 
-## 4. Competing random walks (already being built)
+## 4. Competing random walks
+**On the site:** Random Walk Coloring (2D, and a 1D page).
+
 Two walkers race. Each site is colored by whoever reaches it first, on a cycle or
 an L×L torus. Your newest code computes E|interface| exactly with Dirichlet problems
 instead of only simulating.
@@ -84,6 +99,8 @@ instead of only simulating.
 - Old site: `js/sims/walkcoloring.js`
 
 ## 5. Random functions with random roots (your Desmos D1)
+**On the site:** Sinusoid-ish.
+
 f(x) = Π(1 − x/R_k), where the roots R_k are a random walk with positive steps
 (steps in {2, 3}, or Uniform(1, 1+δ)). You look at the areas of the lobes between
 roots and the heights of the bumps.
@@ -121,15 +138,17 @@ roots and the heights of the bumps.
 - Coin-toss convergence: `quickndirtycointossconvergence.py`
 
 ## 10. Random matrix products (your Desmos D12, D13)
+**On the site:** Matrix Products (presets D12, D13, `randmatAB.py` and `randmatprod.py`).
+
 - `randmatAB.py` (eigenvalues of random products of A and B), `randmatprod.py`, `randmatcltadd.py`, `randmatcltmul.py`, `randmatcltmultraj.py`, `randmatcrapbinomial.py`, `randmatcrappoisson.py`, `randstochasticmat.py`, `randstochasticmat2`, `GPTrandmatcltadd.py`
 - Note: `randomfractalpercolation.py` actually perturbs stochastic matrices, so it belongs here, not with fractal percolation.
 
 ## 11. Sandpiles and other grid rules
-- Sandpiles: `sandpiles`, `randsandexploration.py`, `InteractiveSetups/Sandpiles.js`, `HTML + JavaScript/Sandpiles/` (old site: `js/sims/sandpiles.js`)
+- Sandpiles: `sandpiles`, `randsandexploration.py`, `InteractiveSetups/Sandpiles.js`, `HTML + JavaScript/Sandpiles/` (old site: `js/sims/sandpiles.js`). **On the site:** Sandpiles.
 - Water flowing over a random landscape: `water`, pictures in `waterImages/`
 - Growing landscape: `HTML + JavaScript/Landscape/Landscape.js`
 - Antisocial cells: `AntisocialCells/AntisocialCells.py`
-- 1D automata: `InteractiveSetups/Basic1DAutomata.js`, `automata graph.py` (old site: `js/sims/automata.js`)
+- 1D automata: `InteractiveSetups/Basic1DAutomata.js`, `automata graph.py` (old site: `js/sims/automata.js`). **On the site:** Cellular Automata (1D and 2D).
 - Fractal percolation (animation): `RandomStuff/fracperc.py`
 
 ## 12. Small toys
@@ -138,20 +157,5 @@ roots and the heights of the bumps.
 - Toothpick sequence: `InteractiveSetups/GullwingToothpick.js`
 - Sequence averaging pictures: `SeqAvg`, `SeqAvept2`, `HTML + JavaScript/JavaScript/ProbabilitySequence.js`
 - Partitions drawing: `Partitions.py`
-- Lattice-path 3D plot: `lemme3dthis` (old site: `js/sims/pathcount.js`)
+- Lattice-path 3D plot: `lemme3dthis` (old site: `js/sims/pathcount.js`). **On the site:** Lattice Path Counting.
 - One-step Markov chain stationary vector: `DURRETT.py`
-
----
-
-## Suggested build order
-Your favorites come first, then whatever reuses their code.
-
-1. **Random disk packing in the unit disk (1a).** Your biggest body of work, with clear statistics for the lower-left panel: degrees, generations, coverage and dimension.
-2. **Fixed tileset packing a grid (1b).** Your favorite. It combines `tiling_mcmc.py` with the maximal-with-gaps rule from `randpackagain.py`, and runs on the site's grid tool.
-3. **Growing circles in a square (1c),** the general version you already had, plus the clipping study.
-4. **Random fragmentation (2).** Small, and the same "s" idea as 1a.
-5. **Random mountain (3).**
-6. **Random functions with random roots (5).**
-7. **Random digits (6).**
-
-Competing walks (4) and connected coloring are already being built in their own threads.
