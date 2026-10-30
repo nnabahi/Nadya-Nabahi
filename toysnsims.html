@@ -18,16 +18,131 @@
 
   <main class="page">
     <h1>Toys n' Sims</h1>
-    <p>Interactive math simulations. Pick a genre to narrow the list.</p>
+    <p>Interactive math simulations, in three groups: families of models
+       that share an idea, single (sporadic) models, and tools.</p>
 
-    <!-- GENRE FILTER BUTTONS
-         This box starts empty on purpose. The script at the bottom of the
-         page (js/genre-filter.js) reads the genre tags on the cards below
-         and makes one button per genre here, so there is no second list
-         of genres to keep in sync. -->
-    <div class="filter-bar" id="genre-filters"></div>
+    <!-- The cards in every group are sorted A to Z by js/toysnsims.js,
+         so a new card can go anywhere in its group. -->
 
-    <!-- SIM CARDS
+    <!-- MODEL FAMILIES
+         A row of family cards. Clicking one opens its panel underneath
+         (only one at a time): a colored bar with the family's name and
+         one line, an arrow that opens the family's shared Simple text,
+         and the family's sim cards. js/toysnsims.js copies the name and
+         line onto the bar, so they are written once, on the family card.
+         To add a family, copy a <div class="family"> block. To add a sim
+         to a family, paste its card into that family's card-grid. Family
+         cards have no genre labels: the genre buttons are for the
+         sporadic models only.
+         A sim that isn't built yet gets a "soon" card: a <div> with no
+         link and a "Coming soon" line. When the sim exists, turn the
+         <div class="card soon"> into <a class="card" href="..."> like the
+         others and drop the "Coming soon" line. -->
+    <h2>Model families</h2>
+    <div class="card-grid family-list">
+
+      <div class="family">
+        <!-- Temporary family text by Claude; nadya will rewrite it. -->
+        <div class="card family-card">
+          <h3>Diffusion-Limited Aggregation</h3>
+          <p class="muted">Random walkers wander until they stick to a growing cluster, from far away or from inside it, on a lattice or in the plane.</p>
+        </div>
+        <div class="family-panel">
+          <!-- The shared Simple text, opened by the arrow on the colored bar. -->
+          <details class="family-text">
+            <p>Simple text coming soon.</p>
+          </details>
+          <div class="card-grid">
+
+            <div class="card soon">
+              <h3>External Discrete DLA</h3>
+              <p class="muted">Walkers come in from far away on a lattice and stick to the first cell of the cluster they touch.</p>
+              <p class="soon-note">Coming soon</p>
+            </div>
+
+            <div class="card soon">
+              <h3>External Continuous DLA</h3>
+              <p class="muted">Brownian tiles come in from infinity and stop the first time they touch the cluster.</p>
+              <p class="soon-note">Coming soon</p>
+            </div>
+
+            <div class="card soon">
+              <h3>Internal Discrete DLA</h3>
+              <p class="muted">Walkers start at the source on a lattice and stop at the first cell outside the cluster.</p>
+              <p class="soon-note">Coming soon</p>
+            </div>
+
+            <div class="card soon">
+              <h3>Internal Continuous DLA</h3>
+              <p class="muted">Brownian tiles start at the source and stop the first time they are fully outside the cluster.</p>
+              <p class="soon-note">Coming soon</p>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <div class="family">
+        <!-- Temporary family text by Claude; nadya will rewrite it. -->
+        <div class="card family-card">
+          <h3>Percolation</h3>
+          <p class="muted">Open each cell or edge with probability p and watch clusters join into one giant cluster at the critical point.</p>
+        </div>
+        <div class="family-panel">
+          <!-- The shared Simple text, opened by the arrow on the colored bar. -->
+          <details class="family-text">
+            <p>Simple text coming soon.</p>
+          </details>
+          <div class="card-grid">
+
+            <!-- Temporary card text by Claude; nadya will rewrite it. -->
+            <a class="card" href="toysnsims/percolation/site-percolation.html">
+              <h3>Bernoulli Site Percolation</h3>
+              <p class="muted">Each cell is open with probability p; slide p and watch the open clusters join into one giant cluster at the critical point.</p>
+            </a>
+
+            <!-- Temporary card text by Claude; nadya will rewrite it. -->
+            <a class="card" href="toysnsims/percolation/bond-percolation.html">
+              <h3>Bernoulli Bond Percolation</h3>
+              <p class="muted">Each edge of the grid is open with probability p; on the square grid the giant cluster appears at exactly p = 1/2.</p>
+            </a>
+
+          </div>
+        </div>
+      </div>
+
+      <div class="family">
+        <!-- Temporary family text by Claude; nadya will rewrite it. -->
+        <div class="card family-card">
+          <h3>Tiling</h3>
+          <p class="muted">Fill a domain with tiles, every packing equally likely or one tile at a time, on a lattice or in the plane.</p>
+        </div>
+        <div class="family-panel">
+          <!-- The shared Simple text, opened by the arrow on the colored bar. -->
+          <details class="family-text">
+            <p>Simple text coming soon.</p>
+          </details>
+          <div class="card-grid">
+
+            <!-- Temporary card text by Claude; nadya will rewrite it. -->
+            <a class="card" href="toysnsims/uniform-discrete-tiling/uniform-discrete-tiling.html">
+              <h3>Uniform Discrete Tiling</h3>
+              <p class="muted">A uniformly random packing of rectangles, with or without gaps, in a box, a torus or a region you draw, mixed one small disk at a time.</p>
+            </a>
+
+            <!-- Temporary card text by Claude; nadya will rewrite it. -->
+            <a class="card" href="toysnsims/sequential-continuous-tiling/sequential-continuous-tiling.html">
+              <h3>Sequential Continuous Tiling</h3>
+              <p class="muted">Random points land in a domain one at a time, and each one grows a tile as big as it can until it touches the edge or an earlier tile, like a random Apollonian gasket, with any domain, tile and density you type.</p>
+            </a>
+
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- SPORADIC MODELS
          One card per simulation. To add a sim, copy a card and change:
            - href:      the sim's page, in its own folder inside toysnsims/
            - <h3>:      its name
@@ -36,16 +151,16 @@
                         genres as it needs. Spell a genre the same way on
                         every card, because "Growth" and "growth" would
                         become two different buttons. -->
-    <div class="card-grid">
+    <h2>Sporadic models</h2>
+    <p>Pick a genre to narrow the list.</p>
 
-      <!-- Pinned first: the drawing tool the sims use when you draw
-           your own domain. It has no genre labels on purpose. The other
-           cards are sorted A to Z by js/genre-filter.js, so a new card
-           can go anywhere below. -->
-      <a class="card pinned" href="toysnsims/graph-tool/graph-tool.html">
-        <h3>Graph &amp; Domain Tool</h3>
-        <p class="muted">Paint a domain on a grid, wrap it into a torus, and save it for other sims to use.</p>
-      </a>
+    <!-- GENRE FILTER BUTTONS
+         This box starts empty on purpose. js/toysnsims.js reads the genre
+         tags on the cards below and makes one button per genre here, so
+         there is no second list of genres to keep in sync. -->
+    <div class="filter-bar" id="genre-filters"></div>
+
+    <div class="card-grid" id="sporadic">
 
       <!-- Temporary card text by Claude; nadya will rewrite it. -->
       <a class="card" href="toysnsims/random-walk/random-walk.html">
@@ -76,15 +191,6 @@
       </a>
 
       <!-- Temporary card text by Claude; nadya will rewrite it. -->
-      <a class="card" href="toysnsims/uniform-discrete-tiling/uniform-discrete-tiling.html">
-        <h3>Uniform Discrete Tiling</h3>
-        <p class="muted">A uniformly random packing of rectangles, with or without gaps, in a box, a torus or a region you draw, mixed one small disk at a time.</p>
-        <ul class="tags">
-          <li>Packing</li>
-        </ul>
-      </a>
-
-      <!-- Temporary card text by Claude; nadya will rewrite it. -->
       <a class="card" href="toysnsims/uniform-spanning-tree/uniform-spanning-tree.html">
         <h3>Uniform Spanning Tree</h3>
         <p class="muted">Watch Wilson's algorithm grow a uniformly random spanning tree, and see its colors and its distances to the root or to a path, from above or in 3D.</p>
@@ -98,15 +204,6 @@
         <p class="muted">A uniformly random coloring with N colors, each one connected piece, on a box, a torus or a region you draw.</p>
         <ul class="tags">
           <li>Coloring</li>
-        </ul>
-      </a>
-
-      <!-- Temporary card text by Claude; nadya will rewrite it. -->
-      <a class="card" href="toysnsims/sequential-continuous-tiling/sequential-continuous-tiling.html">
-        <h3>Sequential Continuous Tiling</h3>
-        <p class="muted">Random points land in a domain one at a time, and each one grows a tile as big as it can until it touches the edge or an earlier tile, like a random Apollonian gasket, with any domain, tile and density you type.</p>
-        <ul class="tags">
-          <li>Packing</li>
         </ul>
       </a>
 
@@ -181,31 +278,36 @@
         </ul>
       </a>
 
-      <!-- Temporary card text by Claude; nadya will rewrite it. -->
-      <a class="card" href="toysnsims/percolation/site-percolation.html">
-        <h3>Bernoulli Site Percolation</h3>
-        <p class="muted">Each cell is open with probability p; slide p and watch the open clusters join into one giant cluster at the critical point.</p>
-        <ul class="tags">
-          <li>Graph</li>
-        </ul>
+    </div>
+
+    <!-- TOOLS
+         Pages the sims use: the drawing tool and the help pages. -->
+    <h2>Tools</h2>
+    <div class="card-grid">
+
+      <a class="card" href="toysnsims/graph-tool/graph-tool.html">
+        <h3>Graph &amp; Domain Tool</h3>
+        <p class="muted">Paint a domain on a grid, wrap it into a torus, and save it for other sims to use.</p>
       </a>
 
       <!-- Temporary card text by Claude; nadya will rewrite it. -->
-      <a class="card" href="toysnsims/percolation/bond-percolation.html">
-        <h3>Bernoulli Bond Percolation</h3>
-        <p class="muted">Each edge of the grid is open with probability p; on the square grid the giant cluster appears at exactly p = 1/2.</p>
-        <ul class="tags">
-          <li>Graph</li>
-        </ul>
+      <a class="card" href="help/random-variables.html">
+        <h3>Random Variables</h3>
+        <p class="muted">How to type random variables into a sim's Random variables box, with every law it knows.</p>
+      </a>
+
+      <!-- Temporary card text by Claude; nadya will rewrite it. -->
+      <a class="card" href="help/gomjau-hogg.html">
+        <h3>GomJau-Hogg Notation</h3>
+        <p class="muted">How to write a tiling of the plane by regular polygons as one short code, for the sims with a Lattice menu.</p>
       </a>
 
     </div>
   </main>
 
-  <!-- The small script that builds the genre buttons and hides/shows cards.
-       If it's ever missing or broken, the page still works: every card
-       just stays visible and there are no buttons. -->
-  <script src="js/genre-filter.js"></script>
+  <!-- The small script that sorts the cards, opens and closes the
+       families, and builds the genre buttons. -->
+  <script src="js/toysnsims.js"></script>
 
 </body>
 </html>

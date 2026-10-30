@@ -12,7 +12,7 @@
      1. COLORS & FONTS  <-- change these to restyle the whole site
      2. Page basics
      3. Top bar (the navigation)
-     4. Ordinary page content (cards, headings, lists, resume, writing)
+     4. Ordinary page content (cards, headings, lists, families, resume, writing)
      5. Home page image area
      6. Toys n' Sims: the sim page layout
      7. Sim pages: options, statistics and charts
@@ -47,6 +47,7 @@
   --color-topbar:       #ffffff;  /* background of the top bar          */
   --color-placeholder:  #ecebe7;  /* gray boxes where content will go   */
   --color-tag:          #e8edf2;  /* background of genre labels         */
+  --color-family:       #b7791f;  /* model families on Toys n' Sims     */
   --color-ok:           #2f7d3a;  /* "all fine" messages (green)        */
   --color-problem:      #b3402f;  /* "something's wrong" messages (red) */
 
@@ -73,7 +74,7 @@
 
 /* Anything with the "hidden" attribute stays hidden, even when another
    rule gives it a "display" (e.g. "a.card" below says display: block).
-   Scripts hide and show things this way, like js/genre-filter.js does
+   Scripts hide and show things this way, like js/toysnsims.js does
    with the cards. */
 [hidden] {
   display: none !important;
@@ -206,7 +207,7 @@ a.card:hover {
        <li>Random walk</li>
      </ul>
    The buttons inside <div class="filter-bar"> are made by
-   js/genre-filter.js, each as <button class="filter-button">. The sims'
+   js/toysnsims.js, each as <button class="filter-button">. The sims'
    and the graph tool's buttons (class="tool-button", section 7) share
    their look.
    --------------------------------------------------------------------- */
@@ -394,6 +395,113 @@ a.card:hover {
 
 
 /* ---------------------------------------------------------------------
+   Model families (toysnsims.html)
+   ---------------------------------------------------------------------
+   HTML shape of one family (js/toysnsims.js adds the colored bar and
+   opens one panel at a time):
+     <div class="family">
+       <div class="card family-card"> name, one line </div>
+       <div class="family-panel">
+         <details class="family-text"> Simple text </details>
+         <div class="card-grid"> the family's sim cards </div>
+       </div>
+     </div>
+   The family blocks sit in <div class="card-grid family-list">. The open
+   panel takes a whole row of that grid, right under its family card's
+   row, and the open card reaches down to join it.
+   --------------------------------------------------------------------- */
+
+/* "display: contents" lets a family's card and panel sit in the grid as
+   if the <div class="family"> around them weren't there. "dense" lets the
+   cards after an open panel fill the rest of the open card's row, so the
+   panel lands right under that row. */
+.family-list {
+  grid-auto-flow: row dense;
+}
+
+.family {
+  display: contents;
+}
+
+/* A family card: a card with a colored stripe on top. */
+.family-card {
+  border-top: 6px solid var(--color-family);
+  cursor: pointer;
+}
+
+.family-card:hover {
+  border-color: var(--color-family);
+}
+
+/* The open family card: colored all around, with no bottom line and a
+   negative bottom margin, so it reaches over the grid's gap (20px) and
+   the panel's top line (2px) and the two look like one shape. */
+.family-card.open {
+  border: 2px solid var(--color-family);
+  border-top-width: 6px;
+  border-bottom-color: var(--color-surface);
+  border-radius: var(--corner-radius) var(--corner-radius) 0 0;
+  margin-bottom: -22px;
+  position: relative;        /* with z-index, drawn over the panel's line */
+  z-index: 1;
+}
+
+/* The panel under the open card: a whole row wide. */
+.family-panel {
+  grid-column: 1 / -1;
+  background: var(--color-surface);
+  border: 2px solid var(--color-family);
+  border-radius: var(--corner-radius);
+  padding: 20px;
+  margin-bottom: 20px;
+}
+
+/* The colored bar: the family's name and one line, and an arrow that
+   opens the Simple text (its look is shared with the Writing posts). */
+.family-bar {
+  background: var(--color-family);
+  color: var(--color-surface);
+  border-radius: var(--corner-radius);
+  padding: 12px 20px;
+}
+
+.family-text .family-bar::before {
+  color: inherit;
+}
+
+.family-bar h3 {
+  margin: 0;
+}
+
+.family-bar .muted {
+  color: inherit;
+  margin: 4px 0 0;
+}
+
+/* The Simple text, shown when the arrow is open. */
+.family-text > p {
+  padding-left: 24px;
+}
+
+/* The family's sim cards, under the bar. */
+.family-panel .card-grid {
+  margin-top: 20px;
+}
+
+/* A card for a sim that isn't built yet: dashed, and not a link. */
+.card.soon {
+  border-style: dashed;
+}
+
+.soon-note {
+  margin: 8px 0 0;
+  color: var(--color-text-muted);
+  font-size: 0.85em;
+  font-style: italic;
+}
+
+
+/* ---------------------------------------------------------------------
    Writing page (writing.html)
    ---------------------------------------------------------------------
    Each post is a card made with <details>, which the browser opens and
@@ -405,8 +513,10 @@ a.card:hover {
   max-width: 860px;
 }
 
-/* The clickable top of a post: triangle, title and line, date on the right. */
-.post summary {
+/* The clickable top of a post: triangle, title and line, date on the right.
+   A family's colored bar on toysnsims.html opens the same way. */
+.post summary,
+.family-bar {
   display: flex;
   align-items: baseline;
   gap: 12px;
@@ -414,24 +524,28 @@ a.card:hover {
   list-style: none;          /* hide the browser's own triangle ... */
 }
 
-.post summary::-webkit-details-marker {
+.post summary::-webkit-details-marker,
+.family-bar::-webkit-details-marker {
   display: none;             /* ... (Safari needs this line too) */
 }
 
 /* Our triangle: points right while closed, turns down when open. */
-.post summary::before {
+.post summary::before,
+.family-bar::before {
   content: "\25B6";          /* the character ▶ */
   font-size: 0.8em;
   color: var(--color-accent);
   transition: transform 0.15s;   /* turn smoothly instead of jumping */
 }
 
-.post[open] summary::before {
+.post[open] summary::before,
+.family-text[open] .family-bar::before {
   transform: rotate(90deg);
 }
 
 /* Title and one line take the middle; the date sits at the right. */
-.post summary div {
+.post summary div,
+.family-bar div {
   flex: 1;
 }
 
