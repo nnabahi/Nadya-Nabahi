@@ -22,11 +22,24 @@
      twoCountsChiSquare(a, b)            do two lists of counts have the same law?
      twoSampleChiSquare(a, b)            ... and two lists of values?
      gaussianSolve(rows)                 a small linear system, solved plainly
-   and, for the pages that test Brownian motion's launch and return
-   (they load js/sim-continuum.js):
-     checkReturn(dims, q, runs)          the return to the launch circle, against the Poisson kernel
+   and, for the pages that test Brownian motion meeting a circle or
+   sphere (they load js/sim-continuum.js):
+     againstPoissonKernel(points, toward, s, R)   where it met it, against the Poisson kernel
+     checkReturn(dims, q, runs)          the return to the launch circle (sphere)
      simpson(f, a, b), pieceOdds(f, low, high), pieceOf(v, low, high)
                                          chances of equal pieces, for a density
+   and, for the pages that test the continuous DLA sims (they also load
+   js/sim-tile-shape.js and js/sim-cluster.js, and pass the growth's
+   maker, "make"):
+     ballDeepest(d), boxDeepest(d)       how deep two disks (balls) or squares (cubes) go into each other
+     grownTiles(make, t, seed, n, more)  a growth of a test tile, grown to n particles
+     centersOf(growth)                   its tiles' centers
+     landingsOn(make, t, tiles, seed, runs, more), sameLandings(a, b, dims)
+                                         where particles land on a cluster, and two such laws compared
+     checkSmallSteps(make, t, n, runs)   jumps against small steps of Brownian motion
+     checkEpsilon(make, t, n, runs)      what epsilon changes
+     checkBigTileCluster(make, t, n)     a big cluster, recounted plainly
+     checkTileCoupling(make, t, n, more) more particles only add tiles
    and, for the pages that test growing clusters (they load
    js/sim-walk.js, whose lattices and sites they use):
      siteKey, neighborsOf, setKey        sites as numbers, their neighbors, sets of sites
@@ -231,22 +244,25 @@ function gaussianSolve(rows) {
 
 
 /* ---------------------------------------------------------------------
-   Brownian motion's return (the external DLA sims; the pages load
-   js/sim-continuum.js)
+   Brownian motion meeting a circle or sphere (the DLA sims; the pages
+   load js/sim-continuum.js)
    ---------------------------------------------------------------------
-   A particle that gets outside the launch circle (sphere) is brought
-   back to it the way Brownian motion would come back (returnPoint2D
-   and returnPoint3D, js/sim-continuum.js). Brownian motion from x, at
-   distance r from the middle, first reaches the circle or sphere of
-   radius R < r at y with density proportional to 1 / |x - y|^d on it
-   (d = 2, 3; the Poisson kernels for the outside of a disk and of a
-   ball: P. Morters and Y. Peres, "Brownian Motion", Cambridge
-   University Press, 2010, Chapter 3). In terms of the angle t between
-   x and y, |x - y|^2 = r^2 + R^2 - 2 r R cos t. The samplers invert
-   those laws in closed form; here the samples are counted in 20 equal
+   Brownian motion from x, at distance s from the middle, first reaches
+   the circle or sphere of radius R at y with density proportional to
+   1 / |x - y|^d on it (d = 2, 3), from outside (s > R) and from inside
+   (s < R) alike: the Poisson kernels of the outside and the inside of
+   a disk and of a ball (P. Morters and Y. Peres, "Brownian Motion",
+   Cambridge University Press, 2010, Chapter 3). In terms of the angle
+   t between x and y, |x - y|^2 = s^2 + R^2 - 2 s R cos t. Points are
+   tested against that law by againstPoissonKernel: counted in 20 equal
    pieces (of the angle in 2D, of cos t in 3D, where the sphere's area
    is uniform in cos t), whose chances come from the densities by
-   Simpson's rule, not from the closed forms.
+   Simpson's rule, not from closed forms.
+
+   The external DLA sims bring a particle that gets outside the launch
+   circle (sphere) back to it the way Brownian motion would come back
+   (returnPoint2D and returnPoint3D, js/sim-continuum.js, which invert
+   the law in closed form): checkReturn tests them.
    --------------------------------------------------------------------- */
 const RETURN_PIECES = 20;
 
@@ -270,37 +286,203 @@ function pieceOdds(f, low, high) {
 
 function pieceOf(v, low, high) { return Math.min(RETURN_PIECES - 1, Math.floor((v - low) / (high - low) * RETURN_PIECES)); }
 
+// The points y (each [x, y], in space [x, y, z], from the middle of
+// the circle or sphere of radius R) where Brownian motion from the point
+// at distance s in the direction "toward" (a unit vector) first reached
+// it, against the Poisson kernel: their angles from "toward" (in space,
+// the cosines of those angles), and in space the turns around
+// "toward", which must be uniform. Returns { pass, text }.
+function againstPoissonKernel(points, toward, s, R) {
+  const dims = toward.length, seen = new Map(), turns = new Array(RETURN_PIECES).fill(0);
+  const [e1, e2] = dims === 3 ? perpendicularPair(toward) : [null, null];
+  const along = function (y, e) { return y.reduce(function (sum, v, d) { return sum + v * e[d]; }, 0) / R; };
+  for (const y of points) {
+    let piece;
+    if (dims === 2) piece = pieceOf(Math.atan2(toward[0] * y[1] - toward[1] * y[0], toward[0] * y[0] + toward[1] * y[1]), -Math.PI, Math.PI);
+    else {
+      piece = pieceOf(along(y, toward), -1, 1);
+      turns[pieceOf(Math.atan2(along(y, e2), along(y, e1)), -Math.PI, Math.PI)]++;
+    }
+    seen.set(piece, (seen.get(piece) || 0) + 1);
+  }
+  const odds = dims === 2 ? pieceOdds(function (t) { return 1 / (s * s + R * R - 2 * s * R * Math.cos(t)); }, -Math.PI, Math.PI)
+                          : pieceOdds(function (c) { return Math.pow(s * s + R * R - 2 * s * R * c, -1.5); }, -1, 1);
+  const test = exactOddsTest(odds, seen, points.length, "pieces of the " + (dims === 2 ? "angle" : "cosine"));
+  if (dims === 2) return test;
+  const turn = equalChiSquare(turns);
+  return {
+    pass: test.pass && turn.pValue > 0.001,
+    text: test.text + "; the turn around it, chi-square " + turn.statistic.toFixed(1) + " with " + turn.degrees +
+          " degrees of freedom, p = " + turn.pValue.toFixed(3),
+  };
+}
+
 // Brownian motion from distance r = R / q comes back to the circle (2D)
-// or sphere (3D) of radius R = 1: its angles against the Poisson kernel,
-// and in 3D the turn around the direction of x, which must be uniform.
+// or sphere (3D) of radius R = 1, against the Poisson kernel.
 function checkReturn(dims, q, runs) {
   const R = 1, r = R / q, random = seededUniform("return " + dims + " " + q);
   const toward = dims === 2 ? [Math.cos(0.7), Math.sin(0.7)] : [2 / 3, -1 / 3, 2 / 3];
-  const place = toward.map(function (x) { return r * x; }), seen = new Map(), turns = new Array(RETURN_PIECES).fill(0);
-  const [e1, e2] = dims === 3 ? perpendicularPair(toward) : [null, null];
+  const place = toward.map(function (x) { return r * x; }), points = [];
   let offCircle = 0;
   for (let i = 0; i < runs; i++) {
     const y = dims === 2 ? returnPoint2D(place, R, random.uniform(i, 0)) : returnPoint3D(place, R, random.uniform(i, 0), random.uniform(i, 1));
     offCircle = Math.max(offCircle, Math.abs(Math.hypot(...y) - R));
-    const dot = function (e) { return y.reduce(function (sum, v, d) { return sum + v * e[d]; }, 0) / R; };
-    let piece;
-    if (dims === 2) {
-      const t = Math.atan2(y[1], y[0]) - 0.7, angle = t - 2 * Math.PI * Math.round(t / (2 * Math.PI));
-      piece = pieceOf(angle, -Math.PI, Math.PI);
-    } else {
-      piece = pieceOf(dot(toward), -1, 1);
-      turns[pieceOf(Math.atan2(dot(e2), dot(e1)), -Math.PI, Math.PI)]++;
-    }
-    seen.set(piece, (seen.get(piece) || 0) + 1);
+    points.push(y);
   }
-  const odds = dims === 2 ? pieceOdds(function (t) { return 1 / (r * r + R * R - 2 * r * R * Math.cos(t)); }, -Math.PI, Math.PI)
-                          : pieceOdds(function (c) { return Math.pow(r * r + R * R - 2 * r * R * c, -1.5); }, -1, 1);
-  const test = exactOddsTest(odds, seen, runs, "pieces of the " + (dims === 2 ? "angle" : "cosine"));
-  const turn = dims === 3 ? equalChiSquare(turns) : { pValue: 1 };
-  addRow((dims === 2 ? "2D" : "3D") + ": the return from " + fourDigits(r) + " launch radii", test.pass && turn.pValue > 0.001 && offCircle < 1e-9,
-         test.text + (dims === 3 ? "; the turn around it, chi-square " + turn.statistic.toFixed(1) + " with " + turn.degrees +
-                                   " degrees of freedom, p = " + turn.pValue.toFixed(3) : "") +
-         "; every point at most " + fourDigits(offCircle) + " off the " + (dims === 2 ? "circle" : "sphere"));
+  const test = againstPoissonKernel(points, toward, r, R);
+  addRow((dims === 2 ? "2D" : "3D") + ": the return from " + fourDigits(r) + " launch radii", test.pass && offCircle < 1e-9,
+         test.text + "; every point at most " + fourDigits(offCircle) + " off the " + (dims === 2 ? "circle" : "sphere"));
+}
+
+
+/* ---------------------------------------------------------------------
+   Clusters of tiles (the continuous DLA sims; the pages also load
+   js/sim-tile-shape.js and js/sim-cluster.js)
+   ---------------------------------------------------------------------
+   "make" is the growth's maker (newExternalContinuousDLA or
+   newInternalContinuousDLA), which takes the options { dim, tile,
+   seed } and more. A test tile t is { name, dims, shape, deepest }:
+   shape is tilePolygon or tilePolyhedron (js/sim-tile-shape.js) of the
+   tile, and deepest(d), where the page has a plain way to it, says how
+   deep the copies of the tile centered d apart go into each other: the
+   smallest ruler value (as in tilePolygon) of a point of the one at d
+   in the one at 0, so below 1 exactly when they overlap.
+
+   JUMPS AGAINST SMALL STEPS. From the same small cluster, particles
+   that jump across circles (spheres: walk on spheres) and particles
+   that follow Brownian motion in small steps (the growth's smallSteps
+   option: each step normal, with standard deviation a fifth of the
+   room around the particle) must land with the same law. Compared by
+   where they land (landingNumbers), each number by twoSampleChiSquare.
+
+   EPSILON. A particle stops within epsilon tile radii of where it would
+   stop exactly, then moves straight there. Landings with the largest
+   and the smallest epsilon below must have the same law (sameLandings),
+   and the jumps per particle grow like log(1 / epsilon) (I. Binder and
+   M. Braverman, "The rate of convergence of the walk on spheres
+   algorithm", Geom. Funct. Anal. 22 (2012) 558-587, Theorem 2 and
+   Corollary 3, in the plane and in space): each hundredfold smaller
+   epsilon adds about the same number of jumps (here: within a factor
+   of 2, where a power of 1 / epsilon would multiply them). That is a
+   statement about small epsilon, so it is tested from 1e-4 down. (For
+   External Continuous DLA's star, the first hundredfold adds many more
+   jumps, probably because at that scale its edge still bends sharply:
+   where its arms meet, T's edge curves with radius 1/48, about 0.014
+   tile radii.)
+
+   A BIG CLUSTER, RECOUNTED PLAINLY. Every tile after the first must
+   touch an earlier one (its gap to the nearest earlier tile 0, up to
+   rounding: copyGap, js/sim-tile-shape.js), so the cluster is
+   connected; no two tiles may overlap (deepest); and the farthest
+   center and the radius of gyration must be what they are.
+
+   COUPLING. More particles only add tiles, and another seed gives
+   another cluster.
+   --------------------------------------------------------------------- */
+
+// How deep two disks (balls) of radius 1, or two squares (cubes) of
+// half-width 1, centered d apart go into each other (deepest, above).
+function ballDeepest(d) { return Math.max(0, Math.hypot(...d) - 1); }
+function boxDeepest(d) { return Math.max(...d.map(function (x) { return Math.max(0, Math.abs(x) - 1); })); }
+
+// A growth of the tile t with this seed (and any more options), grown
+// to n particles.
+function grownTiles(make, t, seed, n, more) {
+  const growth = make(Object.assign({ dim: t.dims, tile: t.shape, seed: seed }, more));
+  while (growth.cluster.count < n) growth.addParticle();
+  return growth;
+}
+
+// The centers of a growth's tiles, as [x, y] (in space [x, y, z]) each.
+function centersOf(growth) {
+  const c = growth.cluster;
+  return c.x.map(function (x, i) { return c.z.length > 0 ? [x, c.y[i], c.z[i]] : [x, c.y[i]]; });
+}
+
+// Where a particle landed, as numbers: its direction from the cluster's
+// middle (in the plane, its angle; in space, its angle around the z
+// axis and the cosine of its angle from it) and its distance from it.
+const LANDING_NUMBERS = { 2: ["the angle", "the distance"], 3: ["the angle", "the height", "the distance"] };
+function landingNumbers(place, middle) {
+  const off = place.map(function (x, d) { return x - middle[d]; }), r = Math.hypot(...off);
+  return off.length === 2 ? [Math.atan2(off[1], off[0]), r] : [Math.atan2(off[1], off[0]), off[2] / r, r];
+}
+
+// Particles 0 to runs - 1 landing on the cluster of the tiles at
+// "tiles": the landing numbers of each, as one list per number, and
+// the moves (jumps or small steps) per particle.
+function landingsOn(make, t, tiles, seed, runs, more) {
+  const growth = make(Object.assign({ dim: t.dims, tile: t.shape, seed: seed, seedTiles: tiles }, more));
+  const middle = [0, 1, 2].slice(0, t.dims).map(function (d) { return tiles.reduce(function (s, q) { return s + q[d]; }, 0) / tiles.length; });
+  const lists = LANDING_NUMBERS[t.dims].map(function () { return []; });
+  for (let p = 0; p < runs; p++) landingNumbers(growth.land(p), middle).forEach(function (v, k) { lists[k].push(v); });
+  return { lists: lists, moves: growth.jumps / runs };
+}
+
+// Two lists of landings compared, number by number: { pass, text }.
+function sameLandings(a, b, dims) {
+  const tests = a.lists.map(function (list, k) { return twoSampleChiSquare(list, b.lists[k]); });
+  return {
+    pass: tests.every(function (x) { return x.pValue > 0.001; }),
+    text: tests.map(function (x, k) { return LANDING_NUMBERS[dims][k] + ", p = " + x.pValue.toFixed(3); }).join("; "),
+  };
+}
+
+function checkSmallSteps(make, t, n, runs) {
+  const tiles = centersOf(grownTiles(make, t, "small cluster", n));
+  const jumps = landingsOn(make, t, tiles, "jumps", runs), steps = landingsOn(make, t, tiles, "small steps", runs, { smallSteps: true });
+  const test = sameLandings(jumps, steps, t.dims);
+  addRow(t.name + ": jumps against small steps, " + n + " tiles", test.pass,
+         runs + " particles each way: " + test.text + " (" + fourDigits(jumps.moves) + " jumps against " + fourDigits(steps.moves) +
+         " small steps per particle)");
+}
+
+const EPSILONS = [1e-2, 1e-4, 1e-6, 1e-8, 1e-10];
+function checkEpsilon(make, t, n, runs) {
+  const tiles = centersOf(grownTiles(make, t, "small cluster", n));
+  const landings = EPSILONS.map(function (epsilon) { return landingsOn(make, t, tiles, "epsilon " + epsilon, runs, { epsilon: epsilon }); });
+  const perParticle = landings.map(function (l) { return l.moves; });
+  const test = sameLandings(landings[0], landings[landings.length - 1], t.dims);
+  const steps = perParticle.slice(1).map(function (j, k) { return j - perParticle[k]; }), small = steps.slice(1);
+  const even = Math.max(...small) < 2 * Math.min(...small) && Math.min(...small) > 0;
+  addRow(t.name + ": epsilon", test.pass && even,
+         "landings at epsilon " + EPSILONS[0] + " and " + EPSILONS[EPSILONS.length - 1] + ", " + runs + " each: " + test.text +
+         "; jumps per particle at epsilon " + EPSILONS.join(", ") + ": " + perParticle.map(fourDigits).join(", ") +
+         " (each hundredfold adds " + steps.map(fourDigits).join(", ") + ")");
+}
+
+function checkBigTileCluster(make, t, n) {
+  const growth = grownTiles(make, t, "big cluster", n), c = growth.cluster, s = t.shape, gaps = copyGap(s), reach = 2 * s.rhoMax;
+  const centers = centersOf(growth), far = function (a, b) { return a.some(function (x, d) { return Math.abs(x - b[d]) > reach; }); };
+  let worstTouch = 0, deepest = Infinity, farthest = 0;
+  centers.forEach(function (a, i) {
+    let nearest = i === 0 ? 0 : Infinity;
+    centers.forEach(function (b, j) {
+      if (j === i || far(a, b)) return;
+      if (j < i) nearest = Math.min(nearest, gaps.gap(a, b, nearest));
+      if (j > i) deepest = Math.min(deepest, t.deepest(a.map(function (x, d) { return x - b[d]; })));
+    });
+    worstTouch = Math.max(worstTouch, nearest);
+    farthest = Math.max(farthest, Math.hypot(...a));
+  });
+  const middle = [0, 1, 2].slice(0, t.dims).map(function (d) { return centers.reduce(function (sum, a) { return sum + a[d]; }, 0) / c.count; });
+  const squares = centers.reduce(function (sum, a) { return sum + a.reduce(function (s2, x, d) { return s2 + (x - middle[d]) ** 2; }, 0); }, 0);
+  const gyration = Math.sqrt(squares / c.count), numbersOff = Math.max(Math.abs(farthest - c.farthest), Math.abs(gyration - c.gyration()));
+  addRow(t.name + ": a cluster of " + n + " particles, recounted", c.count === n && worstTouch < 1e-9 * s.rhoMax &&
+         deepest > 1 - 1e-9 && numbersOff < 1e-9 * farthest,
+         c.count + " tiles; each touches an earlier one (the largest gap " + fourDigits(worstTouch) + "); no point of a tile inside " +
+         "another by more than " + fourDigits(Math.max(0, 1 - deepest)) + " of its size; the farthest center and the radius of gyration " +
+         fourDigits(numbersOff) + " off");
+}
+
+function checkTileCoupling(make, t, n, more) {
+  const small = centersOf(grownTiles(make, t, "coupling", n)), big = centersOf(grownTiles(make, t, "coupling", n + more));
+  const other = centersOf(grownTiles(make, t, "another seed", n));
+  const same = small.every(function (a, i) { return a.every(function (x, d) { return x === big[i][d]; }); });
+  const differ = other.some(function (a, i) { return a[0] !== small[i][0]; });
+  addRow(t.name + ": more particles only add tiles", same && differ,
+         "the first " + n + " tiles of " + (n + more) + " particles " + (same ? "are" : "are NOT") + " the cluster of " + n +
+         "; another seed " + (differ ? "gives another cluster" : "gives the SAME cluster"));
 }
 
 

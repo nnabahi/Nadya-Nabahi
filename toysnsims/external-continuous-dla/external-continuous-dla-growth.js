@@ -75,20 +75,6 @@
    1. THE GROWTH
    ===================================================================== */
 
-// A particle stops within this much of touching, in tile radii (rhoMax),
-// unless the page says otherwise.
-const DEFAULT_EPSILON = 1e-4;
-
-// With the option smallSteps (for the check page), B moves in small
-// steps of Brownian motion instead of jumping across each circle of
-// radius r: the steps have standard deviation r / SMALL_STEP_SHARE in
-// each direction, so a step reaches past the circle only with a chance
-// of about 1 in 270,000 (past the sphere, in space, about 1 in 65,000:
-// a step's length over its standard deviation has the chi law with 2,
-// or 3, degrees of freedom), and past U, which is farther, even less
-// often.
-const SMALL_STEP_SHARE = 5;
-
 // How far around B the tiles are looked at one by one, in tile radii,
 // in buckets this wide; and the width of the coarse buckets, which only
 // say whether they hold a tile, looked at out to the launch circle.
@@ -98,7 +84,8 @@ const NEAR_RADII = 8, BUCKET_RADII = 4, COARSE_RADII = 32;
 //   dim        2 (the plane) or 3 (space)
 //   tile       the tile's shape (tilePolygon, or in space
 //              tilePolyhedron, js/sim-tile-shape.js)
-//   epsilon    the stop, in tile radii (DEFAULT_EPSILON if left out)
+//   epsilon    the stop, in tile radii (DEFAULT_EPSILON, js/sim-continuum.js,
+//              if left out)
 //   seed       the seed (any text)
 //   seedTiles  (optional, for the check page) the centers [x, y] (in
 //              space [x, y, z]) of the tiles the cluster starts as,
@@ -110,8 +97,8 @@ const NEAR_RADII = 8, BUCKET_RADII = 4, COARSE_RADII = 32;
 //              outside that can't touch it), and gap and slide as in
 //              copyGap but measured from the particle's place
 //   smallSteps (optional, for the check page) true: small steps of
-//              Brownian motion instead of the jumps (brownianStep,
-//              js/sim-continuum.js)
+//              Brownian motion instead of the jumps (brownianStep and
+//              SMALL_STEP_SHARE, js/sim-continuum.js)
 // It returns an object whose addParticle() lets one more particle in,
 // whose land(p) says where particle p would stop (its tile's center),
 // without adding it, and whose path is the latest particle's walk: its
@@ -124,12 +111,11 @@ function newExternalContinuousDLA(options) {
   const gaps = copyGap(tile), random = seededUniform(options.seed);
   const epsilon = (options.epsilon || DEFAULT_EPSILON) * rhoMax, near = NEAR_RADII * rhoMax;
   const buckets = newPointBuckets(dims, BUCKET_RADII * rhoMax), coarse = newPointBuckets(dims, COARSE_RADII * rhoMax);
-  const spread = newGyration(dims);
   const seedShape = options.seedShape || null;
 
   const g = {
     tile: tile,
-    cluster: { count: 0, x: [], y: [], z: [], farthest: 0, gyration: spread.radius },
+    cluster: newTileCluster(dims),
     jumps: 0,           // jumps taken, by every particle so far
     returns: 0,         // particles brought back to the launch circle
     replaced: 0,        // in space: particles that wandered off for good
@@ -143,11 +129,7 @@ function newExternalContinuousDLA(options) {
   function add(place) {
     buckets.add(c.count, place);
     coarse.add(c.count, place);
-    spread.add(place);
-    c.x.push(place[0]); c.y.push(place[1]);
-    if (dims === 3) c.z.push(place[2]);
-    c.farthest = Math.max(c.farthest, Math.hypot(...place));
-    c.count++;
+    c.add(place);
   }
 
   function addParticle() {
@@ -213,8 +195,8 @@ function newExternalContinuousDLA(options) {
    It runs as every cluster sim's second thread does (serveGrowth,
    js/sim-cluster.js). The page sends the tile typed as a formula
    ("tileFormula", with the sliders' "values"); this thread reads it
-   (readShape, js/sim-tile-shape.js, with math.js) and makes its
-   polygon (in space, its polyhedron). Its own numbers: the farthest
+   and makes its polygon (in space, its polyhedron: tileFromOptions,
+   js/sim-tile-shape.js, with math.js). Its own numbers: the farthest
    tile's center (radius), the radius of gyration of the centers, the
    launch radius, jumps, particles brought back, in space particles
    replaced, the latest particle's walk, and in the first report after
@@ -233,12 +215,9 @@ function growthWorker() {
   serveGrowth({
     make: function (options) {
       shapeSent = false;
-      const inT = readShape(options.tileFormula, options.values, "The tile", options.dim);
-      const tile = options.dim === 3 ? tilePolyhedron(inT) : tilePolygon(inT);
-      return newExternalContinuousDLA(Object.assign({}, options, { tile: tile }));
+      return newExternalContinuousDLA(Object.assign({}, options, { tile: tileFromOptions(options) }));
     },
-    most: MOST_PARTICLES, names: ["radius", "gyration"],
-    sample: function (growth) { return { radius: growth.cluster.farthest, gyration: growth.cluster.gyration() }; },
+    most: MOST_PARTICLES, names: TILE_SAMPLES, sample: tileSample, pieces: tilePieces,
     numbers: function (growth, options) {
       const c = growth.cluster, numbers = {
         radius: c.farthest, gyration: c.gyration(), launchRadius: growth.launchRadius(),
@@ -249,10 +228,6 @@ function growthWorker() {
         shapeSent = true;
       }
       return numbers;
-    },
-    pieces: function (growth, from) {
-      const c = growth.cluster;
-      return { x: Float64Array.from(c.x.slice(from)), y: Float64Array.from(c.y.slice(from)), z: Float64Array.from(c.z.slice(from)) };
     },
   });
 }

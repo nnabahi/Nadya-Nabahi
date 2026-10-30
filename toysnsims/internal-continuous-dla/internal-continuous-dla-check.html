@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Internal Continuous DLA — Check Page</title>
+  <link rel="stylesheet" href="../../css/style.css">
+</head>
+<body>
+
+  <!-- Tests of the growth behind the Internal Continuous DLA sim
+       (internal-continuous-dla-growth.js) and of the union of the
+       copies of D (copyCover, js/sim-tile-shape.js), in the plane and
+       in space. -->
+  <main class="page">
+    <p><a href="internal-continuous-dla.html">&larr; Back to the sim</a></p>
+    <h1>Internal Continuous DLA: Check Page</h1>
+
+    <p>
+      Each particle carries a tile out from the source by Brownian motion
+      and stops the first moment its tile overlaps no tile of the cluster:
+      the moment the point leaves the union <em>U</em> of the copies of
+      D = T &minus; T around the tiles. The sim does this exactly, except
+      that a particle stops once the nearest free point is within a tiny
+      epsilon, and moves straight to it. The first checks use cases whose
+      answers are known exactly: from inside one disk (ball) Brownian
+      motion leaves it with the law of the Poisson kernel, and from the
+      middle of a square (cube) it leaves each eighth of a side (each of
+      48 pieces of the cube's faces) equally often. The others test each
+      piece, in the plane and in space: how deep a point is in a copy of
+      D, the nearest free point against a plain search, the ball around
+      the source that <em>U</em> is known to hold, the jumps against
+      Brownian motion in small steps, what epsilon changes, a big cluster
+      recounted (every tile touches an earlier one, and none overlap),
+      coupling, and that the tiles it can't do yet say so.
+    </p>
+
+    <p><button id="run-checks">Run the checks</button> (about four minutes)</p>
+
+    <table class="check-table">
+      <tbody id="results"></tbody>
+    </table>
+  </main>
+
+  <!-- jStat (chi-square p-values). The version is fixed so an update
+       can never change the tests by surprise. -->
+  <script src="https://cdn.jsdelivr.net/npm/jstat@1.9.6/dist/jstat.min.js"></script>
+  <!-- byId() (sim-page.js), the results table and the shared tests
+       (check-page.js), the seeded random numbers, the heap and the
+       trace (sim-worker.js), the 3D vectors (sim-honeycombs.js), the
+       tile shape and the union of its copies, Brownian motion's
+       pieces, the cluster's buckets, then the growth, then this page's
+       own code. -->
+  <script src="../../js/site.js"></script>
+  <script src="../../js/sim-page.js"></script>
+  <script src="../../js/check-page.js"></script>
+  <script src="../../js/sim-worker.js"></script>
+  <script src="../../js/sim-honeycombs.js"></script>
+  <script src="../../js/sim-tile-shape.js"></script>
+  <script src="../../js/sim-continuum.js"></script>
+  <script src="../../js/sim-cluster.js"></script>
+  <script src="internal-continuous-dla-growth.js"></script>
+  <script src="internal-continuous-dla-check.js"></script>
+</body>
+</html>

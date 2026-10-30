@@ -15,8 +15,9 @@
    js/sim-view.js (makePlaneView), the 3D picture in js/sim-3d.js,
    reading the formula with sliders in js/formulas.js, the tile's shape
    in js/sim-tile-shape.js (with the 3D vectors of js/sim-honeycombs.js),
-   and the statistics every external DLA page shows in
-   js/sim-cluster-page.js.
+   and in js/sim-cluster-page.js what the continuous DLA pages share (the
+   Tile box, drawing the tiles and the walk) and the statistics every
+   external DLA page shows.
 
    The file is split into numbered sections:
      1. Settings you might want to change
@@ -41,24 +42,7 @@ const DEFAULT_SEED = "1";
 const PICTURE_HEIGHT = 480;
 const FIT_MARGIN = 1.04;
 const BACKGROUND = "#ffffff";
-const JUMP_CIRCLE = "rgba(30, 30, 30, 0.25)";   // the circles the latest particle jumped across
-const WALK_LINE = "rgba(30, 30, 30, 0.7)";      // its path, from jump to jump
-const LAUNCH_CIRCLE = "#999999";                // the circle it started on (dashed)
-const WALKER = "#1e1e1e";                       // where it is now, while it walks
-const WALKER_RADIUS = 3;                        // in screen pixels
-// In 3D: the walker's ball is this share of the launch sphere's width
-// across (but never smaller than a tile), and its color, and the
-// path's, as [r, g, b].
-const WALKER_SHARE_3D = 1 / 60;
-const WALKER_RGB = [30, 30, 30];
-const PATH_RGB = [90, 90, 90];
-
-// A tile less than this many screen pixels across is drawn as a small
-// square of the same area (much quicker, and it looks the same).
-const SMALL_TILE = 3;
-
-// The colors come in this many steps, from blue (first) to red (just now).
-const COLOR_STEPS = 64;
+const LAUNCH_CIRCLE = "#999999";   // the circle the latest particle started on (dashed)
 
 // The speeds on the Speed slider, in particles per second. Infinity
 // means "as fast as the computer can". The default is slow, so you can
@@ -66,17 +50,6 @@ const COLOR_STEPS = 64;
 const SPEEDS = [1, 1000, Infinity];   // the slider's starting min and max (boxes at its ends change them)
 const DEFAULT_SPEED = 10;
 const DEFAULT_GOTO = 10000;           // the Go to box's first number (the most is MOST_PARTICLES)
-
-// While playing, each particle's walk is shown over the time until the
-// next one comes (at most MOST_WALK_SECONDS); after One particle, over
-// STEP_WALK_SECONDS.
-const MOST_WALK_SECONDS = 2;
-const STEP_WALK_SECONDS = 1.5;
-
-// The epsilon box goes from LEAST_EPSILON to MOST_EPSILON tile radii
-// (its first value is DEFAULT_EPSILON, external-continuous-dla-growth.js).
-const LEAST_EPSILON = 1e-12;
-const MOST_EPSILON = 0.5;
 
 // The starting tiles (presets) in each dimension, the first one the
 // default. Each fills in the formula and, if it has any, its sliders.
@@ -115,20 +88,9 @@ const tiles = { x: [], y: [], z: [] };
 // each new tile (the 3D picture makes its shape again only then).
 let outline = null, outlineCount = 0;
 
-// In each dimension, the preset and formula last used (to come back to
-// when the dimension switches back).
-const kept = { 2: null, 3: null };
-
-// The tile's formula as the worker reads it, and the sliders' numbers
-// (letter -> { value, min, max, step }).
-let formula = null;
-const sliders = {};
-
-// The latest particle's walk, shown as it happens: its places and the
-// circles it jumped across (path, from the worker), the tile it ends
-// as (hidden until it lands), when the walk started on the screen
-// (performance.now(), in milliseconds) and how long it takes to show.
-const walk = { path: [], tile: -1, start: 0, seconds: 0 };
+// The latest particle's walk, shown as it happens (newWalkShow,
+// js/sim-cluster-page.js).
+const walk = newWalkShow();
 
 // Whether "latest" is a cluster to show: not just a problem, and not
 // from before a switch of dimension.
@@ -138,42 +100,16 @@ function haveCluster() { return Boolean(latest && latest.traceParticles && lates
 /* =====================================================================
    3. READING THE TILE
    ---------------------------------------------------------------------
-   The formula is read as on Sequential Continuous Tiling's page
-   (readFormulaBoxes, js/formulas.js): a condition like x^2 + y^2 <= 1,
-   an equation like x^2 + y^2 = 1 (the region its curve closes off), or
-   in 2D a curve (x(t), y(t)), t from 0 to 2π. In 3D the formula is in
-   x, y and z. Any other letter gets a slider. A formula that can't be
-   read yet (usually it is half typed) keeps the last good cluster. The
+   The Tile box (newTileBox, js/sim-cluster-page.js) reads the formula
+   and its sliders. A formula that can't be read yet (usually it is
+   half typed) keeps the last good cluster; a new tile grows again to
+   the number of particles the run was at, with the same seed. The
    worker turns the formula into the tile's polygon or polyhedron
    (tilePolygon, tilePolyhedron, js/sim-tile-shape.js), which needs T
    to be star-shaped around the origin: each ray from it leaves T once.
    ===================================================================== */
 
-function readTile() {
-  const read = readFormulaBoxes(["T"], dim === 3 ? [] : ["T"], sliders, byId("sliders"), function () { restart(true); },
-                                dim === 3 ? ["x", "y", "z"] : ["x", "y"]);
-  if (!read) return;
-  formula = read.T;
-  kept[dim] = { preset: byId("preset").value, text: byId("formula-T").value };
-  restart(true);
-}
-
-// The Start from menu: this dimension's presets, then "your own formula".
-function listPresets() {
-  const menu = byId("preset");
-  menu.innerHTML = "";
-  for (const key in PRESETS[dim]) menu.add(new Option(PRESETS[dim][key].label, key));
-  menu.add(new Option("Your own formula", "custom"));
-}
-
-// Fill in a preset's formula and sliders.
-function usePreset(key) {
-  const p = PRESETS[dim][key];
-  byId("preset").value = key;
-  byId("formula-T").value = p.T;
-  for (const letter in p.sliders || {}) sliders[letter] = Object.assign({}, p.sliders[letter]);
-  readTile();
-}
+const tileBox = newTileBox(PRESETS, function () { restart(true); });
 
 
 /* =====================================================================
@@ -190,8 +126,7 @@ function usePreset(key) {
    ===================================================================== */
 const sim = runInWorker(growthWorker,
   [newExternalContinuousDLA, newTrace, keepSample, seededUniform, add3, sub3, scale3, dot3, cross3, length3,
-   { MOST_PARTICLES: MOST_PARTICLES, DEFAULT_EPSILON: DEFAULT_EPSILON,
-     NEAR_RADII: NEAR_RADII, BUCKET_RADII: BUCKET_RADII, COARSE_RADII: COARSE_RADII, SMALL_STEP_SHARE: SMALL_STEP_SHARE }]
+   { MOST_PARTICLES: MOST_PARTICLES, NEAR_RADII: NEAR_RADII, BUCKET_RADII: BUCKET_RADII, COARSE_RADII: COARSE_RADII }]
   .concat(continuumHelpers(), tileShapeHelpers(), clusterHelpers()), showGrowth);
 
 function showGrowth(message) {
@@ -205,36 +140,18 @@ function showGrowth(message) {
   if (message.sitesFrom === 0) tiles.x.length = tiles.y.length = tiles.z.length = 0;
   for (let i = 0; i < message.x.length; i++) { tiles.x.push(message.x[i]); tiles.y.push(message.y[i]); }
   for (let i = 0; i < message.z.length; i++) tiles.z.push(message.z[i]);
-  // The latest particle's walk: shown as it happens when the run went on
-  // (not on a fresh start, which shows it done).
-  if (message.sitesFrom === 0 || message.x.length > 0) {
-    walk.path = message.path;
-    walk.tile = message.particles - 1;
-    walk.start = performance.now();
-    walk.seconds = message.sitesFrom === 0 ? 0
-      : player.playing ? Math.min(1 / player.speed(), MOST_WALK_SECONDS) : STEP_WALK_SECONDS;
-  }
+  walk.follow(message, player);
   latest = message;
   showMessage(clusterStopped(message, MOST_PARTICLES, ""));
   drawSoon();
 }
 
-// The epsilon in its box, from LEAST_EPSILON to MOST_EPSILON tile radii.
-function epsilonNow() {
-  const box = byId("set-epsilon");
-  let v = Number(box.value);
-  if (!isFinite(v) || box.value === "" || v <= 0) v = DEFAULT_EPSILON;
-  v = Math.min(Math.max(v, LEAST_EPSILON), MOST_EPSILON);
-  box.value = v;
-  return v;
-}
-
 // Start the growth again, paused. keepCount: grow to the number of
 // particles we are at (so changing the tile keeps it).
 function restart(keepCount) {
-  if (!formula) return;
+  if (!tileBox.formula) return;
   sim.setup({
-    dim: dim, tileFormula: formula, values: sliderValues(sliders), epsilon: epsilonNow(), seed: byId("seed").value,
+    dim: dim, tileFormula: tileBox.formula, values: tileBox.values(), epsilon: epsilonInBox(), seed: byId("seed").value,
     particles: (keepCount && haveCluster()) ? latest.particles : 1,
   });
 }
@@ -282,23 +199,8 @@ window.addEventListener("resize", drawSoon);
 // 3D: loaded the first time it is needed (make3D, js/sim-page.js).
 const three = make3D(simCanvas, PICTURE_HEIGHT, { ready: drawSoon });
 
-// The colors, worked out once (heatColor and rgbToHex, js/sim-colors.js:
-// [r, g, b] for the 3D picture, and as text for the 2D one), and tile
-// i's among n tiles: when it joined.
-const COLORS_RGB = [], COLORS = [];
-for (let k = 0; k < COLOR_STEPS; k++) {
-  COLORS_RGB.push(heatColor(k / (COLOR_STEPS - 1)));
-  COLORS.push(rgbToHex(COLORS_RGB[k]));
-}
-function colorGroup(i, n) { return Math.min(COLOR_STEPS - 1, Math.floor(COLOR_STEPS * i / n)); }
-
-// How far the walk has got: from 0 (just started) to 1 (landed).
-function walkShare() {
-  return walk.seconds > 0 ? Math.min(1, (performance.now() - walk.start) / (1000 * walk.seconds)) : 1;
-}
-
 function drawCluster() {
-  const watching = byId("show-walk").checked, share = watching ? walkShare() : 1;
+  const watching = byId("show-walk").checked, share = watching ? walk.share() : 1;
   if (dim === 3) draw3D(watching, share);
   else draw2D(watching, share);
   if (haveCluster() && share < 1) walkOn();     // the walk goes on at the next refresh
@@ -313,80 +215,24 @@ function draw2D(watching, share) {
     const reach = FIT_MARGIN * latest.launchRadius;
     showWhole(plane, { xmin: -reach, xmax: reach, ymin: -reach, ymax: reach });
   }
-  drawTiles(pen, share < 1 ? walk.tile : tiles.x.length);
+  drawTilesFlat(plane, pen, tiles, outline, share < 1 ? walk.tile : tiles.x.length);
   if (watching) drawWalk(pen, share);
 }
 
-// Tiles 0 to n - 1, one color at a time (each color is one run of
-// tiles, since they are colored in the order they joined).
-function drawTiles(pen, n) {
-  const ux = plane.ux, uy = plane.uy, reach = outline.rhoMax * Math.max(ux, uy);   // in screen pixels
-  const small = 2 * reach < SMALL_TILE, side = Math.max(1, Math.sqrt(outline.area * ux * uy));
-  // On a small tile, fewer corners are enough (about one per pixel of its edge).
-  const skip = Math.max(1, Math.floor(outline.x.length / Math.max(8, 2 * Math.PI * reach)));
-  let group = -1;
-  for (let i = 0; i < n; i++) {
-    const g = colorGroup(i, n);
-    if (g !== group) {
-      if (group >= 0) pen.fill();
-      group = g;
-      pen.fillStyle = COLORS[g];
-      pen.beginPath();
-    }
-    const x = pixelX(plane, tiles.x[i]), y = pixelY(plane, tiles.y[i]);
-    if (x + reach < 0 || x - reach > plane.width || y + reach < 0 || y - reach > plane.height) continue;   // off the picture
-    if (small) pen.rect(x - side / 2, y - side / 2, side, side);
-    else if (outline.round) { pen.moveTo(x + reach, y); pen.arc(x, y, reach, 0, 2 * Math.PI); }
-    else {
-      pen.moveTo(x + outline.x[0] * ux, y - outline.y[0] * uy);
-      for (let k = skip; k < outline.x.length; k += skip) pen.lineTo(x + outline.x[k] * ux, y - outline.y[k] * uy);
-      pen.closePath();
-    }
-  }
-  if (group >= 0) pen.fill();
-}
-
 // The latest particle's walk, as far as "share" of it: the launch
-// circle it started on (dashed), the circles it jumped across, its path
-// (a return to the launch circle is not joined up), and while it walks,
-// where it is now.
+// circle it started on (dashed), then the circles it jumped across and
+// its path (drawWalkFlat, js/sim-cluster-page.js).
 function drawWalk(pen, share) {
   const path = walk.path;
   if (path.length === 0) return;
-  const shown = Math.max(1, Math.ceil(share * path.length));
-  const sx = function (k) { return pixelX(plane, path[k][0]); }, sy = function (k) { return pixelY(plane, path[k][1]); };
   pen.lineWidth = 1;
-
   pen.strokeStyle = LAUNCH_CIRCLE;
   pen.setLineDash([4, 4]);
   pen.beginPath();
   pen.arc(pixelX(plane, 0), pixelY(plane, 0), Math.hypot(path[0][0], path[0][1]) * plane.ux, 0, 2 * Math.PI);
   pen.stroke();
   pen.setLineDash([]);
-
-  pen.strokeStyle = JUMP_CIRCLE;
-  pen.beginPath();
-  for (let k = 0; k < shown; k++) {
-    const r = path[k][2] * plane.ux;
-    if (r < 0.5) continue;      // (the last few are smaller than a pixel)
-    pen.moveTo(sx(k) + r, sy(k));
-    pen.arc(sx(k), sy(k), r, 0, 2 * Math.PI);
-  }
-  pen.stroke();
-
-  pen.strokeStyle = WALK_LINE;
-  pen.beginPath();
-  for (let k = 0; k < shown; k++) {
-    if (k === 0 || path[k - 1][2] < 0) pen.moveTo(sx(k), sy(k)); else pen.lineTo(sx(k), sy(k));
-  }
-  pen.stroke();
-
-  if (share < 1) {
-    pen.fillStyle = WALKER;
-    pen.beginPath();
-    pen.arc(sx(shown - 1), sy(shown - 1), WALKER_RADIUS, 0, 2 * Math.PI);
-    pen.fill();
-  }
+  drawWalkFlat(plane, pen, path, share);
 }
 
 
@@ -396,25 +242,13 @@ function drawWalk(pen, share) {
 // return to the launch sphere is not joined up.
 function draw3D(watching, share) {
   if (!three.view || !haveCluster() || !outline) return;
-  const n = share < 1 ? walk.tile : tiles.x.length, path = walk.path;
+  const n = share < 1 ? walk.tile : tiles.x.length;
   const cells = {
     x: tiles.x.slice(0, n), y: tiles.y.slice(0, n), z: tiles.z.slice(0, n),
-    tile: outline, color: function (i) { return COLORS_RGB[colorGroup(i, n)]; },
+    tile: outline, color: function (i) { return arrivalColor(i, n); },
     reach: FIT_MARGIN * latest.launchRadius,
   };
-  if (watching && path.length > 0) {
-    const shown = Math.max(1, Math.ceil(share * path.length)), lines = [];
-    for (let k = 1; k < shown; k++) if (path[k - 1][3] >= 0) lines.push(...path[k - 1].slice(0, 3), ...path[k].slice(0, 3));
-    cells.lines = lines;
-    cells.lineColor = PATH_RGB;
-    if (share < 1) {
-      const here = path[shown - 1];
-      cells.at = here.slice(0, 3);
-      cells.atColor = WALKER_RGB;
-      cells.atSize = Math.max(2 * outline.rhoMax, 2 * latest.launchRadius * WALKER_SHARE_3D);
-      if (here[3] > 0) cells.sphere = here;
-    }
-  }
+  if (watching) walkIn3D(cells, walk.path, share, latest.launchRadius, outline.rhoMax);   // (js/sim-cluster-page.js)
   three.code.drawCells(three.view, cells);
 }
 
@@ -447,26 +281,13 @@ function setDimension(value) {
   latest = null;
   for (const words of document.querySelectorAll("[data-dim]")) words.hidden = Number(words.dataset.dim) !== dim;
   showFlatOr3D(plane, three, dim);   // (js/sim-cluster-page.js)
-  listPresets();
-  const last = kept[dim];
-  if (!last) { usePreset(Object.keys(PRESETS[dim])[0]); return; }
-  byId("preset").value = last.preset;
-  byId("formula-T").value = last.text;
-  readTile();
+  tileBox.use(dim);
 }
 for (const radio of document.querySelectorAll('input[name="dimension"]')) {
   radio.addEventListener("change", function () { setDimension(Number(radio.value)); });
 }
 
-// The tile: a preset, or typed. The growth grows again to the number of
-// particles it was at, with the same seed.
-byId("preset").addEventListener("change", function () {
-  if (byId("preset").value !== "custom") usePreset(byId("preset").value);
-});
-byId("formula-T").addEventListener("input", function () {
-  byId("preset").value = "custom";
-  readTile();
-});
+// The tile (the Tile box, above), and the stop.
 byId("set-epsilon").addEventListener("change", function () { restart(true); });
 
 // Show each particle's walk, or not.

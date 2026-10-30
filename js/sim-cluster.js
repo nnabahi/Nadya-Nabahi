@@ -39,12 +39,14 @@
    filed in buckets BUCKET_MOVES longest moves wide (newPointBuckets,
    below), searched ring by ring around the place.
 
-   Two pieces the continuous DLA sims share with it:
+   Pieces the continuous DLA sims share with it:
      newPointBuckets(dims, width)   points filed in buckets, the cubes
                        (squares in 2D, intervals in 1D) of a grid
                        "width" wide, with the nearest ones to a place
                        found ring by ring
      newGyration(dims) the radius of gyration of points as they come
+     newTileCluster(dims)   their cluster of tiles, and tileSample,
+                       tilePieces and TILE_SAMPLES, for serveGrowth
    ===================================================================== */
 
 const BUCKET_MOVES = 4;
@@ -123,6 +125,9 @@ function newCluster(lattice) {
 //       the place to the nearest point: to the nearest bucket with a
 //       point in it, looking out ring by ring the same way (at least cap
 //       if none is nearer than cap)
+//   within(place, radius, visit)   visit(name, point's place) for every
+//       point within radius of the place (and some a little farther):
+//       the rings of buckets out to m, with m widths at least radius
 function newPointBuckets(dims, width) {
   const buckets = new Map();   // a bucket's key -> its points (a Map from their names to their places)
 
@@ -181,7 +186,19 @@ function newPointBuckets(dims, width) {
     }
   }
 
-  return { add: add, remove: remove, nearest: nearest, roughDistance: roughDistance };
+  function within(place, radius, visit) {
+    const center = bucketAt(place), at = center.slice();
+    for (let m = 0; ; m++) {
+      forEachInRing(dims, m, function (offset) {
+        for (let d = 0; d < dims; d++) at[d] = center[d] + offset[d];
+        const inside = buckets.get(bucketKey(at));
+        if (inside) for (const [name, p] of inside) visit(name, p);
+      });
+      if (m * width >= radius) return;
+    }
+  }
+
+  return { add: add, remove: remove, nearest: nearest, roughDistance: roughDistance, within: within };
 }
 
 // The radius of gyration of points as they come: the root mean square
@@ -316,6 +333,36 @@ function serveGrowth(how) {
   }
 }
 
+// A cluster of tiles (the continuous DLA sims): their centers, in the
+// order they joined.
+//   add(place)      one more tile, centered at the place ([x, y], or
+//                   [x, y, z] in space)
+//   count, x, y, z  how many, and their centers' coordinates (z in space)
+//   farthest        how far the farthest center is from the origin
+//   gyration()      the centers' radius of gyration (newGyration)
+function newTileCluster(dims) {
+  const spread = newGyration(dims);
+  const c = { count: 0, x: [], y: [], z: [], farthest: 0, gyration: spread.radius, add: add };
+  function add(place) {
+    spread.add(place);
+    c.x.push(place[0]); c.y.push(place[1]);
+    if (dims === 3) c.z.push(place[2]);
+    c.farthest = Math.max(c.farthest, Math.hypot(...place));
+    c.count++;
+  }
+  return c;
+}
+
+// For serveGrowth, a cluster of tiles': its samples for the charts (the
+// farthest center, and the radius of gyration), and its tiles from
+// number "from" on (their centers, x, y and z).
+const TILE_SAMPLES = ["radius", "gyration"];
+function tileSample(growth) { return { radius: growth.cluster.farthest, gyration: growth.cluster.gyration() }; }
+function tilePieces(growth, from) {
+  const c = growth.cluster;
+  return { x: Float64Array.from(c.x.slice(from)), y: Float64Array.from(c.y.slice(from)), z: Float64Array.from(c.z.slice(from)) };
+}
+
 // A lattice cluster's sites from number "from" on: their blocks, cells
 // and distances from the start.
 function latticePieces(growth, from) {
@@ -329,5 +376,6 @@ function latticePieces(growth, from) {
 
 // The functions to copy into a worker (runInWorker, js/sim-page.js).
 function clusterHelpers() {
-  return [newCluster, newPointBuckets, newGyration, forEachInRing, serveGrowth, latticePieces, { BUCKET_MOVES: BUCKET_MOVES }];
+  return [newCluster, newPointBuckets, newGyration, forEachInRing, serveGrowth, latticePieces, newTileCluster, tileSample,
+          tilePieces, { BUCKET_MOVES: BUCKET_MOVES, TILE_SAMPLES: TILE_SAMPLES }];
 }
