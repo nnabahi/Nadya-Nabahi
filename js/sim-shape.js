@@ -22,14 +22,14 @@
      holeHistory(set, now)     the holes of a set of cells (squares, or
                                any tiling's cells), with the step each
                                one opened and closed
-     bettiOverTime(holes, times)   the number of holes at given steps
-     holeReporter()            the holes for a sim's reports, kept up
-                               to date without slowing a run down
-     newRefresher()            an answer kept up to date that way
      frontierLength(set)       the length of the set's outer boundary
      cellWindow(...)           the cells around a set that these two
                                look at (squareWindow, tilingWindow,
                                finiteWindow)
+     bettiOverTime(holes, times)   the number of holes at given steps
+     holeReporter()            the holes for a sim's reports, kept up
+                               to date without slowing a run down
+     newRefresher()            an answer kept up to date that way
      shapeHelpers()            all of them, for a second thread
    ===================================================================== */
 
