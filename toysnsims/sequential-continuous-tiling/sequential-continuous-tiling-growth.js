@@ -44,8 +44,9 @@
        are too far away to matter. That is slower, but exact for T's
        polygon.
    (d) T is replaced by a polygon with 4096 corners at equally spaced
-       angles, each corner found by binary search on T's condition.
-       Every step after that is exact for this polygon.
+       angles, each corner found by binary search on T's condition
+       (tilePolygon, js/sim-tile-shape.js, shared with the continuous
+       DLA sims). Every step after that is exact for this polygon.
    (e) The edge of S is found once, by "marching squares" (Lorensen &
        Cline, "Marching cubes", SIGGRAPH 1987, the 2D version) on a
        512 x 512 grid: it becomes many short line segments, each end
@@ -88,11 +89,12 @@
        addClick(x, y)   the next attempt with a center you clicked
        placeAt(x, y)    the same with a given center (for the checks)
        tiles            the placed tiles (see section 6)
-     It uses no library itself; the page passes in its formulas as
-     plain functions and the random-number maker. The check page runs
-     it directly. The sim page runs it in a Web Worker, through
+     It uses no library itself, only T's polygon (tilePolygon,
+     js/sim-tile-shape.js); the page passes in its formulas as plain
+     functions and the random-number maker. The check page runs it
+     directly. The sim page runs it in a Web Worker, through
      packingWorker() at the end of this file (section 8), which reads
-     the typed formulas with math.js.
+     the typed formulas with math.js (readShape, js/sim-tile-shape.js).
 
    The code is in numbered sections, all inside packingCore():
      1. The tile shape T: its polygon and its ruler g
@@ -113,121 +115,32 @@ function packingCore() {
   /* ===================================================================
      1. THE TILE SHAPE T: ITS POLYGON AND ITS RULER g
      -------------------------------------------------------------------
-     Corner k sits at angle θ_k = 2πk/M, at distance rho[k] from the
-     center: the farthest point of T in that direction. Between corners
-     k and k+1 the polygon edge is a straight line, and there the ruler
-     is linear: g(v) = gx[k] * v_x + gy[k] * v_y.
+     T's polygon comes from tilePolygon (js/sim-tile-shape.js): corner
+     k sits at angle θ_k = 2πk/M, at distance rho[k] from the center,
+     the farthest point of T in that direction. Between corners k and
+     k+1 the polygon edge is a straight line, and there the ruler is
+     linear: g(v) = gx[k] * v_x + gy[k] * v_y. Its parts are kept here
+     under short names, since sections 5 and 6 use them all the time.
      =================================================================== */
-  const M = 4096;                    // corners of T's polygon
-  let rho = null, px = null, py = null, gx = null, gy = null;
+  const M = TILE_CORNERS;            // corners of T's polygon
+  let cosM = null, sinM = null;      // the corner directions θ_k
+  let rho = null, px = null, py = null;
   let rhoMax = 1;                    // T fits in a disk of this radius
-  const cosM = new Float64Array(M), sinM = new Float64Array(M);   // the corner directions θ_k
-  for (let k = 0; k < M; k++) { cosM[k] = Math.cos(TAU * k / M); sinM[k] = Math.sin(TAU * k / M); }
   let tMinX = 0, tMaxX = 0, tMinY = 0, tMaxY = 0;   // the smallest box around T
   let areaT = 0;
   let exactTiles = false;            // true when T is convex and symmetric (section 5)
-
-  // How far T reaches in the direction (ux, uy): step out, doubling,
-  // until we leave T, then binary search between the last point inside
-  // and the first point outside.
-  function reach(inT, ux, uy) {
-    let lo = 0, hi = 1e-6;
-    while (inT(hi * ux, hi * uy) && hi < 1e6) { lo = hi; hi *= 2; }
-    for (let i = 0; i < 60; i++) {
-      const mid = (lo + hi) / 2;
-      if (inT(mid * ux, mid * uy)) lo = mid; else hi = mid;
-    }
-    return lo;
-  }
+  let runs = null, bigRuns = null;   // T's edges in runs, each with a circle around it (for tileEdgeDistance)
+  let g = null;                      // T's ruler: g(v) = the smallest λ with v in λT
+  let mostRho = null;                // mostRho(k0, k1): the largest rho[k] for k from k0 to k1
+  let shape = null;                  // all of it (tilePolygon)
 
   function buildShape(inT) {
-    if (!inT(0, 0)) throw new Error("T must contain its center (0, 0).");
-    rho = new Float64Array(M);
-    for (let k = 0; k < M; k++) rho[k] = reach(inT, cosM[k], sinM[k]);
-
-    // Symmetric? (Same reach in opposite directions, up to the binary
-    // search's rounding.) If so, make it exactly symmetric.
-    rhoMax = Math.max(...rho);
-    if (rhoMax === 0) throw new Error("T has no area around its center.");
-    let symmetric = true;
-    for (let k = 0; k < M / 2; k++) {
-      if (Math.abs(rho[k] - rho[k + M / 2]) > 1e-7 * rhoMax) { symmetric = false; break; }
-    }
-    if (symmetric) {
-      for (let k = 0; k < M / 2; k++) rho[k] = rho[k + M / 2] = (rho[k] + rho[k + M / 2]) / 2;
-    }
-
-    // The corners, the smallest box around them, and T's area (shoelace formula).
-    px = new Float64Array(M); py = new Float64Array(M);
-    for (let k = 0; k < M; k++) {
-      px[k] = rho[k] * cosM[k];
-      py[k] = rho[k] * sinM[k];
-    }
-    tMinX = Math.min(...px); tMaxX = Math.max(...px);
-    tMinY = Math.min(...py); tMaxY = Math.max(...py);
-    areaT = 0;
-    for (let k = 0; k < M; k++) {
-      const j = (k + 1) % M;
-      areaT += (px[k] * py[j] - px[j] * py[k]) / 2;
-    }
-
-    // The ruler on each edge: the line through corners k and k+1 is
-    // { v : cross(v, d) = cross(P_k, d) } with d = P_{k+1} - P_k, and
-    // g(v) is the λ that puts v/λ on that line.
-    gx = new Float64Array(M); gy = new Float64Array(M);
-    for (let k = 0; k < M; k++) {
-      const j = (k + 1) % M;
-      const dx = px[j] - px[k], dy = py[j] - py[k];
-      const den = px[k] * dy - py[k] * dx;
-      gx[k] = dy / den;
-      gy[k] = -dx / den;
-    }
-
-    // Convex? (Every corner turns the same way, up to rounding.)
-    let convex = true;
-    for (let k = 0; k < M; k++) {
-      const a = (k + 1) % M, b = (k + 2) % M;
-      const turn = (px[a] - px[k]) * (py[b] - py[a]) - (py[a] - py[k]) * (px[b] - px[a]);
-      if (turn < -1e-9 * rhoMax * rhoMax) { convex = false; break; }
-    }
-    exactTiles = convex && symmetric;
-    buildRuns();
-  }
-
-  // For tileEdgeDistance: T's polygon edges are grouped into "runs" of
-  // RUN_EDGES edges, and those into "big runs" of BIG_RUN runs. Each
-  // gets a circle around it (center and radius, in T's own units), so
-  // a whole group can be skipped when it is too far away.
-  const RUN_EDGES = 16, BIG_RUN = 16;
-  let runs = null, bigRuns = null;
-  function circleAround(firstCorner, lastCorner) {
-    let sx = 0, sy = 0;
-    for (let k = firstCorner; k <= lastCorner; k++) { sx += px[k % M]; sy += py[k % M]; }
-    sx /= lastCorner - firstCorner + 1; sy /= lastCorner - firstCorner + 1;
-    let radius = 0;
-    for (let k = firstCorner; k <= lastCorner; k++) radius = Math.max(radius, Math.hypot(px[k % M] - sx, py[k % M] - sy));
-    return [sx, sy, radius];
-  }
-  let most = [];   // the sparse table for mostRho (section 5)
-  function buildRuns() {
-    most = [rho];
-    for (let level = 1; (1 << level) <= M; level++) {
-      const prev = most[level - 1], next = new Float64Array(M), half = 1 << (level - 1);
-      for (let k = 0; k < M; k++) next[k] = Math.max(prev[k], prev[(k + half) % M]);
-      most.push(next);
-    }
-    runs = []; bigRuns = [];
-    for (let k = 0; k < M; k += RUN_EDGES) runs.push(circleAround(k, k + RUN_EDGES));
-    for (let k = 0; k < M; k += RUN_EDGES * BIG_RUN) bigRuns.push(circleAround(k, k + RUN_EDGES * BIG_RUN));
-  }
-
-  // T's ruler: g(v) = the smallest λ with v in λT.
-  function g(vx, vy) {
-    let angle = Math.atan2(vy, vx);
-    if (angle < 0) angle += TAU;
-    let k = Math.floor(angle * M / TAU);
-    if (k >= M) k = M - 1;
-    return gx[k] * vx + gy[k] * vy;
+    shape = tilePolygon(inT);
+    ({ cosM, sinM, rho, px, py, rhoMax, runs, bigRuns, mostRho } = shape);
+    g = shape.gauge;
+    tMinX = shape.minX; tMaxX = shape.maxX; tMinY = shape.minY; tMaxY = shape.maxY;
+    areaT = shape.area;
+    exactTiles = shape.convex && shape.symmetric;
   }
 
 
@@ -634,18 +547,6 @@ function packingCore() {
     return (dist - radius) / mostRho(Math.floor((middle - half) * M / TAU), Math.floor((middle + half) * M / TAU) + 1);
   }
 
-  // The largest rho[k] for k from k0 to k1 (going around past M is
-  // fine). most[level][k] holds the largest of rho[k .. k + 2^level - 1],
-  // so any range is covered by two overlapping blocks (a "sparse
-  // table"; Bender & Farach-Colton, LATIN 2000).
-  function mostRho(k0, k1) {
-    const length = k1 - k0 + 1;
-    if (length >= M) return rhoMax;
-    const start = ((k0 % M) + M) % M;
-    const level = Math.floor(Math.log2(length));
-    return Math.max(most[level][start], most[level][(start + length - (1 << level)) % M]);
-  }
-
   // Look at every obstacle near (cx, cy). Returns { inTile, distance,
   // obstacle }: inTile = the tile holding the center (or -1); otherwise
   // the distance to the nearest obstacle and which one it is.
@@ -864,12 +765,13 @@ function packingCore() {
   }
 
   return {
-    setup, attempt, addClick, placeAt, drawCenter, tiles, g,
+    setup, attempt, addClick, placeAt, drawCenter, tiles,
+    get g() { return g; },
     get attempts() { return attempts; },
     get ceilingMisses() { return ceilingMisses; },
     get segments() { return segments; },
     get exactTiles() { return exactTiles; },
-    get shape() { return { px, py, rhoMax }; },
+    get shape() { return shape; },
   };
 }
 
@@ -921,79 +823,8 @@ function packingWorker() {
   let shapes = null;           // for a run's first report: S and T, as the page draws them
   let clicked = null;          // for the report after a click: the click's answer
 
-  // A typed shape (S or T) as a function of (x, y) that gives true or
-  // false. It comes in three kinds:
-  //   a condition, like x^2 + y^2 <= 1: the points where it holds;
-  //   an equation, like x^2 + y^2 = 1: the region its curve closes
-  //     off. "F = G" becomes F - G <= 0 or F - G >= 0, whichever side
-  //     far-off points (the corners of the square -2000 <= x, y <= 2000)
-  //     are NOT on;
-  //   a curve { x, y } in t, like (cos(t), sin(t)): the points inside it
-  //     (insideCurve).
-  // A point where the formula can't be worked out (say sqrt of a
-  // negative number) counts as outside.
-  function readShape(text, values, name) {
-    if (typeof text === "object") return insideCurve(text, values, name);
-    let node = math.parse(text);
-    while (node.isParenthesisNode) node = node.content;
-    const scope = Object.assign({}, values);
-    if (node.isOperatorNode && node.fn === "equal") {
-      const gap = new math.OperatorNode("-", "subtract", node.args).compile();
-      const gapAt = function (x, y) {
-        scope.x = x; scope.y = y;
-        try { const v = gap.evaluate(scope); return typeof v === "number" ? v : NaN; } catch (error) { return NaN; }
-      };
-      let farSign = 0;
-      for (const [x, y] of [[2000, 2000], [-2000, 2000], [-2000, -2000], [2000, -2000]]) farSign += Math.sign(gapAt(x, y)) || 0;
-      if (farSign === 0) throw new Error(name + "'s curve doesn't close off a region (its inside and outside can't be told apart).");
-      return function (x, y) { return gapAt(x, y) * farSign <= 0; };
-    }
-    const formula = node.compile();
-    function test(x, y) {
-      scope.x = x; scope.y = y;
-      try { return formula.evaluate(scope) === true; } catch (error) { return false; }
-    }
-    scope.x = 0; scope.y = 0;
-    const sample = formula.evaluate(scope);
-    if (sample !== true && sample !== false) {
-      throw new Error(name + " should be a condition like x^2 + y^2 <= 1, an equation like x^2 + y^2 = 1, " +
-                      "or a curve like (cos(t), sin(t)).");
-    }
-    return test;
-  }
-
-  // The inside of a curve (x(t), y(t)), t from 0 to 2π. The curve
-  // becomes a polygon with 4096 corners, and a point is inside when a
-  // ray from it to the right crosses the polygon an odd number of times.
-  // To keep that quick, the polygon's edges are sorted into 256
-  // horizontal strips, and a point only looks at the edges of its strip.
-  function insideCurve(curve, values, name) {
-    const fx = math.compile(curve.x), fy = math.compile(curve.y);
-    const scope = Object.assign({}, values), CORNERS = 4096, STRIPS = 256, cx = [], cy = [];
-    for (let k = 0; k < CORNERS; k++) {
-      scope.t = 2 * Math.PI * k / CORNERS;
-      let x = NaN, y = NaN;
-      try { x = fx.evaluate(scope); y = fy.evaluate(scope); } catch (error) { /* skip this t */ }
-      if (Number.isFinite(x) && Number.isFinite(y)) { cx.push(x); cy.push(y); }
-    }
-    if (cx.length < 3) throw new Error(name + "'s curve should give two numbers for each t, like (cos(t), sin(t)).");
-    const low = Math.min(...cy), high = Math.max(...cy), height = (high - low) / STRIPS || 1;
-    const stripOf = function (y) { return Math.min(STRIPS - 1, Math.floor((y - low) / height)); };
-    const strips = Array.from({ length: STRIPS }, function () { return []; });
-    for (let i = 0, j = cx.length - 1; i < cx.length; j = i++) {
-      for (let s = stripOf(Math.min(cy[i], cy[j])); s <= stripOf(Math.max(cy[i], cy[j])); s++) strips[s].push(i, j);
-    }
-    return function (x, y) {
-      if (!(y >= low && y <= high)) return false;
-      const edges = strips[stripOf(y)];
-      let inside = false;
-      for (let e = 0; e < edges.length; e += 2) {
-        const i = edges[e], j = edges[e + 1];
-        if ((cy[i] > y) !== (cy[j] > y) && x < (cx[j] - cx[i]) * (y - cy[i]) / (cy[j] - cy[i]) + cx[i]) inside = !inside;
-      }
-      return inside;
-    };
-  }
+  // S and T are read by readShape (js/sim-tile-shape.js): a condition,
+  // an equation or a curve, as a test of points.
 
   // The window depends only on S and its own sliders, so it is kept
   // between setups: dragging a slider of T or f doesn't look for S again.
@@ -1040,10 +871,9 @@ function packingWorker() {
       });
       core = packing;
       lastWindow = { key: key, window: info.window };
-      // T's polygon, 128 of its corners, for drawing.
-      const shape = packing.shape, shapeX = [], shapeY = [];
-      for (let k = 0; k < shape.px.length; k += shape.px.length / 128) { shapeX.push(shape.px[k]); shapeY.push(shape.py[k]); }
-      shapes = { info: info, segments: packing.segments.flat(), shapeX: shapeX, shapeY: shapeY };
+      // T's polygon, 128 of its corners, for drawing (js/sim-tile-shape.js).
+      const outline = tileOutline(packing.shape);
+      shapes = { info: info, segments: packing.segments.flat(), shapeX: outline.x, shapeY: outline.y };
     } catch (error) {
       problem = error.message;
       return;

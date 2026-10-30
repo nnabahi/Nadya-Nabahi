@@ -16,6 +16,10 @@
                                      comes back to it (in 3D, null if it
                                      never does)
      returnPoint2D, returnPoint3D, perpendicularPair   their parts
+     brownianStep(dims, sd, draw)    a move of Brownian motion over a
+                                     short time (the check pages follow
+                                     it in small steps, against the
+                                     exact jumps)
    "draw" is a function giving uniform numbers in [0, 1).
    The source for all of it: P. Morters and Y. Peres, "Brownian Motion",
    Cambridge University Press, 2010, Chapter 3 (the Poisson kernel,
@@ -85,8 +89,23 @@ function brownianReturn(place, R, draw) {
   return draw() < R / r ? returnPoint3D(place, R, draw(), draw()) : null;
 }
 
+// A move of Brownian motion over the time sd^2: each coordinate is
+// normal, with mean 0 and standard deviation sd, made from two uniform
+// numbers per pair of coordinates (G. Box and M. Muller, "A note on the
+// generation of random normal deviates", Ann. Math. Statist. 29 (1958)
+// 610-611).
+function brownianStep(dims, sd, draw) {
+  const step = [];
+  while (step.length < dims) {
+    const size = sd * Math.sqrt(-2 * Math.log(1 - draw())), angle = 2 * Math.PI * draw();
+    step.push(size * Math.cos(angle), size * Math.sin(angle));
+  }
+  return step.slice(0, dims);
+}
+
+
 /* =====================================================================
    FOR A SECOND THREAD: everything above, to hand to runInWorker
    (js/sim-page.js) as helpers.
    ===================================================================== */
-function continuumHelpers() { return [pointOnSphere, brownianReturn, returnPoint2D, returnPoint3D, perpendicularPair]; }
+function continuumHelpers() { return [pointOnSphere, brownianReturn, returnPoint2D, returnPoint3D, perpendicularPair, brownianStep]; }

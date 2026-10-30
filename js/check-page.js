@@ -22,6 +22,11 @@
      twoCountsChiSquare(a, b)            do two lists of counts have the same law?
      twoSampleChiSquare(a, b)            ... and two lists of values?
      gaussianSolve(rows)                 a small linear system, solved plainly
+   and, for the pages that test Brownian motion's launch and return
+   (they load js/sim-continuum.js):
+     checkReturn(dims, q, runs)          the return to the launch circle, against the Poisson kernel
+     simpson(f, a, b), pieceOdds(f, low, high), pieceOf(v, low, high)
+                                         chances of equal pieces, for a density
    and, for the pages that test growing clusters (they load
    js/sim-walk.js, whose lattices and sites they use):
      siteKey, neighborsOf, setKey        sites as numbers, their neighbors, sets of sites
@@ -222,6 +227,80 @@ function gaussianSolve(rows) {
     }
   }
   return rows.map(function (row, c) { return row[m] / row[c]; });
+}
+
+
+/* ---------------------------------------------------------------------
+   Brownian motion's return (the external DLA sims; the pages load
+   js/sim-continuum.js)
+   ---------------------------------------------------------------------
+   A particle that gets outside the launch circle (sphere) is brought
+   back to it the way Brownian motion would come back (returnPoint2D
+   and returnPoint3D, js/sim-continuum.js). Brownian motion from x, at
+   distance r from the middle, first reaches the circle or sphere of
+   radius R < r at y with density proportional to 1 / |x - y|^d on it
+   (d = 2, 3; the Poisson kernels for the outside of a disk and of a
+   ball: P. Morters and Y. Peres, "Brownian Motion", Cambridge
+   University Press, 2010, Chapter 3). In terms of the angle t between
+   x and y, |x - y|^2 = r^2 + R^2 - 2 r R cos t. The samplers invert
+   those laws in closed form; here the samples are counted in 20 equal
+   pieces (of the angle in 2D, of cos t in 3D, where the sphere's area
+   is uniform in cos t), whose chances come from the densities by
+   Simpson's rule, not from the closed forms.
+   --------------------------------------------------------------------- */
+const RETURN_PIECES = 20;
+
+// The integral of f from a to b, by Simpson's rule with 200 pieces.
+function simpson(f, a, b) {
+  const n = 200, h = (b - a) / n;
+  let sum = f(a) + f(b);
+  for (let i = 1; i < n; i++) sum += (i % 2 === 1 ? 4 : 2) * f(a + i * h);
+  return sum * h / 3;
+}
+
+// The chances of RETURN_PIECES equal pieces of [low, high], for the
+// density proportional to f there, as a Map from piece to chance.
+function pieceOdds(f, low, high) {
+  const width = (high - low) / RETURN_PIECES, odds = new Map();
+  let total = 0;
+  for (let b = 0; b < RETURN_PIECES; b++) { odds.set(b, simpson(f, low + b * width, low + (b + 1) * width)); total += odds.get(b); }
+  for (const b of odds.keys()) odds.set(b, odds.get(b) / total);
+  return odds;
+}
+
+function pieceOf(v, low, high) { return Math.min(RETURN_PIECES - 1, Math.floor((v - low) / (high - low) * RETURN_PIECES)); }
+
+// Brownian motion from distance r = R / q comes back to the circle (2D)
+// or sphere (3D) of radius R = 1: its angles against the Poisson kernel,
+// and in 3D the turn around the direction of x, which must be uniform.
+function checkReturn(dims, q, runs) {
+  const R = 1, r = R / q, random = seededUniform("return " + dims + " " + q);
+  const toward = dims === 2 ? [Math.cos(0.7), Math.sin(0.7)] : [2 / 3, -1 / 3, 2 / 3];
+  const place = toward.map(function (x) { return r * x; }), seen = new Map(), turns = new Array(RETURN_PIECES).fill(0);
+  const [e1, e2] = dims === 3 ? perpendicularPair(toward) : [null, null];
+  let offCircle = 0;
+  for (let i = 0; i < runs; i++) {
+    const y = dims === 2 ? returnPoint2D(place, R, random.uniform(i, 0)) : returnPoint3D(place, R, random.uniform(i, 0), random.uniform(i, 1));
+    offCircle = Math.max(offCircle, Math.abs(Math.hypot(...y) - R));
+    const dot = function (e) { return y.reduce(function (sum, v, d) { return sum + v * e[d]; }, 0) / R; };
+    let piece;
+    if (dims === 2) {
+      const t = Math.atan2(y[1], y[0]) - 0.7, angle = t - 2 * Math.PI * Math.round(t / (2 * Math.PI));
+      piece = pieceOf(angle, -Math.PI, Math.PI);
+    } else {
+      piece = pieceOf(dot(toward), -1, 1);
+      turns[pieceOf(Math.atan2(dot(e2), dot(e1)), -Math.PI, Math.PI)]++;
+    }
+    seen.set(piece, (seen.get(piece) || 0) + 1);
+  }
+  const odds = dims === 2 ? pieceOdds(function (t) { return 1 / (r * r + R * R - 2 * r * R * Math.cos(t)); }, -Math.PI, Math.PI)
+                          : pieceOdds(function (c) { return Math.pow(r * r + R * R - 2 * r * R * c, -1.5); }, -1, 1);
+  const test = exactOddsTest(odds, seen, runs, "pieces of the " + (dims === 2 ? "angle" : "cosine"));
+  const turn = dims === 3 ? equalChiSquare(turns) : { pValue: 1 };
+  addRow((dims === 2 ? "2D" : "3D") + ": the return from " + fourDigits(r) + " launch radii", test.pass && turn.pValue > 0.001 && offCircle < 1e-9,
+         test.text + (dims === 3 ? "; the turn around it, chi-square " + turn.statistic.toFixed(1) + " with " + turn.degrees +
+                                   " degrees of freedom, p = " + turn.pValue.toFixed(3) : "") +
+         "; every point at most " + fourDigits(offCircle) + " off the " + (dims === 2 ? "circle" : "sphere"));
 }
 
 
