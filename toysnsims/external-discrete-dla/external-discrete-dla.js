@@ -12,7 +12,8 @@
    js/sim-page.js, the charts in js/sim-charts.js, the colors in
    js/sim-colors.js, moving, zooming and painting the 2D picture in
    js/sim-view.js, the cluster's cells kept and drawn as on Internal
-   Discrete DLA's page in js/sim-cluster-page.js (with js/sim-sites.js),
+   Discrete DLA's page, and the statistics shown as on External
+   Continuous DLA's, in js/sim-cluster-page.js (with js/sim-sites.js),
    the 3D picture in js/sim-3d.js, the tilings of the plane in
    js/sim-tilings.js and of space in js/sim-honeycombs.js (with their
    options in js/sim-controls.js).
@@ -39,7 +40,6 @@ const DEFAULT_SEED = "1";
 const PICTURE_HEIGHT = 480;
 const BACKGROUND = "#ffffff";     // cells not in the cluster
 const ORIGIN = "#222222";         // the seed's outline (2D)
-const GYRATION_LINE = "#b9c8dc";  // the radius of gyration on the charts (the farthest cell is CHART_LINE)
 
 // The colors come in this many steps, from blue (first) to red (just now).
 const COLOR_STEPS = 64;
@@ -54,12 +54,6 @@ const DEFAULT_GOTO = 10000;           // the Go to box's first number (the most 
 // The launch distance box goes from 1 to this many reaches (its first
 // value is DEFAULT_LAUNCH, external-discrete-dla-growth.js).
 const MOST_LAUNCH = 64;
-
-// The fractal dimension is fitted over the last FIT_SPAN-fold of the
-// run (from n / FIT_SPAN to n particles), once there are FIT_FROM
-// particles.
-const FIT_SPAN = 10;
-const FIT_FROM = 100;
 
 
 /* =====================================================================
@@ -185,61 +179,18 @@ function drawCluster() {
 /* =====================================================================
    5. STATISTICS
    ---------------------------------------------------------------------
-   All for the cluster on the screen. The worker keeps the numbers up to
-   date, and a sample of them every so often for the charts (serveGrowth,
-   js/sim-cluster.js). The fractal dimension is fitted to those samples:
-   if the radius of gyration grows like n^b, the cluster's n cells fill
-   a ball of that radius the way a set of dimension 1/b would.
+   All for the cluster on the screen: the numbers and charts every
+   external DLA page shows, with the fitted fractal dimension
+   (showExternalStats, js/sim-cluster-page.js), and this page's own:
+   steps, and in 3D the walkers replaced.
    ===================================================================== */
 
 function showStats() {
   if (!haveCluster()) return;
-  showTable(latest);
-  drawCharts(latest);
-}
-
-// The table of numbers.
-function showTable(s) {
-  const fit = dimensionFit(s);
-  byId("stat-particles").textContent = s.particles.toLocaleString();
-  byId("stat-radius").textContent = niceNumber(s.radius);
-  byId("stat-gyration").textContent = niceNumber(s.gyration);
-  byId("stat-dimension").textContent = fit ? niceNumber(1 / fit.slope) : "(from " + FIT_FROM + " particles)";
-  byId("stat-launch").textContent = niceNumber(s.launchRadius);
-  byId("stat-steps").textContent = s.steps.toLocaleString();
-  byId("stat-jumps").textContent = s.jumps.toLocaleString();
-  byId("stat-returns").textContent = s.returns.toLocaleString();
+  showExternalStats(latest);
+  byId("stat-steps").textContent = latest.steps.toLocaleString();
   byId("replaced-row").hidden = (dim !== 3);
-  byId("stat-replaced").textContent = s.replaced.toLocaleString();
-}
-
-// The straight line through log(radius of gyration) against log(n), by
-// least squares, over the samples from n / FIT_SPAN to n: { slope }, or
-// null before FIT_FROM particles.
-function dimensionFit(s) {
-  const times = s.traceParticles, radii = s.traceLists.gyration, n = s.particles;
-  if (n < FIT_FROM) return null;
-  const xs = [], ys = [];
-  times.forEach(function (t, i) {
-    if (t >= n / FIT_SPAN && radii[i] > 0) { xs.push(Math.log(t)); ys.push(Math.log(radii[i])); }
-  });
-  if (xs.length < 3) return null;
-  const mx = xs.reduce(function (a, b) { return a + b; }, 0) / xs.length;
-  const my = ys.reduce(function (a, b) { return a + b; }, 0) / ys.length;
-  let sxy = 0, sxx = 0;
-  xs.forEach(function (x, i) { sxy += (x - mx) * (ys[i] - my); sxx += (x - mx) * (x - mx); });
-  return sxx > 0 ? { slope: sxy / sxx } : null;
-}
-
-// The charts: the farthest cell and the radius of gyration over time,
-// and the radius of gyration against n on a log-log chart, with the
-// fitted slope as a dashed line.
-function drawCharts(s) {
-  const times = s.traceParticles, lists = s.traceLists, fit = dimensionFit(s);
-  plotOverTime(byId("radius-chart"), times,
-               [{ values: lists.gyration, color: GYRATION_LINE }, { values: lists.radius, color: CHART_LINE }], "particles");
-  logLogChart(byId("dimension-chart"), [{ points: pointsOverTime(times, lists.gyration) }],
-              "particles", "radius of gyration (log-log)", fit ? fit.slope : null);
+  byId("stat-replaced").textContent = latest.replaced.toLocaleString();
 }
 
 

@@ -132,9 +132,10 @@ function packingCore() {
   let runs = null, bigRuns = null;   // T's edges in runs, each with a circle around it (for tileEdgeDistance)
   let g = null;                      // T's ruler: g(v) = the smallest λ with v in λT
   let mostRho = null;                // mostRho(k0, k1): the largest rho[k] for k from k0 to k1
+  let shape = null;                  // all of it (tilePolygon)
 
   function buildShape(inT) {
-    const shape = tilePolygon(inT);
+    shape = tilePolygon(inT);
     ({ cosM, sinM, rho, px, py, rhoMax, runs, bigRuns, mostRho } = shape);
     g = shape.gauge;
     tMinX = shape.minX; tMaxX = shape.maxX; tMinY = shape.minY; tMaxY = shape.maxY;
@@ -770,7 +771,7 @@ function packingCore() {
     get ceilingMisses() { return ceilingMisses; },
     get segments() { return segments; },
     get exactTiles() { return exactTiles; },
-    get shape() { return { px, py, rhoMax }; },
+    get shape() { return shape; },
   };
 }
 
@@ -870,10 +871,9 @@ function packingWorker() {
       });
       core = packing;
       lastWindow = { key: key, window: info.window };
-      // T's polygon, 128 of its corners, for drawing.
-      const shape = packing.shape, shapeX = [], shapeY = [];
-      for (let k = 0; k < shape.px.length; k += shape.px.length / 128) { shapeX.push(shape.px[k]); shapeY.push(shape.py[k]); }
-      shapes = { info: info, segments: packing.segments.flat(), shapeX: shapeX, shapeY: shapeY };
+      // T's polygon, 128 of its corners, for drawing (js/sim-tile-shape.js).
+      const outline = tileOutline(packing.shape);
+      shapes = { info: info, segments: packing.segments.flat(), shapeX: outline.x, shapeY: outline.y };
     } catch (error) {
       problem = error.message;
       return;
