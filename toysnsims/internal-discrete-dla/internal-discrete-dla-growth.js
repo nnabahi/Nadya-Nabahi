@@ -112,12 +112,6 @@ function newInternalDLA(options) {
   return g;
 }
 
-// The lattice newInternalDLA's options say (js/sim-walk.js).
-function latticeFor(options) {
-  if (options.dim === 3) return honeycombLattice(options.block);
-  return options.tiling ? tilingLattice(options.tiling) : gridLattice(options.dim);
-}
-
 // rho_n: the radius of the ball with n sites on the grids (see the top
 // of this file).
 function ballRadius(dim, n) {
@@ -130,97 +124,36 @@ function ballRadius(dim, n) {
 /* =====================================================================
    2. THE GROWTH IN A SECOND THREAD
    ---------------------------------------------------------------------
-   It talks to the page the way every sim's worker does (serveRun,
-   js/sim-worker.js). Its own messages:
-     setup  { dim, tiling, block, grid, seed, particles, cellsKnown }
-         a new growth (newInternalDLA's options; "grid" says the lattice
-         is Z, Z² or Z³, for the ball radius), grown at once to
-         "particles" particles with the same seed (at least 1: the
-         cluster starts as the origin alone). On a Penrose tiling
-         it grows on this thread's plane of it (kept while the tiling
-         stays the same), and the page already has its cells up to
-         cellsKnown.
-     goto   { steps }        grow to that many particles (or start
-                             again and grow to that many, if fewer)
-   It reports the numbers for the Statistics box, the samples for the
-   charts, and the sites new since its last report, and on a Penrose
-   tiling the plane's cells the page doesn't have yet. The run is done
-   (and pauses by itself) at MOST_PARTICLES, or at the edge of a
-   Penrose plane.
+   It runs as every cluster sim's second thread does (serveGrowth,
+   js/sim-cluster.js), with newInternalDLA's options from the page and
+   "grid" (the lattice is Z, Z² or Z³, for the ball radius). Its own
+   numbers: steps, jumps, the inner radius (the nearest empty cell) and
+   the outer one (the farthest cell), and on the grids rho_n, the
+   radius of the ball with n cells. The charts' samples: the inner and
+   outer radius, and on the grids the inner and outer error. The run is
+   done at MOST_PARTICLES.
    ===================================================================== */
 const MOST_PARTICLES = 1000000;
 
 function growthWorker() {
-  let options = null, growth = null, problem = "", trace = null;
-  let sitesSent = 0, plane = null, cellsSent = 0;
-
-  function setup(particles) {
-    problem = "";
-    sitesSent = 0;
-    try {
-      const finite = options.tiling && options.tiling.finite;
-      if (finite) { plane = penrosePlane(plane, options.tiling); cellsSent = options.cellsKnown; }
-      growth = newInternalDLA(finite ? Object.assign({}, options, { tiling: plane }) : options);
-    } catch (error) {
-      growth = null;
-      problem = error.message;
-      return;
-    }
-    trace = newTrace();
-    while (growth.cluster.count < Math.max(1, particles) && !isDone()) oneParticle();
-  }
-
-  function isDone() { return growth === null || growth.cluster.count >= MOST_PARTICLES || growth.atEdge; }
-
-  function oneParticle() {
-    if (!growth.addParticle()) return;
-    const c = growth.cluster, n = c.count;
-    keepSample(trace, n, function () {
-      const values = { inner: c.nearestEdge(), outer: c.farthest };
+  serveGrowth({
+    make: newInternalDLA, most: MOST_PARTICLES,
+    names: ["inner", "outer", "innerError", "outerError"],
+    sample: function (growth, options) {
+      const c = growth.cluster, values = { inner: c.nearestEdge(), outer: c.farthest };
       if (options.grid) {
-        const rho = ballRadius(options.dim, n);
+        const rho = ballRadius(options.dim, c.count);
         values.innerError = rho - values.inner;
         values.outerError = values.outer - rho;
       }
       return values;
-    });
-  }
-
-  serveRun({
-    setup: function (message) { options = message; setup(message.particles); },
-    steps: oneParticle, isDone: isDone, report: report,
-    messages: {
-      goto: function (message) {
-        if (growth && message.steps < growth.cluster.count) setup(message.steps);
-        else while (!isDone() && growth.cluster.count < message.steps) oneParticle();
-      },
+    },
+    numbers: function (growth, options) {
+      const c = growth.cluster;
+      return {
+        grid: options.grid, steps: growth.steps, jumps: growth.jumps,
+        inner: c.nearestEdge(), outer: c.farthest, rho: options.grid ? ballRadius(options.dim, c.count) : null,
+      };
     },
   });
-
-  // The numbers, the charts' samples, and the sites new since the last
-  // report (each one's block I, J, K and cell k; its number is its place
-  // in the list).
-  function report(send) {
-    if (!growth) { send({ problem: problem }); return; }
-    const c = growth.cluster, lists = trace.lists, n = c.count;
-    const message = {
-      problem: "", dim: options.dim, grid: options.grid,
-      particles: n, steps: growth.steps, jumps: growth.jumps,
-      inner: c.nearestEdge(), outer: c.farthest, rho: options.grid ? ballRadius(options.dim, n) : null,
-      atMax: n >= MOST_PARTICLES, atEdge: growth.atEdge,
-      traceParticles: Float64Array.from(trace.times),
-      traceInner: Float64Array.from(lists.inner || []), traceOuter: Float64Array.from(lists.outer || []),
-      traceInnerError: Float64Array.from(lists.innerError || []), traceOuterError: Float64Array.from(lists.outerError || []),
-      sitesFrom: sitesSent,
-      siteI: Int32Array.from(c.I.slice(sitesSent)), siteJ: Int32Array.from(c.J.slice(sitesSent)),
-      siteK: Int32Array.from(c.K.slice(sitesSent)), sitePart: Int32Array.from(c.k.slice(sitesSent)),
-      siteDistance: Float64Array.from(c.distance.slice(sitesSent)),
-    };
-    sitesSent = n;
-    if (plane && options.tiling && options.tiling.finite && plane.cells.length > cellsSent) {
-      message.planeCells = planeCellsFrom(plane, cellsSent);
-      cellsSent = plane.cells.length;
-    }
-    send(message);
-  }
 }

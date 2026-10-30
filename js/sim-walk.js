@@ -18,6 +18,7 @@
                               one block that grows, so I = J = K = 0
      honeycombLattice(block)  a tiling of space (honeycombBlock,
                               js/sim-honeycombs.js)
+     latticeFor(options)      the one a sim's options say
    Each one gives
      dim                  1, 2 or 3
      movesOf(k)           the moves of cell k (each neighbor once)
@@ -108,6 +109,14 @@ function honeycombLattice(block) {
   return lattice;
 }
 
+// The lattice a sim's options say: { dim, tiling, block } with "block"
+// a tiling of space (3D), else "tiling" a tiling of the plane (2D), else
+// the grid of that dimension.
+function latticeFor(options) {
+  if (options.dim === 3 && options.block) return honeycombLattice(options.block);
+  return options.tiling ? tilingLattice(options.tiling) : gridLattice(options.dim);
+}
+
 // The farthest apart two neighbors' middles are, over every cell of
 // the block and every move.
 function longestMoveOf(lattice) {
@@ -194,9 +203,15 @@ function cutsOf(weights, count) {
    Because the lattice repeats, the law for cell k of block (0, 0, 0)
    serves every copy of cell k: the sites just shift by the block. So
    each table is worked out once, the first time it is needed, for the
-   radii 2, 4, 8, ... (as long as the ball has at most MOST_BALL_SITES
-   sites). A Penrose plane never repeats, so there the walker always
-   steps.
+   radii 2, 4, 8, ..., as long as the balls of that radius, one for each
+   cell of the block, have at most MOST_BALL_SITES sites together. (A
+   ball's table takes longer than its size to work out. With 100,000,
+   all of a lattice's tables together take under half a second, which a
+   sim pays again at each restart; on the square grid the biggest ball
+   then has radius 128, and the next one, radius 256, would take 2.5 s.
+   Counting per ball instead, the snub hexagonal tiling's 12 corners
+   would take minutes.) A Penrose plane never repeats, so there the
+   walker always steps.
 
    Choosing the ball. A sim says how much ROOM there is: no site
    closer than "room" (straight-line distance, from the walker's middle)
@@ -208,7 +223,7 @@ function cutsOf(weights, count) {
    r moves) must not count as outside the ball.
    ===================================================================== */
 
-const MOST_BALL_SITES = 200000;
+const MOST_BALL_SITES = 100000;
 const ROOM_SPARE = 1e-6;
 
 // The jumps of a lattice. jump(s, room, u) moves the walker at site s
@@ -219,10 +234,11 @@ const ROOM_SPARE = 1e-6;
 function ballJumps(lattice) {
   const tables = [];         // tables[k][j]: cell k's exit law from the ball of radius 2^(j+1)
   let biggest = Infinity;    // the biggest j left: lowered when a ball has too many sites
+  const most = Math.floor(MOST_BALL_SITES / lattice.cellCount);   // the most sites in one ball
 
   function tableFor(k, j) {
     if (!tables[k]) tables[k] = [];
-    if (tables[k][j] === undefined) tables[k][j] = exitLaw(lattice, k, Math.pow(2, j + 1));
+    if (tables[k][j] === undefined) tables[k][j] = exitLaw(lattice, k, Math.pow(2, j + 1), most);
     return tables[k][j];
   }
 
@@ -258,9 +274,10 @@ function pickFromCumulative(cumulative, u) {
 // { exits, chances, cumulative, meanSteps, sites }, where exits are the
 // sites it can leave at, as [k2, I, J, K], with their chances (and
 // running totals), and meanSteps is the average number of steps inside
-// (the sum of G). null if the ball has more than MOST_BALL_SITES sites.
-function exitLaw(lattice, k, r) {
-  const ball = ballAround(lattice, k, r);
+// (the sum of G). null if the ball has more than "most" sites
+// (MOST_BALL_SITES if left out).
+function exitLaw(lattice, k, r, most) {
+  const ball = ballAround(lattice, k, r, most);
   if (ball === null) return null;
   const f = solveBall(ball);
   const chanceOf = new Map();
@@ -283,7 +300,9 @@ function exitLaw(lattice, k, r) {
 // going out one step at a time ("breadth-first search"): its sites
 // (site 0 the middle), each one's degree, its neighbors inside (by
 // number) and outside (by key), and the sites just outside, by key.
-function ballAround(lattice, k, r) {
+// null if it has more than "most" sites (MOST_BALL_SITES if left out).
+function ballAround(lattice, k, r, most) {
+  most = most || MOST_BALL_SITES;
   const numberOf = new Map(), sites = [[k, 0, 0, 0]];
   numberOf.set(lattice.keyOf(0, 0, 0, k), 0);
   let ring = [0];
@@ -297,7 +316,7 @@ function ballAround(lattice, k, r) {
         numberOf.set(key, sites.length);
         next.push(sites.length);
         sites.push([k2, I + dI, J + dJ, K + dK]);
-        if (sites.length > MOST_BALL_SITES) return null;
+        if (sites.length > most) return null;
       }
     }
     ring = next;
@@ -358,7 +377,7 @@ function solveBall(ball) {
    object.
    ===================================================================== */
 function walkHelpers() {
-  return [siteKeyMaker, gridLattice, tilingLattice, honeycombLattice, longestMoveOf, distanceBetween, newSite, walkStep, cutsOf,
+  return [siteKeyMaker, gridLattice, tilingLattice, honeycombLattice, latticeFor, longestMoveOf, distanceBetween, newSite, walkStep, cutsOf,
     ballJumps, pickFromCumulative, exitLaw, ballAround, solveBall,
     { GRID_MOVES: GRID_MOVES, MOST_BALL_SITES: MOST_BALL_SITES, ROOM_SPARE: ROOM_SPARE }];
 }

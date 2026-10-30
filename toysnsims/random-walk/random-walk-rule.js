@@ -84,7 +84,7 @@ function newWalk(options) {
   const dim = options.dim, tiling = options.tiling || null;
   // The lattice it walks on (js/sim-walk.js), and on the grids the cuts
   // for the weights.
-  const lattice = tiling ? tilingLattice(tiling) : gridLattice(dim);
+  const lattice = latticeFor(options);
   const cut = tiling ? null : cutsOf(options.weights, 2 * dim);
   const random = seededUniform(options.seed);
   const site = newSite(0, 0, 0, 0);    // where the walker is (js/sim-walk.js)

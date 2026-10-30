@@ -42,24 +42,6 @@ function grown(options, seed, n) {
   return growth;
 }
 
-// The sites of a growth's cluster, in the order they joined.
-function clusterSites(growth) {
-  const c = growth.cluster;
-  return c.I.map(function (I, i) { return newSite(I, c.J[i], c.K[i], c.k[i]); });
-}
-
-function siteKey(lattice, s) { return lattice.keyOf(s.I, s.J, s.K, s.k); }
-
-// The neighbors of site s, as sites.
-function neighborsOf(lattice, s) {
-  return lattice.movesOf(s.k).map(function ([k2, dI, dJ, dK]) { return newSite(s.I + dI, s.J + dJ, s.K + dK, k2); });
-}
-
-// A name for a set of sites, the same whatever their order.
-function setKey(lattice, sites) {
-  return sites.map(function (s) { return siteKey(lattice, s); }).sort(function (a, b) { return a - b; }).join(",");
-}
-
 
 /* =====================================================================
    1. EXACT LAWS OF SMALL CLUSTERS
@@ -109,23 +91,6 @@ function exitChances(lattice, inside) {
     }
   });
   return Array.from(exits.values());
-}
-
-// Solve the linear system whose rows are [a_1, ..., a_m, b] (Gaussian
-// elimination with the largest pivot in each column).
-function gaussianSolve(rows) {
-  const m = rows.length;
-  for (let c = 0; c < m; c++) {
-    let best = c;
-    for (let r = c + 1; r < m; r++) if (Math.abs(rows[r][c]) > Math.abs(rows[best][c])) best = r;
-    [rows[c], rows[best]] = [rows[best], rows[c]];
-    for (let r = 0; r < m; r++) {
-      if (r === c || rows[r][c] === 0) continue;
-      const factor = rows[r][c] / rows[c][c];
-      for (let k = c; k <= m; k++) rows[r][k] -= factor * rows[c][k];
-    }
-  }
-  return rows.map(function (row, c) { return row[m] / row[c]; });
 }
 
 // The exact law of A(n): a Map from each possible cluster's setKey to
@@ -197,20 +162,6 @@ function checkLine(most) {
 /* =====================================================================
    3. A BIG CLUSTER, RECOUNTED
    ===================================================================== */
-
-// The cluster's edge, found plainly: every site not in it with a
-// neighbor in it.
-function plainEdge(lattice, sites) {
-  const members = new Set(sites.map(function (s) { return siteKey(lattice, s); })), edge = new Map();
-  for (const s of sites) {
-    for (const y of neighborsOf(lattice, s)) {
-      const key = siteKey(lattice, y);
-      if (!members.has(key)) edge.set(key, y);
-    }
-  }
-  return Array.from(edge.values());
-}
-
 function checkBigCluster(t, n) {
   const growth = grown(t.options, "big", n), lattice = growth.lattice, c = growth.cluster, sites = clusterSites(growth);
   const start = lattice.placeOf(0, 0, 0, 0);
@@ -247,36 +198,9 @@ function checkBigCluster(t, n) {
    ---------------------------------------------------------------------
    The same number of particles, grown many times with jumps and many
    times with plain steps only (different random numbers): the outer
-   radius and the sum of the cells' distances must have the same law.
-   Each is tested by a two-sample chi-square test, with the groups the
-   tenths of the pooled values.
+   radius and the sum of the cells' distances must have the same law
+   (twoSampleChiSquare, js/check-page.js).
    ===================================================================== */
-const GROUPS = 10;
-
-// Do the values "a" and "b" (as many of each) come from the same law?
-// Returns { statistic, degrees, pValue }: with a_k and b_k the counts
-// in group k, the statistic is the sum of (a_k - b_k)^2 / (a_k + b_k),
-// about chi-square with (groups - 1) degrees of freedom when they do
-// (Pearson's test of homogeneity, for two samples of the same size).
-function twoSampleChiSquare(a, b) {
-  const pooled = a.concat(b).sort(function (x, y) { return x - y; }), edges = [];
-  for (let q = 1; q < GROUPS; q++) {
-    const e = pooled[Math.floor(q * pooled.length / GROUPS)];
-    if (edges.length === 0 || e > edges[edges.length - 1]) edges.push(e);
-  }
-  const groupOf = function (v) { let k = 0; while (k < edges.length && v >= edges[k]) k++; return k; };
-  const countA = new Array(edges.length + 1).fill(0), countB = countA.slice();
-  for (const v of a) countA[groupOf(v)]++;
-  for (const v of b) countB[groupOf(v)]++;
-  let statistic = 0, groups = 0;
-  countA.forEach(function (x, k) {
-    if (x + countB[k] === 0) return;
-    statistic += (x - countB[k]) ** 2 / (x + countB[k]);
-    groups++;
-  });
-  return { statistic: statistic, degrees: groups - 1, pValue: 1 - jStat.chisquare.cdf(statistic, groups - 1) };
-}
-
 function checkJumps(t, n, runs) {
   const stats = { jumps: { outer: [], sum: [] }, plain: { outer: [], sum: [] } };
   let jumpsMade = 0;
