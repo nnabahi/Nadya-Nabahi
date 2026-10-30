@@ -20,8 +20,6 @@
    SMALL HELPERS
    ===================================================================== */
 
-function short(v) { return Number(v.toPrecision(4)).toString(); }
-
 // The laws tested in section 1: every law at its starting parameters,
 // and these too, at the edges where a law is hardest to get right
 // (densities that go to infinity at an end, heavy tails, long lists).
@@ -136,17 +134,17 @@ function testTables() {
     const discrete = isDiscrete(law);
     for (let u = 0.0005; u < 0.9999; u += 0.0005) {
       const x = drawFromLaw(law, u);
-      if (!isFinite(x)) { bad.push(name + ": F^-1(" + short(u) + ") is " + x + "."); break; }
+      if (!isFinite(x)) { bad.push(name + ": F^-1(" + fourDigits(u) + ") is " + x + "."); break; }
       if (discrete) {
-        if (x !== Math.round(x) && !law.masses.some(function (m) { return m[0] === x; })) { bad.push(name + ": F^-1(" + short(u) + ") = " + x + " has no mass."); break; }
+        if (x !== Math.round(x) && !law.masses.some(function (m) { return m[0] === x; })) { bad.push(name + ": F^-1(" + fourDigits(u) + ") = " + x + " has no mass."); break; }
         const below = law.masses.filter(function (m) { return m[0] < x; }).reduce(function (s, m) { return s + m[1]; }, 0);
-        if (lawCDF(law, x) < u - 1e-9 || below >= u + 1e-9) { bad.push(name + ": F^-1(" + short(u) + ") = " + x + " isn't the least x with F(x) >= u."); break; }
+        if (lawCDF(law, x) < u - 1e-9 || below >= u + 1e-9) { bad.push(name + ": F^-1(" + fourDigits(u) + ") = " + x + " isn't the least x with F(x) >= u."); break; }
       } else if (law.masses.length === 0) {
         const step = Math.abs(x) * Number.EPSILON + 1e-300;
         worst = Math.max(worst, u - lawCDF(law, x + step), lawCDF(law, x - step) - u);
       }
     }
-    if (worst > 2e-6) bad.push(name + ": F(F^-1(u)) is off from u by up to " + short(worst) + ".");
+    if (worst > 2e-6) bad.push(name + ": F(F^-1(u)) is off from u by up to " + fourDigits(worst) + ".");
   }
   addRow("Every law's table of F goes up from 0 to 1, and F^-1 undoes F", bad.length === 0,
          (bad.length ? bad.slice(0, 6).join(" ") + (bad.length > 6 ? " (and " + (bad.length - 6) + " more)" : "") + " "
@@ -168,7 +166,7 @@ function testDensities() {
         const a = drawFromLaw(law, 0.05 + 0.1 * i), b = drawFromLaw(law, 0.15 + 0.1 * i);
         const gap = Math.abs(integral(f, a, b, 256) - (lawCDF(law, b) - lawCDF(law, a)));
         worst = Math.max(worst, gap);
-        if (gap > 2e-5) { bad.push(name + ": the density's integral from " + short(a) + " to " + short(b) + " is off from F's rise by " + short(gap) + "."); break; }
+        if (gap > 2e-5) { bad.push(name + ": the density's integral from " + fourDigits(a) + " to " + fourDigits(b) + " is off from F's rise by " + fourDigits(gap) + "."); break; }
       }
       checked++;
     }
@@ -180,13 +178,13 @@ function testDensities() {
         seen.add(k);
         const gap = Math.abs(lawCDF(law, k) - lawCDF(law, k - 0.5) - entry.mass(k, ...args));
         worst = Math.max(worst, gap);
-        if (gap > 1e-8) { bad.push(name + ": the mass at " + k + " is off by " + short(gap) + "."); break; }
+        if (gap > 1e-8) { bad.push(name + ": the mass at " + k + " is off by " + fourDigits(gap) + "."); break; }
       }
       checked++;
     }
   }
   addRow("Densities and masses against F", bad.length === 0,
-         bad.length ? bad.slice(0, 6).join(" ") : checked + " laws; the worst gap was " + short(worst) + ".");
+         bad.length ? bad.slice(0, 6).join(" ") : checked + " laws; the worst gap was " + fourDigits(worst) + ".");
 }
 
 // The mean and variance from F^-1 (quantileMoments, with 2^17 pieces)
@@ -212,14 +210,14 @@ function testMoments() {
         sum += x; squares += x * x;
       }
       found = { mean: sum / n, variance: squares / n - (sum / n) * (sum / n) };
-      if (isFinite(variance) && Math.abs(found.mean - mean) > 4 * Math.sqrt(variance / n)) bad.push(name + ": its draws' mean is " + short(found.mean) + ", not " + short(mean) + ".");
+      if (isFinite(variance) && Math.abs(found.mean - mean) > 4 * Math.sqrt(variance / n)) bad.push(name + ": its draws' mean is " + fourDigits(found.mean) + ", not " + fourDigits(mean) + ".");
     } else {
       found = quantileMoments(law, 131072);
       const scale = Math.max(1, Math.abs(mean), isFinite(variance) ? Math.sqrt(variance) : 0);
       const allowed = isFinite(variance) ? 2e-4 * scale : 0.01 * scale;
-      if (Math.abs(found.mean - mean) > allowed) bad.push(name + ": its mean comes out " + short(found.mean) + ", not " + short(mean) + ".");
+      if (Math.abs(found.mean - mean) > allowed) bad.push(name + ": its mean comes out " + fourDigits(found.mean) + ", not " + fourDigits(mean) + ".");
       if (isFinite(variance) && variance > 0 && Math.abs(found.variance - variance) > 0.01 * variance + 1e-9) {
-        bad.push(name + ": its variance comes out " + short(found.variance) + ", not " + short(variance) + ".");
+        bad.push(name + ": its variance comes out " + fourDigits(found.variance) + ", not " + fourDigits(variance) + ".");
       }
     }
     checked++;
@@ -279,10 +277,10 @@ function testSameLaws() {
   for (const [name, law1, F2, allowed] of pairs) {
     const gap = biggestGap(law1, F2);
     if (allowed < 0.01) worst = Math.max(worst, gap);
-    if (gap > allowed) bad.push(name + ": F's differ by up to " + short(gap) + ".");
+    if (gap > allowed) bad.push(name + ": F's differ by up to " + fourDigits(gap) + ".");
   }
   addRow("The same law, made two ways", bad.length === 0,
-         bad.length ? bad.join(" ") : pairs.length + " pairs; the exact ones agree to within " + short(worst) +
+         bad.length ? bad.join(" ") : pairs.length + " pairs; the exact ones agree to within " + fourDigits(worst) +
          ", and the ones worked out from draws to within Kolmogorov's 0.99 point.");
 }
 
@@ -312,8 +310,8 @@ function testNormal() {
   for (const x of [-35, -20, -8, -3, -0.5, 0.5, 3]) back = Math.max(back, Math.abs(normalQuantile(normalCDF(x)) - x) / Math.abs(x));
   const q = normalQuantile(0.975);
   addRow("The normal F and F^-1", worst < 1e-12 && back < 1e-9 && Math.abs(q - 1.959963984540054) < 1e-12,
-         "Phi at -1, 1.96, -10 and 0 is off by at most " + short(worst) + " (relative); F^-1(F(x)) is off from x by at most " +
-         short(back) + " (relative) for x from -35 to 3; F^-1(0.975) = " + q + ".");
+         "Phi at -1, 1.96, -10 and 0 is off by at most " + fourDigits(worst) + " (relative); F^-1(F(x)) is off from x by at most " +
+         fourDigits(back) + " (relative) for x from -35 to 3; F^-1(0.975) = " + q + ".");
 }
 
 // The Airy function Ai solves Ai''(x) = x Ai(x) (DLMF 9.2.1): check that
@@ -338,8 +336,8 @@ function testAiry() {
   }
   const one = airy(1)[0], minusOne = airy(-1)[0];
   addRow("The Airy function", worst < 1e-6 && jump < 1e-7 && Math.abs(one - 0.135292416) < 1e-9 && Math.abs(minusOne - 0.535560883) < 1e-9,
-         "Ai'' = x Ai holds to within " + short(worst) + " (relative, worst at x = " + short(at) + ", for x from -12 to 9); the pieces meet at -7 and 5 to within " +
-         short(jump) + "; Ai(1) = " + one.toFixed(10) + " and Ai(-1) = " + minusOne.toFixed(10) + " (tables: 0.1352924163, 0.5355608833).");
+         "Ai'' = x Ai holds to within " + fourDigits(worst) + " (relative, worst at x = " + fourDigits(at) + ", for x from -12 to 9); the pieces meet at -7 and 5 to within " +
+         fourDigits(jump) + "; Ai(1) = " + one.toFixed(10) + " and Ai(-1) = " + minusOne.toFixed(10) + " (tables: 0.1352924163, 0.5355608833).");
 }
 
 // The Tracy-Widom laws' means and variances, from their tables, against
@@ -379,8 +377,8 @@ function testFractals() {
   const cantorOff = Math.max(Math.abs(lawCDF(cantor, 0.25) - 1 / 3), Math.abs(lawCDF(cantor, 0.5) - 0.5), Math.abs(lawCDF(cantor, 0.4) - 0.5));
   const salemOff = Math.abs(lawCDF(salem, 0.5) - 0.7);
   addRow("Minkowski's ?, the Cantor and Salem laws", atFractions === 0 && atRoots < 1e-11 && back < 1e-9 && cantorOff < 1e-12 && salemOff < 1e-12,
-         "? at 1/3, 1/2 and 1/4 is off by " + short(atFractions) + ", at sqrt 2 - 1 and (sqrt 5 - 1)/2 by at most " + short(atRoots) + "; ?(?^-1(u)) is off from u by at most " +
-         short(back) + "; the Cantor F at 1/4, 2/5 and 1/2 is off by " + short(cantorOff) + "; Salem's at 1/2 by " + short(salemOff) + ".");
+         "? at 1/3, 1/2 and 1/4 is off by " + fourDigits(atFractions) + ", at sqrt 2 - 1 and (sqrt 5 - 1)/2 by at most " + fourDigits(atRoots) + "; ?(?^-1(u)) is off from u by at most " +
+         fourDigits(back) + "; the Cantor F at 1/4, 2/5 and 1/2 is off by " + fourDigits(cantorOff) + "; Salem's at 1/2 by " + fourDigits(salemOff) + ".");
 }
 
 
@@ -415,7 +413,7 @@ function testTypedDensity() {
   for (const [x, F] of exact) worst = Math.max(worst, Math.abs(lawCDF(law, x) - F));
   const atoms = [0.1, 0.3].map(function (u) { return drawFromLaw(law, u); });
   addRow("A typed density with point masses", worst < 1e-5 && atoms[0] === 0 && atoms[1] === 3,
-         "F is off by at most " + short(worst) + " at seven points; F^-1(0.1) = " + atoms[0] + " and F^-1(0.3) = " + atoms[1] + " (the masses at 0 and 3).");
+         "F is off by at most " + fourDigits(worst) + " at seven points; F^-1(0.1) = " + atoms[0] + " and F^-1(0.3) = " + atoms[1] + " (the masses at 0 and 3).");
 }
 
 // Size-biased laws (sizeBiasedLaw, js/sim-laws.js): for unif(1, 2) the
@@ -427,7 +425,7 @@ function testSizeBiased() {
   for (let x = 1; x <= 2; x += 0.05) worst = Math.max(worst, Math.abs(lawCDF(smooth, x) - (x * x - 1) / 3));
   const masses = atoms.masses.map(function (m) { return m[1]; });
   addRow("Size-biased laws", worst < 1e-6 && Math.abs(masses[0] - 0.4) < 1e-12 && Math.abs(masses[1] - 0.6) < 1e-12,
-         "For unif(1, 2), F is off from (x^2 - 1)/3 by at most " + short(worst) + "; for unif([2, 3]) the masses are " + masses.map(short).join(" and ") + ".");
+         "For unif(1, 2), F is off from (x^2 - 1)/3 by at most " + fourDigits(worst) + "; for unif([2, 3]) the masses are " + masses.map(fourDigits).join(" and ") + ".");
 }
 
 
@@ -473,7 +471,7 @@ function testCoupling() {
     if (three[place][0] !== two[place][0]) moved++;
   }
   addRow("Moving a slider moves the draws together (coupling)", wrongWay === 0 && moved === 0 && ratio < 1e-9,
-         "1,000 places: doubling exp's rate halved every u (off by at most " + short(ratio) + "; " + wrongWay +
+         "1,000 places: doubling exp's rate halved every u (off by at most " + fourDigits(ratio) + "; " + wrongWay +
          " went the wrong way), and changing w's law left every u alone (" + moved + " moved).");
 }
 
@@ -496,7 +494,7 @@ function testIndependence() {
   }
   const found = Object.keys(pairs).map(function (name) { return [name, correlation(pairs[name])]; });
   addRow("Different names, places and indices are independent", found.every(function (f) { return Math.abs(f[1]) < 4 / Math.sqrt(n); }),
-         "Correlations over " + n.toLocaleString() + " draws: " + found.map(function (f) { return f[0] + " " + short(f[1]); }).join(", ") + ".");
+         "Correlations over " + n.toLocaleString() + " draws: " + found.map(function (f) { return f[0] + " " + fourDigits(f[1]); }).join(", ") + ".");
 }
 
 function correlation(pairs) {
@@ -517,8 +515,8 @@ function testSeries() {
   const fromDraws = biggestGap(lawFromDraws(draws), F), estimated = variables.lawOf("X");
   const fromBox = biggestGap(estimated, F);
   addRow("A random series of a family: the Cantor law", fromDraws < 1.63 / Math.sqrt(4000) && fromBox < 1.63 / Math.sqrt(estimated.estimated),
-         "The F of 4,000 draws is within " + short(fromDraws) + " of the Cantor F (0.99 point: " + short(1.63 / Math.sqrt(4000)) +
-         "), and the chart's F, from " + estimated.estimated.toLocaleString() + " draws, within " + short(fromBox) + ".");
+         "The F of 4,000 draws is within " + fourDigits(fromDraws) + " of the Cantor F (0.99 point: " + fourDigits(1.63 / Math.sqrt(4000)) +
+         "), and the chart's F, from " + estimated.estimated.toLocaleString() + " draws, within " + fourDigits(fromBox) + ".");
 }
 
 // The Latin hypercube (sampleRandomVariables): the average of u is 1/2
@@ -533,7 +531,7 @@ function testLatinHypercube() {
   const g = variables.lawOf("g"), gap = biggestGap(g, function (t) { return t <= 1 ? 0 : t >= 1.5 ? 1 : Math.sqrt((t - 1) / 0.5); });
   addRow("Many draws at once (the Latin hypercube)", Math.abs(meanU - 0.5) < 1e-5 && Math.abs(meanUV - 0.25) < 0.005 && gap < 2 / g.estimated,
          n.toLocaleString() + " samples: the average of u is " + meanU.toFixed(8) + ", of u v " + meanUV.toFixed(5) + "; the chart's F of 1 + δ u^2 is within " +
-         short(gap) + " of the exact one.");
+         fourDigits(gap) + " of the exact one.");
 }
 
 

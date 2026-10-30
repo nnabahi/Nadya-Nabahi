@@ -68,9 +68,6 @@ function timesOf(d, seed, onCells, variables) { return passageTimes(d, newWeight
 // Every cell of a domain, 0 .. n-1.
 function cellsOf(d) { return Array.from({ length: d.n }, function (_, v) { return v; }); }
 
-// A number to 4 significant digits, as text.
-function short(x) { return Number(x.toPrecision(4)).toString(); }
-
 
 /* ---------------------------------------------------------------------
    1. The times
@@ -140,7 +137,7 @@ function testDraws() {
   for (const c of continuous) {
     const k = ksStatistic(drawnTimes(c.variables, "ks " + c.name), c.G);
     addRow("The drawn times, " + c.name + " (Kolmogorov-Smirnov)", k < 1.949,
-           "28,560 edge times: sqrt(n) D = " + short(k) + " (a correct sim is above 1.949 one time in 1000).");
+           "28,560 edge times: sqrt(n) D = " + fourDigits(k) + " (a correct sim is above 1.949 one time in 1000).");
   }
 
   // The geometric: how often each whole number comes.
@@ -149,7 +146,7 @@ function testDraws() {
   for (const x of geometric) seen.set(x, (seen.get(x) || 0) + 1);
   let result = pooledChiSquare(odds, seen, geometric.length);
   addRow("The drawn times, w ~ geometric(1/2) (chi-square)", result.pValue > 0.001,
-         "28,560 edge times in " + result.groups + " groups: p = " + short(result.pValue) + ".");
+         "28,560 edge times in " + result.groups + " groups: p = " + fourDigits(result.pValue) + ".");
 
   // nadya's example: the two masses, and the density's part in pieces.
   const hers = drawnTimes(HERS, "chi hers"), cuts = [5, 5.5, 6, 7, 8, Infinity];
@@ -164,7 +161,7 @@ function testDraws() {
   }
   result = pooledChiSquare(hersOdds, hersSeen, hers.length);
   addRow("The drawn times, nadya's example (chi-square)", result.pValue > 0.001 && !hersSeen.has("other"),
-         "28,560 edge times: exactly 0, exactly 3, and 5 pieces of [5, infinity); p = " + short(result.pValue) +
+         "28,560 edge times: exactly 0, exactly 3, and 5 pieces of [5, infinity); p = " + fourDigits(result.pValue) +
          (hersSeen.has("other") ? "; " + hersSeen.get("other") + " fell where the law has nothing." : "."));
 }
 
@@ -367,7 +364,7 @@ function testEden() {
            result.pValue > 0.001,
            RUNS.toLocaleString() + " seeds on the square grid: the first three cells to join, against the exact odds (" +
            (onCells ? "each new cell uniform among the cells next to the ball" : "each new cell in proportion to its edges to the ball") +
-           ", " + odds.size + " outcomes in " + result.groups + " groups): p = " + short(result.pValue) + ".");
+           ", " + odds.size + " outcomes in " + result.groups + " groups): p = " + fourDigits(result.pValue) + ".");
   }
 }
 
@@ -432,7 +429,7 @@ function testCoupling() {
   }
   addRow("Moving a slider moves every time the same way", wrongWay === 0 && worst < 1e-4,
          "On " + u1.length + " edge entries: uniform on [0, a], a from 1 to 1.5, makes every time 1.5 times longer, and the " +
-         "exponential with rate r, r from 1 to 2, every time half as long (largest error " + short(worst) + "); " +
+         "exponential with rate r, r from 1 to 2, every time half as long (largest error " + fourDigits(worst) + "); " +
          wrongWay + " moved the other way.");
 }
 
@@ -519,8 +516,8 @@ function testPairs() {
   for (let a = 0; a < 16; a++) for (let b = a + 1; b < 16; b++) counts.push(pairs.get(a * 16 + b) || 0);
   const one = equalChiSquare(firsts), two = equalChiSquare(counts);
   addRow("The particles are uniform, and so are the pairs", one.pValue > 0.001 && two.pValue > 0.001,
-         RUNS.toLocaleString() + " seeds on a 4 x 4 box: the first particle's cell (16 outcomes) p = " + short(one.pValue) +
-         ", the first pair (120 outcomes) p = " + short(two.pValue) + ".");
+         RUNS.toLocaleString() + " seeds on a 4 x 4 box: the first particle's cell (16 outcomes) p = " + fourDigits(one.pValue) +
+         ", the first pair (120 outcomes) p = " + fourDigits(two.pValue) + ".");
 }
 
 

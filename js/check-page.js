@@ -12,6 +12,7 @@
      addRow(test, pass, text)   one row of the results table
      runChecksOnClick(allTests) the "Run the checks" button
      readNumbers(text)          the numbers in a list pasted from Python
+     fourDigits(x)              a number to 4 significant digits, as text
    and the tests several pages use (the p-values come from the library
    jStat, which those pages load):
      pooledChiSquare(odds, seen, runs)   do counts match exact odds?
@@ -74,6 +75,9 @@ function runChecksOnClick(allTests) {
 function readNumbers(text) {
   return text.replace(/[\[\]]/g, " ").split(/[\s,]+/).filter(function (s) { return s !== ""; }).map(Number);
 }
+
+// A number to 4 significant digits, as text: 0.0001234, 1.234e-9.
+function fourDigits(x) { return Number(x.toPrecision(4)).toString(); }
 
 
 /* ---------------------------------------------------------------------
