@@ -18,6 +18,9 @@
      makeSlider(name, s, onChange)  one slider row:  r = [1] ===o=== min max step
      showSliders(holder, letters, sliders, onChange)   a row for each letter
      sliderValues(sliders)          the sliders' values, { letter: value }
+     readFormulaBoxes(...)          a page's formula boxes read, with
+                                      their previews and sliders
+     curveHalves(text)              a curve (x(t), y(t)) split in two
    ===================================================================== */
 
 
@@ -279,4 +282,62 @@ function sliderValues(sliders) {
   const values = {};
   for (const letter in sliders) values[letter] = sliders[letter].value;
   return values;
+}
+
+
+// --- A page's formula boxes ---------------------------------------------
+// The sims that take typed shapes (Sequential Continuous Tiling, External
+// Continuous DLA) read their boxes the same way. For each NAME in
+// "names", the box id="formula-NAME" is read (readTree), and typeset by
+// KaTeX in id="preview-NAME"; the names in "curves" may also be typed as
+// a curve (x(t), y(t)), with t from 0 to 2π. Every letter but the
+// formulas' own "variables" (x and y if left out; x, y and z for a shape
+// in space) gets a slider in the box "holder", shared by all the
+// formulas (showSliders; "onChange" runs when one moves), in the order
+// the letters first appear (a Set keeps that order, and each letter
+// once); a curve's t gets none.
+// It returns { NAME: the formula }, each written out with every "*"
+// shown, so the second thread reads exactly what the preview shows (a
+// curve as { x, y }). If one can't be read (usually it is just half
+// typed), it says why in id="formula-message" and returns null, so the
+// page keeps its last good run.
+function readFormulaBoxes(names, curves, sliders, holder, onChange, variables) {
+  if (variables === undefined) variables = ["x", "y"];
+  const trees = {};      // name -> [tree], or [x tree, y tree] for a curve
+  for (const name of names) {
+    const text = byId("formula-" + name).value.trim();
+    try {
+      if (text === "") throw new Error("it is empty.");
+      trees[name] = ((curves.includes(name) && curveHalves(text)) || [text]).map(readTree);
+    } catch (problem) {
+      byId("formula-message").textContent = "Can't read " + name + " yet: " + problem.message;
+      return null;
+    }
+    if (window.katex) {
+      const tex = trees[name].map(formulaTex);
+      katex.render(tex.length === 2 ? "\\left(" + tex.join(",\\ ") + "\\right)" : tex[0], byId("preview-" + name),
+                   { throwOnError: false });
+    }
+  }
+  byId("formula-message").textContent = "";
+
+  const letters = new Set(names.flatMap(function (name) {
+    const own = trees[name].length === 2 ? variables.concat("t") : variables;
+    return trees[name].flatMap(function (tree) { return sliderLetters(tree, own); });
+  }));
+  showSliders(holder, letters, sliders, onChange);
+
+  const formulas = {};
+  for (const name of names) {
+    const written = trees[name].map(function (tree) { return tree.toString({ implicit: "show" }); });
+    formulas[name] = written.length === 2 ? { x: written[0], y: written[1] } : written[0];
+  }
+  return formulas;
+}
+
+// If "text" is a curve "(x(t), y(t))", its two halves; otherwise null.
+function curveHalves(text) {
+  if (!/^\(.*\)$/s.test(text)) return null;
+  const halves = splitOutside(text.slice(1, -1), ",");
+  return halves.length === 2 ? halves : null;
 }

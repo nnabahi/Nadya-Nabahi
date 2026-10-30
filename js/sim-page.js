@@ -419,6 +419,7 @@ function runInWorker(fn, helpers, show) {
 //   player.setUnits(one, many)   new names for a step
 //   player.showDone()        gray out Play and Step if the run can't go
 //                            on (runner.isDone()), or bring them back
+//   player.speed()           the Speed slider's speed now, per second
 // Step pauses, then makes one step. When the run pauses by itself (it
 // can't go on), the Play button shows it, and Play and Step are grayed
 // out until it can go on again (after Restart, say): a sim in a second
@@ -446,6 +447,7 @@ function connectPlay(runner, speeds, startSpeed, one, many, restart) {
   runner.stopped = function () { showPlay(false); };
   player.showDone = function () { byId("play").disabled = byId("step").disabled = runner.isDone(); };
   runner.showDone = player.showDone;    // (runInWorker calls it with each report)
+  player.speed = function () { return speed; };
 
   byId("play").addEventListener("click", function () { player.setPlaying(!player.playing); });
   byId("step").addEventListener("click", function () {

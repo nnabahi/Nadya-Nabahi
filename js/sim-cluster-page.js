@@ -1,11 +1,12 @@
 /* =====================================================================
    sim-cluster-page.js  —  what the pages of the sims that grow a
-                           cluster of cells share (the discrete DLA
-                           sims)
+                           cluster share (the DLA sims)
    ---------------------------------------------------------------------
    Their growth runs in a second thread (serveGrowth, js/sim-cluster.js)
-   and sends the cluster's cells a few at a time. Each page keeps them
-   and draws them the same way:
+   and sends the cluster's pieces a few at a time.
+
+   CELLS. The discrete DLA sims keep the cells and draw them the same
+   way:
      newClusterOnPage(dimNow)   the cluster on the page (dimNow() says
                                 the page's dimension now):
        cluster.pile             its cells (newSitePile, js/sim-sites.js)
@@ -22,10 +23,21 @@
                                 in its own shape
      showClusterPicture(view, three, dim)   the flat picture (1D, 2D) or
                                 the 3D one, whichever the dimension needs
+                                (showFlatOr3D: the switch itself, which
+                                the continuous DLA pages use too)
      clusterStopped(message, most, edge)   the line under the picture,
                                 when the growth has stopped by itself
-   Load it after js/sim-page.js, js/sim-view.js, js/sim-sites.js,
+                                (the continuous DLA pages use it too)
+   These need js/sim-page.js, js/sim-view.js, js/sim-sites.js,
    js/sim-controls.js, js/sim-penrose.js and js/sim-honeycombs.js.
+
+   THE FRACTAL DIMENSION. The external DLA sims (discrete and
+   continuous) show the same numbers and charts:
+     showExternalStats(message)  the numbers both show, and the charts
+     dimensionFit(message)       the slope b of log(radius of gyration)
+                                against log(n), fitted: the cluster's
+                                dimension is about 1/b
+   These need js/sim-page.js and js/sim-charts.js.
    ===================================================================== */
 
 function newClusterOnPage(dimNow) {
@@ -112,11 +124,16 @@ function drawCells3D(cluster, three, look) {
 }
 
 // The flat picture (1D, 2D) or the 3D one, with the 3D picture's help
-// line (id view3d-help). Only the 2D picture moves and zooms.
-function showClusterPicture(view, three, dim) {
+// line (id view3d-help), and the flat picture's zoom buttons only with
+// it. A lattice cluster's picture moves and zooms only in 2D.
+function showFlatOr3D(view, three, dim) {
   view.canvas.hidden = (dim === 3);
   three.show(dim === 3);
   byId("view3d-help").hidden = (dim !== 3);
+  showZoomButtons(view);
+}
+function showClusterPicture(view, three, dim) {
+  showFlatOr3D(view, three, dim);
   useTorus(view, false, dim === 2);
 }
 
@@ -130,4 +147,68 @@ function clusterStopped(message, most, edge) {
            " side lengths from the middle each way), so it stops here.";
   }
   return "";
+}
+
+
+/* =====================================================================
+   THE FRACTAL DIMENSION (the external DLA sims)
+   ---------------------------------------------------------------------
+   The worker keeps the numbers up to date, and a sample of them every
+   so often for the charts (serveGrowth, js/sim-cluster.js). The
+   fractal dimension is fitted to those samples: if the radius of
+   gyration grows like n^b, the cluster's n pieces fill a ball of that
+   radius the way a set of dimension 1/b would.
+   ===================================================================== */
+
+// The fractal dimension is fitted over the last FIT_SPAN-fold of the
+// run (from n / FIT_SPAN to n particles), once there are FIT_FROM
+// particles.
+const FIT_SPAN = 10;
+const FIT_FROM = 100;
+const GYRATION_LINE = "#b9c8dc";  // the radius of gyration on the charts (the farthest piece is CHART_LINE)
+
+// The numbers both external DLA pages show, in the boxes with these
+// ids: n, the radius (the farthest piece), the radius of gyration, the
+// fitted dimension, the launch circle's radius, jumps and particles
+// brought back. Then the charts.
+function showExternalStats(s) {
+  const fit = dimensionFit(s);
+  byId("stat-particles").textContent = s.particles.toLocaleString();
+  byId("stat-radius").textContent = niceNumber(s.radius);
+  byId("stat-gyration").textContent = niceNumber(s.gyration);
+  byId("stat-dimension").textContent = fit ? niceNumber(1 / fit.slope) : "(from " + FIT_FROM + " particles)";
+  byId("stat-launch").textContent = niceNumber(s.launchRadius);
+  byId("stat-jumps").textContent = s.jumps.toLocaleString();
+  byId("stat-returns").textContent = s.returns.toLocaleString();
+  drawRadiusCharts(s, fit);
+}
+
+// The straight line through log(radius of gyration) against log(n), by
+// least squares, over the samples from n / FIT_SPAN to n: { slope }, or
+// null before FIT_FROM particles.
+function dimensionFit(s) {
+  const times = s.traceParticles, radii = s.traceLists.gyration, n = s.particles;
+  if (n < FIT_FROM) return null;
+  const xs = [], ys = [];
+  times.forEach(function (t, i) {
+    if (t >= n / FIT_SPAN && radii[i] > 0) { xs.push(Math.log(t)); ys.push(Math.log(radii[i])); }
+  });
+  if (xs.length < 3) return null;
+  const mx = xs.reduce(function (a, b) { return a + b; }, 0) / xs.length;
+  const my = ys.reduce(function (a, b) { return a + b; }, 0) / ys.length;
+  let sxy = 0, sxx = 0;
+  xs.forEach(function (x, i) { sxy += (x - mx) * (ys[i] - my); sxx += (x - mx) * (x - mx); });
+  return sxx > 0 ? { slope: sxy / sxx } : null;
+}
+
+// The charts (canvases id="radius-chart" and id="dimension-chart"): the
+// farthest piece and the radius of gyration over time, and the radius
+// of gyration against n on a log-log chart, with the fitted slope
+// ("fit", from dimensionFit) as a dashed line.
+function drawRadiusCharts(s, fit) {
+  const times = s.traceParticles, lists = s.traceLists;
+  plotOverTime(byId("radius-chart"), times,
+               [{ values: lists.gyration, color: GYRATION_LINE }, { values: lists.radius, color: CHART_LINE }], "particles");
+  logLogChart(byId("dimension-chart"), [{ points: pointsOverTime(times, lists.gyration) }],
+              "particles", "radius of gyration (log-log)", fit ? fit.slope : null);
 }

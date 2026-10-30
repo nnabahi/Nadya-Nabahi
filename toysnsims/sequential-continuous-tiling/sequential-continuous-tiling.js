@@ -97,48 +97,13 @@ let coveredArea = 0, biggestGeneration = 0, biggestDegree = 0;
    ===================================================================== */
 const FORMULA_NAMES = ["S", "T", "f"];
 
-// If S or T is typed as a curve "(x(t), y(t))", its two halves; else null.
-function curveHalves(name, text) {
-  if (name === "f" || !/^\(.*\)$/s.test(text)) return null;
-  const halves = splitOutside(text.slice(1, -1), ",");   // js/formulas.js
-  return halves.length === 2 ? halves : null;
-}
-
+// Read the three boxes (readFormulaBoxes, js/formulas.js: S and T may be
+// curves), and start a new packing from them. A formula that can't be
+// read yet keeps the last good packing.
 function readFormulas() {
-  const trees = {};      // name -> [tree], or [x tree, y tree] for a curve
-  for (const name of FORMULA_NAMES) {
-    const text = byId("formula-" + name).value.trim();
-    try {
-      if (text === "") throw new Error("it is empty.");
-      trees[name] = (curveHalves(name, text) || [text]).map(readTree);
-    } catch (problem) {
-      // Usually just a half-typed formula: keep the last good packing.
-      byId("formula-message").textContent = "Can't read " + name + " yet: " + problem.message;
-      return;
-    }
-    if (window.katex) {
-      const tex = trees[name].map(formulaTex);
-      katex.render(tex.length === 2 ? "\\left(" + tex.join(",\\ ") + "\\right)" : tex[0], byId("preview-" + name),
-                   { throwOnError: false });
-    }
-  }
-  byId("formula-message").textContent = "";
-
-  // One slider per letter, in the order the letters first appear (a Set
-  // keeps that order, and each letter once). A curve's t gets none.
-  const letters = new Set(FORMULA_NAMES.flatMap(function (name) {
-    const own = trees[name].length === 2 ? ["x", "y", "t"] : ["x", "y"];
-    return trees[name].flatMap(function (tree) { return sliderLetters(tree, own); });
-  }));
-  showSliders(byId("sliders"), letters, sliders, sendSetup);
-
-  // The worker gets each formula written out with every "*" shown, so it
-  // reads exactly what the preview shows (a curve as { x, y }).
-  formulas = {};
-  for (const name of FORMULA_NAMES) {
-    const written = trees[name].map(function (tree) { return tree.toString({ implicit: "show" }); });
-    formulas[name] = written.length === 2 ? { x: written[0], y: written[1] } : written[0];
-  }
+  const read = readFormulaBoxes(FORMULA_NAMES, ["S", "T"], sliders, byId("sliders"), sendSetup);
+  if (!read) return;
+  formulas = read;
   sendSetup();
 }
 
@@ -199,7 +164,7 @@ function drawPreview() {
    in one go, so dragging a slider never flashes the picture empty and
    fills it back in.
    ===================================================================== */
-const sim = runInWorker(packingWorker, [packingCore], function (message) {
+const sim = runInWorker(packingWorker, [packingCore].concat(tileShapeHelpers()), function (message) {
   if (message.problem) {
     byId("formula-message").textContent = "Problem: " + message.problem;
     return;
