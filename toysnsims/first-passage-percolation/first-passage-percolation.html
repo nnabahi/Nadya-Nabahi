@@ -87,19 +87,19 @@
           <div class="option-row">
             n <input type="range" id="pairs-slider" min="1" max="100" step="1">
             <input type="number" id="pairs-box" min="1" max="500" step="1">
+            <button class="tool-button" id="add-pair" title="One more pair, at random cells">Add a pair</button>
           </div>
-          <p class="muted small">2n particles at uniformly random cells, paired uniformly at random.
-            Play adds the pairs one at a time, each with its geodesic, in its own color. Where
-            geodesics share an edge they run side by side, the first pair outside. Drag a particle
-            to move it.</p>
+          <p class="muted small">2n particles at uniformly random cells, paired uniformly at random,
+            each pair with its geodesic in its own color. Where geodesics share an edge they run side
+            by side, the first pair outside. Drag a particle to move it.</p>
         </div>
 
         <h3 class="option-heading">Domain</h3>
         <div class="domain-options" data-ticked="whole" data-whole="flat"></div>
 
         <h3 class="option-heading">Run</h3>
-        <div class="option-row play-row" data-step="One more cell (Ball) or pair (Pairs)" data-restart="Back to the start, same seed"></div>
-        <div class="option-row speed-row"></div>
+        <div class="option-row play-row ball-only" data-step="One more cell" data-restart="Back to the start, same seed"></div>
+        <div class="option-row speed-row ball-only"></div>
         <div class="option-row seed-row"></div>
         <p class="muted small">The same seed always gives the same times. Changing the law or
           what the times are on keeps the seed and how far the run is, so the picture changes
