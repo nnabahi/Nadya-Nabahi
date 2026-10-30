@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>External Discrete DLA — Toys n' Sims</title>
+  <link rel="stylesheet" href="../../css/style.css">
+  <!-- KaTeX's styles, for the typeset formulas. -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/katex.min.css">
+  <!-- Where the 3D library three.js lives on the internet, for the 3D
+       picture (js/sim-3d.js). It is only loaded when you switch to 3D.
+       The version number is fixed so an update can never change the
+       site by surprise. -->
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.186.1/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+
+  <header class="topbar" data-active="toysnsims.html"></header>
+  <script src="../../js/site.js"></script>
+
+  <main class="page">
+    <p><a href="../../toysnsims.html">&larr; All sims</a></p>
+    <h1>External Discrete DLA</h1>
+
+    <!-- The boxes, as on every sim page (their layout is in
+         section 6 of css/style.css). All the behavior lives in
+         external-discrete-dla.js; the ids below (id="...") are how that
+         script finds each button and box. -->
+    <div class="sim-layout">
+
+      <!-- TOP LEFT: the cluster. -->
+      <section class="panel panel-sim">
+        <h2>Simulation</h2>
+
+        <!-- The picture. external-discrete-dla.js sets its height. In 2D
+             the zoom buttons sit in its top right corner; the full screen
+             button (added by js/sim-page.js) in its top left corner. In
+             3D, js/sim-page.js puts the 3D view in its place. -->
+        <div class="sim-picture">
+          <canvas id="sim-canvas"></canvas>
+        </div>
+
+        <p class="muted" id="sim-message"></p>
+      </section>
+
+      <!-- TOP RIGHT: settings. -->
+      <section class="panel panel-controls">
+        <h2 class="heading-with-button">Options
+          <a class="tool-button model-check" href="external-discrete-dla-check.html">model check</a></h2>
+
+        <h3 class="option-heading">Dimension</h3>
+        <div class="option-row">
+          <label><input type="radio" name="dimension" value="2" checked> 2D</label>
+          <label><input type="radio" name="dimension" value="3"> 3D</label>
+        </div>
+
+        <!-- 2D only: the lattice, the square grid or any tiling by regular
+             polygons or Penrose tiling, from the menu or typed as a code
+             (GomJau-Hogg notation), with its tiles or its corners as the
+             cells. 3D only: one of the 28 uniform tilings of space
+             (js/sim-honeycombs.js), and which of its pieces are the
+             cells. js/sim-controls.js fills them in. -->
+        <div class="lattice-options" data-space></div>
+        <p class="muted small">The cluster starts as the seed, one cell (in 2D, the outlined
+          one). Each particle comes from far away and walks, every neighbor equally
+          likely, until it first reaches a cell next to the cluster; that cell joins
+          the cluster.</p>
+
+        <h3 class="option-heading">Launch</h3>
+        <div class="option-row">
+          Radius of the launch circle
+          <input type="number" id="set-launch" min="1" max="64" step="0.5">
+          &times; the reach
+        </div>
+        <p class="muted small">Walkers start on a circle (in 3D, a sphere) around the cluster. The
+          reach is the farthest cell's distance plus one step. A walker that wanders
+          4 times farther out than the circle is brought back to it the way Brownian
+          motion would come back, so it acts as if it came from infinity, except that
+          near the circle a walk is not quite Brownian motion. The default, 2, is the
+          smallest radius whose error a million walkers can't detect (see All the
+          details); bigger is more exact and a little slower.</p>
+
+        <h3 class="option-heading">View</h3>
+        <p class="muted small">Each cell is colored by when it joined: from blue (first) to red
+          (just now).</p>
+        <p class="muted small help-3d" id="view3d-help" hidden></p>
+
+        <h3 class="option-heading">Run</h3>
+        <div class="option-row play-row" data-step="One particle" data-restart="Start again, same seed"></div>
+        <div class="option-row speed-row"></div>
+        <div class="option-row goto-row"></div>
+        <div class="option-row seed-row"></div>
+        <p class="muted small">The same seed always gives the same cluster, and more particles
+          only add cells: particle p walks with its own random numbers.</p>
+      </section>
+
+      <!-- UNDER THE PICTURE: numbers about this run. -->
+      <section class="panel panel-stats">
+        <h2>Statistics</h2>
+        <div class="stat-grid">
+          <div class="stat">
+            <table class="stats-table">
+              <tr><td>Particles n (cells in the cluster)</td><td id="stat-particles"></td></tr>
+              <tr><td>Radius (farthest cell)</td><td id="stat-radius"></td></tr>
+              <tr><td>Radius of gyration</td><td id="stat-gyration"></td></tr>
+              <tr><td>Fractal dimension, fitted</td><td id="stat-dimension"></td></tr>
+              <tr><td>Launch circle's radius</td><td id="stat-launch"></td></tr>
+              <tr><td>Steps walked</td><td id="stat-steps"></td></tr>
+              <tr><td>Jumps across balls</td><td id="stat-jumps"></td></tr>
+              <tr><td>Walkers brought back</td><td id="stat-returns"></td></tr>
+              <tr id="replaced-row" hidden><td>... of them gone for good, so replaced</td><td id="stat-replaced"></td></tr>
+            </table>
+            <p class="muted small">Distances are between the middles of cells, from the
+              seed's, in side lengths. The radius of gyration is the root mean square
+              distance of the cells from their center. A jump stands for all the steps
+              inside a ball where nothing could stop the particle (see All the details).</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- THE FULL WIDTH: the charts. -->
+      <section class="panel panel-charts">
+        <div class="stat-grid">
+          <div class="stat">
+            <h3 class="option-heading">Radius</h3>
+            <canvas class="chart" id="radius-chart"></canvas>
+            <p class="muted small">Dark: the farthest cell. Light: the radius of gyration.</p>
+          </div>
+          <div class="stat">
+            <h3 class="option-heading">Fractal dimension</h3>
+            <canvas class="chart" id="dimension-chart"></canvas>
+            <p class="muted small">The radius of gyration against n, log-log. If it grows
+              like n<sup>b</sup>, the cluster's dimension is 1/b. Dashed: the slope b fitted
+              over the last tenfold of n (from n/10 to n).</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- BOTTOM, the full width: about the model, in two tabs (js/sim-page.js
+           switches them). Text in class="tex" is typeset by KaTeX. -->
+      <section class="panel panel-about">
+        <h2>About the model</h2>
+        <nav class="about-tabs">
+          <button class="about-tab selected" data-tab="simple">Simple</button>
+          <button class="about-tab" data-tab="details">All the details</button>
+        </nav>
+
+        <div data-panel="simple">
+        <p class="muted">(The simple explanation is coming.)</p>
+        </div>
+
+        <div data-panel="details" hidden>
+        <p>
+          <strong>The model</strong> [1]. Fix a lattice (the square grid
+          <span class="tex">\mathbb{Z}^2</span> or any tiling of the plane, the
+          cubic grid <span class="tex">\mathbb{Z}^3</span> or any tiling of
+          space) and a seed cell <span class="tex">0</span>. Start with
+          <span class="tex">A(1) = \{0\}</span>. Given the cluster
+          <span class="tex">A(n)</span>, let a particle do the simple random walk
+          (each neighbor equally likely) from infinity, and let
+          <span class="tex">x_{n+1}</span> be the first cell it reaches next to
+          <span class="tex">A(n)</span> (an empty cell with a neighbor in it,
+          an <em>edge</em> cell). Then
+          <span class="tex">A(n+1) = A(n) \cup \{x_{n+1}\}</span>. So
+          <span class="tex">x_{n+1}</span> has the harmonic measure from
+          infinity of the edge <span class="tex">E</span> of
+          <span class="tex">A(n)</span>,
+          <span class="tex">H_E(y) = \lim_{|z| \to \infty} \mathbb{P}_z(S_T = y)</span>
+          with <span class="tex">T</span> the first time in
+          <span class="tex">E</span> [2, Section 11; 3, Chapter 6]. In 3D the walk
+          can wander off for good (it is transient), and "from infinity" means
+          given that it reaches <span class="tex">E</span>.
+        </p>
+        <p>
+          <strong>What is known.</strong> The clusters are fractal: simulations
+          give a dimension of about 1.71 in 2D and 2.5 in 3D [5], but no theorem
+          says what it is. Kesten proved that, almost surely, the radius grows
+          at most like <span class="tex">n^{2/3}</span> on
+          <span class="tex">\mathbb{Z}^2</span> [6] and at most like
+          <span class="tex">(n \log n)^{1/2}</span> on
+          <span class="tex">\mathbb{Z}^3</span> [8, Theorem 1], so in the sense
+          of the fitted dimension it is at least 3/2 in 2D and at least 2 in 3D.
+          The page fits it from the
+          radius of gyration <span class="tex">R_g</span> (the root mean square
+          distance of the cells from their center): the slope
+          <span class="tex">b</span> of <span class="tex">\log R_g</span> against
+          <span class="tex">\log n</span> by least squares, from
+          <span class="tex">n/10</span> to <span class="tex">n</span>, gives the
+          estimate <span class="tex">1/b</span>.
+        </p>
+        <p>
+          <strong>From infinity: the one approximation.</strong> No program can
+          start a walker at infinity. With the reach the farthest cell's
+          distance plus one step (so every edge cell is inside it), each walker
+          starts at the cell nearest a point taken uniformly on the circle (in
+          3D, the sphere) of radius <span class="tex">R</span> = launch
+          <span class="tex">\times</span> reach. That is exactly where Brownian
+          motion from infinity first meets the circle, by symmetry. A walker
+          that gets farther than <span class="tex">4R</span>, at a point
+          <span class="tex">x</span>, is brought back to the circle the way
+          Brownian motion from <span class="tex">x</span> comes back [4,
+          Chapter 3]: at <span class="tex">y</span> with density proportional to
+          <span class="tex">|x - y|^{-d}</span> on the circle or sphere (the
+          Poisson kernel for the outside of a disk or ball; in 2D a wrapped
+          Cauchy law for the angle); in 3D it comes back only with chance
+          <span class="tex">R/|x|</span>, and otherwise is replaced by a new
+          walker. Both steps would be exact for Brownian motion, and the walk
+          looks like Brownian motion from far away, so the error shrinks as
+          <span class="tex">R</span> grows.
+        </p>
+        <p>
+          <strong>Measuring the error.</strong> On
+          <span class="tex">\mathbb{Z}^2</span> the exact law of the next cell
+          can be worked out: <span class="tex">H_E</span> is the one solution of
+          <span class="tex">\sum_{y \in E} a(x - y) H_E(y) = c</span> for every
+          <span class="tex">x \in E</span> and
+          <span class="tex">\sum_{y \in E} H_E(y) = 1</span>, where
+          <span class="tex">a</span> is the walk's potential kernel [2, Sections
+          12, 14 and 15]. From three clusters (three cells, 30 and 150
+          particles), a million walkers each landed where that law says at 2
+          reaches and at 3 (chi-square tests, all p &gt; 0.17), while at 1 reach
+          the 30-particle cluster's landings were off (p about
+          <span class="tex">10^{-9}</span>). So the default launch is 2. The model
+          check page tests it again, and on the other lattices compares
+          launches at 2 and 8 reaches.
+        </p>
+        <p>
+          <strong>Exact jumps.</strong> A walker far from every edge cell can't
+          stop for a while. If the ball of cells at most
+          <span class="tex">r</span> steps from it holds no edge cell, it can't
+          reach the cluster before leaving that ball (it would have to pass an
+          edge cell first), so the page jumps straight to the cell where it
+          first leaves, drawn from the exact exit law of the ball (worked out
+          once by solving the linear system for the walk's Green's function in
+          the ball [3, Section 4.6]). By the strong Markov property [7, Theorem
+          1.4.2] the result is exactly the same as taking every step. How far
+          the nearest edge cell is comes from the triangle inequality far out,
+          and near the cluster from a search of the edge cells nearby. On a
+          Penrose tiling, which never repeats, every step is taken.
+        </p>
+        <p>
+          <strong>Random numbers.</strong> Move <span class="tex">j</span> of
+          particle <span class="tex">p</span> uses a uniform number made from the
+          seed, <span class="tex">p</span> and <span class="tex">j</span>. So
+          particle <span class="tex">p</span> walks the same way however many come
+          after it, and going from <span class="tex">n</span> to
+          <span class="tex">n + 1</span> particles only adds a cell.
+        </p>
+        <p><strong>References</strong></p>
+        <ol class="small">
+          <li>T. A. Witten and L. M. Sander, &ldquo;Diffusion-limited aggregation,
+            a kinetic critical phenomenon&rdquo;, <em>Phys. Rev. Lett.</em> 47
+            (1981), 1400&ndash;1403.</li>
+          <li>F. Spitzer, <em>Principles of Random Walk</em>, 2nd ed., Springer,
+            1976.</li>
+          <li>G. Lawler and V. Limic, <em>Random Walk: A Modern
+            Introduction</em>, Cambridge University Press, 2010.</li>
+          <li>P. M&ouml;rters and Y. Peres, <em>Brownian Motion</em>, Cambridge
+            University Press, 2010.</li>
+          <li>R. Tolman and P. Meakin, &ldquo;Off-lattice and hypercubic-lattice
+            models for diffusion-limited aggregation in dimensionalities
+            2&ndash;8&rdquo;, <em>Phys. Rev. A</em> 40 (1989), 428&ndash;437.</li>
+          <li>H. Kesten, &ldquo;How long are the arms in DLA?&rdquo;, <em>J. Phys.
+            A</em> 20 (1987), L29&ndash;L33.</li>
+          <li>J. R. Norris, <em>Markov Chains</em>, Cambridge University Press,
+            1997.</li>
+          <li>H. Kesten, &ldquo;Upper bounds for the growth rate of DLA&rdquo;,
+            <em>Physica A</em> 168 (1990), 529&ndash;535.</li>
+        </ol>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <!-- KaTeX (https://katex.org) typesets the formulas. The version
+       number is fixed so an update can never change the site by surprise. -->
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/katex.min.js"></script>
+
+  <!-- The code the sims share (in js/, see the README): page helpers
+       (they also typeset the formulas, so they come after KaTeX), the
+       second thread's run loop and random numbers, charts, colors,
+       domains, the picture's view, the tilings of the plane (with the
+       Penrose tilings) and of space, the Lattice options, the walker and
+       its jumps, the cluster, and the page's copy of the cluster's
+       cells and its drawing. Then the growth (it runs in a second
+       thread), then this page's code. -->
+  <script src="../../js/sim-page.js"></script>
+  <script src="../../js/sim-worker.js"></script>
+  <script src="../../js/sim-charts.js"></script>
+  <script src="../../js/sim-colors.js"></script>
+  <script src="../../js/sim-domains.js"></script>
+  <script src="../../js/sim-view.js"></script>
+  <script src="../../js/sim-tilings.js"></script>
+  <script src="../../js/sim-penrose.js"></script>
+  <script src="../../js/sim-honeycombs.js"></script>
+  <script src="../../js/sim-controls.js"></script>
+  <script src="../../js/sim-walk.js"></script>
+  <script src="../../js/sim-cluster.js"></script>
+  <script src="../../js/sim-sites.js"></script>
+  <script src="../../js/sim-cluster-page.js"></script>
+  <script src="external-discrete-dla-growth.js"></script>
+  <script src="external-discrete-dla.js"></script>
+</body>
+</html>
