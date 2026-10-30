@@ -444,7 +444,7 @@ From nadya's Lyons and Peres figures (plan:
 ## Heat Flow (new sim, parked 2026-10-30)
 
 Plan draft 1: /mnt/project-files/heat-flow/plan.md (thread "Build heat
-flow sim"). SIMS.md lists it as planning and keeps D2, D3 and D15.
+flow sim"). SIMS.md lists it as an idea and keeps D2, D3 and D15.
 
 - **Operators on bi-infinite sequences** (nadya, 2026-10-30): f(a)_n =
   (1/2)(a_{n-1} + a_{n+1}) on A^Z, the same for sin(1/x), then 2D and any
