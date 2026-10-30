@@ -11,12 +11,14 @@ check the talk or paper before building.
 ## Eden Growth
 
 - **A real 3D Eden model**: growth on the cubic lattice (cells are unit
-  cubes), not just the 2D mountain drawn in 3D.
+  cubes), not just the 2D mountain drawn in 3D. Being planned (2026-10-30)
+  in the thread "Run sims on 3D graphs", which puts the graph sims on Z^3.
+  Eden Growth already has 1D and 2D.
 - **Holes in 3D**: with the 3D model, the 3D version of the holes charts
   (cavities, Betti number 2), as in F. Manin, É. Roldán and
   B. Schweinhart, "Topology and local geometry of the Eden model",
   Discrete & Computational Geometry (2023), arXiv:2005.12349. The 2D
-  holes are on the page (holeHistory in eden-growth-rule.js).
+  holes are on the page (holeHistory, js/sim-shape.js).
 - **The bacteria rule**: a random bacterium copies itself into its own cell
   or into a neighbor (or only into an empty neighbor). Today's rule is not a
   special case of it, so it would be a second rule to switch to.
@@ -40,9 +42,13 @@ check the talk or paper before building.
   would need a 3D hull in the second thread.
 - **Box-counting dimension** of the visited set (left out of the first
   version, 2026-10-15).
-- **Other lattices and more walkers**: the walk on triangles or hexagons,
-  several walkers, cut points of the path (Brownian cut points have
-  dimension 3/4: Lawler, Schramm and Werner).
+- **More walkers and cut points**: several walkers, and the cut points of
+  the path. Brownian cut points have dimension 2 - ξ(1, 1) = 3/4: G. Lawler,
+  "Hausdorff dimension of cut points for Brownian motion", Electron. J.
+  Probab. 1 (1996) paper 2, with ξ(1, 1) = 5/4 from G. Lawler, O. Schramm
+  and W. Werner, "Values of Brownian intersection exponents II: Plane
+  exponents", Acta Math. 187 (2001) 275-308. The walk already runs on
+  every tiling in the Lattice menu.
 - **Step-reinforced walks** (talk: J. Bertoin): at step n, with
   probability 1 - p_n the walk repeats a uniformly chosen earlier step,
   otherwise it takes a fresh step. A chart of the scaling exponent,
@@ -193,7 +199,7 @@ From Scott Sheffield's work, nadya 2026-10-21.
   LQG measure above is the main example; the lecture series are good
   background for the About text.
 
-## First passage percolation (queued)
+## First Passage Percolation
 
 - **LQG geodesics**: FPP with edge weights e^{ξh} on a GFF sample
   ("Liouville FPP"), from Scott Sheffield's work, nadya 2026-10-21. J.
@@ -203,7 +209,7 @@ From Scott Sheffield's work, nadya 2026-10-21.
   quantum gravity metric for γ in (0,2)", Invent. Math. 223 (2021)
   213-333.
 
-## Internal DLA (queued as "inside DLA")
+## Internal DLA (part of the DLA family, being built)
 
 - **Fluctuations**: the picture of how far the cluster is from a disk,
   from Scott Sheffield's work, nadya 2026-10-21. The fluctuations are
