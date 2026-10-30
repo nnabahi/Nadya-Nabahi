@@ -163,7 +163,7 @@ function newTimes() {
 // out negative somewhere (the box can only check a law): then the line
 // under the box says so, and the times come from the starting line,
 // w ~ exp(1), until it is fixed.
-const FIRST_VARIABLES = makeRandomVariables(readRandomVariables(FIRST_LINES), {});
+const FIRST_VARIABLES = randomVariablesOf(FIRST_LINES);
 function findTimes() {
   try { return passageTimes(domain, weights, variables); }
   catch (problem) {

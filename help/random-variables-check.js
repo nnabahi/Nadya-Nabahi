@@ -434,12 +434,11 @@ function testSizeBiased() {
 /* =====================================================================
    5. NAMED RANDOM VARIABLES
    ===================================================================== */
-function variablesOf(text, values) { return makeRandomVariables(readRandomVariables(text, []), values || {}); }
 
 // One number per name per place: [u, u] is two equal numbers; each new
 // place, and each seed, gives new ones.
 function testOnePerPlace() {
-  const variables = variablesOf("u ~ normal(0, 1)\nX = u + 1");
+  const variables = randomVariablesOf("u ~ normal(0, 1)\nX = u + 1");
   const formula = prepareFormula(readTree("[u, u, X - 1]"), variables.declared).compile();
   const drawer = newDrawer(variables, "one per place"), other = newDrawer(variables, "another seed");
   let unequal = 0, repeats = 0, sameAcrossSeeds = 0;
@@ -462,7 +461,7 @@ function testOnePerPlace() {
 // only goes down as r goes up; and changing w's law leaves u alone.
 function testCoupling() {
   const at = function (r, s) {
-    const drawer = newDrawer(variablesOf("u ~ exp(r)\nw ~ unif(0, s)", { r: r, s: s }), "coupling"), values = [];
+    const drawer = newDrawer(randomVariablesOf("u ~ exp(r)\nw ~ unif(0, s)", { r: r, s: s }), "coupling"), values = [];
     for (let place = 0; place < 1000; place++) { drawer.at(place); values.push([drawer.value("u", 0), drawer.value("w", 0)]); }
     return values;
   };
@@ -483,7 +482,7 @@ function testCoupling() {
 // correlation of 20,000 draws is within 4/sqrt(20000) = 0.028 of 0
 // (each would be about normal with standard deviation 1/sqrt(n)).
 function testIndependence() {
-  const variables = variablesOf("u ~ unif(0, 1)\nv ~ unif(0, 1)\nd_k ~ normal(0, 1)");
+  const variables = randomVariablesOf("u ~ unif(0, 1)\nv ~ unif(0, 1)\nd_k ~ normal(0, 1)");
   const drawer = newDrawer(variables, "independence"), n = 20000;
   const pairs = { "u and v in one place": [], "u in neighboring places": [], "d_1 and d_2": [] };
   let before = 0;
@@ -511,7 +510,7 @@ function correlation(pairs) {
 // 2]) has the Cantor law: its draws in 4,000 places, and the law the
 // box works out for its chart, against the Cantor F (catalogLaw).
 function testSeries() {
-  const variables = variablesOf("d_k ~ unif([0, 2])\nX = sum(k, 1, 40, d_k / 3^k)");
+  const variables = randomVariablesOf("d_k ~ unif([0, 2])\nX = sum(k, 1, 40, d_k / 3^k)");
   const drawer = newDrawer(variables, "series"), draws = [];
   for (let place = 0; place < 4000; place++) { drawer.at(place); draws.push(drawer.value("X", 0)); }
   const cantor = catalogLaw("cantor", []), F = function (x) { return lawCDF(cantor, x); };
@@ -527,7 +526,7 @@ function testSeries() {
 // g = 1 + δ u^2 worked out for the chart is within 2/n of its exact F,
 // P(g <= t) = sqrt((t - 1)/δ).
 function testLatinHypercube() {
-  const variables = variablesOf("u ~ unif(0, 1)\nv ~ unif(0, 1)\ng = 1 + δ u^2", { δ: 0.5 });
+  const variables = randomVariablesOf("u ~ unif(0, 1)\nv ~ unif(0, 1)\ng = 1 + δ u^2", { δ: 0.5 });
   const answers = sampleRandomVariables(variables, function (drawer) { return [drawer.value("u", 0), drawer.value("u", 0) * drawer.value("v", 0)]; });
   const n = answers.length;
   const meanU = answers.reduce(function (s, a) { return s + a[0]; }, 0) / n, meanUV = answers.reduce(function (s, a) { return s + a[1]; }, 0) / n;

@@ -54,14 +54,12 @@
    ===================================================================== */
 
 
-// Random variables typed as in the sim's box (js/sim-random.js), with
-// the sliders' values "values".
-function variablesOf(text, values) { return makeRandomVariables(readRandomVariables(text), values || {}); }
-
-const EXPONENTIAL = variablesOf("w ~ exp(1)");
-const GEOMETRIC = variablesOf("w ~ geometric(q)", { q: 0.5 });
-const HERS = variablesOf("w ~ {x = 0: p_0, x = 3: p_3, x >= 5: (1 - p_0 - p_3) e^(-x + 5), 0}", { p_0: 0.2, p_3: 0.3 });
-const MOSTLY_ZERO = variablesOf("w ~ bernoulli(0.1)");
+// The laws of w the checks use most, typed as in the sim's Random
+// variables box (randomVariablesOf, js/sim-random.js).
+const EXPONENTIAL = randomVariablesOf("w ~ exp(1)");
+const GEOMETRIC = randomVariablesOf("w ~ geometric(q)", { q: 0.5 });
+const HERS = randomVariablesOf("w ~ {x = 0: p_0, x = 3: p_3, x >= 5: (1 - p_0 - p_3) e^(-x + 5), 0}", { p_0: 0.2, p_3: 0.3 });
+const MOSTLY_ZERO = randomVariablesOf("w ~ bernoulli(0.1)");
 
 // The times of domain d with the U's of the seed, on the edges or the
 // cells, for the random variables "variables" (as the sim finds them).
@@ -96,7 +94,7 @@ function testTimes() {
 
   // A formula for w that comes out negative somewhere.
   let refused = "";
-  try { timesOf(d, "negative", false, variablesOf("w = n\nn ~ normal(0, 1)")); }
+  try { timesOf(d, "negative", false, randomVariablesOf("w = n\nn ~ normal(0, 1)")); }
   catch (problem) { refused = problem.message; }
   addRow("A formula for w that comes out negative is refused", refused !== "",
          refused ? "w = n with n ~ normal(0, 1): \"" + refused + "\"" : "w = n with n ~ normal(0, 1) was taken.");
@@ -134,9 +132,9 @@ function ksStatistic(sample, G) {
 function testDraws() {
   const continuous = [
     { name: "w ~ exp(1)", variables: EXPONENTIAL, G: function (x) { return 1 - Math.exp(-x); } },
-    { name: "w ~ unif(0, 1)", variables: variablesOf("w ~ unif(0, 1)"), G: function (x) { return Math.min(1, Math.max(0, x)); } },
-    { name: "the density x e^(-x), typed", variables: variablesOf("w ~ {x >= 0: x e^(-x), 0}"), G: function (x) { return 1 - Math.exp(-x) * (1 + x); } },
-    { name: "w = min(a, b), a and b ~ exp(1) (so w ~ exp(2))", variables: variablesOf("w = min(a, b)\na ~ exp(1)\nb ~ exp(1)"),
+    { name: "w ~ unif(0, 1)", variables: randomVariablesOf("w ~ unif(0, 1)"), G: function (x) { return Math.min(1, Math.max(0, x)); } },
+    { name: "the density x e^(-x), typed", variables: randomVariablesOf("w ~ {x >= 0: x e^(-x), 0}"), G: function (x) { return 1 - Math.exp(-x) * (1 + x); } },
+    { name: "w = min(a, b), a and b ~ exp(1) (so w ~ exp(2))", variables: randomVariablesOf("w = min(a, b)\na ~ exp(1)\nb ~ exp(1)"),
       G: function (x) { return 1 - Math.exp(-2 * x); } },
   ];
   for (const c of continuous) {
@@ -423,8 +421,8 @@ function testCoupling() {
 
   // Moving a slider moves every time the same way.
   const box = boxDomain(30, 30, 4, false), weights = newWeights(box, "slider", false);
-  const uniformA = function (a) { return passageTimes(box, weights, variablesOf("w ~ {0 <= x <= a: 1 / a, 0}", { a: a })).tau; };
-  const rate = function (r) { return passageTimes(box, weights, variablesOf("w ~ exp(r)", { r: r })).tau; };
+  const uniformA = function (a) { return passageTimes(box, weights, randomVariablesOf("w ~ {0 <= x <= a: 1 / a, 0}", { a: a })).tau; };
+  const rate = function (r) { return passageTimes(box, weights, randomVariablesOf("w ~ exp(r)", { r: r })).tau; };
   const [u1, u2] = [uniformA(1), uniformA(1.5)], [e1, e2] = [rate(1), rate(2)];
   let wrongWay = 0, worst = 0;
   for (let e = 0; e < u1.length; e++) {

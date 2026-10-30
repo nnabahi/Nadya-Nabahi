@@ -56,8 +56,7 @@
 
 // The model of { lines, matrices }, with the sliders' values "values".
 function modelOf(preset, values) {
-  const variables = makeRandomVariables(readRandomVariables(preset.lines, []), values || {});
-  return readModel(preset.matrices, variables);
+  return readModel(preset.matrices, randomVariablesOf(preset.lines, values));
 }
 
 // Fixed matrices, with no random variables.
