@@ -934,14 +934,9 @@ const domains = connectDomains({
 // ball of the hyperbolic plane or a tree, its middle cell.
 function middleCell(d) {
   if (!d.x) return 0;
+  if (d.grows) return cellNearestPoint(d, 0, 0);
   const box = pictureBox(d);
-  const [u0, w0] = d.grows ? [0, 0] : [(box.left + box.right) / 2, (box.bottom + box.top) / 2];
-  let best = 0, bestFar = Infinity;
-  for (let v = 0; v < d.n; v++) {
-    const [u, w] = cellMiddle(d, v), far = Math.hypot(u - u0, w - w0);
-    if (far < bestFar) { best = v; bestFar = far; }
-  }
-  return best;
+  return cellNearestPoint(d, (box.left + box.right) / 2, (box.bottom + box.top) / 2);
 }
 
 

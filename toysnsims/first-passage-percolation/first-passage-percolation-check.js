@@ -459,12 +459,12 @@ function testWholePlane() {
       function (s, b) { return function (v) { return tilingCell(b, s.x[v], s.y[v], s.part[v]); }; }],
   ];
   for (const [name, small, big, match] of cases) {
-    const edge = edgeCells(small), sameCell = match(small, big);
+    const edge = edgeCells(small), sameCell = match(small, big), start = cellNearestPoint(small, 0, 0);
     let bad = 0, found = 0;
     for (let k = 0; k < 10; k++) {
       const onCells = k % 2 === 1, seed = "plane " + k;
-      const a = newSearch(small, timesOf(small, seed, onCells, EXPONENTIAL), middleCell(small));
-      const b = newSearch(big, timesOf(big, seed, onCells, EXPONENTIAL), sameCell(middleCell(small)));
+      const a = newSearch(small, timesOf(small, seed, onCells, EXPONENTIAL), start);
+      const b = newSearch(big, timesOf(big, seed, onCells, EXPONENTIAL), sameCell(start));
       while (a.peek() !== -1 && !edge[a.peek()]) a.next();
       while (b.order.length < a.order.length) b.next();
       for (const v of a.order) if (Math.abs(a.T[v] - b.T[sameCell(v)]) > 1e-12 || !b.settled[sameCell(v)]) bad++;
@@ -474,16 +474,6 @@ function testWholePlane() {
            "10 seeds (times on the edges and on the cells): the " + found.toLocaleString() + " cells a small box finds before " +
            "its first cell on the edge have the same T in a box three times bigger" + (bad === 0 ? "." : ", but " + bad + " didn't."));
   }
-}
-
-// The cell of a domain centered on 0 whose middle is nearest to 0.
-function middleCell(d) {
-  let best = 0, bestFar = Infinity;
-  for (let v = 0; v < d.n; v++) {
-    const [u, w] = cellMiddle(d, v), far = Math.hypot(u, w);
-    if (far < bestFar) { best = v; bestFar = far; }
-  }
-  return best;
 }
 
 
