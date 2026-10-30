@@ -480,11 +480,11 @@ function showColorKey() {
   for (let k = 0; k <= 10; k++) stops.push(rgbToHex(PALETTE[Math.round(25.5 * k)]));
   byId("key-strip").style.background = "linear-gradient(to right, " + stops.join(", ") + ")";
   byId("key-low").textContent = "T = 0";
-  byId("key-high").textContent = "T = t = " + shortTime(ballTime());
+  byId("key-high").textContent = "T = t = " + shortNumber(ballTime());
 }
 
-// A time, to 4 significant digits.
-function shortTime(t) { return Number(t.toPrecision(4)).toLocaleString(); }
+// A number (a time, a distance), to 4 significant digits.
+function shortNumber(x) { return Number(x.toPrecision(4)).toLocaleString(); }
 
 
 /* =====================================================================
@@ -772,11 +772,11 @@ function ballTable() {
   const order = search.order, t = ballTime();
   let far = 0;
   for (const v of order) far = Math.max(far, farness[v]);
-  byId("stat-time").textContent = shortTime(t);
+  byId("stat-time").textContent = shortNumber(t);
   byId("stat-cells").textContent = order.length.toLocaleString();
-  byId("stat-farthest").textContent = Number(far.toPrecision(4)).toLocaleString() + (domains.kind === "graph" ? " steps" : "");
+  byId("stat-farthest").textContent = shortNumber(far) + (domains.kind === "graph" ? " steps" : "");
   byId("stat-clicked").textContent = clicked === -1 ? "none (click a cell of the ball)"
-    : "T = " + shortTime(search.T[clicked]) + ", " + (geodesic(search, clicked).length - 1) + " steps";
+    : "T = " + shortNumber(search.T[clicked]) + ", " + (geodesic(search, clicked).length - 1) + " steps";
   if (!shape) return;
   byId("stat-convexity").textContent = shape.convexity().toFixed(3);
   const h = currentHoles();
