@@ -13,9 +13,10 @@
        SURFACES: a colored surface over a grid, like a graph
          z = h(x, y) in Desmos 3D, with balls on some of its points.
          Lattice Path Counting uses it.
-       CELLS: cubes floating in space, one per cell of the cubic grid,
-         with a see-through convex hull around them. Random Walk uses
-         it in 3D.
+       CELLS: cells floating in space, one per cell of the cubic grid
+         (cubes) or of any 3D tiling (js/sim-honeycombs.js: polyhedra,
+         faces, edges as thin rods, or vertices), with a see-through
+         convex hull around them. Random Walk uses it in 3D.
 
        drag (left mouse, one finger)     turn the picture around
        mouse wheel, or pinch             zoom in or out
@@ -42,7 +43,7 @@
      make3DView(box, height)       a 3D picture inside the element "box"
      drawStacks(view3d, stacks)    a floor with stacks of blocks on it
      drawSurface(view3d, surface)  a surface over a grid, with balls on it
-     drawCells(view3d, cells)      cubes in space, and their convex hull
+     drawCells(view3d, cells)      cells in space, and their convex hull
      resetCamera(view3d, toward)   look from the starting angle again
      setHeight(view3d, height)     make the picture taller or shorter (full screen popup)
    ===================================================================== */
@@ -180,12 +181,14 @@ function blockShape(shape) {
 
 // A shape with room for "count" copies, kept in view3d.meshes[name]. It
 // is made again only when the shape changes or more room is needed.
-function useMesh(view3d, name, shape, count) {
+// "shape" names it: "cubes", "coins" or "balls" (blockShape), or any
+// other name with "make", a function that makes the shape.
+function useMesh(view3d, name, shape, count, make) {
   let mesh = view3d.meshes[name];
   if (!mesh || mesh.userData.shape !== shape || mesh.userData.room < count) {
     if (mesh) dropMesh(view3d, mesh);
     const room = Math.max(64, 2 * count);           // room to grow, so this happens rarely
-    mesh = new THREE.InstancedMesh(blockShape(shape), new THREE.MeshLambertMaterial(), room);
+    mesh = new THREE.InstancedMesh(make ? make() : blockShape(shape), new THREE.MeshLambertMaterial(), room);
     mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(3 * room), 3);
     mesh.frustumCulled = false;                    // the copies move around; always draw them
     mesh.userData = { shape: shape, room: room };
@@ -687,17 +690,27 @@ export function drawSurface(view3d, surface) {
    Cells in space
    --------------------------------------------------------------------- */
 
-// Draw one cube per cell of the cubic grid, a ball where the walker is,
-// and the convex hull of some points as a see-through solid. "cells" has:
+// Draw the cells, each in its own shape and color, a ball where the
+// walker is, and the convex hull of some points as a see-through solid.
+// "cells" has:
 //   x, y, z     each cell's place (lists of whole numbers; x goes right,
-//               y away from where you start, z up)
+//               y away from where you start, z up): a cube of the cubic
+//               grid, or, with "block", the block (I, J, K) it is in
+//   block, part (optional) a 3D tiling's block (honeycombBlock,
+//               js/sim-honeycombs.js), and for each cell its number in
+//               the block: cell i is then drawn as its shape (a
+//               polyhedron, a face, an edge as a thin rod, or a
+//               vertex's own polyhedron), a little shrunk so the cells
+//               don't melt into each other
 //   color(i)    cell i's color [r, g, b] (0..255)
-//   at          [x, y, z]: where the ball goes (the walker), and
+//   at          (optional) [x, y, z]: where the ball goes (the walker),
+//               and
 //   atColor     its color [r, g, b]
 //   hull        (optional) the points to take the convex hull of, as
 //               x0, y0, z0, x1, ... (in the same places as the cells)
 //   hullColor   its color [r, g, b]
-// Past MAX_BLOCKS.cubes cells, only the last ones in the list are drawn.
+// Past MAX_BLOCKS.cubes cubes, or MAX_BLOCKS.tiles shapes, only the last
+// cells in the list are drawn.
 // Returns the hull's surface area and volume, { area, volume } (both 0
 // while the points are all on one plane), found by three.js's
 // ConvexHull (the "Quickhull" algorithm: C. B. Barber, D. P. Dobkin
@@ -705,22 +718,39 @@ export function drawSurface(view3d, surface) {
 // Trans. Math. Software 22 (1996) 469-483).
 export function drawCells(view3d, cells) {
   if (view3d.box.clientWidth && view3d.box.clientWidth !== view3d.width) fitToBox(view3d);   // the box changed size
-  const n = cells.x.length, from = Math.max(0, n - MAX_BLOCKS.cubes);
-  // three.js has "up" as its second number, and its third pointing
-  // toward you, so the cell (x, y, z) goes at (x, z, -y).
-  const blockMesh = useMesh(view3d, "blocks", "cubes", n - from);
-  let low = [Infinity, Infinity, Infinity], high = [-Infinity, -Infinity, -Infinity];
-  for (let i = from; i < n; i++) {
-    const place = [cells.x[i], cells.z[i], -cells.y[i]];
-    for (let c = 0; c < 3; c++) { low[c] = Math.min(low[c], place[c]); high[c] = Math.max(high[c], place[c]); }
-    placeCopy(blockMesh, i - from, place[0], place[1] - BLOCK_WIDTH / 2, place[2], BLOCK_WIDTH, BLOCK_WIDTH, toThree(cells.color(i)));
+  const block = cells.block || null, n = cells.x.length;
+  const from = Math.max(0, n - (block ? MAX_BLOCKS.tiles : MAX_BLOCKS.cubes));
+  // One mesh of copies for each shape: the cube, or each cell of the
+  // block (all the cells numbered k in the block have the same shape).
+  // Meshes not used this time are emptied.
+  const shapes = block ? block.cells.length : 1, counts = new Array(shapes).fill(0);
+  for (let i = from; i < n; i++) counts[block ? cells.part[i] : 0]++;
+  const meshes = counts.map(function (count, k) {
+    return block ? useMesh(view3d, "cells" + k, block.id + "|" + k, count, function () { return cellShape(block.cells[k]); })
+                 : useMesh(view3d, "cells0", "cubes", count);
+  });
+  for (const name of Object.keys(view3d.meshes)) {
+    if (name.startsWith("cells") && Number(name.slice(5)) >= shapes) view3d.meshes[name].count = 0;
   }
-  blockMesh.instanceMatrix.needsUpdate = blockMesh.instanceColor.needsUpdate = true;
+  // three.js has "up" as its second number, and its third pointing
+  // toward you, so the point (x, y, z) goes at (x, z, -y).
+  let low = [Infinity, Infinity, Infinity], high = [-Infinity, -Infinity, -Infinity];
+  const copy = new Array(shapes).fill(0);
+  for (let i = from; i < n; i++) {
+    const k = block ? cells.part[i] : 0, [x, y, z] = block ? middleOf(block, cells, i) : [cells.x[i], cells.y[i], cells.z[i]];
+    const place = [x, z, -y];
+    for (let c = 0; c < 3; c++) { low[c] = Math.min(low[c], place[c]); high[c] = Math.max(high[c], place[c]); }
+    if (block) placeCopy(meshes[k], copy[k]++, place[0], place[1], place[2], 1, 1, toThree(cells.color(i)));
+    else placeCopy(meshes[0], copy[0]++, place[0], place[1] - BLOCK_WIDTH / 2, place[2], BLOCK_WIDTH, BLOCK_WIDTH, toThree(cells.color(i)));
+  }
+  for (const mesh of meshes) mesh.instanceMatrix.needsUpdate = mesh.instanceColor.needsUpdate = true;
 
-  const ball = useMesh(view3d, "walker", "balls", 1);
-  const [ax, ay, az] = cells.at;
-  placeCopy(ball, 0, ax, az - 0.6, -ay, 1.2, 1.2, toThree(cells.atColor));
-  ball.instanceMatrix.needsUpdate = ball.instanceColor.needsUpdate = true;
+  const ball = useMesh(view3d, "walker", "balls", cells.at ? 1 : 0);
+  if (cells.at) {
+    const [ax, ay, az] = cells.at;
+    placeCopy(ball, 0, ax, az - 0.6, -ay, 1.2, 1.2, toThree(cells.atColor));
+    ball.instanceMatrix.needsUpdate = ball.instanceColor.needsUpdate = true;
+  }
 
   // The hull: its measures, and a see-through solid.
   const measures = { area: 0, volume: 0 };
@@ -761,12 +791,66 @@ export function drawCells(view3d, cells) {
   if (cells.hullColor) view3d.hull.material.color.setRGB(...toThree(cells.hullColor));
 
   // Shrink the whole picture to fit, with its middle at the center (and
-  // room to spare, so it still fits when turned around).
-  const across = 1.4 * (Math.max(high[0] - low[0], high[1] - low[1], high[2] - low[2], 1) + 2);
+  // room to spare, so it still fits when turned around): the middles'
+  // box, plus the widest cell all round.
+  const across = 1.4 * (Math.max(high[0] - low[0], high[1] - low[1], high[2] - low[2], 1) + 2 * widestOf(block));
   const scale = PICTURE_SIZE / across;
   view3d.world.scale.setScalar(scale);
   view3d.world.position.set(-scale * (low[0] + high[0]) / 2, -scale * (low[1] + high[1]) / 2 + 0.25,
                             -scale * (low[2] + high[2]) / 2);
   render(view3d);
   return measures;
+}
+
+// How far a cell's corners reach from its middle (1 for the cubes, to
+// leave room for the cube and the walker's ball).
+function widestOf(block) {
+  if (!block) return 1;
+  let widest = 0;
+  for (const cell of block.cells) {
+    for (const p of cell.corners) widest = Math.max(widest, Math.hypot(p[0] - cell.middle[0], p[1] - cell.middle[1], p[2] - cell.middle[2]));
+  }
+  return widest;
+}
+
+// Where the middle of cell i of drawCells's cells is: the middle of its
+// cell in the block, moved to its block.
+function middleOf(block, cells, i) {
+  const m = block.cells[cells.part[i]].middle;
+  return [m[0] + cells.x[i] * block.a[0], m[1] + cells.y[i] * block.b[1], m[2] + cells.z[i] * block.c[2]];
+}
+
+// The shape of a cell of a 3D tiling's block, around its middle, shrunk
+// to BLOCK_WIDTH of its size toward the middle. A cell with faces is cut
+// into triangles, each face as a fan from its middle (each triangle
+// going counterclockwise seen from outside, as three.js wants its front
+// sides); a cell with one face (a face of the tiling) gets both sides;
+// a cell with no faces (an edge) is a thin rod from one end to the other.
+const ROD_WIDTH = 0.12;
+function cellShape(cell) {
+  const there = function (p) {
+    const d = [0, 1, 2].map(function (c) { return BLOCK_WIDTH * (p[c] - cell.middle[c]); });
+    return [d[0], d[2], -d[1]];          // three.js's way round, as in drawCells
+  };
+  if (cell.faces.length === 0) {
+    const [a, b] = cell.corners.map(there), along = new THREE.Vector3(b[0] - a[0], b[1] - a[1], b[2] - a[2]);
+    const rod = new THREE.CylinderGeometry(ROD_WIDTH / 2, ROD_WIDTH / 2, along.length(), 8);
+    rod.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), along.normalize()));
+    return rod;
+  }
+  const points = [];
+  const triangle = function (p, q, r) { points.push(...p, ...q, ...r); };
+  for (const face of cell.faces) {
+    const corners = face.map(function (c) { return there(cell.corners[c]); });
+    const middle = [0, 1, 2].map(function (c) { return corners.reduce(function (s, p) { return s + p[c]; }, 0) / corners.length; });
+    for (let k = 0; k < corners.length; k++) {
+      const p = corners[k], q = corners[(k + 1) % corners.length];
+      triangle(middle, p, q);
+      if (cell.faces.length === 1) triangle(middle, q, p);
+    }
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.BufferAttribute(new Float32Array(points), 3));
+  geometry.computeVertexNormals();     // each triangle shaded flat: its corners aren't shared
+  return geometry;
 }
