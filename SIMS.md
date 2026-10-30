@@ -1,11 +1,16 @@
-# Candidate sims
+# Sims
 
-A planning list only. Nothing here is on the site, and nothing on this list
-gets a page or a card on Toys n' Sims until nadya drives it, one sim at a
-time.
+nadya's list of sims: what's on the site, what's being built, and ideas.
+Nothing new gets a page or a card on Toys n' Sims until nadya drives it, one
+sim at a time.
 
-Rows come from the old `SIMS.md` (git commit `8e68754`). Genres were
+Rows come from the old `SIMS.md` (git commit `8e68754`) and nadya's later
+additions. A live sim is listed under its name on the site. Genres were
 removed: nadya picks them when a sim goes live.
+
+On Toys n' Sims the live sims sit in three sections: model families (DLA,
+Percolation, Tiling), sporadic models, and tools (Graph & Domain Tool,
+Random Variables, GomJau-Hogg Notation).
 
 ## Status
 
@@ -14,8 +19,8 @@ removed: nadya picks them when a sim goes live.
 - **idea**: worth building someday. Nothing has been done yet.
 - **planning**: a thread is open and the plan doc is being agreed.
 - **checking algorithm**: the math code is written and is being compared with nadya's Python.
-- **building page**: the four-quadrant page is being made.
-- **live**: on the site with nadya's card text.
+- **building page**: the sim page is being made.
+- **live**: on the site.
 - **skip**: not going on the site.
 
 The thread column names the project thread where the sim is being worked on.
@@ -28,24 +33,24 @@ Claude wrote from the formulas, so rename them freely.
 
 | Sim | nadya's Python files | Old site JS (at `8e68754`) | Status | Thread |
 | --- | --- | --- | --- | --- |
-| Random connected N-colouring | `Random_Connected_coloring.py` | `js/sims/connectedcoloring.js` | planning | Scope the domain drawing tool |
-| 1D cellular automata | | `js/sims/automata.js` | idea | |
-| Abelian sandpile | | `js/sims/sandpiles.js` | idea | |
-| Random walk coloring | `RandomColoredWalk*.py`, `RandomColoredWalkOnLTaurus*.py` | `js/sims/walkcoloring.js` | live | Random walk coloring |
-| Random sequential tile packing | `circlepacking.py`, `circlingpackingdegrees.py`, `growing_circles_*` | `js/sims/tilepacking.js` | idea | |
-| Uniform continuous tiling | | | idea | |
-| Sequential discrete tiling | | | idea | |
+| Connected Coloring | `Random_Connected_coloring.py` | `js/sims/connectedcoloring.js` | live | |
+| Cellular Automata (1D and 2D) | | `js/sims/automata.js` | live | |
+| Sandpiles | | `js/sims/sandpiles.js` | live | |
+| Random Walk Coloring | `RandomColoredWalk*.py`, `RandomColoredWalkOnLTaurus*.py` | `js/sims/walkcoloring.js` | live | |
+| Sequential Continuous Tiling (was random sequential tile packing) | `circlepacking.py`, `circlingpackingdegrees.py`, `growing_circles_*` | `js/sims/tilepacking.js` | live | |
+| Uniform Continuous Tiling | | | idea | |
+| Sequential Discrete Tiling | | | idea | |
 | Gradient percolation | (from `gradient-percolation.html`) | `js/sims/gradientpercolation.js` | idea | |
-| Random block growth | `RandBlockStack.py` | `js/sims/blockgrowth.js` | idea | |
-| Lattice path counting | | `js/sims/pathcount.js` | idea | |
+| Eden Growth (was random block growth) | `RandBlockStack.py` | `js/sims/blockgrowth.js` | live | |
+| Lattice Path Counting | | `js/sims/pathcount.js` | live | |
 | Digit-rewriting rules | `DigitFun.py`, `BaseFun.py` | | idea | |
-| Competing walks on a line | `competingwalk1d.py`, `competingwalks1dclaude.py` | | idea | |
+| Competing walks on a line | `competingwalk1d.py`, `competingwalks1dclaude.py` | | live, as Random Walk Coloring's 1D page | |
 | Dyadic walk | `DyadicWalk/` | | idea | |
 | Random bridges / mountains | `randombrownianbridgeellipsecut.py`, `randmountain.py`, `randonesidedmountain.py` | | idea | |
 | Coin-toss convergence | `quickndirtycointossconvergence.py` | | idea | |
-| Random matrix products | `randmatAB.py`, `randmatprod.py`, `randmatcltadd.py`, `randmatcltmul.py` | | idea | |
+| Matrix Products (was random matrix products) | `randmatAB.py`, `randmatprod.py`, `randmatcltadd.py`, `randmatcltmul.py` | | live | |
 | Random stochastic matrices | `randstochasticmat.py` | | idea | |
-| Random tilings | `RANDOMTILINGS/tiling_mcmc.py`, `tiling_animation.py`, old `RandomTilings.js` | | idea | |
+| Uniform Discrete Tiling (was random tilings) | `RANDOMTILINGS/tiling_mcmc.py`, `tiling_animation.py`, old `RandomTilings.js` | | live | |
 | Random billiards / clipping | `randbilliards.py`, `gptcircleclipping.py` | | idea | |
 | Growing circles / interface tracking | (`growing_circles_analysis*.png`, `interface_displacement_data.csv`) | | idea | |
 | Fractal percolation | `randomfractalpercolation.py`, `fracperc.py` | | idea | |
@@ -57,15 +62,22 @@ Claude wrote from the formulas, so rename them freely.
 | Continued / base-B fraction expansions | `FractionExpansion.py`, `ContFracWithFunc.py`, `RandomBaseBNumbers.py` | | idea | |
 | Periodic-rule Fibonacci-like sequences | `periodicfibonnaci.js`, `fib.py` | | idea | |
 | Ulam sequence | `Ulam.py` | | idea | |
-| First passage percolation (FPP) | | | idea | |
+| First Passage Percolation | | | live | |
 | Last passage percolation (LPP) | | | idea | |
-| Diffusion-limited aggregation (DLA) | | | idea | |
-| DLA from the inside | | | idea | |
+| Diffusion-limited aggregation (DLA): External Discrete and External Continuous DLA | | | planning | Build DLA sims |
+| DLA from the inside: Internal Discrete and Internal Continuous DLA | | | planning | Build DLA sims |
 | Forest-fire model | | | idea | |
 | Invasion percolation | | | idea | |
 | Random sequential adsorption (RSA) | | | idea | |
 | Directed percolation | | | idea | |
-| D1: Product over a random walk with positive steps | Desmos | | idea | |
+| Heat flow (may take in D2, D3 and D15; being decided) | | | planning | Build heat flow sim |
+| Bernoulli Site Percolation | | | live | |
+| Bernoulli Bond Percolation | | | live | |
+| Ising & Potts Model | | | live | |
+| Generalized Voter Model | | | live | |
+| Random Walk (one walker, 1D, 2D or 3D) | | | live | |
+| Uniform Spanning Tree | | | live | |
+| D1: Product over a random walk with positive steps | Desmos | | live, as Sinusoid-ish | |
 | D2: Random sequence shifted left/right with weight α | Desmos | | idea | |
 | D3: Binomial average of a random sequence | Desmos | | idea | |
 | D4: Alternating sequence times a Gaussian bump | Desmos | | idea | |
@@ -76,9 +88,9 @@ Claude wrote from the formulas, so rename them freely.
 | D9: Lattice paths with mod I₁, I₂ rules (polygonal numbers) | Desmos | | idea | |
 | D10: Repeated uniform densities f_a1, f_a2, f_a3 | Desmos | | idea | |
 | D11: Base-2 and base-3 weighted densities (p, q / r, s, t) | Desmos | | idea | |
-| D12: Products of random 2x2 column-stochastic matrices | Desmos | | idea | |
-| D13: Random products of two fixed matrices A, B | Desmos | | idea | |
-| D14: Random disks in the unit disk | Desmos | | idea | |
+| D12: Products of random 2x2 column-stochastic matrices | Desmos | | live, a preset of Matrix Products | |
+| D13: Random products of two fixed matrices A, B | Desmos | | live, a preset of Matrix Products | |
+| D14: Random disks in the unit disk | Desmos | | live, the "Your gasket" preset of Sequential Continuous Tiling | |
 | D15: Random-walk averaging of sin(1/x) | Desmos | | idea | |
 | D16: Random base-b digits with random weights | Desmos | | idea | |
 | D17: Move-to-front list | Desmos | | idea | |
@@ -90,7 +102,7 @@ Claude wrote from the formulas, so rename them freely.
 1. nadya picks the sim and starts a thread named after it, pasting her Python.
 2. A plan doc (the math, the algorithm, defaults, controls, statistics, the picture). nadya OKs it.
 3. The algorithm, plus a check page that compares it with her Python and with known answers. nadya OKs it.
-4. The four-quadrant page. nadya OKs how it looks.
+4. The sim page. nadya OKs how it looks.
 5. nadya writes the card text and genres, and merges. Status becomes `live`.
 
 Old site JS is a starting point only. It gets the same checks as new code.
