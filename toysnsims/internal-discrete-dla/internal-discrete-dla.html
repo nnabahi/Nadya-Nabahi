@@ -65,33 +65,10 @@
         <!-- 2D only: the lattice, the square grid or any tiling by regular
              polygons or Penrose tiling, from the menu or typed as a code
              (GomJau-Hogg notation), with its tiles or its corners as the
-             cells (js/sim-controls.js reads these ids). -->
-        <div id="lattice-rows">
-          <div class="option-row">
-            Lattice <select id="set-tiling"></select>
-          </div>
-          <div class="option-row">
-            Code <input type="text" class="tiling-code" id="tiling-code" spellcheck="false" autocomplete="off">
-            <a class="small" href="../../help/gomjau-hogg.html">how codes work</a>
-          </div>
-          <p class="muted small tiling-message" id="tiling-message"></p>
-          <div class="option-row" id="cells-row">
-            Cells are the
-            <label><input type="radio" name="cells-are" value="tiles" checked> tiles</label>
-            <label><input type="radio" name="cells-are" value="corners"> corners</label>
-          </div>
-        </div>
-
-        <!-- 3D only: one of the 28 uniform tilings of space
-             (js/sim-honeycombs.js), and which of its pieces are the cells. -->
-        <div id="space-rows" hidden>
-          <div class="option-row">
-            Tiling <select id="set-honeycomb"></select>
-          </div>
-          <div class="option-row">
-            Cells are the <select id="set-cell-kind"></select>
-          </div>
-        </div>
+             cells. 3D only: one of the 28 uniform tilings of space
+             (js/sim-honeycombs.js), and which of its pieces are the
+             cells. js/sim-controls.js fills them in. -->
+        <div class="lattice-options" data-space></div>
         <p class="muted small">Each particle starts at the origin (in 2D, the outlined cell) and
           walks, every neighbor equally likely, until it reaches a cell not in the
           cluster; that cell joins the cluster.</p>
@@ -310,8 +287,8 @@
        domains, the picture's view, the tilings of the plane (with the
        Penrose tilings) and of space, the Lattice options, the walker and
        its jumps, the cluster, and the page's copy of the cluster's
-       cells. Then the growth (it runs in a second thread), then this
-       page's code. -->
+       cells and its drawing. Then the growth (it runs in a second
+       thread), then this page's code. -->
   <script src="../../js/sim-page.js"></script>
   <script src="../../js/sim-worker.js"></script>
   <script src="../../js/sim-charts.js"></script>
@@ -325,6 +302,7 @@
   <script src="../../js/sim-walk.js"></script>
   <script src="../../js/sim-cluster.js"></script>
   <script src="../../js/sim-sites.js"></script>
+  <script src="../../js/sim-cluster-page.js"></script>
   <script src="internal-discrete-dla-growth.js"></script>
   <script src="internal-discrete-dla.js"></script>
 </body>

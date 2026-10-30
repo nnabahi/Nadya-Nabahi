@@ -19,6 +19,14 @@
      exactOddsTest(odds, seen, runs, what)   ... as a pass or FAIL with its text
      equalChiSquare(counts)              are some outcomes equally likely?
      binomialZ(count, trials, p)         how far a count is from its mean
+     twoCountsChiSquare(a, b)            do two lists of counts have the same law?
+     twoSampleChiSquare(a, b)            ... and two lists of values?
+     gaussianSolve(rows)                 a small linear system, solved plainly
+   and, for the pages that test growing clusters (they load
+   js/sim-walk.js, whose lattices and sites they use):
+     siteKey, neighborsOf, setKey        sites as numbers, their neighbors, sets of sites
+     clusterSites(growth)                a growth's cluster, as sites
+     plainEdge(lattice, sites)           the empty sites next to a cluster, found plainly
    and, to test the holes found by holeHistory (js/sim-shape.js):
      countHoles(cells)                   the holes of a set of cells, counted plainly
    and, for the pages that test tilings (they load js/sim-tilings.js,
@@ -151,6 +159,109 @@ function equalChiSquare(counts) {
 // time in 16000.
 function binomialZ(count, trials, p) {
   return (count - trials * p) / Math.sqrt(trials * p * (1 - p));
+}
+
+// Do two lists of counts come from the same law? "a" and "b" map each
+// outcome to how often it came up, in as many runs each. Returns
+// { statistic, degrees, pValue }: with a_k and b_k the counts of
+// outcome k, the statistic is the sum of (a_k - b_k)^2 / (a_k + b_k),
+// about chi-square with (outcomes - 1) degrees of freedom when they do
+// (Pearson's test of homogeneity, for two samples of the same size).
+// Outcomes seen fewer than 10 times in all (5 expected in each) are
+// pooled into one, as in pooledChiSquare.
+function twoCountsChiSquare(a, b) {
+  let statistic = 0, groups = 0, pooledA = 0, pooledB = 0;
+  for (const outcome of new Set([...a.keys(), ...b.keys()])) {
+    const x = a.get(outcome) || 0, y = b.get(outcome) || 0;
+    if (x + y < 10) { pooledA += x; pooledB += y; continue; }
+    statistic += (x - y) ** 2 / (x + y);
+    groups++;
+  }
+  if (pooledA + pooledB > 0) {
+    statistic += (pooledA - pooledB) ** 2 / (pooledA + pooledB);
+    groups++;
+  }
+  return { statistic: statistic, degrees: groups - 1, pValue: 1 - jStat.chisquare.cdf(statistic, groups - 1) };
+}
+
+// Do the values "a" and "b" (as many of each) come from the same law?
+// They are put in groups, the tenths of the pooled values, and the
+// groups' counts are tested (twoCountsChiSquare).
+const TWO_SAMPLE_GROUPS = 10;
+function twoSampleChiSquare(a, b) {
+  const pooled = a.concat(b).sort(function (x, y) { return x - y; }), edges = [];
+  for (let q = 1; q < TWO_SAMPLE_GROUPS; q++) {
+    const e = pooled[Math.floor(q * pooled.length / TWO_SAMPLE_GROUPS)];
+    if (edges.length === 0 || e > edges[edges.length - 1]) edges.push(e);
+  }
+  const countsOf = function (values) {
+    const counts = new Map();
+    for (const v of values) {
+      let k = 0;
+      while (k < edges.length && v >= edges[k]) k++;
+      counts.set(k, (counts.get(k) || 0) + 1);
+    }
+    return counts;
+  };
+  return twoCountsChiSquare(countsOf(a), countsOf(b));
+}
+
+// Solve the linear system whose rows are [a_1, ..., a_m, b] (Gaussian
+// elimination with the largest pivot in each column). The rows are
+// used up.
+function gaussianSolve(rows) {
+  const m = rows.length;
+  for (let c = 0; c < m; c++) {
+    let best = c;
+    for (let r = c + 1; r < m; r++) if (Math.abs(rows[r][c]) > Math.abs(rows[best][c])) best = r;
+    [rows[c], rows[best]] = [rows[best], rows[c]];
+    for (let r = 0; r < m; r++) {
+      if (r === c || rows[r][c] === 0) continue;
+      const factor = rows[r][c] / rows[c][c];
+      for (let k = c; k <= m; k++) rows[r][k] -= factor * rows[c][k];
+    }
+  }
+  return rows.map(function (row, c) { return row[m] / row[c]; });
+}
+
+
+/* ---------------------------------------------------------------------
+   Growing clusters (the DLA sims)
+   ---------------------------------------------------------------------
+   A site is { I, J, K, k }: cell k of block (I, J, K) of a lattice
+   (js/sim-walk.js). A growth (newInternalDLA, newExternalDLA) has its
+   lattice and its cluster (js/sim-cluster.js).
+   --------------------------------------------------------------------- */
+
+function siteKey(lattice, s) { return lattice.keyOf(s.I, s.J, s.K, s.k); }
+
+// The neighbors of site s, as sites.
+function neighborsOf(lattice, s) {
+  return lattice.movesOf(s.k).map(function ([k2, dI, dJ, dK]) { return newSite(s.I + dI, s.J + dJ, s.K + dK, k2); });
+}
+
+// A name for a set of sites, the same whatever their order.
+function setKey(lattice, sites) {
+  return sites.map(function (s) { return siteKey(lattice, s); }).sort(function (a, b) { return a - b; }).join(",");
+}
+
+// The sites of a growth's cluster, in the order they joined.
+function clusterSites(growth) {
+  const c = growth.cluster;
+  return c.I.map(function (I, i) { return newSite(I, c.J[i], c.K[i], c.k[i]); });
+}
+
+// A cluster's edge, found plainly: every site not in it with a
+// neighbor in it.
+function plainEdge(lattice, sites) {
+  const members = new Set(sites.map(function (s) { return siteKey(lattice, s); })), edge = new Map();
+  for (const s of sites) {
+    for (const y of neighborsOf(lattice, s)) {
+      const key = siteKey(lattice, y);
+      if (!members.has(key)) edge.set(key, y);
+    }
+  }
+  return Array.from(edge.values());
 }
 
 

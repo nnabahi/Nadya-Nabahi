@@ -27,11 +27,16 @@
           boxFromOptions(least, most, defaults)   the box or torus they say
           tilingBoxFromOptions(tiling, ...)  the same, of a given tiling
         and the Lattice options, on pages that have them:
+          latticeOptionsHTML(settings)      the options themselves, written once
           connectLattice(onChange)          fill in and connect them
           onSquares()                       is the lattice the square grid (or the line)?
           onFiniteTiling()                  is it a tiling that never repeats?
           cornersCanBeCells()               can its corners be the cells?
           readTiling()                      the tiling the Lattice options say
+        and the tilings of space (3D), on pages that have them:
+          connectSpaceTilings(onChange)     fill in and connect their menus
+          spaceBlockInUse()                 the tiling of space they say
+          showLatticeRowsFor(dim)           the Lattice options in 2D, these in 3D
      2. The graph tool inside a sim page
           makeCustomTool(view, player, parts)
           makeToolBox(title, help)          its box: the step bar and the <iframe>
@@ -97,7 +102,14 @@
    (js/sim-domains.js), its size in side lengths. A Penrose
    tiling never repeats, so it has no torus: its Torus option hides.
    The cells-row hides where only the tiles can be cells: on the square
-   grid, and on Penrose's first tiling (P1).
+   grid, and on Penrose's first tiling (P1). A page with the Lattice
+   options but no Domain options (Random Walk, the DLA sims) holds an
+   empty box for them instead,
+     <div class="lattice-options"></div>
+   and with data-space the tilings of space (js/sim-honeycombs.js) too,
+   for 3D, in the box space-rows: the menus set-honeycomb (the cubes
+   first) and set-cell-kind (polyhedra first: which of the tiling's
+   pieces are the cells).
    ===================================================================== */
 
 // The kinds of domain, in order, and their names on the line (1D) and
@@ -112,6 +124,7 @@ const DOMAIN_KINDS = [
 ];
 
 fillBlocks(".domain-options", domainOptionsHTML);
+fillBlocks(".lattice-options", latticeOptionsHTML);
 
 // The Domain options, as HTML, from the placeholder's settings (above):
 // the kinds and the size, and in 2D the Lattice options, the custom
@@ -143,6 +156,20 @@ function sizeRowHTML(least, oneD) {
   function size(id) { return '<input type="number" id="' + id + '" min="' + least + '" step="1">'; }
   return '<div class="option-row" id="size-row">Size ' + size("set-width") +
     (oneD ? "" : '<span id="height-part"> &times; ' + size("set-height") + "</span>") + "</div>";
+}
+
+// The Lattice options on their own (no Domain options), and with
+// data-space the tilings of space too.
+function latticeOptionsHTML(settings) {
+  return latticeRowsHTML() + ("space" in settings ? spaceRowsHTML() : "");
+}
+
+// The tilings of space's menus (connectSpaceTilings fills them in).
+function spaceRowsHTML() {
+  return '<div id="space-rows" hidden>' +
+      '<div class="option-row">Tiling <select id="set-honeycomb"></select></div>' +
+      '<div class="option-row">Cells are the <select id="set-cell-kind"></select></div>' +
+    "</div>";
 }
 
 // The Lattice options (connectLattice reads them).
@@ -481,6 +508,28 @@ function readTiling() {
     message.classList.add("problem");
     return false;
   }
+}
+
+// The tilings of space's menus: every tiling of space (the cubes,
+// whose polyhedra are Z^3, first and ticked) and every kind of cell.
+// They call onChange when either changes.
+function connectSpaceTilings(onChange) {
+  addHoneycombOptions(byId("set-honeycomb"));    // (js/sim-honeycombs.js)
+  for (const { kind, name } of CELL_KINDS) byId("set-cell-kind").appendChild(new Option(name, kind));
+  for (const id of ["set-honeycomb", "set-cell-kind"]) byId(id).addEventListener("change", onChange);
+}
+
+// The tiling of space the menus say (honeycombBlock, js/sim-honeycombs.js).
+function spaceBlockInUse() {
+  return honeycombBlock(Number(byId("set-honeycomb").value), byId("set-cell-kind").value);
+}
+
+// The Lattice options show in 2D only ("Cells are the tiles / corners"
+// only where the corners can be cells), the tilings of space in 3D only.
+function showLatticeRowsFor(dim) {
+  byId("lattice-rows").hidden = (dim !== 2);
+  byId("cells-row").hidden = !cornersCanBeCells();
+  byId("space-rows").hidden = (dim !== 3);
 }
 
 

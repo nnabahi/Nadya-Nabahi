@@ -68,22 +68,8 @@
         <!-- 2D only: the lattice, the square grid or any tiling by regular
              polygons, from the menu or typed as a code (GomJau-Hogg
              notation), with its tiles or its corners as the cells
-             (js/sim-controls.js reads these ids). -->
-        <div id="lattice-rows">
-          <div class="option-row">
-            Lattice <select id="set-tiling"></select>
-          </div>
-          <div class="option-row">
-            Code <input type="text" class="tiling-code" id="tiling-code" spellcheck="false" autocomplete="off">
-            <a class="small" href="../../help/gomjau-hogg.html">how codes work</a>
-          </div>
-          <p class="muted small tiling-message" id="tiling-message"></p>
-          <div class="option-row" id="cells-row">
-            Cells are the
-            <label><input type="radio" name="cells-are" value="tiles" checked> tiles</label>
-            <label><input type="radio" name="cells-are" value="corners"> corners</label>
-          </div>
-        </div>
+             (js/sim-controls.js fills them in). -->
+        <div class="lattice-options"></div>
 
         <!-- One slider per direction; random-walk.js fills this in. On
              another tiling, a line instead: every neighbor is equally likely. -->

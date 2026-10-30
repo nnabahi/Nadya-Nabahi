@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>External Discrete DLA — Check Page</title>
+  <link rel="stylesheet" href="../../css/style.css">
+</head>
+<body>
+
+  <!-- Tests of the growth behind the External Discrete DLA sim
+       (external-discrete-dla-growth.js) and of the cluster it grows
+       (js/sim-cluster.js). -->
+  <main class="page">
+    <p><a href="external-discrete-dla.html">&larr; Back to the sim</a></p>
+    <h1>External Discrete DLA: Check Page</h1>
+
+    <p>
+      Each particle comes from far away and walks, every neighbor equally
+      likely, until it first reaches a cell next to the cluster, which then
+      joins it. Where it lands has the harmonic measure from infinity of the
+      cluster's edge. On the square grid that law can be worked out exactly
+      from the walk's potential kernel, so the checks compare the sim with it:
+      this tests the launch circle and the Brownian return, the sim's one
+      approximation. On the other lattices, launches at two distances are
+      compared with each other.
+    </p>
+    <p>
+      The rest is exact, and the checks test what makes it so: the Brownian
+      return against its Poisson kernels, the jumps across balls against
+      plain steps, the search for the nearest edge cell against a plain
+      search, the cluster's shape and edge recounted, and coupling.
+    </p>
+
+    <p><button id="run-checks">Run the checks</button> (a few minutes)</p>
+
+    <table class="check-table">
+      <tbody id="results"></tbody>
+    </table>
+  </main>
+
+  <!-- jStat (chi-square p-values). The version is fixed so an update
+       can never change the tests by surprise. -->
+  <script src="https://cdn.jsdelivr.net/npm/jstat@1.9.6/dist/jstat.min.js"></script>
+  <!-- byId() (sim-page.js), the results table (check-page.js), the
+       seeded random numbers and the heap (sim-worker.js), the tilings of
+       the plane and of space, Brownian motion's launch and return, the
+       walker, the cluster, then the growth, then this page's own code. -->
+  <script src="../../js/site.js"></script>
+  <script src="../../js/sim-page.js"></script>
+  <script src="../../js/check-page.js"></script>
+  <script src="../../js/sim-worker.js"></script>
+  <script src="../../js/sim-domains.js"></script>
+  <script src="../../js/sim-tilings.js"></script>
+  <script src="../../js/sim-penrose.js"></script>
+  <script src="../../js/sim-honeycombs.js"></script>
+  <script src="../../js/sim-continuum.js"></script>
+  <script src="../../js/sim-walk.js"></script>
+  <script src="../../js/sim-cluster.js"></script>
+  <script src="external-discrete-dla-growth.js"></script>
+  <script src="external-discrete-dla-check.js"></script>
+</body>
+</html>
