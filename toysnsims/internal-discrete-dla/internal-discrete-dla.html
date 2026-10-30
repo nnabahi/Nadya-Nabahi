@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Internal Discrete DLA — Toys n' Sims</title>
+  <link rel="stylesheet" href="../../css/style.css">
+  <!-- KaTeX's styles, for the typeset formulas. -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/katex.min.css">
+  <!-- Where the 3D library three.js lives on the internet, for the 3D
+       picture (js/sim-3d.js). It is only loaded when you switch to 3D.
+       The version number is fixed so an update can never change the
+       site by surprise. -->
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.186.1/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+
+  <header class="topbar" data-active="toysnsims.html"></header>
+  <script src="../../js/site.js"></script>
+
+  <main class="page">
+    <p><a href="../../toysnsims.html">&larr; All sims</a></p>
+    <h1>Internal Discrete DLA</h1>
+
+    <!-- The boxes, as on every sim page (their layout is in
+         section 6 of css/style.css). All the behavior lives in
+         internal-discrete-dla.js; the ids below (id="...") are how that
+         script finds each button and box. -->
+    <div class="sim-layout">
+
+      <!-- TOP LEFT: the cluster. -->
+      <section class="panel panel-sim">
+        <h2>Simulation</h2>
+
+        <!-- The picture. internal-discrete-dla.js sets its height. In 2D
+             the zoom buttons sit in its top right corner; the full screen
+             button (added by js/sim-page.js) in its top left corner. In
+             3D, js/sim-page.js puts the 3D view in its place. -->
+        <div class="sim-picture">
+          <canvas id="sim-canvas"></canvas>
+        </div>
+
+        <p class="muted" id="sim-message"></p>
+      </section>
+
+      <!-- TOP RIGHT: settings. -->
+      <section class="panel panel-controls">
+        <h2 class="heading-with-button">Options
+          <a class="tool-button model-check" href="internal-discrete-dla-check.html">model check</a></h2>
+
+        <h3 class="option-heading">Dimension</h3>
+        <div class="option-row">
+          <label><input type="radio" name="dimension" value="1"> 1D (a line)</label>
+          <label><input type="radio" name="dimension" value="2" checked> 2D</label>
+          <label><input type="radio" name="dimension" value="3"> 3D</label>
+        </div>
+
+        <!-- 2D only: the lattice, the square grid or any tiling by regular
+             polygons or Penrose tiling, from the menu or typed as a code
+             (GomJau-Hogg notation), with its tiles or its corners as the
+             cells (js/sim-controls.js reads these ids). -->
+        <div id="lattice-rows">
+          <div class="option-row">
+            Lattice <select id="set-tiling"></select>
+          </div>
+          <div class="option-row">
+            Code <input type="text" class="tiling-code" id="tiling-code" spellcheck="false" autocomplete="off">
+            <a class="small" href="../../help/gomjau-hogg.html">how codes work</a>
+          </div>
+          <p class="muted small tiling-message" id="tiling-message"></p>
+          <div class="option-row" id="cells-row">
+            Cells are the
+            <label><input type="radio" name="cells-are" value="tiles" checked> tiles</label>
+            <label><input type="radio" name="cells-are" value="corners"> corners</label>
+          </div>
+        </div>
+
+        <!-- 3D only: one of the 28 uniform tilings of space
+             (js/sim-honeycombs.js), and which of its pieces are the cells. -->
+        <div id="space-rows" hidden>
+          <div class="option-row">
+            Tiling <select id="set-honeycomb"></select>
+          </div>
+          <div class="option-row">
+            Cells are the <select id="set-cell-kind"></select>
+          </div>
+        </div>
+        <p class="muted small">Each particle starts at the origin (in 2D, the outlined cell) and
+          walks, every neighbor equally likely, until it reaches a cell not in the
+          cluster; that cell joins the cluster.</p>
+
+        <h3 class="option-heading">View</h3>
+        <div class="option-row" id="color-rows">
+          Color each cell by
+          <label><input type="radio" name="color-by" value="arrival" checked> when it joined</label>
+          <label id="early-late-label"><input type="radio" name="color-by" value="early-late"> early or late</label>
+        </div>
+        <p class="muted small" id="arrival-help">When it joined: from blue (first) to red (just now).</p>
+        <p class="muted small" id="early-late-help" hidden>Early or late: red when a cell joined
+          before a perfect ball with that many cells would reach it, blue when after,
+          white when on time. The darkest red and blue are
+          <span id="early-late-scale"></span> side lengths early and late, the largest
+          difference so far. Only on the grids, where the cluster grows like a ball.</p>
+        <p class="muted small help-3d" id="view3d-help" hidden></p>
+
+        <h3 class="option-heading">Run</h3>
+        <div class="option-row play-row" data-step="One particle" data-restart="Start again, same seed"></div>
+        <div class="option-row speed-row"></div>
+        <div class="option-row goto-row"></div>
+        <div class="option-row seed-row"></div>
+        <p class="muted small">The same seed always gives the same cluster, and more particles
+          only add cells: particle p walks with its own random numbers.</p>
+      </section>
+
+      <!-- UNDER THE PICTURE: numbers about this run. -->
+      <section class="panel panel-stats">
+        <h2>Statistics</h2>
+        <div class="stat-grid">
+          <div class="stat">
+            <table class="stats-table">
+              <tr><td>Particles n (cells in the cluster)</td><td id="stat-particles"></td></tr>
+              <tr><td>Inner radius (nearest empty cell)</td><td id="stat-inner"></td></tr>
+              <tr><td>Outer radius (farthest cell of the cluster)</td><td id="stat-outer"></td></tr>
+              <tr class="only-grid"><td>Radius &rho;<sub>n</sub> of the ball with n cells</td><td id="stat-rho"></td></tr>
+              <tr class="only-grid"><td>Inner error &rho;<sub>n</sub> &minus; inner</td><td id="stat-inner-error"></td></tr>
+              <tr class="only-grid"><td>Outer error outer &minus; &rho;<sub>n</sub></td><td id="stat-outer-error"></td></tr>
+              <tr><td>Steps walked</td><td id="stat-steps"></td></tr>
+              <tr><td>Jumps across balls</td><td id="stat-jumps"></td></tr>
+            </table>
+            <p class="muted small">Distances are between the middles of cells, from the
+              origin's, in side lengths. A jump stands for all the steps inside a ball
+              where nothing could stop the particle (see All the details).</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- THE FULL WIDTH: the charts. -->
+      <section class="panel panel-charts">
+        <div class="stat-grid">
+          <div class="stat">
+            <h3 class="option-heading">Inner and outer radius</h3>
+            <canvas class="chart" id="radius-chart"></canvas>
+            <p class="muted small">Light: the inner radius. Dark: the outer radius.
+              <span class="only-grid">Dashed: &rho;<sub>n</sub>, the radius of the ball with n cells.</span></p>
+          </div>
+          <div class="stat only-grid">
+            <h3 class="option-heading">Inner and outer error</h3>
+            <canvas class="chart" id="error-chart"></canvas>
+            <p class="muted small">Light: inner error. Dark: outer error.
+              <span id="error-guide-1d">Dashed: &radic;((n + 1)/12), the exact root mean
+                square of the outer error on the line (see All the details).</span>
+              <span id="error-guide-2d">Dashed: log n, the order of both errors in 2D
+                (Jerison, Levine and Sheffield 2012; the constant is not known).</span>
+              <span id="error-guide-3d">Dashed: &radic;(log n), their order in 3D
+                (Jerison, Levine and Sheffield 2013; the constant is not known).</span></p>
+          </div>
+        </div>
+      </section>
+
+      <!-- BOTTOM, the full width: about the model, in two tabs (js/sim-page.js
+           switches them). Text in class="tex" is typeset by KaTeX. -->
+      <section class="panel panel-about">
+        <h2>About the model</h2>
+        <nav class="about-tabs">
+          <button class="about-tab selected" data-tab="simple">Simple</button>
+          <button class="about-tab" data-tab="details">All the details</button>
+        </nav>
+
+        <div data-panel="simple">
+        <p class="muted">(The simple explanation is coming.)</p>
+        </div>
+
+        <div data-panel="details" hidden>
+        <p>
+          <strong>The model</strong> [1]. Fix a lattice (the line
+          <span class="tex">\mathbb{Z}</span>, the square grid
+          <span class="tex">\mathbb{Z}^2</span> or any tiling of the plane, the
+          cubic grid <span class="tex">\mathbb{Z}^3</span> or any tiling of
+          space) and a source cell, the origin <span class="tex">0</span>. Start
+          with <span class="tex">A(1) = \{0\}</span>. Given the cluster
+          <span class="tex">A(n)</span>, let a particle do the simple random walk
+          (each neighbor equally likely) from <span class="tex">0</span>, and let
+          <span class="tex">x_{n+1}</span> be the first cell it reaches outside
+          <span class="tex">A(n)</span>. Then
+          <span class="tex">A(n+1) = A(n) \cup \{x_{n+1}\}</span>, so
+          <span class="tex">|A(n)| = n</span>.
+        </p>
+        <p>
+          <strong>The ball.</strong> On <span class="tex">\mathbb{Z}^2</span> and
+          <span class="tex">\mathbb{Z}^3</span> the
+          cluster grows like a Euclidean ball: with
+          <span class="tex">\rho_n</span> the radius of the ball with volume
+          <span class="tex">n</span> (<span class="tex">\pi \rho_n^2 = n</span> in
+          2D, <span class="tex">\tfrac43 \pi \rho_n^3 = n</span> in 3D), for every
+          <span class="tex">\varepsilon > 0</span>, almost surely
+          <span class="tex">B_{(1-\varepsilon)\rho_n} \cap \mathbb{Z}^d \subset A(n) \subset B_{(1+\varepsilon)\rho_n}</span>
+          for all large <span class="tex">n</span> [2]. The errors are much
+          smaller than <span class="tex">\varepsilon \rho_n</span>: at most
+          <span class="tex">C \log n</span> in 2D [3, 4] and
+          <span class="tex">C \sqrt{\log n}</span> in 3D [5], with high
+          probability. The page shows the inner radius (the nearest cell not in
+          the cluster: on <span class="tex">\mathbb{Z}^d</span> every cell but the
+          origin has a neighbor nearer the origin, so the nearest cell not in the
+          cluster is next to it) and the outer radius (its farthest cell), and on
+          the grids the errors <span class="tex">\rho_n - \text{inner}</span> and
+          <span class="tex">\text{outer} - \rho_n</span>. On other tilings I know
+          no theorem for the limit shape, so the page draws no ball there.
+        </p>
+        <p>
+          <strong>On the line.</strong> The cluster is always an interval
+          <span class="tex">\{-L, \dots, R\}</span> with
+          <span class="tex">L + R + 1 = n</span>, and the next particle leaves it on
+          the right with chance <span class="tex">\frac{L+1}{n+1}</span> (gambler's
+          ruin [9, Section XIV.2]): the shorter side is the likelier to grow. This
+          is Friedman's urn (draw a ball, put in one of the other color) [10, 11], so
+          the cluster stays centered: <span class="tex">D = R - L</span> has
+          <span class="tex">D/n \to 0</span> and
+          <span class="tex">D/\sqrt{n}</span> tends to a normal law. Exactly,
+          <span class="tex">\mathbb{E}[D_{n+1}^2 \mid D_n] = D_n^2 \left(1 - \tfrac{2}{n+1}\right) + 1</span>,
+          so <span class="tex">\mathbb{E}[D_n^2] = \tfrac{n+1}{3}</span> for
+          <span class="tex">n \ge 2</span>. Here
+          <span class="tex">\rho_n = \tfrac{n-1}{2}</span>, the outer error is
+          <span class="tex">|D|/2</span> and the inner error
+          <span class="tex">|D|/2 - 1</span>, so both are of order
+          <span class="tex">\sqrt{n}</span>, much bigger than in 2D and 3D, and the
+          outer error's root mean square is exactly
+          <span class="tex">\sqrt{(n+1)/12}</span> (the dashed line on the chart).
+        </p>
+        <p>
+          <strong>Early or late.</strong> Cell <span class="tex">x</span> joined as
+          cell number <span class="tex">m</span>; a perfect ball with
+          <span class="tex">m</span> cells has radius
+          <span class="tex">\rho_m</span>. The color is
+          <span class="tex">|x| - \rho_m</span>: positive (red) means the cluster
+          reached <span class="tex">x</span> early. This is the picture whose
+          fluctuations converge to a Gaussian free field [6].
+        </p>
+        <p>
+          <strong>Exact jumps.</strong> A particle deep inside the cluster is far
+          from every cell that could stop it. If the ball of cells at most
+          <span class="tex">r</span> steps from it lies in the cluster, the walk
+          can't stop before leaving that ball, so the page jumps straight to the
+          cell where it first leaves, drawn from the exact exit law of the ball
+          (worked out once by solving the linear system for the walk's Green's
+          function in the ball [7, Section 4.6]). By the strong Markov property
+          [8, Theorem 1.4.2] the result is exactly the same as taking every step;
+          the model check page tests it. On a Penrose tiling, which never repeats,
+          every step is taken.
+        </p>
+        <p>
+          <strong>Random numbers.</strong> Move <span class="tex">j</span> of
+          particle <span class="tex">p</span> uses a uniform number made from the
+          seed, <span class="tex">p</span> and <span class="tex">j</span>. So
+          particle <span class="tex">p</span> walks the same way however many come
+          after it, and going from <span class="tex">n</span> to
+          <span class="tex">n + 1</span> particles only adds a cell.
+        </p>
+        <p><strong>References</strong></p>
+        <ol class="small">
+          <li>P. Diaconis and W. Fulton, &ldquo;A growth model, a game, an
+            algebra, Lagrange inversion, and characteristic classes&rdquo;,
+            <em>Rend. Sem. Mat. Univ. Pol. Torino</em> 49 (1991), 95&ndash;119.</li>
+          <li>G. Lawler, M. Bramson and D. Griffeath, &ldquo;Internal diffusion
+            limited aggregation&rdquo;, <em>Ann. Probab.</em> 20 (1992),
+            2117&ndash;2140.</li>
+          <li>D. Jerison, L. Levine and S. Sheffield, &ldquo;Logarithmic
+            fluctuations for internal DLA&rdquo;, <em>J. Amer. Math. Soc.</em> 25
+            (2012), 271&ndash;301.</li>
+          <li>A. Asselah and A. Gaudilli&egrave;re, &ldquo;From logarithmic to
+            subdiffusive polynomial fluctuations for internal DLA and related
+            growth models&rdquo;, <em>Ann. Probab.</em> 41 (2013),
+            1115&ndash;1159.</li>
+          <li>D. Jerison, L. Levine and S. Sheffield, &ldquo;Internal DLA in
+            higher dimensions&rdquo;, <em>Electron. J. Probab.</em> 18 (2013),
+            no. 98.</li>
+          <li>D. Jerison, L. Levine and S. Sheffield, &ldquo;Internal DLA and
+            the Gaussian free field&rdquo;, <em>Duke Math. J.</em> 163 (2014),
+            267&ndash;308.</li>
+          <li>G. Lawler and V. Limic, <em>Random Walk: A Modern
+            Introduction</em>, Cambridge University Press, 2010.</li>
+          <li>J. R. Norris, <em>Markov Chains</em>, Cambridge University Press,
+            1997.</li>
+          <li>W. Feller, <em>An Introduction to Probability Theory and Its
+            Applications</em>, Vol. I, 3rd ed., Wiley, 1968.</li>
+          <li>B. Friedman, &ldquo;A simple urn model&rdquo;, <em>Comm. Pure Appl.
+            Math.</em> 2 (1949), 59&ndash;70.</li>
+          <li>D. Freedman, &ldquo;Bernard Friedman's urn&rdquo;, <em>Ann. Math.
+            Statist.</em> 36 (1965), 956&ndash;970.</li>
+        </ol>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <!-- KaTeX (https://katex.org) typesets the formulas. The version
+       number is fixed so an update can never change the site by surprise. -->
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/katex.min.js"></script>
+
+  <!-- The code the sims share (in js/, see the README): page helpers
+       (they also typeset the formulas, so they come after KaTeX), the
+       second thread's run loop and random numbers, charts, colors,
+       domains, the picture's view, the tilings of the plane (with the
+       Penrose tilings) and of space, the Lattice options, the walker and
+       its jumps, the cluster, and the page's copy of the cluster's
+       cells. Then the growth (it runs in a second thread), then this
+       page's code. -->
+  <script src="../../js/sim-page.js"></script>
+  <script src="../../js/sim-worker.js"></script>
+  <script src="../../js/sim-charts.js"></script>
+  <script src="../../js/sim-colors.js"></script>
+  <script src="../../js/sim-domains.js"></script>
+  <script src="../../js/sim-view.js"></script>
+  <script src="../../js/sim-tilings.js"></script>
+  <script src="../../js/sim-penrose.js"></script>
+  <script src="../../js/sim-honeycombs.js"></script>
+  <script src="../../js/sim-controls.js"></script>
+  <script src="../../js/sim-walk.js"></script>
+  <script src="../../js/sim-cluster.js"></script>
+  <script src="../../js/sim-sites.js"></script>
+  <script src="internal-discrete-dla-growth.js"></script>
+  <script src="internal-discrete-dla.js"></script>
+</body>
+</html>

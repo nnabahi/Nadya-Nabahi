@@ -12,6 +12,8 @@
                               and back
      hexToRGB, rgbToHex       a color "#rrggbb" as three numbers, and back
      heatColor(t)             blue (t = 0) to red (t = 1), for heights
+     divergingColor(t)        blue (t = -1) through white (0) to red (+1),
+                              for differences
    ===================================================================== */
 
 
@@ -83,4 +85,14 @@ function rgbToHex(rgb) {
 function heatColor(t) {
   const down = 1 - Math.min(Math.max(t, 0), 1);   // 1 at the bottom, 0 at the top
   return hexToRGB(hsvToHex(225 * down, 0.7, 0.9 - 0.55 * down));
+}
+
+// A difference t from -1 (blue) through 0 (white) to +1 (red), as [red,
+// green, blue], each 0 .. 255 (Internal Discrete DLA's early and late
+// cells). The color goes in a straight line from white to the end's
+// color.
+const DIVERGING_ENDS = { low: "#2166ac", high: "#b2182b" };
+function divergingColor(t) {
+  const s = Math.min(Math.max(t, -1), 1), end = hexToRGB(s < 0 ? DIVERGING_ENDS.low : DIVERGING_ENDS.high);
+  return end.map(function (c) { return Math.round(255 + (c - 255) * Math.abs(s)); });
 }
