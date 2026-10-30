@@ -22,7 +22,8 @@
        that share an idea, single (sporadic) models, and tools.</p>
 
     <!-- The cards in every group are sorted A to Z by js/toysnsims.js,
-         so a new card can go anywhere in its group. -->
+         so a new card can go anywhere in its group. A pinned card
+         (class="card pinned") stays first in its group. -->
 
     <!-- MODEL FAMILIES
          A row of family cards. Clicking one opens its panel underneath
@@ -285,7 +286,9 @@
     <h2>Tools</h2>
     <div class="card-grid">
 
-      <a class="card" href="toysnsims/graph-tool/graph-tool.html">
+      <!-- Pinned first: the drawing tool the sims use when you draw
+           your own domain. -->
+      <a class="card pinned" href="toysnsims/graph-tool/graph-tool.html">
         <h3>Graph &amp; Domain Tool</h3>
         <p class="muted">Paint a domain on a grid, wrap it into a torus, and save it for other sims to use.</p>
       </a>
