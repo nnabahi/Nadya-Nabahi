@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Internal Discrete DLA — Check Page</title>
+  <link rel="stylesheet" href="../../css/style.css">
+</head>
+<body>
+
+  <!-- Tests of the growth behind the Internal Discrete DLA sim
+       (internal-discrete-dla-growth.js) and of the cluster it grows
+       (js/sim-cluster.js). -->
+  <main class="page">
+    <p><a href="internal-discrete-dla.html">&larr; Back to the sim</a></p>
+    <h1>Internal Discrete DLA: Check Page</h1>
+    <p>
+      Each particle starts at the origin and walks, every neighbor equally
+      likely, until it reaches a cell not in the cluster, which then joins
+      it. For a few particles the law of the cluster can be worked out
+      exactly: from a cluster A, the chance the walk leaves A at a cell y
+      comes from the walk's Green's function in A (the average number of
+      visits to each cell of A before leaving), which solves a small linear
+      system. The checks compare the sim with those exact laws, on the
+      line, the grids and other tilings.
+    </p>
+    <p>
+      In a bigger cluster the sim jumps across balls inside the cluster
+      instead of taking every step. The checks test what makes that exact:
+      the edge of the cluster (the empty cells next to it, the nearest of
+      which says how big a ball is safe), and the clusters grown with jumps
+      against clusters grown with plain steps.
+    </p>
+
+    <p><button id="run-checks">Run the checks</button> (about a minute)</p>
+
+    <table class="check-table">
+      <tbody id="results"></tbody>
+    </table>
+  </main>
+
+  <!-- jStat (chi-square p-values). The version is fixed so an update
+       can never change the tests by surprise. -->
+  <script src="https://cdn.jsdelivr.net/npm/jstat@1.9.6/dist/jstat.min.js"></script>
+  <!-- byId() (sim-page.js), the results table (check-page.js), the
+       seeded random numbers and the heap (sim-worker.js), the tilings of
+       the plane and of space, the walker, the cluster, then the growth,
+       then this page's own code. -->
+  <script src="../../js/site.js"></script>
+  <script src="../../js/sim-page.js"></script>
+  <script src="../../js/check-page.js"></script>
+  <script src="../../js/sim-worker.js"></script>
+  <script src="../../js/sim-domains.js"></script>
+  <script src="../../js/sim-tilings.js"></script>
+  <script src="../../js/sim-penrose.js"></script>
+  <script src="../../js/sim-honeycombs.js"></script>
+  <script src="../../js/sim-walk.js"></script>
+  <script src="../../js/sim-cluster.js"></script>
+  <script src="internal-discrete-dla-growth.js"></script>
+  <script src="internal-discrete-dla-check.js"></script>
+</body>
+</html>

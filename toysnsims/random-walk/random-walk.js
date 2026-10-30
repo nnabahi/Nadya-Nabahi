@@ -10,7 +10,8 @@
    Small helpers used by every sim page (byId, readWhole, keepAlong,
    ...) are in js/sim-page.js, the charts in js/sim-charts.js, moving,
    zooming and painting the 2D picture in js/sim-view.js, the hull and
-   holes in js/sim-shape.js (shared with Eden Growth), the 3D
+   holes in js/sim-shape.js (shared with Eden Growth), the visited
+   sites kept for drawing in js/sim-sites.js, the 3D
    picture in js/sim-3d.js, and the tilings in js/sim-tilings.js, with
    their Lattice options in js/sim-controls.js.
 
@@ -68,20 +69,15 @@ let dim = 2;                 // 1, 2 or 3
 let latest = null;
 
 // Every visited site, in the order first visited (the worker sends only
-// the new ones each time; keepAlong, js/sim-page.js, adds them here):
-// site i is at (siteX[i], siteY[i], siteZ[i]), first visited at step
-// bornAt[i]. "sites" is how many there are.
-let sites = 0;
-let siteX = new Int32Array(1024), siteY = new Int32Array(1024), siteZ = new Int32Array(1024);
+// the new ones each time; the pile, js/sim-sites.js, adds them up): site
+// i is in block (pile.I[i], pile.J[i], pile.K[i]) and is cell
+// pile.part[i] of it (on the grids: the point (I, J, K); on another
+// tiling: cell part of block (I, J)), first visited at step bornAt[i].
+// pile.count is how many there are.
+const pile = newSitePile();
 let bornAt = new Int32Array(1024);
 // 1D: the position at every step (path[n] = S_n), and how many.
 let path = new Int32Array(1024), pathLength = 0;
-
-// 2D: the visited sites in a grid, for painting them quickly: the site
-// at (x, y) is grid.cells[(y - grid.ymin) * grid.across + (x - grid.xmin)]
-// (-1 if none). The grid grows (twice as big) when the walk leaves it.
-// (Not on another tiling: there the cells are painted as polygons.)
-let grid = null;
 
 // 2D on another tiling: the tiling's repeating block (uprightBlock,
 // js/sim-tilings.js), or null on the square grid (and in 1D and 3D). On
@@ -203,41 +199,17 @@ function showWalk(message) {
 
 // Add the sites (and in 1D the positions) new in this message to the
 // page's lists. A message starting from site 0 is a fresh walk (on the
-// tiling of the latest restart).
+// tiling of the latest restart). The walk sends each site as (x, y, z):
+// on the grids its point, on another tiling cell z of block (x, y).
 function keepSites(message) {
-  if (message.sitesFrom === 0) { sites = 0; grid = null; pathLength = 0; walkTiling = runTiling; }
-  const at = message.sitesFrom, count = message.siteX.length;
-  siteX = keepAlong(siteX, message.siteX, at);
-  siteY = keepAlong(siteY, message.siteY, at);
-  siteZ = keepAlong(siteZ, message.siteZ, at);
+  if (message.sitesFrom === 0) { pathLength = 0; walkTiling = runTiling; }
+  const at = message.sitesFrom, zeros = new Int32Array(message.siteX.length);
+  pile.keep(at, message.siteX, message.siteY, walkTiling ? zeros : message.siteZ, walkTiling ? message.siteZ : zeros);
   bornAt = keepAlong(bornAt, message.bornAt, at);
-  sites = at + count;
-  if (message.dim === 2 && !walkTiling) for (let i = at; i < sites; i++) putInGrid(i);
   if (message.path) {
     path = keepAlong(path, message.path, message.pathFrom);
     pathLength = message.pathFrom + message.path.length;
   }
-}
-
-// 2D: put site i in the grid, making the grid bigger first if the site
-// is outside it.
-function putInGrid(i) {
-  const x = siteX[i], y = siteY[i];
-  if (!grid || x < grid.xmin || x > grid.xmax || y < grid.ymin || y > grid.ymax) grid = biggerGrid(x, y, i);
-  grid.cells[(y - grid.ymin) * grid.across + (x - grid.xmin)] = i;
-}
-
-// A grid twice as big as the old one (at least 65 across), around both
-// it and the site (x, y), holding sites 0 .. upTo - 1.
-function biggerGrid(x, y, upTo) {
-  const old = grid;
-  const half = old ? Math.max(old.xmax - old.xmin, old.ymax - old.ymin) + 1 : 32;
-  const cx = old ? Math.round((old.xmin + old.xmax) / 2) : x, cy = old ? Math.round((old.ymin + old.ymax) / 2) : y;
-  const reach = Math.max(half, Math.abs(x - cx) + 1, Math.abs(y - cy) + 1);
-  const bigger = { xmin: cx - reach, xmax: cx + reach, ymin: cy - reach, ymax: cy + reach, across: 2 * reach + 1 };
-  bigger.cells = new Int32Array(bigger.across * bigger.across).fill(-1);
-  for (let j = 0; j < upTo; j++) bigger.cells[(siteY[j] - bigger.ymin) * bigger.across + (siteX[j] - bigger.xmin)] = j;
-  return bigger;
 }
 
 // Start the walk again, paused. keepStep: walk to the step we are at
@@ -401,7 +373,7 @@ function drawDot(pen, x, y, r) {
 // js/sim-view.js), with the hull, the holes, the origin and the walker
 // on top.
 function drawGrid() {
-  const s = latest, shown = shownBox();
+  const s = latest, shown = pile.squaresShown(1);   // (one square to spare all round)
   const pen = fitPicture(view, shown, PICTURE_HEIGHT, true);
   paintCells(view, pen, shown, ageGroup, function (k) { return AGE_COLORS[k]; }, hexToRGB(BACKGROUND));
   if (byId("show-holes").checked && s.holes) shadeSquares(view, pen, shown, s.holes.cells, HOLE);
@@ -416,19 +388,6 @@ function drawGrid() {
   pen.restore();   // (fitPicture cut everything off at the picture's box)
 }
 
-// The box the 2D picture shows: around the visited sites, with one
-// square to spare all round. It looks the sites up in the grid.
-function shownBox() {
-  const box = boxAround(siteX.subarray(0, sites), siteY.subarray(0, sites), 1);   // (js/sim-domains.js)
-  return Object.assign(box, { wrap: null, lookup: gridSite });
-}
-
-// The site at (x, y) in the grid, or -1.
-function gridSite(x, y) {
-  if (x < grid.xmin || x > grid.xmax || y < grid.ymin || y > grid.ymax) return -1;
-  return grid.cells[(y - grid.ymin) * grid.across + (x - grid.xmin)];
-}
-
 // 2D on another tiling: the visited cells and the holes' cells as
 // polygons (paintDomain, js/sim-view.js), with the hull, the origin and
 // the walker on top, as on the square grid.
@@ -436,7 +395,7 @@ function drawTiling() {
   const s = latest, shown = shownTiling(s);
   const pen = fitPicture(view, shown, PICTURE_HEIGHT, true);
   paintDomain(view, pen, shown,
-    function (v) { return v < sites ? ageGroup(v) : HOLE_GROUP; },
+    function (v) { return v < pile.count ? ageGroup(v) : HOLE_GROUP; },
     function (k) { return k === HOLE_GROUP ? hexToRGB(HOLE) : AGE_COLORS[k]; },
     hexToRGB(BACKGROUND), null, 0);
   const { sx, sy } = screenCopies(view, shown)[0];
@@ -449,19 +408,10 @@ function drawTiling() {
 }
 
 // The cells the 2D picture shows on another tiling, as a tiling domain
-// (tilingCells, js/sim-domains.js): the visited sites (cell v is site
+// (pile.tilingShown, js/sim-sites.js): the visited sites (cell v is site
 // v), then, with "Shade the holes", the holes' cells.
 function shownTiling(s) {
-  const holes = byId("show-holes").checked && s.holes ? s.holes.cells : [];
-  const n = sites + holes.length / 3;
-  const x = new Int32Array(n), y = new Int32Array(n), part = new Int32Array(n);
-  for (let v = 0; v < n; v++) {
-    const h = 3 * (v - sites);    // (where hole cell v is in the list holes: x, y, z, x, y, z, ...)
-    x[v] = v < sites ? siteX[v] : holes[h];
-    y[v] = v < sites ? siteY[v] : holes[h + 1];
-    part[v] = v < sites ? siteZ[v] : holes[h + 2];
-  }
-  return tilingCells(walkTiling, x, y, part);
+  return pile.tilingShown(walkTiling, byId("show-holes").checked && s.holes ? s.holes.cells : null);
 }
 
 // The convex hull's outline (with "Show the convex hull"), through its
@@ -486,7 +436,7 @@ const three = make3D(simCanvas, PICTURE_HEIGHT, { ready: drawSoon });
 function draw3D() {
   if (!three.view) return;
   hull3D = three.code.drawCells(three.view, {
-    x: siteX.subarray(0, sites), y: siteY.subarray(0, sites), z: siteZ.subarray(0, sites),
+    x: pile.I.subarray(0, pile.count), y: pile.J.subarray(0, pile.count), z: pile.K.subarray(0, pile.count),
     color: function (i) { return AGE_COLORS[ageGroup(i)]; },
     at: [latest.x, latest.y, latest.z], atColor: hexToRGB(WALKER),
     hull: byId("show-hull").checked ? latest.hullPoints : null, hullColor: hexToRGB(HULL),
