@@ -199,7 +199,7 @@ function drawPreview() {
    in one go, so dragging a slider never flashes the picture empty and
    fills it back in.
    ===================================================================== */
-const sim = runInWorker(packingWorker, [packingCore], function (message) {
+const sim = runInWorker(packingWorker, [packingCore].concat(tileShapeHelpers()), function (message) {
   if (message.problem) {
     byId("formula-message").textContent = "Problem: " + message.problem;
     return;
