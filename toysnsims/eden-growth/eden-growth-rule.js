@@ -27,13 +27,21 @@
    default) nothing changes. On a bounded domain the run stops once
    every site is full.
 
-   The weight s (optional). Step 1 can favor tall or short sites: an
-   available site with h blocks is picked with weight (h + 1)^s, the
-   number of blocks it will have once this one lands, raised to the
-   power s. With s = 0 (the default) every weight is 1, so the pick is
-   uniform, as above. With s > 0 tall sites are picked more often, with
-   s < 0 less often. An empty site always has weight 1, so with max
-   height M = 1 (every available site empty) s changes nothing.
+   The weights alpha and beta (optional). Step 1 can favor some sites:
+   an available site with h blocks, which became available a blocks ago,
+   is picked with weight
+       (h + 1)^alpha * (a + 1)^beta.
+   h + 1 is the number of blocks it will have once this one lands, and
+   a + 1 is its age: the number of blocks dropped since it became
+   available, plus 1 (the start site became available before its first
+   block, every other site when the block next to it landed, so a site
+   that just became available has age 1). With alpha = beta = 0 (the
+   default) every weight is 1, so the pick is uniform, as above. alpha > 0
+   favors tall sites, alpha < 0 short ones; beta > 0 favors old sites,
+   beta < 0 new ones. An empty site always has (h + 1)^alpha = 1, so with
+   capacity M = 1 (every available site empty) alpha changes nothing.
+   Multiplying the two weights adds the two biases: the log of the
+   weight is alpha log(h + 1) + beta log(a + 1).
 
    nadya's models are this rule with a particular tile:
      T = {-1, +1}       the two-sided mountain (randmountain.py,
@@ -51,19 +59,25 @@
    Two ways to make the random picks, with exactly the same odds:
 
    With clocks (the sim page). Every site has an alarm clock for each
-   height h: a random time E(x, h) with the exponential distribution of
-   mean 1, made from the seed, the site's place and h only (newClocks
+   height h: a random amount E(x, h) with the exponential distribution
+   of mean 1, made from the seed, the site's place and h only (newClocks
    below). When site x becomes available, or gets its h-th block, its
-   next block is set to land E(x, h) / (h + 1)^s later; the alarm that
-   rings first gets the next block. Exponential alarms racing each other
-   ring first with chance (their rate) / (all the rates together), and
-   they forget how long they have waited, so the next site is picked
-   with weight (h + 1)^s, as in step 1 (the jump chain of a
-   continuous-time Markov chain: J. R. Norris, Markov Chains, Cambridge
-   1997, Theorem 2.3.3 and section 2.6). The point: E(x, h) doesn't
-   depend on s, the capacity or the tile, so moving them with the
-   same seed changes the mountain smoothly, the way the p slider moves
-   Bernoulli percolation. With M = 1 this is Richardson's model, first
+   alarm is set to E(x, h), and it runs down at a speed equal to the
+   site's weight; the alarm that runs out first gets the next block.
+   Exponential alarms racing each other run out first with chance
+   (their speed) / (all the speeds together), and they forget how long
+   they have run, so the next site is picked with its weight, as in
+   step 1 (the jump chain of a continuous-time Markov chain: J. R.
+   Norris, Markov Chains, Cambridge 1997, Theorem 2.3.3 and section
+   2.6). With beta = 0 a site's speed stays the same until a block lands
+   on it, so its alarm simply rings E(x, h) / (h + 1)^alpha later. With
+   beta != 0 every age grows by 1 with each block, so after each block
+   every available site's speed is worked out again, and what is left of
+   its alarm keeps running at the new speed (that is still exponential:
+   alarms forget). The point: E(x, h) doesn't depend on alpha, beta,
+   the capacity or the tile, so moving them with the same seed changes
+   the mountain smoothly, the way the p slider moves Bernoulli
+   percolation. With M = 1 this is Richardson's model, first
    passage percolation (D. Richardson, Proc. Cambridge Philos. Soc. 74
    (1973) 515-528).
 
@@ -152,7 +166,7 @@
 //   start   the start site, [x] in 1D, [x, y] in 2D, [x, y, z] on another tiling
 //   cap     M, the capacity: the most blocks a site can hold
 //           (leave it out for no max)
-//   s       the weight s (leave it out for 0: uniform)
+//   alpha, beta   the weights (leave them out for 0: uniform)
 //   clocks  a seed: pick with clocks (see the top of this file). Leave
 //           it out to pick with the u's handed to step(u).
 //   shapeBins  (2D, not on a torus) keep track of the base's shape, for
@@ -369,25 +383,32 @@ function ballTile(tiling, z, r) {
 // The steps of the rule, the same on every mountain whatever its sites
 // are (newMountain, newGraphMountain). m is the mountain, with its
 // lists m.height and m.available and its counts; "options" are the
-// mountain's options (cap, s and clocks are read here); and "sites"
+// mountain's options (cap, alpha, beta and clocks are read here); and "sites"
 // says how its sites differ:
 //   clockPlace(i)   site i's place, for its alarm clocks
 //   orderOf(i)      on a line, where site i is from left to right, to
 //                   keep the available sites in that order (null: no order)
 //   joinsBase(i)    site i just got its first block: make its tile
 //                   available (and keep anything else up to date)
-// It adds m.step(u) and m.dropOn(i), and returns, for the mountain:
+// It adds m.step(u), m.dropOn(i) and m.since (since[i]: the blocks
+// dropped when site i became available), and returns, for the mountain:
 //   addSite(i)      site number i is new: no blocks yet, and available
 //   drop(i)         put one block on site i (the start's, say)
 //   clocks          the clocks (newClocks, below), or null
 function mountainSteps(m, options, sites) {
   const cap = options.cap || Infinity;     // the capacity M (see the top of this file)
-  const power = options.s || 0;             // the weight s (see the top of this file)
-  const clocks = options.clocks === undefined ? null : newClocks(options.clocks, power);
-  const height = m.height, available = m.available;
+  const alpha = options.alpha || 0, beta = options.beta || 0;   // the weights (see the top of this file)
+  const height = m.height, available = m.available, since = m.since = [];
+  const clocks = options.clocks === undefined ? null : newClocks(options.clocks, beta === 0, weight);
+
+  // Site i's weight for the next block: (h + 1)^alpha (age)^beta.
+  function weight(i) {
+    return Math.pow(height[i] + 1, alpha) * Math.pow(m.blocks - since[i] + 1, beta);
+  }
 
   function addSite(i) {
     height.push(0);
+    since.push(m.blocks);
     if (clocks) clocks.set(i, sites.clockPlace(i), 0, m.time);
     if (!sites.orderOf) {
       available.push(i);
@@ -407,7 +428,7 @@ function mountainSteps(m, options, sites) {
   // One step: drop a block on a random available site. "u" is a uniform
   // random number in [0, 1) (not used with clocks).
   m.step = function (u) {
-    m.dropOn(clocks ? clocks.next(m) : pickSite(available, height, power, u));
+    m.dropOn(clocks ? clocks.next(m) : pickSite(available, alpha === 0 && beta === 0 ? null : weight, u));
   };
 
   // One step with the site chosen, not random (a click on the page):
@@ -438,39 +459,46 @@ function mountainSteps(m, options, sites) {
 
 
 // Step 1: turn a uniform number u in [0, 1) into one of the available
-// sites (a list of site numbers; height[i] = site i's blocks). With
-// s = 0 it is site number floor(u * |S|), exactly as randmountain.py
-// does. Otherwise site i has weight (height[i] + 1)^s: lay the weights
-// end to end, and take the site whose stretch u * (their total) lands in.
-function pickSite(available, height, s, u) {
-  if (s === 0) return available[Math.floor(u * available.length)];
+// sites (a list of site numbers). With no weights (weight null) it is
+// site number floor(u * |S|), exactly as randmountain.py does. Otherwise
+// site i has weight weight(i): lay the weights end to end, and take the
+// site whose stretch u * (their total) lands in.
+function pickSite(available, weight, u) {
+  if (!weight) return available[Math.floor(u * available.length)];
   let total = 0;
-  for (const i of available) total += Math.pow(height[i] + 1, s);
+  for (const i of available) total += weight(i);
   let left = u * total;
   for (const i of available) {
-    left -= Math.pow(height[i] + 1, s);
+    left -= weight(i);
     if (left < 0) return i;
   }
   return available[available.length - 1];   // only if rounding left a tiny bit over
 }
 
 
-// The clocks (see the top of this file), for a seed and the weight s.
+// The clocks (see the top of this file), for a seed and weight(i), site
+// i's weight for the next block. "steady" says a site's weight only
+// changes when a block lands on it (beta = 0).
 //   set(i, place, h, now)  site i (whose place is a list of whole
 //                         numbers, the same from run to run, e.g. its
-//                         x and y) has h blocks at time "now": its next
-//                         block lands at now + E(place, h) / (h + 1)^s.
-//                         h = -1: site i is full, no next block.
+//                         x and y) has h blocks at time "now": its alarm
+//                         is set to E(place, h). h = -1: site i is
+//                         full, no next block.
 //   next(m)               the site whose block lands next; sets m.time
 //                         to when.
 //   textToNumbers(text)   two whole numbers for a place given as text
 //                         (for the cells of a graph)
-// The times wait in a heap (newHeap, js/sim-worker.js), so the soonest
-// is always first. A site set again (a click put a block on it early)
+// Steady weights: each site's alarm rings at now + E / weight, and the
+// times wait in a heap (newHeap, js/sim-worker.js), so the soonest is
+// always first. A site set again (a click put a block on it early)
 // leaves its old time in the heap; next() skips times that are out of
-// date.
-function newClocks(seed, s) {
-  const due = [];      // due[i] = when site i's next block lands
+// date. Otherwise (beta != 0) every available site's weight changes
+// with each block, so next() goes through them all: each one's alarm
+// runs out after (what is left of it) / (its weight now), the soonest
+// wins, and every other alarm runs down by its weight times that wait.
+function newClocks(seed, steady, weight) {
+  const due = [];      // steady: due[i] = when site i's next block lands
+  const left = [];     // otherwise: left[i] = what is left of site i's alarm
   const heap = newHeap();
 
   // E(place, h): exponential with mean 1, -log(U) for U uniform in
@@ -482,13 +510,18 @@ function newClocks(seed, s) {
   }
 
   function set(i, place, h, now) {
-    if (h < 0) { due[i] = Infinity; return; }
-    const time = now + exponential(place, h) / Math.pow(h + 1, s);
+    if (h < 0) { due[i] = left[i] = Infinity; return; }
+    if (!steady) { left[i] = exponential(place, h); return; }
+    const time = now + exponential(place, h) / weight(i);
     due[i] = time;
     heap.add(time, i);
   }
 
   function next(m) {
+    return steady ? nextSteady(m) : nextChanging(m);
+  }
+
+  function nextSteady(m) {
     for (;;) {
       const time = heap.firstKey(), i = heap.take();
       if (due[i] === time) {   // not out of date
@@ -496,6 +529,18 @@ function newClocks(seed, s) {
         return i;
       }
     }
+  }
+
+  function nextChanging(m) {
+    const speeds = m.available.map(weight);
+    let first = -1, wait = Infinity;
+    m.available.forEach(function (i, k) {
+      const runsOut = left[i] / speeds[k];
+      if (runsOut < wait) { wait = runsOut; first = i; }
+    });
+    m.available.forEach(function (i, k) { left[i] -= speeds[k] * wait; });
+    m.time += wait;
+    return first;
   }
 
   return { set: set, next: next, textToNumbers: random.textToNumbers };
@@ -520,7 +565,7 @@ function newClocks(seed, s) {
 //            distance R of the start)
 //   cap     M, the capacity: the most blocks a site can hold
 //           (leave it out for no max)
-//   s       the weight s (leave it out for 0: uniform)
+//   alpha, beta   the weights (leave them out for 0: uniform)
 //   clocks  a seed: pick with clocks, as in newMountain
 // The start is cell 0 of the graph. It returns the same kind of object
 // as newMountain, with siteNode[i] = the graph's cell for site i instead
@@ -606,13 +651,13 @@ function newGraphMountain(options) {
    Random numbers. The page picks with clocks (see the top of this
    file), made from the seed. Each site's alarms depend only on the
    seed, where the site is and its height, whatever the tile, domain,
-   capacity or weight. So changing any of them with the same seed
+   capacity or weights. So changing any of them with the same seed
    keeps the same alarms, and the picture changes as little as it can,
    like a Desmos slider.
 
    It talks to the page the way every sim's worker does (serveRun,
    js/sim-worker.js), one step being one block. Its own messages:
-     setup  { dim, tile, domain, start, cap, s, seed, steps, forgetClicks }
+     setup  { dim, tile, domain, start, cap, alpha, beta, seed, steps, forgetClicks }
          (on another tiling: tiling and radius instead of tile; on a
          graph: dim "graph", and graph and radius instead of tile and start)
          a new mountain, grown at once to "steps" steps with the same

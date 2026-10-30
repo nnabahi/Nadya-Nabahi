@@ -396,7 +396,8 @@ function showMountain(message) {
 // unless it starts again from one block or "forget" is true (a new seed).
 function restart(keepStep, forget) {
   const message = {
-    dim: dim, domain: where.grow, cap: maxHeight(), s: Number(byId("weight-s").value), seed: byId("seed").value,
+    dim: dim, domain: where.grow, cap: maxHeight(),
+    alpha: Number(byId("weight-alpha").value), beta: Number(byId("weight-beta").value), seed: byId("seed").value,
     steps: (keepStep && latest && latest.steps) ? latest.steps : 0,
     forgetClicks: !keepStep || Boolean(forget),
   };
@@ -1053,13 +1054,18 @@ for (const id of ["use-cap", "cap"]) {
   byId(id).addEventListener("input", function () { showMaxHeight(); restart(true); });
 }
 
-// The weight s: tall sites favored (s > 0) or avoided (s < 0). Moving
-// it keeps the seed and the step, like the capacity.
-function showWeight() {
-  const s = Number(byId("weight-s").value);
-  byId("weight-label").textContent = s === 0 ? "0 (uniform)" : s.toFixed(1);
+// The weights: alpha favors tall sites (alpha > 0) or short ones
+// (alpha < 0), beta old sites (beta > 0) or new ones (beta < 0). Moving
+// them keeps the seed and the step, like the capacity.
+function showWeights() {
+  for (const name of ["alpha", "beta"]) {
+    const value = Number(byId("weight-" + name).value);
+    byId(name + "-label").textContent = value === 0 ? "0 (no bias)" : value.toFixed(1);
+  }
 }
-byId("weight-s").addEventListener("input", function () { showWeight(); restart(true); });
+for (const name of ["alpha", "beta"]) {
+  byId("weight-" + name).addEventListener("input", function () { showWeights(); restart(true); });
+}
 
 // "Shade the holes" shows with the holes (2D, not on a torus), from above.
 function showHolesRow() {
@@ -1079,5 +1085,5 @@ connectSeed(function () { restart(true, true); });
 // --- Start ------------------------------------------------------------
 byId("seed").value = DEFAULT_SEED;
 showMaxHeight();
-showWeight();
+showWeights();
 setDimension(2);   // 2D by default: with M = 1 it is the Eden model

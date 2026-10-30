@@ -13,7 +13,8 @@
      2. Exact odds on small cases. For a few steps, every possible run
         can be listed, with its probability (each step picks one of |S|
         sites, so a run has probability 1/|S_0| * 1/|S_1| * ...; with the
-        weight s, each pick has chance (h + 1)^s over the total). This
+        weights alpha and beta, each pick has chance
+        (h + 1)^alpha (age)^beta over the total). This
         listing is written separately, straight from the definition, so
         it does not share code with the sim. Then the sim is run many
         times, and Pearson's chi-square test (K. Pearson, Philosophical
@@ -53,8 +54,10 @@
      6. The clocks (newClocks), which the sim page picks with: the same
         exact odds as in 2 (on regular trees too), the invariants of 3
         and 5, and the coupling: with M = 1 every site is empty when it
-        is picked, so the weight s changes nothing, and the same seed
-        must give the same mountain, block for block, for every s.
+        is picked, so alpha changes nothing, and the same seed must give
+        the same mountain, block for block, for every alpha; and alarms
+        that are worked out again after every block (beta != 0) must give
+        the same mountain as steady ones when beta is tiny.
 
      7. The holes (holeHistory): a small example worked out by hand
         (a hole split in two, where the elder rule decides which piece
@@ -171,11 +174,16 @@ const smallCases = [
     domain: { kind: "box", xmin: 0, xmax: 2, ymin: 0, ymax: 2, torus: true }, start: [0, 0] },
   { name: "2D, 4 neighbors, drawn L-shaped region", steps: 4, dim: 2, tile: [[1, 0], [-1, 0], [0, 1], [0, -1]],
     domain: { kind: "cells", wrap: null, cells: [[0, 0], [1, 0], [2, 0], [0, 1], [0, 2]] }, start: [0, 0] },
-  // The weight s: a site with h blocks is picked with weight (h + 1)^s.
-  { name: "Two-sided, weight s = 1",            steps: 5, dim: 1, tile: [[-1], [1]],  domain: { kind: "whole" }, start: [0], s: 1 },
-  { name: "One-sided, weight s = -1.5",         steps: 6, dim: 1, tile: [[1]],        domain: { kind: "whole" }, start: [0], s: -1.5 },
-  { name: "2D, 4 neighbors, weight s = 2",      steps: 3, dim: 2, tile: [[1, 0], [-1, 0], [0, 1], [0, -1]],
-    domain: { kind: "whole" }, start: [0, 0], s: 2 },
+  // The weights: a site with h blocks, available for a blocks, is picked
+  // with weight (h + 1)^alpha (a + 1)^beta.
+  { name: "Two-sided, alpha = 1",               steps: 5, dim: 1, tile: [[-1], [1]],  domain: { kind: "whole" }, start: [0], alpha: 1 },
+  { name: "One-sided, alpha = -1.5",            steps: 6, dim: 1, tile: [[1]],        domain: { kind: "whole" }, start: [0], alpha: -1.5 },
+  { name: "2D, 4 neighbors, alpha = 2",         steps: 3, dim: 2, tile: [[1, 0], [-1, 0], [0, 1], [0, -1]],
+    domain: { kind: "whole" }, start: [0, 0], alpha: 2 },
+  { name: "Two-sided, beta = 1.5",              steps: 5, dim: 1, tile: [[-1], [1]],  domain: { kind: "whole" }, start: [0], beta: 1.5 },
+  { name: "Two-sided, alpha = 1, beta = -2",    steps: 5, dim: 1, tile: [[-1], [1]],  domain: { kind: "whole" }, start: [0], alpha: 1, beta: -2 },
+  { name: "2D, 4 neighbors, beta = 2",          steps: 3, dim: 2, tile: [[1, 0], [-1, 0], [0, 1], [0, -1]],
+    domain: { kind: "whole" }, start: [0, 0], beta: 2 },
 ];
 
 // The final mountain as text, e.g. "-1,0:2 0,0:3 1,0:1", so equal
@@ -261,26 +269,34 @@ function exactOdds(c) {
     return Array.from(s);
   }
 
+  // "since" says how many blocks had been dropped when each site became
+  // available: 0 for the start, and a site first seen after b blocks
+  // became available when block b landed.
   const odds = new Map();
-  function grow(heights, stepsLeft, probability) {
+  function grow(heights, since, blocks, stepsLeft, probability) {
     if (stepsLeft === 0) {
       const key = describe(heights);
       odds.set(key, (odds.get(key) || 0) + probability);
       return;
     }
-    // Each site's chance: (its height + 1)^s over the total (uniform
-    // when s = 0 or left out).
     const sites = availableSites(heights);
-    const weight = function (s) { return Math.pow((heights.get(s) || 0) + 1, c.s || 0); };
+    const nowSince = new Map(since);
+    for (const s of sites) if (!nowSince.has(s)) nowSince.set(s, blocks);
+    // Each site's chance: (its height + 1)^alpha (its age)^beta over the
+    // total, its age being blocks - since + 1 (uniform when alpha and
+    // beta are 0 or left out).
+    const weight = function (s) {
+      return Math.pow((heights.get(s) || 0) + 1, c.alpha || 0) * Math.pow(blocks - nowSince.get(s) + 1, c.beta || 0);
+    };
     let total = 0;
     for (const s of sites) total += weight(s);
     for (const s of sites) {
       const next = new Map(heights);
       next.set(s, (next.get(s) || 0) + 1);
-      grow(next, stepsLeft - 1, probability * weight(s) / total);
+      grow(next, nowSince, blocks + 1, stepsLeft - 1, probability * weight(s) / total);
     }
   }
-  grow(new Map([[startKey(c), 1]]), c.steps, 1);
+  grow(new Map([[startKey(c), 1]]), new Map([[startKey(c), 0]]), 1, c.steps, 1);
   return odds;
 }
 
@@ -631,16 +647,20 @@ function checkMaxHeight(options, steps, name) {
 
 
 /* ===================================================================
-   4c. THE CLOCKS: THE SAME MOUNTAIN FOR EVERY s WHEN M = 1
+   4c. THE CLOCKS: THE SAME MOUNTAIN FOR DIFFERENT WEIGHTS
    -------------------------------------------------------------------
    With M = 1 every available site is empty, so its alarm runs at rate
-   (0 + 1)^s = 1 for every s: the same seed must give the same
-   mountain, block for block. Returns "" if it does, else what differs.
+   (0 + 1)^alpha = 1 for every alpha: the same seed must give the same
+   mountain, block for block. And beta = 0 (steady alarms, in a heap)
+   and a tiny beta (every alarm worked out again after each block) must
+   give the same mountain too. sameMountains returns "" if the runs, one
+   for each of the "changes" to the options, are the same block for
+   block, else what differs.
    =================================================================== */
-function sameForEveryS(options, steps, name) {
-  const runs = [-2, 0, 1.5].map(function (s) {
-    const m = options.graph ? newGraphMountain(Object.assign({}, options, { s: s }))
-                            : newMountain(Object.assign({}, options, { s: s }));
+function sameMountains(options, changes, steps, name) {
+  const runs = changes.map(function (change) {
+    const o = Object.assign({}, options, change);
+    const m = o.graph ? newGraphMountain(o) : newMountain(o);
     // After each step, every site's height (sites are numbered in the
     // order they became available, so equal lists mean equal mountains).
     const after = [];
@@ -648,10 +668,11 @@ function sameForEveryS(options, steps, name) {
     return after;
   });
   for (let k = 0; k < steps; k++) {
-    if (runs[1][k] !== runs[0][k] || runs[2][k] !== runs[0][k]) return name + ": block " + (k + 1) + " landed somewhere else";
+    if (runs.some(function (run) { return run[k] !== runs[0][k]; })) return name + ": block " + (k + 1) + " landed somewhere else";
   }
   return "";
 }
+const SOME_ALPHAS = [{ alpha: -2 }, { alpha: 0 }, { alpha: 1.5 }];
 
 
 /* ===================================================================
@@ -1133,8 +1154,18 @@ function allTests() {
     ["{7,3}, cells within 1", { graph: { kind: "tiling", p: 7, q: 3 }, radius: 1, domain: whole, cap: 1, clocks: "coupling" }],
   ]) {
     tests.push(function () {
-      const problem = sameForEveryS(options, 1000, name);
-      addRow("Clocks, M = 1: " + name + ", s = -2, 0 and 1.5, 1000 steps", problem === "",
+      const problem = sameMountains(options, SOME_ALPHAS, 1000, name);
+      addRow("Clocks, M = 1: " + name + ", alpha = -2, 0 and 1.5, 1000 steps", problem === "",
+             problem || "the same mountain, block for block");
+    });
+  }
+  for (const [name, options] of [
+    ["2D, 4 neighbors, M = 3, alpha = 1", { dim: 2, tile: [[1, 0], [-1, 0], [0, 1], [0, -1]], domain: whole, start: [0, 0], cap: 3, alpha: 1, clocks: "beta" }],
+    ["{7,3}, cells within 1, M = 1", { graph: { kind: "tiling", p: 7, q: 3 }, radius: 1, domain: whole, cap: 1, clocks: "beta" }],
+  ]) {
+    tests.push(function () {
+      const problem = sameMountains(options, [{ beta: 0 }, { beta: 1e-9 }], 1000, name);
+      addRow("Clocks: " + name + ", beta = 0 and 10^-9, 1000 steps", problem === "",
              problem || "the same mountain, block for block");
     });
   }
@@ -1147,7 +1178,7 @@ function allTests() {
   const eight = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]];
   for (const [name, options] of [
     ["2D, 8 neighbors, M = 1", { dim: 2, tile: eight, domain: whole, start: [0, 0], cap: 1, clocks: "holes 1" }],
-    ["2D, 4 neighbors, M = 3, s = 1", { dim: 2, tile: [[1, 0], [-1, 0], [0, 1], [0, -1]], domain: whole, start: [0, 0], cap: 3, s: 1, clocks: "holes 2" }],
+    ["2D, 4 neighbors, M = 3, alpha = 1", { dim: 2, tile: [[1, 0], [-1, 0], [0, 1], [0, -1]], domain: whole, start: [0, 0], cap: 3, alpha: 1, clocks: "holes 2" }],
     ["2D, ring tile r = 2 to 3, no max", { dim: 2, tile: ringTile(2, 3), domain: whole, start: [0, 0], clocks: "holes 3" }],
     ["2D, 8 neighbors, M = 1, the 21 x 21 box until full", { dim: 2, tile: eight, domain: square, start: [0, 0], cap: 1, clocks: "holes 4" }],
   ]) {
@@ -1167,7 +1198,7 @@ function allTests() {
   });
   for (const [name, options] of [
     ["2D, 4 neighbors, M = 1", { dim: 2, tile: [[1, 0], [-1, 0], [0, 1], [0, -1]], domain: whole, start: [0, 0], cap: 1 }],
-    ["2D, ring tile r = 2 to 3, M = 2, s = -1", { dim: 2, tile: ringTile(2, 3), domain: whole, start: [0, 0], cap: 2, s: -1 }],
+    ["2D, ring tile r = 2 to 3, M = 2, alpha = -1", { dim: 2, tile: ringTile(2, 3), domain: whole, start: [0, 0], cap: 2, alpha: -1 }],
   ]) {
     tests.push(function () {
       const problem = checkRadii(Object.assign({ clocks: "radii " + name, shapeBins: 180 }, options), 20000);
@@ -1200,8 +1231,8 @@ function allTests() {
     addRow("Other tilings: the tile with r = 1 is the cell's neighbors, and the tiles grow with r and go both ways, r = 1 to 3, " +
            someTilings.length + " tilings, tiles and corners", problems.length === 0, problems.join("; ") || "all hold");
   });
-  for (const [r, extra, name] of [[1, { cap: 1 }, "r = 1, M = 1"], [2, { s: 1 }, "r = 2, no capacity, s = 1"],
-                                  [3, { cap: 2, s: -1 }, "r = 3, M = 2, s = -1"]]) {
+  for (const [r, extra, name] of [[1, { cap: 1 }, "r = 1, M = 1"], [2, { alpha: 1 }, "r = 2, no capacity, alpha = 1"],
+                                  [3, { cap: 2, alpha: -1 }, "r = 3, M = 2, alpha = -1"]]) {
     tests.push(function () {
       const problem = sameAsSquares(r, extra, 5000);
       addRow("Other tilings: the square tiling from its code = the square grid with T = {|dx| + |dy| ≤ r}, " + name + ", 5000 steps",
@@ -1215,11 +1246,11 @@ function allTests() {
   const triTorus = tilingDomain(tri, 4, 4, true), hexBox = tilingDomain(hex, 5, 5, false);
   const tilingCases = [
     Object.assign({ name: "triangles, r = 1", steps: 4, tiling: tri, radius: 1 }, whole2),
-    Object.assign({ name: "truncated square (4.8²), r = 1, s = 1", steps: 4, tiling: tilingNamed("8-4/m90/r(h4)", false), radius: 1, s: 1 }, whole2),
+    Object.assign({ name: "truncated square (4.8²), r = 1, alpha = 1", steps: 4, tiling: tilingNamed("8-4/m90/r(h4)", false), radius: 1, alpha: 1 }, whole2),
     Object.assign({ name: "corners of the kagome tiling, r = 2", steps: 2, tiling: tilingNamed("6-3-6/m30/r(v4)", true), radius: 2 }, whole2),
     Object.assign({ name: "3⁶; 3².4.3.4, r = 1", steps: 4, tiling: tilingNamed(TILINGS[11].code, false), radius: 1 }, whole2),
     { name: "triangles, r = 1, on a small torus", steps: 4, dim: 2, tiling: tri, radius: 1, domain: triTorus.domain, start: triTorus.start },
-    { name: "hexagons, r = 1, s = -1, in a 5 x 5 box", steps: 4, dim: 2, tiling: hex, radius: 1, domain: hexBox.domain, start: hexBox.start, s: -1 },
+    { name: "hexagons, r = 1, alpha = -1, in a 5 x 5 box", steps: 4, dim: 2, tiling: hex, radius: 1, domain: hexBox.domain, start: hexBox.start, alpha: -1 },
   ];
   for (const c of tilingCases) {
     tests.push(function () {
@@ -1270,13 +1301,13 @@ function allTests() {
   }
   tests.push(function () {
     const options = Object.assign({ tiling: tilingNamed("6-3-6/m30/r(v4)", false), radius: 1, cap: 1, clocks: "coupling" }, whole2);
-    const problem = sameForEveryS(options, 1000, "kagome");
-    addRow("Other tilings, clocks, M = 1: kagome, r = 1, s = -2, 0 and 1.5, 1000 steps", problem === "",
+    const problem = sameMountains(options, SOME_ALPHAS, 1000, "kagome");
+    addRow("Other tilings, clocks, M = 1: kagome, r = 1, alpha = -2, 0 and 1.5, 1000 steps", problem === "",
            problem || "the same mountain, block for block");
   });
   for (const [name, options, steps] of [
     ["triangles, M = 1", Object.assign({ tiling: tri, cap: 1, clocks: "tiling holes 1" }, whole2), 3000],
-    ["corners of 3.12², M = 2, s = 1", Object.assign({ tiling: tilingNamed("12-3/m30/r(h3)", true), cap: 2, s: 1, clocks: "tiling holes 2" }, whole2), 3000],
+    ["corners of 3.12², M = 2, alpha = 1", Object.assign({ tiling: tilingNamed("12-3/m30/r(h3)", true), cap: 2, alpha: 1, clocks: "tiling holes 2" }, whole2), 3000],
     ["[3⁶; 3⁴.6]², no capacity", Object.assign({ tiling: tilingNamed(TILINGS[20].code, false), clocks: "tiling holes 3" }, whole2), 3000],
     ["hexagons, M = 1, an 8 x 8 box until full", { dim: 2, tiling: hex, cap: 1, clocks: "tiling holes 4", domain: hexBig.domain, start: hexBig.start }, 3000],
   ]) {
@@ -1299,7 +1330,7 @@ function allTests() {
   });
   for (const [name, options, steps] of [
     ["triangles, r = 1, M = 1", Object.assign({ tiling: tri, radius: 1, cap: 1, clocks: "tiling shape 1" }, whole2), 20000],
-    ["corners of 4.6.12, r = 2, M = 2, s = -1", Object.assign({ tiling: tilingNamed("12-6,4/m30/r(c2)", true), radius: 2, cap: 2, s: -1,
+    ["corners of 4.6.12, r = 2, M = 2, alpha = -1", Object.assign({ tiling: tilingNamed("12-6,4/m30/r(c2)", true), radius: 2, cap: 2, alpha: -1,
                                                                 clocks: "tiling shape 2" }, whole2), 10000],
     ["[3⁶; 3⁴.6]², r = 1, in a 30 x 30 box", (function () {
       const box = tilingDomain(tilingNamed(TILINGS[20].code, false), 30, 30, false);
@@ -1325,8 +1356,8 @@ function allTests() {
   const penroseCases = [
     Object.assign({ name: "Penrose rhombs (P3), r = 1", steps: 4, tiling: penroseBlock("P3", false), radius: 1 }, whole2),
     Object.assign({ name: "Penrose P1, r = 2", steps: 2, tiling: penroseBlock("P1", false), radius: 2 }, whole2),
-    { name: "corners of the kites and darts (P2), r = 1, s = 1, in a 10 x 10 box", steps: 4, dim: 2, tiling: p2Box.tiling, radius: 1,
-      domain: p2Box.domain, start: p2Box.start, s: 1 },
+    { name: "corners of the kites and darts (P2), r = 1, alpha = 1, in a 10 x 10 box", steps: 4, dim: 2, tiling: p2Box.tiling, radius: 1,
+      domain: p2Box.domain, start: p2Box.start, alpha: 1 },
   ];
   for (const c of penroseCases) {
     tests.push(function () {
@@ -1363,7 +1394,7 @@ function allTests() {
     });
   }
   for (const [kind, corners, name, extra] of [["P3", false, "Penrose rhombs (P3), r = 1, M = 1", { radius: 1, cap: 1 }],
-                                              ["P2", true, "corners of the kites and darts (P2), r = 2, M = 2, s = 1", { radius: 2, cap: 2, s: 1 }]]) {
+                                              ["P2", true, "corners of the kites and darts (P2), r = 2, M = 2, alpha = 1", { radius: 2, cap: 2, alpha: 1 }]]) {
     tests.push(function () {
       const { problem, steps } = sameInBoxAndPlane(kind, corners, 20, extra, 5000);
       addRow("Penrose tilings, clocks, a 20 x 20 box and the whole plane: " + name, problem === "",
@@ -1387,8 +1418,8 @@ function allTests() {
     ["Penrose rhombs (P3), r = 1, M = 1", function () {
       return Object.assign({ tiling: penroseBlock("P3", false), radius: 1, cap: 1, clocks: "penrose shape 1" }, whole2);
     }, 10000],
-    ["corners of the kites and darts (P2), r = 2, M = 2, s = -1", function () {
-      return Object.assign({ tiling: penroseBlock("P2", true), radius: 2, cap: 2, s: -1, clocks: "penrose shape 2" }, whole2);
+    ["corners of the kites and darts (P2), r = 2, M = 2, alpha = -1", function () {
+      return Object.assign({ tiling: penroseBlock("P2", true), radius: 2, cap: 2, alpha: -1, clocks: "penrose shape 2" }, whole2);
     }, 5000],
   ]) {
     tests.push(function () {

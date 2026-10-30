@@ -141,16 +141,23 @@
         <p class="muted small">A site with M blocks is full, and no more blocks land on it.
           With M = 1 every block lands on a new site: that is Eden's growth model.</p>
 
-        <!-- The weight s: an available site with h blocks is picked with
-             weight (h + 1)^s. 0 is uniform. -->
+        <!-- The weights: an available site with h blocks and age a is
+             picked with weight (h + 1)^alpha a^beta. 0 and 0 is uniform. -->
         <h3 class="option-heading">Weight</h3>
         <div class="option-row">
-          s <input type="range" id="weight-s" min="-3" max="3" step="0.1" value="0">
-          <span class="muted" id="weight-label"></span>
+          &alpha; <input type="range" id="weight-alpha" min="-3" max="3" step="0.1" value="0">
+          <span class="muted" id="alpha-label"></span>
         </div>
-        <p class="muted small">A site with h blocks is picked with weight (h + 1)<sup>s</sup>:
-          s &gt; 0 favors tall sites, s &lt; 0 short ones, and s = 0 picks every site
-          equally. Empty sites always have weight 1, so with M = 1 the weight changes nothing.</p>
+        <div class="option-row">
+          &beta; <input type="range" id="weight-beta" min="-3" max="3" step="0.1" value="0">
+          <span class="muted" id="beta-label"></span>
+        </div>
+        <p class="muted small">A site with h blocks is picked with weight (h + 1)<sup>&alpha;</sup> a<sup>&beta;</sup>,
+          where its age a is the number of blocks dropped since it became available, plus 1.
+          &alpha; &gt; 0 favors tall sites and &alpha; &lt; 0 short ones; &beta; &gt; 0 favors old
+          sites and &beta; &lt; 0 new ones; both 0 picks every site equally. Empty sites have
+          (h + 1)<sup>&alpha;</sup> = 1, so with M = 1 only &beta; changes anything.
+          With &beta; &ne; 0 each block takes longer, since every site's weight changes.</p>
 
         <h3 class="option-heading">Run</h3>
         <div class="option-row play-row" data-step="Drop one block" data-restart="Back to one block, same seed"></div>
@@ -158,7 +165,7 @@
         <div class="option-row goto-row"></div>
         <div class="option-row seed-row"></div>
         <p class="muted small">The same seed always gives the same mountain. Changing the
-          tile, the domain, the capacity or the weight keeps the seed and the step you are at, so the mountain
+          tile, the domain, the capacity or the weights keeps the seed and the step you are at, so the mountain
           changes as little as it can.</p>
       </section>
 
@@ -265,7 +272,7 @@
         There are two things to watch. First, the shape. Although the cluster grows at random, this randomness naturally averages out along the boundary. If it is allowed to grow for long enough, then the cluster forms into a <strong>limit shape</strong>, a round-ish blob. Surprisingly, nobody knows exactly what this shape is! Simulations suggest it’s not quite a circle, but no one has proved it yet. Secondly, the holes. Sometimes, the cluster wraps around an empty pocket, leaving it uncovered before coming back in later to fill it. Turn on <strong>Shade the holes</strong> to watch them come and go.
         </p>
         <p>
-        What if each cell counted the number of bacteria it held? Instead of a simple 0 or 1, each cell can pile up bacteria, until it reaches the <strong>Max Capacity</strong>. When in the <strong>3D</strong> view, each block represents a bacterium. Once each cell can have more than 1 bacterium, the weight slider <strong>s</strong> comes in to bias where the next bacterium is born. A positive <strong>s</strong> favors crowded cells, leading to dense colonies; a negative <strong>s</strong>  favors emptier ones, spreading the colony out faster; setting <strong>s</strong> back to 0 removes the bias.
+        What if each cell counted the number of bacteria it held? Instead of a simple 0 or 1, each cell can pile up bacteria, until it reaches the <strong>Max Capacity</strong>. When in the <strong>3D</strong> view, each block represents a bacterium. Once each cell can have more than 1 bacterium, the weight slider <strong>&alpha;</strong> comes in to bias where the next bacterium is born. A positive <strong>&alpha;</strong> favors crowded cells, leading to dense colonies; a negative <strong>&alpha;</strong>  favors emptier ones, spreading the colony out faster; setting <strong>&alpha;</strong> back to 0 removes the bias.
         </p>
         <p>
         What counts as a neighbor? Usually, two squares are neighbors if they share an edge, but many models allow diagonal neighbors as well. The <strong>Tile</strong> lets you build your own neighborhood: once a cell gains its first bacterium, those squares around the cell join the boundary. In 1973, Daniel Richardson proved a beautiful theorem: each custom tile pushes the cluster into its own limit shape! Draw your own and watch what shape it creates!
@@ -327,15 +334,23 @@
           once every site is full.
         </p>
         <p>
-          <strong>Weight.</strong> With the weight <span class="tex">s</span>,
-          the next site is no longer uniform on <span class="tex">S_{n-1}</span>:</p>
-        <div class="tex">\mathbb{P}(X_n = x) = \frac{(H(x, n-1) + 1)^s}{\sum_{y \in S_{n-1}} (H(y, n-1) + 1)^s}, \qquad x \in S_{n-1},</div>
+          <strong>Weights.</strong> With the weights <span class="tex">\alpha</span>
+          and <span class="tex">\beta</span>, the next site is no longer uniform on
+          <span class="tex">S_{n-1}</span>. Let <span class="tex">\tau(x)</span> be the
+          number of blocks dropped when <span class="tex">x</span> became available
+          (0 for the start, which is available before its first block), so that before
+          step <span class="tex">n</span>, with <span class="tex">n</span> blocks down,
+          <span class="tex">x</span> has age <span class="tex">A(x, n) = n - \tau(x) + 1 \ge 1</span>. Then</p>
+        <div class="tex">\mathbb{P}(X_n = x) = \frac{w(x)}{\sum_{y \in S_{n-1}} w(y)}, \qquad w(x) = (H(x, n-1) + 1)^\alpha \, A(x, n)^\beta, \qquad x \in S_{n-1}:</div>
         <p>
           the number of blocks <span class="tex">x</span> will have, to the
-          power <span class="tex">s</span>. At <span class="tex">s = 0</span> this
-          is the uniform rule above. An empty site has weight 1 for every
-          <span class="tex">s</span>, so with <span class="tex">M = 1</span> the
-          weight changes nothing.
+          power <span class="tex">\alpha</span>, times its age to the power
+          <span class="tex">\beta</span>. Multiplying the two adds the two biases:
+          <span class="tex">\log w(x) = \alpha \log(H + 1) + \beta \log A</span>. At
+          <span class="tex">\alpha = \beta = 0</span> this is the uniform rule above.
+          An empty site has <span class="tex">(H + 1)^\alpha = 1</span> for every
+          <span class="tex">\alpha</span>, so with <span class="tex">M = 1</span> only
+          <span class="tex">\beta</span> changes anything.
         </p>
         <p>
           <strong>Random numbers: clocks.</strong> Every site
@@ -344,16 +359,20 @@
           independent, made from the seed, <span class="tex">x</span> and
           <span class="tex">h</span> only. If <span class="tex">x</span> became
           available, or got its <span class="tex">h</span>-th block, at time
-          <span class="tex">t</span>, its next block lands at
-          <span class="tex">t + E(x, h)/(h+1)^s</span>, and the first block to land
-          comes next. Exponential clocks racing each other ring first with chance
-          proportional to their rates, and forget how long they have waited, so
+          <span class="tex">t</span>, its clock starts with <span class="tex">E(x, h)</span>
+          left and runs down at rate <span class="tex">w(x)</span>, and the first clock
+          to run out gets the next block. With <span class="tex">\beta = 0</span> the
+          rate stays the same until a block lands on <span class="tex">x</span>, so that
+          block lands at <span class="tex">t + E(x, h)/(h+1)^\alpha</span>; with
+          <span class="tex">\beta \ne 0</span> every rate is worked out again after each
+          block, and each clock keeps what it has left. Exponential clocks racing each other run out first with chance
+          proportional to their rates, and forget how long they have run, so
           the sites picked have exactly the law of <span class="tex">X_n</span>
           above: it is the jump chain of a continuous-time Markov chain [7]. With
           <span class="tex">M = 1</span> the landing times are Richardson's model
           [2], first passage percolation with exponential passage times. The
           <span class="tex">E(x, h)</span> don't depend on the tile, the domain,
-          <span class="tex">M</span> or <span class="tex">s</span>, so with the
+          <span class="tex">M</span>, <span class="tex">\alpha</span> or <span class="tex">\beta</span>, so with the
           same seed, moving any of them changes the mountain little by little,
           the way the <span class="tex">p</span> slider moves Bernoulli
           percolation. (The check page also runs the rule from a list of uniform
