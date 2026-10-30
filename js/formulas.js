@@ -290,17 +290,19 @@ function sliderValues(sliders) {
 // Continuous DLA) read their boxes the same way. For each NAME in
 // "names", the box id="formula-NAME" is read (readTree), and typeset by
 // KaTeX in id="preview-NAME"; the names in "curves" may also be typed as
-// a curve (x(t), y(t)), with t from 0 to 2π. Every other letter gets a
-// slider in the box "holder", shared by all the formulas (showSliders;
-// "onChange" runs when one moves), in the order the letters first
-// appear (a Set keeps that order, and each letter once); a curve's t
-// gets none.
+// a curve (x(t), y(t)), with t from 0 to 2π. Every letter but the
+// formulas' own "variables" (x and y if left out; x, y and z for a shape
+// in space) gets a slider in the box "holder", shared by all the
+// formulas (showSliders; "onChange" runs when one moves), in the order
+// the letters first appear (a Set keeps that order, and each letter
+// once); a curve's t gets none.
 // It returns { NAME: the formula }, each written out with every "*"
 // shown, so the second thread reads exactly what the preview shows (a
 // curve as { x, y }). If one can't be read (usually it is just half
 // typed), it says why in id="formula-message" and returns null, so the
 // page keeps its last good run.
-function readFormulaBoxes(names, curves, sliders, holder, onChange) {
+function readFormulaBoxes(names, curves, sliders, holder, onChange, variables) {
+  if (variables === undefined) variables = ["x", "y"];
   const trees = {};      // name -> [tree], or [x tree, y tree] for a curve
   for (const name of names) {
     const text = byId("formula-" + name).value.trim();
@@ -320,7 +322,7 @@ function readFormulaBoxes(names, curves, sliders, holder, onChange) {
   byId("formula-message").textContent = "";
 
   const letters = new Set(names.flatMap(function (name) {
-    const own = trees[name].length === 2 ? ["x", "y", "t"] : ["x", "y"];
+    const own = trees[name].length === 2 ? variables.concat("t") : variables;
     return trees[name].flatMap(function (tree) { return sliderLetters(tree, own); });
   }));
   showSliders(holder, letters, sliders, onChange);

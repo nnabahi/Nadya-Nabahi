@@ -23,6 +23,8 @@
                                 in its own shape
      showClusterPicture(view, three, dim)   the flat picture (1D, 2D) or
                                 the 3D one, whichever the dimension needs
+                                (showFlatOr3D: the switch itself, which
+                                the continuous DLA pages use too)
      clusterStopped(message, most, edge)   the line under the picture,
                                 when the growth has stopped by itself
                                 (the continuous DLA pages use it too)
@@ -122,11 +124,16 @@ function drawCells3D(cluster, three, look) {
 }
 
 // The flat picture (1D, 2D) or the 3D one, with the 3D picture's help
-// line (id view3d-help). Only the 2D picture moves and zooms.
-function showClusterPicture(view, three, dim) {
+// line (id view3d-help), and the flat picture's zoom buttons only with
+// it. A lattice cluster's picture moves and zooms only in 2D.
+function showFlatOr3D(view, three, dim) {
   view.canvas.hidden = (dim === 3);
   three.show(dim === 3);
   byId("view3d-help").hidden = (dim !== 3);
+  showZoomButtons(view);
+}
+function showClusterPicture(view, three, dim) {
+  showFlatOr3D(view, three, dim);
   useTorus(view, false, dim === 2);
 }
 

@@ -7,6 +7,18 @@
   <link rel="stylesheet" href="../../css/style.css">
   <!-- KaTeX's styles, for the typeset formulas. -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/katex.min.css">
+  <!-- Where the 3D library three.js lives on the internet, for the 3D
+       picture (js/sim-3d.js). It is only loaded when you switch to 3D.
+       The version number is fixed so an update can never change the
+       site by surprise. -->
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.186.1/examples/jsm/"
+      }
+    }
+  </script>
 </head>
 <body>
 
@@ -27,9 +39,10 @@
       <section class="panel panel-sim">
         <h2>Simulation</h2>
 
-        <!-- The picture. external-continuous-dla.js sets its height. The
-             zoom buttons sit in its top right corner; the full screen
-             button (added by js/sim-page.js) in its top left corner. -->
+        <!-- The picture. external-continuous-dla.js sets its height. In
+             2D the zoom buttons sit in its top right corner; the full
+             screen button (added by js/sim-page.js) in its top left
+             corner. In 3D, js/sim-page.js puts the 3D view in its place. -->
         <div class="sim-picture">
           <canvas id="sim-canvas"></canvas>
         </div>
@@ -42,32 +55,39 @@
         <h2 class="heading-with-button">Options
           <a class="tool-button model-check" href="external-continuous-dla-check.html">model check</a></h2>
 
-        <h3 class="option-heading">Tile</h3>
+        <h3 class="option-heading">Dimension</h3>
         <div class="option-row">
-          Start from
-          <select id="preset">
-            <option value="disk">Disks (classic DLA)</option>
-            <option value="square">Squares</option>
-            <option value="star">Your star (slower: not convex)</option>
-            <option value="custom" hidden>Your own formula</option>
-          </select>
+          <label><input type="radio" name="dimension" value="2" checked> 2D</label>
+          <label><input type="radio" name="dimension" value="3"> 3D</label>
+        </div>
+
+        <h3 class="option-heading">Tile</h3>
+        <!-- The menu's choices are this dimension's presets
+             (external-continuous-dla.js, section 1). -->
+        <div class="option-row">
+          Start from <select id="preset"></select>
         </div>
         <!-- The tile can be a condition (x^2 + y^2 <= 1), the curve
-             around it (x^2 + y^2 = 1), or a curve in t ((cos(t), sin(t)),
-             t from 0 to 2π): section 3 of external-continuous-dla.js. Any
-             other letter gets a slider below. -->
-        <p class="small">Tile <span class="tex">T</span>, centered at <span class="tex">(0, 0)</span>: the
+             around it (x^2 + y^2 = 1), or in 2D a curve in t
+             ((cos(t), sin(t)), t from 0 to 2π): section 3 of
+             external-continuous-dla.js. Any other letter gets a slider
+             below. The words with data-dim show only in that dimension. -->
+        <p class="small" data-dim="2">Tile <span class="tex">T</span>, centered at <span class="tex">(0, 0)</span>: the
           points <span class="tex">(x, y)</span> with a condition, inside a curve
           <span class="tex">F(x, y) = G(x, y)</span>, or inside a curve
           <span class="tex">(x(t), y(t))</span>, <span class="tex">0 \le t \le 2\pi</span></p>
+        <p class="small" data-dim="3" hidden>Tile <span class="tex">T</span>, centered at
+          <span class="tex">(0, 0, 0)</span>: the points <span class="tex">(x, y, z)</span> with a
+          condition, or inside a surface <span class="tex">F(x, y, z) = G(x, y, z)</span></p>
         <input type="text" class="formula-input" id="formula-T" spellcheck="false">
         <div class="formula-preview" id="preview-T"></div>
         <div id="sliders"></div>
         <p class="muted small" id="formula-message"></p>
-        <p class="muted small">Each ray from <span class="tex">(0, 0)</span> should leave
-          <span class="tex">T</span> only once (a star-shaped tile). The tiles are copies of
+        <p class="muted small">Each ray from the center should leave
+          <span class="tex">T</span> only once (a star-shaped tile)<span data-dim="3" hidden>, and for
+          now a 3D tile must be convex</span>. The tiles are copies of
           <span class="tex">T</span>, moved but never turned. The cluster starts as one tile at
-          <span class="tex">(0, 0)</span>. Each particle carries a tile in from infinity by Brownian
+          the center. Each particle carries a tile in from infinity by Brownian
           motion, and stops the moment its tile touches the cluster; that tile joins the
           cluster.</p>
 
@@ -78,7 +98,10 @@
         <p class="muted small">Each tile is colored by when it joined: from blue (first) to red
           (just now). The latest particle starts on the dashed launch circle and jumps from
           circle to circle, each a circle no tile reaches into, until it is close enough to
-          touch; its tile shows when it lands. At a slow speed you can watch it walk.</p>
+          touch; its tile shows when it lands. At a slow speed you can watch it walk.<span
+          data-dim="3" hidden> In 3D you see its path, where it is (a dark ball), and the
+          see-through sphere it is jumping across.</span></p>
+        <p class="muted small help-3d" id="view3d-help" hidden></p>
 
         <h3 class="option-heading">Run</h3>
         <div class="option-row play-row" data-step="One particle" data-restart="Start again, same seed"></div>
@@ -110,13 +133,15 @@
               <tr><td>Radius (farthest tile's center)</td><td id="stat-radius"></td></tr>
               <tr><td>Radius of gyration</td><td id="stat-gyration"></td></tr>
               <tr><td>Fractal dimension, fitted</td><td id="stat-dimension"></td></tr>
-              <tr><td>Launch circle's radius</td><td id="stat-launch"></td></tr>
-              <tr><td>Jumps across circles</td><td id="stat-jumps"></td></tr>
-              <tr><td>Returns to the launch circle</td><td id="stat-returns"></td></tr>
+              <tr><td>Launch circle's radius (3D: sphere's)</td><td id="stat-launch"></td></tr>
+              <tr><td>Jumps across circles (spheres)</td><td id="stat-jumps"></td></tr>
+              <tr><td>Returns to the launch circle (sphere)</td><td id="stat-returns"></td></tr>
+              <tr id="replaced-row" hidden><td>Particles that wandered off for good, replaced</td><td id="stat-replaced"></td></tr>
             </table>
             <p class="muted small">Distances are between the tiles' centers, from the first
-              tile's, in the formula's units (the disk has radius 1). The radius of gyration is
-              the root mean square distance of the centers from their center of mass.</p>
+              tile's, in the formula's units (the disk and the ball have radius 1). The radius of
+              gyration is the root mean square distance of the centers from their center of
+              mass.</p>
           </div>
         </div>
       </section>
@@ -155,7 +180,7 @@
         <div data-panel="details" hidden>
         <p>
           <strong>The model.</strong> Fix a tile <span class="tex">T</span>, a
-          compact set in the plane around <span class="tex">0</span>. The cluster
+          compact set in the plane (or in space) around <span class="tex">0</span>. The cluster
           starts as <span class="tex">A_1 = \{q_1\}</span> with
           <span class="tex">q_1 = 0</span>, standing for the tile
           <span class="tex">q_1 + T</span>. Given the centers
@@ -166,7 +191,7 @@
           Then <span class="tex">q_{n+1} = B_\tau</span> and
           <span class="tex">A_{n+1} = A_n \cup \{q_{n+1}\}</span>. For disks this is
           the off-lattice DLA of Meakin [2], the continuous version of Witten and
-          Sander's lattice model [1].
+          Sander's lattice model [1]; in space, balls.
         </p>
         <p>
           <strong>A point instead of a tile.</strong> The tiles
@@ -188,6 +213,22 @@
           circles around groups of edges to skip the far ones [7, Chapter 6].
         </p>
         <p>
+          <strong>In space</strong>, <span class="tex">T</span> is a polyhedron
+          with 3458 corners, the farthest points of <span class="tex">T</span> in
+          directions spread over the sphere (a grid of 24 by 24 on each face of a
+          cube, spaced by equal angles). For a ball the gap is exact directly. For a
+          convex tile, <span class="tex">D</span> is never built: the GJK
+          algorithm [9; 7, Section 9.5] needs only the farthest point of
+          <span class="tex">D</span> in a direction <span class="tex">u</span>,
+          which is the farthest corner of <span class="tex">T</span> that way minus
+          its farthest corner the other way. Each step gives an upper bound on the
+          gap (a point of <span class="tex">D</span>) and a lower bound (a plane
+          that all of <span class="tex">D</span> is behind), and the page uses the
+          lower bound, so a jump is never too long. A tile that isn't convex isn't
+          possible in 3D yet: the page checks convexity on the midpoints of many
+          pairs of corners.
+        </p>
+        <p>
           <strong>From infinity, exactly.</strong> All of
           <span class="tex">U</span> lies inside the circle of radius
           <span class="tex">R</span> = (the farthest center) + (the most
@@ -198,16 +239,23 @@
           from <span class="tex">x</span> comes back: at a point
           <span class="tex">y</span> with density
           <span class="tex">\frac{|x|^2 - R^2}{2\pi R\,|x - y|^2}</span>, the
-          Poisson kernel for the outside of a disk [3, Chapter 3].
+          Poisson kernel for the outside of a disk [3, Chapter 3]. In space,
+          Brownian motion from <span class="tex">x</span> ever comes back to the
+          sphere only with chance <span class="tex">R/|x|</span> [3, Chapter 3], so
+          "from infinity" means given that it reaches the cluster at all: a
+          particle that comes back does so where Brownian motion would (the
+          Poisson kernel for the outside of a ball, through inversion in the
+          sphere), and one that doesn't is replaced by a new particle on the
+          sphere, which gives exactly that law.
         </p>
         <p>
           <strong>Walk on spheres</strong> [4]. Where <span class="tex">B</span> is,
           let <span class="tex">r</span> be its distance to
           <span class="tex">U</span> (or any smaller number). No point of
-          <span class="tex">U</span> is inside the circle of radius
+          <span class="tex">U</span> is inside the circle (sphere) of radius
           <span class="tex">r</span> around <span class="tex">B</span>, so
-          <span class="tex">B</span> can't stop before it leaves that disk, and
-          Brownian motion leaves a disk at a uniform point of its circle. So
+          <span class="tex">B</span> can't stop before it leaves that disk (ball),
+          and Brownian motion leaves a disk at a uniform point of its circle. So
           <span class="tex">B</span> jumps straight there; by the strong Markov
           property this is exact. Near <span class="tex">B</span> the distance is
           the exact gap to each tile; farther out, a lower bound from a coarse grid
@@ -224,13 +272,13 @@
           <span class="tex">\varepsilon \to 0</span> this is exactly the model.
           Since <span class="tex">U</span> has a cone of a fixed opening at each
           point of its edge, the number of jumps grows only like
-          <span class="tex">\log(1/\varepsilon)</span> [5, Theorem 2 and
-          Corollary 3].
+          <span class="tex">\log(1/\varepsilon)</span>, in the plane and in
+          space [5, Theorem 2 and Corollary 3].
         </p>
         <p>
           <strong>What is known.</strong> Simulations of disks give a fractal
-          dimension of about 1.71 [8], the same as the lattice model; no theorem says
-          what it is. For the lattice model, Kesten proved a bound on how fast the
+          dimension of about 1.71, and of balls about 2.5 [8], the same as the
+          lattice model; no theorem says what it is. For the lattice model, Kesten proved a bound on how fast the
           radius can grow (see External Discrete DLA); I don't know of a proof of
           one for this model. The page fits the dimension from the radius of
           gyration <span class="tex">R_g</span> (the root mean square distance of
@@ -272,6 +320,10 @@
           <li>R. Tolman and P. Meakin, &ldquo;Off-lattice and hypercubic-lattice
             models for diffusion-limited aggregation in dimensionalities
             2&ndash;8&rdquo;, <em>Phys. Rev. A</em> 40 (1989), 428&ndash;437.</li>
+          <li>E. G. Gilbert, D. W. Johnson and S. S. Keerthi, &ldquo;A fast
+            procedure for computing the distance between complex objects in
+            three-dimensional space&rdquo;, <em>IEEE J. Robotics and Automation</em>
+            4 (1988), 193&ndash;203.</li>
         </ol>
         </div>
       </section>
@@ -288,8 +340,9 @@
   <!-- The code the sims share (in js/, see the README): page helpers
        (they also typeset the formulas, so they come after KaTeX), the
        second thread's run loop and random numbers, charts, colors, the
-       picture's view, reading formulas with sliders, the tile shape,
-       Brownian motion's launch and return, the cluster and its second
+       picture's view, reading formulas with sliders, the 3D vectors
+       (sim-honeycombs.js), the tile shape, Brownian motion's launch and
+       return, the cluster and its second
        thread, and the statistics the external DLA pages share. Then the
        growth (it runs in a second thread), then this page's code. -->
   <script src="../../js/sim-page.js"></script>
@@ -298,6 +351,7 @@
   <script src="../../js/sim-colors.js"></script>
   <script src="../../js/sim-view.js"></script>
   <script src="../../js/formulas.js"></script>
+  <script src="../../js/sim-honeycombs.js"></script>
   <script src="../../js/sim-tile-shape.js"></script>
   <script src="../../js/sim-continuum.js"></script>
   <script src="../../js/sim-cluster.js"></script>

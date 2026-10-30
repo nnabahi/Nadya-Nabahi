@@ -11,7 +11,7 @@
   <!-- Tests of the growth behind the External Continuous DLA sim
        (external-continuous-dla-growth.js), of the gaps between tiles
        (js/sim-tile-shape.js) and of Brownian motion's pieces
-       (js/sim-continuum.js). -->
+       (js/sim-continuum.js), in the plane and in space. -->
   <main class="page">
     <p><a href="external-continuous-dla.html">&larr; Back to the sim</a></p>
     <h1>External Continuous DLA: Check Page</h1>
@@ -20,17 +20,19 @@
       Each particle carries a tile in from infinity by Brownian motion and
       stops the moment its tile touches the cluster. The sim does this
       exactly, except that a particle stops within a tiny epsilon of
-      touching and then slides into contact. The first check uses a case
-      whose answer is known exactly: Brownian motion from infinity lands on
-      a segment with the arcsine law. The others test each piece: the
-      return to the launch circle against its Poisson kernel, the jumps
-      across circles against Brownian motion in small steps, what epsilon
-      changes, the gap between two tiles against a plain search, a big
-      cluster recounted (every tile touches an earlier one, and none
-      overlap), and coupling.
+      touching and then slides into contact. The first checks use cases
+      whose answers are known exactly: Brownian motion from infinity lands
+      on a segment with the arcsine law, on a flat disk in space with the
+      law of charge on a metal disk, and on a ball away from the center
+      uniformly. The others test each piece, in the plane and in space:
+      the return to the launch circle (sphere) against its Poisson kernel,
+      the jumps across circles (spheres) against Brownian motion in small
+      steps, what epsilon changes, the gap between two tiles against a
+      plain answer, a big cluster recounted (every tile touches an earlier
+      one, and none overlap), and coupling.
     </p>
 
-    <p><button id="run-checks">Run the checks</button> (about three minutes)</p>
+    <p><button id="run-checks">Run the checks</button> (about six minutes)</p>
 
     <table class="check-table">
       <tbody id="results"></tbody>
@@ -42,13 +44,14 @@
   <script src="https://cdn.jsdelivr.net/npm/jstat@1.9.6/dist/jstat.min.js"></script>
   <!-- byId() (sim-page.js), the results table and the shared tests
        (check-page.js), the seeded random numbers and the trace
-       (sim-worker.js), the tile shape, Brownian motion's launch and
-       return, the cluster's buckets, then the growth, then this page's
-       own code. -->
+       (sim-worker.js), the 3D vectors (sim-honeycombs.js), the tile
+       shape, Brownian motion's launch and return, the cluster's buckets,
+       then the growth, then this page's own code. -->
   <script src="../../js/site.js"></script>
   <script src="../../js/sim-page.js"></script>
   <script src="../../js/check-page.js"></script>
   <script src="../../js/sim-worker.js"></script>
+  <script src="../../js/sim-honeycombs.js"></script>
   <script src="../../js/sim-tile-shape.js"></script>
   <script src="../../js/sim-continuum.js"></script>
   <script src="../../js/sim-cluster.js"></script>

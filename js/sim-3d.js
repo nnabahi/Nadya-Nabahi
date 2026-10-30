@@ -15,8 +15,10 @@
          Lattice Path Counting uses it.
        CELLS: cells floating in space, one per cell of the cubic grid
          (cubes) or of any 3D tiling (js/sim-honeycombs.js: polyhedra,
-         faces, edges as thin rods, or vertices), with a see-through
-         convex hull around them. Random Walk uses it in 3D.
+         faces, edges as thin rods, or vertices), or copies of one
+         tile anywhere in space, with a see-through convex hull around
+         them, and a walker with its path. Random Walk and the DLA sims
+         use it in 3D.
 
        drag (left mouse, one finger)     turn the picture around
        mouse wheel, or pinch             zoom in or out
@@ -52,6 +54,7 @@ import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { ConvexHull } from "three/addons/math/ConvexHull.js";
 import { ConvexGeometry } from "three/addons/geometries/ConvexGeometry.js";
+import { toCreasedNormals } from "three/addons/utils/BufferGeometryUtils.js";
 
 
 /* ---------------------------------------------------------------------
@@ -79,6 +82,11 @@ const SMALLEST_SHARED_WIDTH = 0.1;
 
 // How round a coin is: the number of flat sides around it.
 const COIN_SIDES = 24;
+
+// A tile (drawCells's "tile") is shaded smooth across an edge where its
+// faces meet at less than this angle (so a ball looks round), and sharp
+// where they meet at more (so a cube keeps its edges).
+const CREASE_ANGLE = Math.PI / 6;
 
 // The whole picture is shrunk to fit in a box this big, so it always
 // looks the same size, however big the stacks get (as in 2D).
@@ -703,9 +711,22 @@ export function drawSurface(view3d, surface) {
 //               vertex's own polyhedron), a little shrunk so the cells
 //               don't melt into each other
 //   color(i)    cell i's color [r, g, b] (0..255)
+//   tile        (optional, instead of block) one shape for every cell:
+//               { id, corners, triangles }, its corners [x, y, z] around
+//               its center and its triangles (three corner numbers each,
+//               counterclockwise seen from outside); "id" names it, so it
+//               is made again only when it changes. Cell i is then this
+//               shape, full size, centered at (x[i], y[i], z[i]), which
+//               can be any numbers
 //   at          (optional) [x, y, z]: where the ball goes (the walker),
 //               and
 //   atColor     its color [r, g, b]
+//   atSize      (optional) the ball's width (1.2 if left out)
+//   lines, lineColor   (optional) lines, as x1, y1, z1, x2, y2, z2, ...
+//               (one from point 1 to point 2, and so on), and their color
+//   sphere      (optional) [x, y, z, r]: a see-through ball of radius r
+//   reach       (optional) fit the picture to the ball of this radius
+//               around (0, 0, 0), instead of to the cells
 //   hull        (optional) the points to take the convex hull of, as
 //               x0, y0, z0, x1, ... (in the same places as the cells)
 //   hullColor   its color [r, g, b]
@@ -718,8 +739,8 @@ export function drawSurface(view3d, surface) {
 // Trans. Math. Software 22 (1996) 469-483).
 export function drawCells(view3d, cells) {
   if (view3d.box.clientWidth && view3d.box.clientWidth !== view3d.width) fitToBox(view3d);   // the box changed size
-  const block = cells.block || null, n = cells.x.length;
-  const from = Math.max(0, n - (block ? MAX_BLOCKS.tiles : MAX_BLOCKS.cubes));
+  const block = cells.block || null, tile = cells.tile || null, n = cells.x.length;
+  const from = Math.max(0, n - (block || tile ? MAX_BLOCKS.tiles : MAX_BLOCKS.cubes));
   // One mesh of copies for each shape: the cube, or each cell of the
   // block (all the cells numbered k in the block have the same shape).
   // Meshes not used this time are emptied.
@@ -727,7 +748,8 @@ export function drawCells(view3d, cells) {
   for (let i = from; i < n; i++) counts[block ? cells.part[i] : 0]++;
   const meshes = counts.map(function (count, k) {
     return block ? useMesh(view3d, "cells" + k, block.id + "|" + k, count, function () { return cellShape(block.cells[k]); })
-                 : useMesh(view3d, "cells0", "cubes", count);
+         : tile ? useMesh(view3d, "cells0", "tile|" + tile.id, count, function () { return tileShape(tile); })
+         : useMesh(view3d, "cells0", "cubes", count);
   });
   for (const name of Object.keys(view3d.meshes)) {
     if (name.startsWith("cells") && Number(name.slice(5)) >= shapes) view3d.meshes[name].count = 0;
@@ -740,17 +762,20 @@ export function drawCells(view3d, cells) {
     const k = block ? cells.part[i] : 0, [x, y, z] = block ? middleOf(block, cells, i) : [cells.x[i], cells.y[i], cells.z[i]];
     const place = [x, z, -y];
     for (let c = 0; c < 3; c++) { low[c] = Math.min(low[c], place[c]); high[c] = Math.max(high[c], place[c]); }
-    if (block) placeCopy(meshes[k], copy[k]++, place[0], place[1], place[2], 1, 1, toThree(cells.color(i)));
+    if (block || tile) placeCopy(meshes[k], copy[k]++, place[0], place[1], place[2], 1, 1, toThree(cells.color(i)));
     else placeCopy(meshes[0], copy[0]++, place[0], place[1] - BLOCK_WIDTH / 2, place[2], BLOCK_WIDTH, BLOCK_WIDTH, toThree(cells.color(i)));
   }
   for (const mesh of meshes) mesh.instanceMatrix.needsUpdate = mesh.instanceColor.needsUpdate = true;
 
   const ball = useMesh(view3d, "walker", "balls", cells.at ? 1 : 0);
   if (cells.at) {
-    const [ax, ay, az] = cells.at;
-    placeCopy(ball, 0, ax, az - 0.6, -ay, 1.2, 1.2, toThree(cells.atColor));
+    const [ax, ay, az] = cells.at, size = cells.atSize || 1.2;
+    placeCopy(ball, 0, ax, az - size / 2, -ay, size, size, toThree(cells.atColor));
     ball.instanceMatrix.needsUpdate = ball.instanceColor.needsUpdate = true;
   }
+  drawSpaceLines(view3d, cells.lines || NO_LINES, cells.lineColor);
+  drawSphere(view3d, cells.sphere || null);
+  if (cells.reach) { low = [-cells.reach, -cells.reach, -cells.reach]; high = [cells.reach, cells.reach, cells.reach]; }
 
   // The hull: its measures, and a see-through solid.
   const measures = { area: 0, volume: 0 };
@@ -793,7 +818,7 @@ export function drawCells(view3d, cells) {
   // Shrink the whole picture to fit, with its middle at the center (and
   // room to spare, so it still fits when turned around): the middles'
   // box, plus the widest cell all round.
-  const across = 1.4 * (Math.max(high[0] - low[0], high[1] - low[1], high[2] - low[2], 1) + 2 * widestOf(block));
+  const across = 1.4 * (Math.max(high[0] - low[0], high[1] - low[1], high[2] - low[2], 1) + 2 * (tile ? tileReach(tile) : widestOf(block)));
   const scale = PICTURE_SIZE / across;
   view3d.world.scale.setScalar(scale);
   view3d.world.position.set(-scale * (low[0] + high[0]) / 2, -scale * (low[1] + high[1]) / 2 + 0.25,
@@ -811,6 +836,51 @@ function widestOf(block) {
     for (const p of cell.corners) widest = Math.max(widest, Math.hypot(p[0] - cell.middle[0], p[1] - cell.middle[1], p[2] - cell.middle[2]));
   }
   return widest;
+}
+
+// How far a tile's corners reach from its center.
+function tileReach(tile) {
+  return Math.max(...tile.corners.map(function (p) { return Math.hypot(p[0], p[1], p[2]); }));
+}
+
+// drawCells's lines in space (x1, y1, z1, x2, y2, z2, ...), built again
+// every time.
+function drawSpaceLines(view3d, lines, rgb) {
+  const segments = lineSegments(view3d, "spaceLines", lines.length > 0, rgb);
+  const points = new Float32Array(lines.length);            // (x, height, z) for each end
+  for (let k = 0; k < lines.length; k += 3) {
+    points[k] = lines[k];
+    points[k + 1] = lines[k + 2];
+    points[k + 2] = -lines[k + 1];
+  }
+  setPoints(segments, points);
+}
+
+// drawCells's see-through ball [x, y, z, r] (null: none).
+function drawSphere(view3d, sphere) {
+  if (!view3d.sphere) {
+    view3d.sphere = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 16),
+      new THREE.MeshLambertMaterial({ color: 0x888888, transparent: true, opacity: 0.15, depthWrite: false }));
+    view3d.world.add(view3d.sphere);
+  }
+  view3d.sphere.visible = Boolean(sphere);
+  if (sphere) {
+    view3d.sphere.position.set(sphere[0], sphere[2], -sphere[1]);
+    view3d.sphere.scale.setScalar(sphere[3]);
+  }
+}
+
+// drawCells's tile: its triangles, shaded smooth across gentle edges and
+// sharp across steep ones (toCreasedNormals, from three.js).
+function tileShape(tile) {
+  const points = [];
+  for (const c of tile.triangles) {
+    const p = tile.corners[c];
+    points.push(p[0], p[2], -p[1]);          // three.js's way round, as in drawCells
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.BufferAttribute(new Float32Array(points), 3));
+  return toCreasedNormals(geometry, CREASE_ANGLE);
 }
 
 // Where the middle of cell i of drawCells's cells is: the middle of its
