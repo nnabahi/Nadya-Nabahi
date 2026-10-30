@@ -20,12 +20,13 @@
        plane the domain is a box around the start that doubles whenever
        the ball is about to reach its edge (section 4).
      - Pairs mode: 2n particles at uniformly random cells, paired
-       uniformly; Play adds the pairs one at a time, each with its
-       geodesic, in its own color, side by side where they share edges.
+       uniformly, all shown at once, each pair with its geodesic in its
+       own color, side by side where they share edges. "Add a pair"
+       adds one more. Pairs mode doesn't run: Play is for Ball mode.
      - The statistics: the ball's size, shape and holes over time, or
        how the geodesics share edges.
-   All of it runs in the page itself: a step is one cell, or one pair,
-   which takes well under a millisecond (or a few, for a pair).
+   All of it runs in the page itself: a step is one cell, which takes
+   well under a millisecond, and a pair's geodesic takes a few.
 
    The file is split into numbered sections:
      1. Settings you might want to change
@@ -131,7 +132,6 @@ let nPairs = DEFAULTS.pairs;   // n, from the slider
 let order = [];         // the cells the particles may be at, in a uniformly random order (randomOrder)
 let moved = new Map();  // particle k -> the cell it was dragged to
 let pairs = [];         // the pairs shown, pair i being particles 2i and 2i + 1: { a, b, time, path, distance }
-let shownPairs = 0;     // how many pairs Play has added
 
 
 /* =====================================================================
@@ -326,8 +326,8 @@ function farnessFrom(a) {
    The particles are the first 2n cells of a uniformly random order of
    the cells they may be at (randomOrder): all of a bounded domain, or
    the middle of the whole plane. Pair i is particles 2i and 2i + 1, so
-   the pairs are uniform too, and adding pairs (raising n, or Play)
-   keeps the ones there. Each pair's geodesic comes from Dijkstra's
+   the pairs are uniform too, and adding pairs (raising n) keeps the
+   ones there. Each pair's geodesic comes from Dijkstra's
    algorithm from one particle, stopped at the other (pathBetween). On
    the whole plane, a geodesic search that reaches the box's edge first
    grows the box, and the pairs are found again in the bigger one.
@@ -348,22 +348,31 @@ function pairCells(d) {
 // The most pairs there can be: half the cells they may be at.
 function mostPairs() { return Math.floor(order.length / 2); }
 
+// How many pairs are shown: n, if there is room for them.
+function pairCount() { return Math.min(nPairs, mostPairs()); }
+
 // The cell of particle k: where it was dragged, or its place in the order.
 function particleCell(k) { return moved.has(k) ? moved.get(k) : order[k]; }
 
-// Find the geodesic of each pair shown that isn't found yet. A search
-// that reaches the edge of a domain that can grow grows it, and then
-// the pairs are found again (their cells have new numbers).
+// Find the geodesic of each pair that isn't found yet.
 function findPairs() {
-  while (pairs.length < shownPairs) {
-    const i = pairs.length, a = particleCell(2 * i), b = particleCell(2 * i + 1);
+  while (pairs.length < pairCount()) {
+    const pair = findPair(pairs.length);
+    if (pair) pairs.push(pair); else pairs = [];
+  }
+}
+
+// Pair i, with its geodesic. A search that reaches the edge of a domain
+// that can grow grows it, and gives null: then every pair must be found
+// again (their cells have new numbers).
+function findPair(i) {
+  const a = particleCell(2 * i), b = particleCell(2 * i + 1);
+  for (;;) {
     const found = pathBetween(domain, passage, a, b, canGrow() ? edge : null);
-    if (found && found.atEdge) {
-      if (!grow()) continue;     // (it can't grow: the next try searches the box as it is)
-      pairs = [];
-      continue;
+    if (!(found && found.atEdge)) {
+      return { a: a, b: b, time: found ? found.time : Infinity, path: found ? found.path : [], distance: pairDistance(a, b) };
     }
-    pairs.push({ a: a, b: b, time: found ? found.time : Infinity, path: found ? found.path : [], distance: pairDistance(a, b) });
+    if (grow()) return null;     // (if it can't grow, the next try searches the box as it is)
   }
 }
 
@@ -375,10 +384,17 @@ function pairDistance(a, b) {
   return Math.hypot(p[0] - from[0], p[1] - from[1]);
 }
 
-// Find the pairs again (new times, a particle moved, or a bigger box).
+// Find the pairs again (new times, or a bigger box).
 function redoPairs() {
   pairs = [];
   findPairs();
+}
+
+// Find pair i again, after one of its particles moved (all of them, if
+// the box grew).
+function redoPair(i) {
+  const pair = findPair(i);
+  if (pair) pairs[i] = pair; else redoPairs();
 }
 
 // How many geodesics use each edge: a Map from edgeKey to { v, w,
@@ -403,29 +419,22 @@ function pairColors() { return defaultColors(nPairs); }
 /* =====================================================================
    7. RUNNING: PLAY, STEP AND RESTART
    ---------------------------------------------------------------------
-   One step is one more cell of the ball, or one more pair, on the run
-   loop every sim uses (makeRunLoop, js/sim-worker.js). Everything is
-   quick, so it runs in the page.
+   One step is one more cell of the ball, on the run loop every sim
+   uses (makeRunLoop, js/sim-worker.js). Everything is quick, so it runs
+   in the page. Pairs mode doesn't run (its Play row is hidden): its
+   pairs are all there at once.
    ===================================================================== */
-const runner = makeRunLoop(function () { return mode === "ball" ? findNextCell() : addPair(); },
-                           function () { drawSoon(); player.showDone(); },
-                           function () { return mode === "ball" ? ballIsDone() : shownPairs >= Math.min(nPairs, mostPairs()); });
+const runner = makeRunLoop(findNextCell, function () { drawSoon(); player.showDone(); },
+                           function () { return mode !== "ball" || ballIsDone(); });
 
-// One more pair.
-function addPair() {
-  if (shownPairs >= Math.min(nPairs, mostPairs())) return false;
-  shownPairs++;
-  findPairs();
-  return true;
-}
-
-// Restart: back to the start (just the start cell, or no pairs), paused.
+// Restart: back to the start (just the start cell), paused. In Pairs
+// mode, the pairs are found again.
 function restart() {
   player.setPlaying(false);
   tooBig = false;
   runBallTo(1);
-  shownPairs = 0;
   pairs = [];
+  if (mode === "pairs") findPairs();
   afterChange();
 }
 
@@ -725,9 +734,17 @@ function moveStart(v) {
   redoRun();
 }
 
+// Only the moved particle's pair changes, so only it is found again
+// (once per screen refresh while dragging).
+let movedPair = -1;     // the pair whose particle was dragged
+const redoMoved = oncePerFrame(function () {
+  redoPair(movedPair);
+  afterChange();
+});
 function moveParticle(k, v) {
   moved.set(k, v);
-  redoRun();
+  movedPair = k >> 1;
+  redoMoved();
 }
 
 function clickCell(v) {
@@ -868,7 +885,7 @@ function pairsTable() {
   let shared = 0, most = 0, ratio = 0, counted = 0;
   for (const { pairs: on } of use.values()) { if (on.length > 1) shared++; most = Math.max(most, on.length); }
   for (const pair of pairs) if (pair.distance > 0 && pair.time < Infinity) { ratio += pair.time / pair.distance; counted++; }
-  byId("stat-pairs").textContent = pairs.length + " of " + Math.min(nPairs, mostPairs());
+  byId("stat-pairs").textContent = pairs.length + (nPairs > mostPairs() ? " (all there is room for)" : "");
   byId("stat-used").textContent = use.size.toLocaleString();
   byId("stat-shared").textContent = shared.toLocaleString() + (use.size ? " (" + (100 * shared / use.size).toFixed(1) + "%)" : "");
   byId("stat-most").textContent = most.toLocaleString();
@@ -970,7 +987,6 @@ for (const radio of document.querySelectorAll('input[name="mode"]')) {
   radio.addEventListener("change", function () {
     player.setPlaying(false);
     mode = radio.value;
-    if (mode === "ball") player.setUnits("cell", "cells"); else player.setUnits("pair", "pairs");
     redoShown();
     afterChange();
   });
@@ -982,13 +998,16 @@ for (const radio of document.querySelectorAll('input[name="weights"]')) {
 }
 
 // n, the number of pairs: the slider and the box move together. Fewer
-// pairs drops the last ones; more lets Play add them.
-const showPairs = connectSliderAndBox("pairs-slider", "pairs-box", function (value) {
+// pairs drops the last ones; more adds new ones, and keeps the others.
+// "Add a pair" is n + 1.
+const showPairs = connectSliderAndBox("pairs-slider", "pairs-box", usePairs);
+function usePairs(value) {
   nPairs = showPairs(value);
-  shownPairs = Math.min(shownPairs, nPairs);
-  pairs.length = Math.min(pairs.length, shownPairs);
+  pairs.length = Math.min(pairs.length, pairCount());
+  if (mode === "pairs") findPairs();
   afterChange();
-});
+}
+byId("add-pair").addEventListener("click", function () { usePairs(nPairs + 1); });
 
 // What only changes the picture or the charts.
 for (const id of ["show-tree", "show-holes", "show-disk", "usage-log"]) byId(id).addEventListener("change", drawSoon);
