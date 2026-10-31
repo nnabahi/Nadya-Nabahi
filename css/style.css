@@ -397,7 +397,7 @@ a.card:hover {
 /* ---------------------------------------------------------------------
    Model families (toysnsims.html)
    ---------------------------------------------------------------------
-   HTML shape of one family (js/toysnsims.js adds the colored bar and
+   HTML shape of one family (js/toysnsims.js adds the "Simple" arrow and
    opens one panel at a time):
      <div class="family">
        <div class="card family-card"> name, one line </div>
@@ -433,10 +433,12 @@ a.card:hover {
   border-color: var(--color-family);
 }
 
-/* The open family card: colored all around, with no bottom line and a
-   negative bottom margin, so it reaches over the grid's gap (20px) and
-   the panel's top line (2px) and the two look like one shape. */
+/* The open family card: filled with the family color, with no bottom
+   line and a negative bottom margin, so it reaches over the grid's gap
+   (20px) and the panel's top line (2px) and the two look like one shape. */
 .family-card.open {
+  background: var(--color-family);
+  color: var(--color-surface);
   border: 2px solid var(--color-family);
   border-top-width: 6px;
   border-bottom-color: var(--color-surface);
@@ -444,6 +446,11 @@ a.card:hover {
   margin-bottom: -22px;
   position: relative;        /* with z-index, drawn over the panel's line */
   z-index: 1;
+}
+
+/* Its one line turns light too, to read on the color. */
+.family-card.open .muted {
+  color: inherit;
 }
 
 /* The panel under the open card: a whole row wide. */
@@ -456,26 +463,10 @@ a.card:hover {
   margin-bottom: 20px;
 }
 
-/* The colored bar: the family's name and one line, and an arrow that
-   opens the Simple text (its look is shared with the Writing posts). */
-.family-bar {
-  background: var(--color-family);
-  color: var(--color-surface);
-  border-radius: var(--corner-radius);
-  padding: 12px 20px;
-}
-
-.family-text .family-bar::before {
-  color: inherit;
-}
-
-.family-bar h3 {
-  margin: 0;
-}
-
-.family-bar .muted {
-  color: inherit;
-  margin: 4px 0 0;
+/* The "Simple" arrow that opens the Simple text (it opens like the
+   Writing posts, see below). */
+.family-arrow {
+  font-family: var(--font-heading);
 }
 
 /* The Simple text, shown when the arrow is open. */
@@ -483,7 +474,7 @@ a.card:hover {
   padding-left: 24px;
 }
 
-/* The family's sim cards, under the bar. */
+/* The family's sim cards, under the Simple text. */
 .family-panel .card-grid {
   margin-top: 20px;
 }
@@ -514,9 +505,9 @@ a.card:hover {
 }
 
 /* The clickable top of a post: triangle, title and line, date on the right.
-   A family's colored bar on toysnsims.html opens the same way. */
+   A family's "Simple" arrow on toysnsims.html opens the same way. */
 .post summary,
-.family-bar {
+.family-arrow {
   display: flex;
   align-items: baseline;
   gap: 12px;
@@ -525,13 +516,13 @@ a.card:hover {
 }
 
 .post summary::-webkit-details-marker,
-.family-bar::-webkit-details-marker {
+.family-arrow::-webkit-details-marker {
   display: none;             /* ... (Safari needs this line too) */
 }
 
 /* Our triangle: points right while closed, turns down when open. */
 .post summary::before,
-.family-bar::before {
+.family-arrow::before {
   content: "\25B6";          /* the character ▶ */
   font-size: 0.8em;
   color: var(--color-accent);
@@ -539,13 +530,12 @@ a.card:hover {
 }
 
 .post[open] summary::before,
-.family-text[open] .family-bar::before {
+.family-text[open] .family-arrow::before {
   transform: rotate(90deg);
 }
 
 /* Title and one line take the middle; the date sits at the right. */
-.post summary div,
-.family-bar div {
+.post summary div {
   flex: 1;
 }
 

@@ -27,10 +27,10 @@
 
     <!-- MODEL FAMILIES
          A row of family cards. Clicking one opens its panel underneath
-         (only one at a time): a colored bar with the family's name and
-         one line, an arrow that opens the family's shared Simple text,
-         and the family's sim cards. js/toysnsims.js copies the name and
-         line onto the bar, so they are written once, on the family card.
+         (only one at a time) and fills the card with the family color.
+         The panel holds a "Simple" arrow that opens the family's shared
+         Simple text (js/toysnsims.js adds the arrow), and the family's
+         sim cards.
          To add a family, copy a <div class="family"> block. To add a sim
          to a family, paste its card into that family's card-grid. Family
          cards have no genre labels: the genre buttons are for the
@@ -49,7 +49,7 @@
           <p class="muted">Random walkers wander until they stick to a growing cluster, from far away or from inside it, on a lattice or in the plane.</p>
         </div>
         <div class="family-panel">
-          <!-- The shared Simple text, opened by the arrow on the colored bar. -->
+          <!-- The shared Simple text, opened by the "Simple" arrow. -->
           <details class="family-text">
             <p>Simple text coming soon.</p>
           </details>
@@ -90,7 +90,7 @@
           <p class="muted">Open each cell or edge with probability p and watch clusters join into one giant cluster at the critical point.</p>
         </div>
         <div class="family-panel">
-          <!-- The shared Simple text, opened by the arrow on the colored bar. -->
+          <!-- The shared Simple text, opened by the "Simple" arrow. -->
           <details class="family-text">
             <p>Simple text coming soon.</p>
           </details>
@@ -119,7 +119,7 @@
           <p class="muted">Fill a domain with tiles, every packing equally likely or one tile at a time, on a lattice or in the plane.</p>
         </div>
         <div class="family-panel">
-          <!-- The shared Simple text, opened by the arrow on the colored bar. -->
+          <!-- The shared Simple text, opened by the "Simple" arrow. -->
           <details class="family-text">
             <p>Simple text coming soon.</p>
           </details>
