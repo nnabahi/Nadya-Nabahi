@@ -261,12 +261,14 @@ function tilePolygon(inT) {
     gy[k] = -dx / den;
   }
 
-  // Convex? (Every corner turns the same way, up to rounding.)
+  // Convex? (Every corner turns the same way, up to rounding: a right
+  // turn counts when its sine is beyond 1e-9, however short the edges,
+  // so a turn close to the center, where T's dents may nearly reach it,
+  // is seen.)
   let convex = true;
   for (let k = 0; k < M; k++) {
-    const a = (k + 1) % M, b = (k + 2) % M;
-    const turn = (px[a] - px[k]) * (py[b] - py[a]) - (py[a] - py[k]) * (px[b] - px[a]);
-    if (turn < -1e-9 * rhoMax * rhoMax) { convex = false; break; }
+    const a = (k + 1) % M, b = (k + 2) % M, ux = px[a] - px[k], uy = py[a] - py[k], wx = px[b] - px[a], wy = py[b] - py[a];
+    if (ux * wy - uy * wx < -1e-9 * Math.hypot(ux, uy) * Math.hypot(wx, wy)) { convex = false; break; }
   }
 
   // The runs of edges, each with a circle around it (center and
