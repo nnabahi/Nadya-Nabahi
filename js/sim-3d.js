@@ -88,6 +88,10 @@ const COIN_SIDES = 24;
 // where they meet at more (so a cube keeps its edges).
 const CREASE_ANGLE = Math.PI / 6;
 
+// drawCells's cells, when see-through (to show a walker among them): how
+// much of each one's color covers what is behind it.
+const SEE_THROUGH = 0.12;
+
 // The whole picture is shrunk to fit in a box this big, so it always
 // looks the same size, however big the stacks get (as in 2D).
 const PICTURE_SIZE = 2;
@@ -727,6 +731,8 @@ export function drawSurface(view3d, surface) {
 //   sphere      (optional) [x, y, z, r]: a see-through ball of radius r
 //   reach       (optional) fit the picture to the ball of this radius
 //               around (0, 0, 0), instead of to the cells
+//   seeThrough  (optional) true: the cells are see-through (SEE_THROUGH),
+//               so a walker among them shows
 //   hull        (optional) the points to take the convex hull of, as
 //               x0, y0, z0, x1, ... (in the same places as the cells)
 //   hullColor   its color [r, g, b]
@@ -765,7 +771,10 @@ export function drawCells(view3d, cells) {
     if (block || tile) placeCopy(meshes[k], copy[k]++, place[0], place[1], place[2], 1, 1, toThree(cells.color(i)));
     else placeCopy(meshes[0], copy[0]++, place[0], place[1] - BLOCK_WIDTH / 2, place[2], BLOCK_WIDTH, BLOCK_WIDTH, toThree(cells.color(i)));
   }
-  for (const mesh of meshes) mesh.instanceMatrix.needsUpdate = mesh.instanceColor.needsUpdate = true;
+  for (const mesh of meshes) {
+    mesh.instanceMatrix.needsUpdate = mesh.instanceColor.needsUpdate = true;
+    seeThrough(mesh, Boolean(cells.seeThrough));
+  }
 
   const ball = useMesh(view3d, "walker", "balls", cells.at ? 1 : 0);
   if (cells.at) {
@@ -825,6 +834,18 @@ export function drawCells(view3d, cells) {
                             -scale * (low[2] + high[2]) / 2);
   render(view3d);
   return measures;
+}
+
+// A mesh see-through ("on") or solid again. (Behind a see-through
+// thing three.js still draws what is farther away, so it doesn't write
+// how far it is: "depthWrite".)
+function seeThrough(mesh, on) {
+  const material = mesh.material;
+  if (material.transparent === on) return;
+  material.transparent = on;
+  material.opacity = on ? SEE_THROUGH : 1;
+  material.depthWrite = !on;
+  material.needsUpdate = true;
 }
 
 // How far a cell's corners reach from its middle (1 for the cubes, to

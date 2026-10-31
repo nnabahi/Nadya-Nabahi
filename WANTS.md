@@ -219,6 +219,15 @@ From Scott Sheffield's work, nadya 2026-10-21.
   field", Duke Math. J. 163 (2014) 267-308.
 - **Self-interacting walks** (talk: V. Beffara, "From internal DLA to
   self-interacting walks"): title only, so check the talk first.
+- **More tiles for Internal Continuous DLA** (nadya 2026-10-30: it
+  starts with convex tiles in the plane, and balls and cubes in space).
+  Next, tiles with dents in the plane, like the star: Claude times one
+  first and reports. Its D = T - T is no longer a convex polygon; its
+  outline comes from merging the edges of T and -T (a convolution: L.
+  Guibas, L. Ramshaw and J. Stolfi, "A kinetic framework for
+  computational geometry", Proc. 24th IEEE FOCS (1983) 100-111). Later,
+  in space: other convex tiles (boxes of other proportions, octahedra,
+  ellipsoids) and tiles with dents.
 
 ## Random planar maps (new sim)
 

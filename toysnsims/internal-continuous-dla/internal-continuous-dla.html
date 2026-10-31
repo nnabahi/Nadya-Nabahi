@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Internal Continuous DLA — Toys n' Sims</title>
+  <link rel="stylesheet" href="../../css/style.css">
+  <!-- KaTeX's styles, for the typeset formulas. -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/katex.min.css">
+  <!-- Where the 3D library three.js lives on the internet, for the 3D
+       picture (js/sim-3d.js). It is only loaded when you switch to 3D.
+       The version number is fixed so an update can never change the
+       site by surprise. -->
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.186.1/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+
+  <header class="topbar" data-active="toysnsims.html"></header>
+  <script src="../../js/site.js"></script>
+
+  <main class="page">
+    <p><a href="../../toysnsims.html">&larr; All sims</a></p>
+    <h1>Internal Continuous DLA</h1>
+
+    <!-- The boxes, as on every sim page (their layout is in
+         section 6 of css/style.css). All the behavior lives in
+         internal-continuous-dla.js; the ids below (id="...") are how
+         that script finds each button and box. -->
+    <div class="sim-layout">
+
+      <!-- TOP LEFT: the cluster. -->
+      <section class="panel panel-sim">
+        <h2>Simulation</h2>
+
+        <!-- The picture. internal-continuous-dla.js sets its height. In
+             2D the zoom buttons sit in its top right corner; the full
+             screen button (added by js/sim-page.js) in its top left
+             corner. In 3D, js/sim-page.js puts the 3D view in its place. -->
+        <div class="sim-picture">
+          <canvas id="sim-canvas"></canvas>
+        </div>
+
+        <p class="muted" id="sim-message"></p>
+      </section>
+
+      <!-- TOP RIGHT: settings. -->
+      <section class="panel panel-controls">
+        <h2 class="heading-with-button">Options
+          <a class="tool-button model-check" href="internal-continuous-dla-check.html">model check</a></h2>
+
+        <h3 class="option-heading">Dimension</h3>
+        <div class="option-row">
+          <label><input type="radio" name="dimension" value="2" checked> 2D</label>
+          <label><input type="radio" name="dimension" value="3"> 3D</label>
+        </div>
+
+        <h3 class="option-heading">Tile</h3>
+        <!-- The menu's choices are this dimension's presets
+             (internal-continuous-dla.js, section 1). -->
+        <div class="option-row">
+          Start from <select id="preset"></select>
+        </div>
+        <!-- The tile can be a condition (x^2 + y^2 <= 1), the curve
+             around it (x^2 + y^2 = 1), or in 2D a curve in t
+             ((cos(t), sin(t)), t from 0 to 2π): newTileBox,
+             js/sim-cluster-page.js. Any other letter gets a slider
+             below. The words with data-dim show only in that dimension. -->
+        <p class="small" data-dim="2">Tile <span class="tex">T</span>, centered at <span class="tex">(0, 0)</span>: the
+          points <span class="tex">(x, y)</span> with a condition, inside a curve
+          <span class="tex">F(x, y) = G(x, y)</span>, or inside a curve
+          <span class="tex">(x(t), y(t))</span>, <span class="tex">0 \le t \le 2\pi</span></p>
+        <p class="small" data-dim="3" hidden>Tile <span class="tex">T</span>, centered at
+          <span class="tex">(0, 0, 0)</span>: the points <span class="tex">(x, y, z)</span> with a
+          condition, or inside a surface <span class="tex">F(x, y, z) = G(x, y, z)</span></p>
+        <input type="text" class="formula-input" id="formula-T" spellcheck="false">
+        <div class="formula-preview" id="preview-T"></div>
+        <div id="sliders"></div>
+        <p class="muted small" id="formula-message"></p>
+        <p class="muted small">Each ray from the center should leave
+          <span class="tex">T</span> only once (a star-shaped tile), and for now the tile must
+          be convex<span data-dim="3" hidden>: a ball, or a cube with its sides along x, y and
+          z</span>. The tiles are copies of <span class="tex">T</span>, moved but
+          never turned. Each particle carries a tile out from the source, the first tile's
+          center, by Brownian motion, and stops the moment its tile overlaps no tile of the
+          cluster; that tile joins the cluster. The first particle stops at once.</p>
+
+        <h3 class="option-heading">View</h3>
+        <div class="option-row">
+          <label><input type="checkbox" id="show-walk" checked> Show each particle's walk</label>
+        </div>
+        <p class="muted small">Each tile is colored by when it joined: from blue (first) to red
+          (just now). The latest particle starts at the source and jumps from circle to circle,
+          each a circle where its tile would overlap the cluster everywhere, until it is close
+          enough to a place where its tile fits; its tile shows when it lands. At a slow speed
+          you can watch it walk.<span data-dim="3" hidden> In 3D the tiles are see-through while
+          it walks, and you see its path, where it is (a dark ball), and the see-through sphere
+          it is jumping across.</span></p>
+        <p class="muted small help-3d" id="view3d-help" hidden></p>
+
+        <h3 class="option-heading">Run</h3>
+        <div class="option-row play-row" data-step="One particle" data-restart="Start again, same seed"></div>
+        <div class="option-row speed-row"></div>
+        <div class="option-row goto-row"></div>
+        <div class="option-row seed-row"></div>
+        <p class="muted small">The same seed always gives the same cluster, and more particles
+          only add tiles: particle p walks with its own random numbers.</p>
+
+        <h3 class="option-heading">Advanced</h3>
+        <div class="option-row">
+          Stop within <span class="tex">\varepsilon</span> =
+          <input type="number" id="set-epsilon" min="1e-12" max="0.5" step="any" style="width: 7em">
+          tile radii
+        </div>
+        <p class="muted small">The jumps get smaller as the particle nears a place where its tile
+          fits, and never quite reach it, so it stops once it is this close (in units of the
+          tile's radius) and moves straight there. Smaller is more exact; it costs only a few
+          more jumps (see All the details).</p>
+      </section>
+
+      <!-- UNDER THE PICTURE: numbers about this run. -->
+      <section class="panel panel-stats">
+        <h2>Statistics</h2>
+        <div class="stat-grid">
+          <div class="stat">
+            <table class="stats-table">
+              <tr><td>Particles n (tiles in the cluster)</td><td id="stat-particles"></td></tr>
+              <tr><td>Radius (farthest tile's center)</td><td id="stat-radius"></td></tr>
+              <tr><td>Radius of gyration</td><td id="stat-gyration"></td></tr>
+              <tr><td>Jumps across circles (spheres)</td><td id="stat-jumps"></td></tr>
+            </table>
+            <p class="muted small">Distances are between the tiles' centers, from the first
+              tile's, in the formula's units (the disk and the ball have radius 1). The radius of
+              gyration is the root mean square distance of the centers from their center of
+              mass.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- THE FULL WIDTH: the chart (drawn by js/sim-cluster-page.js). -->
+      <section class="panel panel-charts">
+        <div class="stat-grid">
+          <div class="stat">
+            <h3 class="option-heading">Radius</h3>
+            <canvas class="chart" id="radius-chart"></canvas>
+            <p class="muted small">Dark: the farthest tile. Light: the radius of gyration.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- BOTTOM, the full width: about the model, in two tabs (js/sim-page.js
+           switches them). Text in class="tex" is typeset by KaTeX. -->
+      <section class="panel panel-about">
+        <h2>About the model</h2>
+        <nav class="about-tabs">
+          <button class="about-tab selected" data-tab="simple">Simple</button>
+          <button class="about-tab" data-tab="details">All the details</button>
+        </nav>
+
+        <div data-panel="simple">
+        <p class="muted">(The simple explanation is coming.)</p>
+        </div>
+
+        <div data-panel="details" hidden>
+        <p>
+          <strong>The model.</strong> Fix a tile <span class="tex">T</span>, a
+          compact set in the plane (or in space) around <span class="tex">0</span>. The cluster
+          starts empty, <span class="tex">A_0 = \emptyset</span>. Given the centers
+          <span class="tex">A_n</span>, a point <span class="tex">B</span> does Brownian motion
+          from the source <span class="tex">0</span>, carrying the tile
+          <span class="tex">B_t + T</span> with it, and stops at the first time
+          <span class="tex">\tau</span> that tile overlaps no tile
+          <span class="tex">q + T</span>, <span class="tex">q \in A_n</span> (their insides are
+          apart; touching is allowed). Then <span class="tex">q_{n+1} = B_\tau</span> and
+          <span class="tex">A_{n+1} = A_n \cup \{q_{n+1}\}</span>. The first particle stops at
+          once, so <span class="tex">q_1 = 0</span>. The tiles always touch and never overlap,
+          and the cluster of <span class="tex">n</span> particles has <span class="tex">n</span>
+          tiles. It is a continuous version of internal DLA on a lattice [1] (see Internal
+          Discrete DLA).
+        </p>
+        <p>
+          <strong>A point instead of a tile.</strong> The tiles
+          <span class="tex">b + T</span> and <span class="tex">q + T</span> overlap exactly when
+          <span class="tex">b - q</span> is inside the difference set
+          <span class="tex">D = T - T = \{s - t : s, t \in T\}</span>. So
+          <span class="tex">\tau</span> is the first time <span class="tex">B</span> leaves
+          <span class="tex">U = \bigcup_{q \in A_n} (q + D^\circ)</span>, the union of the
+          insides, and <span class="tex">q_{n+1}</span> has the harmonic measure of
+          <span class="tex">U</span> from <span class="tex">0</span>: where Brownian motion
+          from <span class="tex">0</span> first leaves it [3, Chapter 3]. For a disk of radius
+          <span class="tex">r</span>, <span class="tex">D</span> is the disk of radius
+          <span class="tex">2r</span>. A point outside <span class="tex">U</span> is a
+          <em>free</em> point: a place where a tile fits. A hole inside the cluster where a
+          whole tile fits is free too, so holes fill up. The page works with
+          <span class="tex">T</span> as a polygon with 4096 corners (each the farthest point of
+          <span class="tex">T</span> in its direction); for a convex tile,
+          <span class="tex">D</span> is the polygon made by merging the edges of
+          <span class="tex">T</span> and <span class="tex">-T</span> in order of angle
+          [6, Section 13.3]. A disk, and in space a ball, are used exactly. In space a cube is
+          recognized from its polyhedron (its corners all on the cube's faces, and the cube's 8
+          corners among them).
+        </p>
+        <p>
+          <strong>Walk on spheres</strong> [4]. Where <span class="tex">B</span> is, let
+          <span class="tex">r</span> be its distance to the nearest free point (or any smaller
+          number). <span class="tex">U</span> holds the disk (ball) of radius
+          <span class="tex">r</span> around <span class="tex">B</span>, so
+          <span class="tex">B</span> can't stop before it leaves that disk, and Brownian motion
+          leaves a disk at a uniform point of its circle. So <span class="tex">B</span> jumps
+          straight there; by the strong Markov property this is exact. For
+          <span class="tex">r</span> the page takes the larger of two lower bounds: how deep
+          <span class="tex">B</span> is in the copy <span class="tex">q + D</span> it is deepest
+          in, and, deep inside the cluster, the radius of a ball around the source that
+          <span class="tex">U</span> is known to hold, minus how far
+          <span class="tex">B</span> is from the source. That ball comes from a grid of cells
+          looked at in order of distance from the source: a cell counts once all of it is inside
+          <span class="tex">U</span>, which is checked in one copy, or in quarters, and at the
+          smallest quarters with the exact nearest free point (next).
+        </p>
+        <p>
+          <strong>The nearest free point, exactly.</strong> Where two copies overlap only a
+          little, <span class="tex">B</span> can be close to the edges of both and still far
+          from every free point, so a small depth never stops <span class="tex">B</span> by
+          itself. Instead the page finds the free point <span class="tex">p</span> nearest
+          <span class="tex">B</span> exactly. It is on the edge of <span class="tex">U</span>,
+          which is made of pieces of the copies' edges. On a circle, a sphere or a line, the
+          distance to <span class="tex">B</span> stops changing at only two places, the nearest
+          point and the farthest. So <span class="tex">p</span> is a copy's edge point nearest
+          <span class="tex">B</span>, a point where two copies' edges cross, or in space the
+          point nearest <span class="tex">B</span> of a circle where two spheres meet, or a point
+          where three meet. The page lists those near <span class="tex">B</span>, keeps the free
+          ones, and takes the nearest. For cubes there are even fewer to try: each coordinate of
+          <span class="tex">p</span> is <span class="tex">B</span>'s own or a face's.
+        </p>
+        <p>
+          <strong>The one approximation.</strong> The jumps get smaller as
+          <span class="tex">B</span> nears a free point and never quite reach it, so
+          <span class="tex">B</span> stops once the nearest free point is within
+          <span class="tex">\varepsilon</span> tile radii (the Advanced box), and moves straight
+          to it: its tile then just touches the cluster and overlaps no tile. If no free point is
+          within <span class="tex">\varepsilon</span>, <span class="tex">B</span> jumps that far.
+          As <span class="tex">\varepsilon \to 0</span> this is exactly the model. For a given
+          cluster, the free points have a cone of some fixed opening at every point of the edge
+          of <span class="tex">U</span> (where two copies' edges cross, the angle between them;
+          it closes up only where two round copies just touch, which has chance 0), so the
+          number of jumps grows only like <span class="tex">\log(1/\varepsilon)</span>
+          [5, Theorem 2 and Corollary 3]; the model check measures it.
+        </p>
+        <p>
+          <strong>What is known.</strong> On a lattice, internal DLA grows into a ball, with
+          errors far smaller than its radius [2] (see Internal Discrete DLA). I don't know of a
+          theorem about the shape of this continuous version, with tiles that only touch, so its
+          shape is an open question here.
+        </p>
+        <p>
+          <strong>Random numbers.</strong> Move <span class="tex">j</span> of particle
+          <span class="tex">p</span> uses a uniform number made from the seed,
+          <span class="tex">p</span> and <span class="tex">j</span>. So particle
+          <span class="tex">p</span> walks the same way however many come after it, and going
+          from <span class="tex">n</span> to <span class="tex">n + 1</span> particles only adds a
+          tile.
+        </p>
+        <p><strong>References</strong></p>
+        <ol class="small">
+          <li>P. Diaconis and W. Fulton, &ldquo;A growth model, a game, an algebra, Lagrange
+            inversion, and characteristic classes&rdquo;, <em>Rend. Sem. Mat. Univ. Pol.
+            Torino</em> 49 (1991), 95&ndash;119.</li>
+          <li>G. Lawler, M. Bramson and D. Griffeath, &ldquo;Internal diffusion limited
+            aggregation&rdquo;, <em>Ann. Probab.</em> 20 (1992), 2117&ndash;2140.</li>
+          <li>P. M&ouml;rters and Y. Peres, <em>Brownian Motion</em>, Cambridge
+            University Press, 2010.</li>
+          <li>M. E. Muller, &ldquo;Some continuous Monte Carlo methods for the
+            Dirichlet problem&rdquo;, <em>Ann. Math. Statist.</em> 27 (1956),
+            569&ndash;589.</li>
+          <li>I. Binder and M. Braverman, &ldquo;The rate of convergence of the walk
+            on spheres algorithm&rdquo;, <em>Geom. Funct. Anal.</em> 22 (2012),
+            558&ndash;587.</li>
+          <li>M. de Berg, O. Cheong, M. van Kreveld and M. Overmars,
+            <em>Computational Geometry: Algorithms and Applications</em>, 3rd ed.,
+            Springer, 2008.</li>
+        </ol>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <!-- math.js (https://mathjs.org) reads the typed formula, and KaTeX
+       (https://katex.org) typesets it. Version numbers are fixed so an
+       update can never change the site by surprise. -->
+  <script src="https://cdn.jsdelivr.net/npm/mathjs@15.2.0/lib/browser/math.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/katex.min.js"></script>
+
+  <!-- The code the sims share (in js/, see the README): page helpers
+       (they also typeset the formulas, so they come after KaTeX), the
+       second thread's run loop, heap and random numbers, charts, colors,
+       the picture's view, reading formulas with sliders, the 3D vectors
+       (sim-honeycombs.js), the tile shape, Brownian motion's jumps, the
+       cluster and its second thread, and what the continuous DLA pages
+       share. Then the growth (it runs in a second thread), then this
+       page's code. -->
+  <script src="../../js/sim-page.js"></script>
+  <script src="../../js/sim-worker.js"></script>
+  <script src="../../js/sim-charts.js"></script>
+  <script src="../../js/sim-colors.js"></script>
+  <script src="../../js/sim-view.js"></script>
+  <script src="../../js/formulas.js"></script>
+  <script src="../../js/sim-honeycombs.js"></script>
+  <script src="../../js/sim-tile-shape.js"></script>
+  <script src="../../js/sim-continuum.js"></script>
+  <script src="../../js/sim-cluster.js"></script>
+  <script src="../../js/sim-cluster-page.js"></script>
+  <script src="internal-continuous-dla-growth.js"></script>
+  <script src="internal-continuous-dla.js"></script>
+</body>
+</html>

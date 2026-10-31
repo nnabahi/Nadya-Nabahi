@@ -49,6 +49,9 @@
                                 circle around it [x, y, radius], so a sim
                                 can skip a whole run that is too far away
          mostRho(k0, k1)        the largest rho[k] for k from k0 to k1
+     tileFromOptions(options)  the polygon or polyhedron of the tile a
+                         page's options ask for (its formula, sliders and
+                         dimension)
      tileOutline(shape)  DRAWN_CORNERS of its corners, for a page to draw
                          (a polyhedron: its corners and triangles on a
                          coarser grid)
@@ -66,6 +69,9 @@
          rhoMax, symmetric, round   as for the polygon (round: a ball)
          convex                 whether T passed the test of convexity
                                 (see tilePolyhedron)
+         box                    T's half-widths [x, y, z] if it is a box
+                                with its sides along x, y and z (boxOf),
+                                null if not
          grid, opposite         the grid of directions (cubeGrid), and
                                 for each corner, the one in the
                                 opposite direction
@@ -80,8 +86,19 @@
                         and slide, the move that makes them touch (see
                         that section). In space, T must be convex.
 
+   THE UNION OF THE COPIES (Internal Continuous DLA)
+     copyCover(shape)   for copies of T moved without turning: how deep a
+                        point is inside the union U of the copies q + D,
+                        and the point outside every copy (where a tile
+                        fits) nearest a point, found exactly (see that
+                        section). For now T must be a disk or a convex
+                        polygon in the plane, and a ball or a box in
+                        space.
+
    In space it uses the 3D vectors of js/sim-honeycombs.js (add3, sub3,
-   scale3, dot3, cross3), so a page with 3D tiles loads that file too.
+   scale3, dot3, cross3), so a page with 3D tiles loads that file too;
+   copyCover uses them in the plane as well, with perpendicularPair of
+   js/sim-continuum.js.
    ===================================================================== */
 
 const TILE_CORNERS = 4096;
@@ -301,6 +318,15 @@ function tilePolygon(inT) {
     area: area, symmetric: symmetric, convex: convex, round: round,
     gx: gx, gy: gy, gauge: gauge, runs: runs, bigRuns: bigRuns, mostRho: mostRho,
   };
+}
+
+// The tile a continuous sim's page asks for: its formula (options
+// tileFormula, with the sliders' numbers, options.values) read in the
+// page's dimension (options.dim) as a polygon, or in space a
+// polyhedron. (In a second thread, with math.js loaded.)
+function tileFromOptions(options) {
+  const inT = readShape(options.tileFormula, options.values, "The tile", options.dim);
+  return options.dim === 3 ? tilePolyhedron(inT) : tilePolygon(inT);
 }
 
 // How far T reaches in the direction u (a unit vector [x, y], or
@@ -544,8 +570,38 @@ function tilePolyhedron(inT) {
 
   return {
     dims: 3, count: count, px: px, py: py, pz: pz, rho: rho, rhoMax: rhoMax,
-    symmetric: symmetric, round: round, convex: convex, grid: grid, opposite: opposite, farthest: farthest,
+    symmetric: symmetric, round: round, convex: convex, box: round ? null : boxOf([px, py, pz], rhoMax),
+    grid: grid, opposite: opposite, farthest: farthest,
   };
+}
+
+// Is the polyhedron with these corners (coordinates[d][c]: coordinate d
+// of corner c) a box with its sides along x, y and z? It is when every
+// corner is on the smallest such box around them and that box's 8
+// corners are among them (to 1e-9 tile radii): then the corners' convex
+// hull is the box. Its half-widths [x, y, z] if so, null if not. (For a
+// cube centered at the origin the grid of directions has the cube's
+// corners; a box of other proportions usually comes out with its
+// corners cut off a little, so it is not a box here.)
+function boxOf(coordinates, rhoMax) {
+  const close = 1e-9 * rhoMax, count = coordinates[0].length;
+  const low = coordinates.map(function (c) { return Math.min(...c); }), high = coordinates.map(function (c) { return Math.max(...c); });
+  for (let c = 0; c < count; c++) {
+    let onSide = false;
+    for (let d = 0; d < 3; d++) {
+      if (Math.abs(coordinates[d][c] - low[d]) <= close || Math.abs(coordinates[d][c] - high[d]) <= close) onSide = true;
+    }
+    if (!onSide) return null;
+  }
+  for (let corner = 0; corner < 8; corner++) {
+    const at = [0, 1, 2].map(function (d) { return (corner >> d) & 1 ? high[d] : low[d]; });
+    let found = false;
+    for (let c = 0; c < count && !found; c++) {
+      found = [0, 1, 2].every(function (d) { return Math.abs(coordinates[d][c] - at[d]) <= close; });
+    }
+    if (!found) return null;
+  }
+  return [0, 1, 2].map(function (d) { return (high[d] - low[d]) / 2; });
 }
 
 
@@ -694,15 +750,7 @@ function differencePolygon(shape) {
 
 // CONVEX: the gap from the difference polygon D (differencePolygon).
 function convexGap(D) {
-  const N = D.x.length, g = { gap: gap, slide: [0, 0] };
-  // Each edge k (corner k to corner k+1): its outer normal and how far
-  // its line is from 0.
-  const nx = new Float64Array(N), ny = new Float64Array(N), h = new Float64Array(N);
-  for (let k = 0; k < N; k++) {
-    const j = (k + 1) % N, ex = D.x[j] - D.x[k], ey = D.y[j] - D.y[k], length = Math.hypot(ex, ey) || 1;
-    nx[k] = ey / length; ny[k] = -ex / length;
-    h[k] = nx[k] * D.x[k] + ny[k] * D.y[k];
-  }
+  const N = D.x.length, g = { gap: gap, slide: [0, 0] }, { nx, ny, h } = edgeLines(D);
   let step = 1;
   while (4 * step <= N) step *= 2;
   const firstStep = step;
@@ -710,18 +758,7 @@ function convexGap(D) {
   function gap(place, q, best) {
     const dx = place[0] - q[0], dy = place[1] - q[1];
     const f = function (k) { k = ((k % N) + N) % N; return nx[k] * dx + ny[k] * dy - h[k]; };
-    // The edge the ray from 0 to (dx, dy) crosses: the last corner at a
-    // smaller angle (a binary search; before the first, the edge round
-    // from the last corner).
-    const angle = Math.atan2(dy, dx);
-    let low = 0, high = N - 1;
-    if (angle < D.angle[0]) low = N - 1;
-    else {
-      while (low < high) {
-        const mid = (low + high + 1) >> 1;
-        if (D.angle[mid] <= angle) low = mid; else high = mid - 1;
-      }
-    }
+    const low = rayEdge(D, dx, dy);
     if (f(low) <= 0) { g.slide[0] = g.slide[1] = 0; return 0; }   // inside D: the copies overlap
     // The peak of f, by steps that halve.
     let k = low, value = f(k);
@@ -742,6 +779,33 @@ function convexGap(D) {
     return d;
   }
   return g;
+}
+
+// Each edge k of a convex polygon D (corner k to corner k + 1, going
+// counterclockwise): its outer normal (nx[k], ny[k]) and how far its line
+// is from 0, h[k].
+function edgeLines(D) {
+  const N = D.x.length, nx = new Float64Array(N), ny = new Float64Array(N), h = new Float64Array(N);
+  for (let k = 0; k < N; k++) {
+    const j = (k + 1) % N, ex = D.x[j] - D.x[k], ey = D.y[j] - D.y[k], length = Math.hypot(ex, ey) || 1;
+    nx[k] = ey / length; ny[k] = -ex / length;
+    h[k] = nx[k] * D.x[k] + ny[k] * D.y[k];
+  }
+  return { nx: nx, ny: ny, h: h };
+}
+
+// The edge of D (differencePolygon, with 0 inside it) that the ray from 0
+// through (dx, dy) crosses: the last corner at a smaller angle (a binary
+// search; before the first, the edge round from the last corner).
+function rayEdge(D, dx, dy) {
+  const N = D.x.length, angle = Math.atan2(dy, dx);
+  if (angle < D.angle[0]) return N - 1;
+  let low = 0, high = N - 1;
+  while (low < high) {
+    const mid = (low + high + 1) >> 1;
+    if (D.angle[mid] <= angle) low = mid; else high = mid - 1;
+  }
+  return low;
 }
 
 // The point of the segment from a to b nearest (x, y).
@@ -1055,14 +1119,333 @@ function nearestOfAll(p, answers) {
 
 
 /* =====================================================================
+   THE UNION OF THE COPIES OF D (Internal Continuous DLA)
+   ---------------------------------------------------------------------
+   In Internal Continuous DLA the particle B starts inside the cluster
+   and stops the first moment its tile B + T overlaps no tile q + T of
+   the cluster. B + T and q + T overlap (more than touch) exactly when
+   B is inside q + D, with D = T - T as above, so B stops the first
+   moment it leaves the union U of the sets q + D. The points outside U
+   are the FREE points: the places where a tile fits.
+   copyCover(shape) returns { reach, depth, nearestFree, isFree }:
+     reach                 how far D reaches from its center (a copy
+                           whose center is farther than this from a
+                           point can't hold it)
+     depth(place, q)       how deep "place" is inside q + D: its distance
+                           to the edge of q + D if it is inside (0 or
+                           less if it isn't). U holds the disk (ball) of
+                           that radius around the place, so the walk on
+                           spheres can jump that far
+     nearestFree(x, δ, near)   the free point nearest x, if it is
+                           within δ of x (null if none is), where "near"
+                           lists the centers of every copy within
+                           reach + δ of x (any others are too far to
+                           matter)
+     isFree(p, near)       whether p is inside none of the copies "near"
+                           (by more than FREE_SLACK)
+
+   THE NEAREST FREE POINT, EXACTLY. Let p be the free point nearest x.
+   If x is free, p is x. Otherwise p is on the edge of U, which is made
+   of pieces of the copies' own edges: arcs of circles (disks), pieces
+   of segments (polygons) or patches of spheres (balls). They end where
+   two copies' edges cross (in space, on circles where two spheres
+   meet, and those end where three spheres meet). On a circle, a sphere
+   or a line, the distance to x stops changing at only two places, the
+   nearest point and the farthest, and the farthest is never smallest
+   (unless the distance is the same everywhere: from a circle's or
+   sphere's center, or from a circle's axis). So p is one of these
+   CANDIDATES:
+     - a copy's edge point nearest x: the point of its circle (sphere)
+       nearest x, or of one of its edges, which may be a corner;
+     - a point where the edges of two copies cross;
+     - in space: the point nearest x of a circle where two spheres meet,
+       and a point where three spheres meet.
+   (Where the distance is the same everywhere, any one point stands for
+   the rest: if it isn't free but some other point is, the free part
+   ends at a candidate of the next kind.) So it is enough to list the
+   candidates within δ of x, which involve only the copies whose edges
+   pass within δ of x, keep the free ones, and take the nearest. A
+   candidate counts as free when no copy holds it deeper than
+   FREE_SLACK tile radii (a crossing point worked out in floating point
+   can be a hair inside the copies it is on), so a tile put there
+   overlaps another by at most that.
+
+   The kinds of tile it can do, for now:
+     ROUND (a disk or ball of radius ρ): D is the disk (ball) of radius
+       2ρ, and the candidates are as above.
+     CONVEX, IN THE PLANE: D is the convex polygon of copyGap's CONVEX
+       way. Its edges near a point are found through the tree of
+       circles of the edge-by-edge gap (edgeTree).
+     A BOX, IN SPACE (a cube, say: boxOf): D is the box twice as wide,
+       and the candidates are fewer still. A point is free when it is
+       beyond some face of every box, so the free points make up pieces,
+       each cut out by one face's plane from each box. The point of
+       such a piece nearest x is x with some of its coordinates moved
+       onto those planes. So each coordinate of p is x's own, or a
+       face's within δ of x's: only a few points to try.
+   Any other tile throws an Error saying so (in space, a tile that is
+   neither a ball nor a box; in the plane, a tile that isn't convex).
+   In practice the boxes are cubes: a box of other proportions usually
+   comes out of tilePolyhedron with its corners cut off a little, so
+   boxOf doesn't count it as a box.
+   It works with points in space ([x, y, z]; in the plane z = 0), with
+   the 3D vectors of js/sim-honeycombs.js and perpendicularPair of
+   js/sim-continuum.js.
+   ===================================================================== */
+
+// A candidate no copy holds deeper than this (in tile radii) is free.
+const FREE_SLACK = 1e-12;
+
+function copyCover(shape) {
+  const dims = shape.dims || 2;
+  let kit;
+  if (shape.round) kit = roundCover(2 * shape.rhoMax, dims);
+  else if (dims === 3) {
+    if (!shape.box) throw new Error("For now a 3D tile must be a ball or a cube (with its sides along x, y and z).");
+    kit = boxCover(shape.box.map(function (w) { return 2 * w; }));
+  } else {
+    if (!shape.convex) throw new Error("For now the tile must be convex, and this one has a dent. Tiles with dents come next.");
+    kit = polygonCover(differencePolygon(shape));
+  }
+  const slack = FREE_SLACK * shape.rhoMax;
+
+  function isFree(p, near) {
+    for (const q of near) if (kit.depth(p, q) > slack) return false;
+    return true;
+  }
+
+  // The candidates within delta of x (x itself too), nearest first: the
+  // first free one.
+  function nearestFree(x, delta, near) {
+    const found = kit.candidates(x, delta, near).concat([x.slice()]);
+    const apart = found.map(function (p) { return Math.hypot(...p.map(function (v, d) { return v - x[d]; })); });
+    const order = [];
+    for (let k = 0; k < found.length; k++) if (apart[k] <= delta) order.push(k);
+    order.sort(function (a, b) { return apart[a] - apart[b]; });
+    for (const k of order) if (isFree(found[k], near)) return found[k];
+    return null;
+  }
+
+  return { reach: kit.reach, depth: kit.depth, nearestFree: nearestFree, isFree: isFree };
+}
+
+// ROUND: D is the disk (ball) of radius R. dims = 2 or 3.
+function roundCover(R, dims) {
+  function depth(place, q) {
+    let squared = 0;
+    for (let d = 0; d < dims; d++) squared += (place[d] - q[d]) * (place[d] - q[d]);
+    return R - Math.sqrt(squared);
+  }
+
+  function candidates(x, delta, near) {
+    const at = inSpace(x), found = [];
+    const centers = near.map(inSpace).filter(function (q) { return Math.abs(length3(sub3(at, q)) - R) <= delta; });
+    for (let i = 0; i < centers.length; i++) {
+      found.push(add3(centers[i], scale3(R, directionFrom(centers[i], at))));
+      for (let j = i + 1; j < centers.length; j++) {
+        const meet = spheresMeet(centers[i], centers[j], R);
+        if (!meet) continue;
+        if (dims === 2) {
+          // the circle where the two balls meet crosses the plane at the two crossing points
+          const across = scale3(meet.radius, unit3(cross3(meet.axis, [0, 0, 1])));
+          found.push(add3(meet.middle, across), sub3(meet.middle, across));
+          continue;
+        }
+        found.push(nearestOnCircle(at, meet));
+        for (let k = j + 1; k < centers.length; k++) found.push(...threeSpheresMeet(centers[i], centers[j], centers[k], R));
+      }
+    }
+    return found.map(function (p) { return p.slice(0, dims); });
+  }
+
+  return { reach: R, depth: depth, candidates: candidates };
+}
+
+// A point [x, y] or [x, y, z] as a point in space.
+function inSpace(p) { return [p[0], p[1], p.length > 2 ? p[2] : 0]; }
+function unit3(v) { return scale3(1 / length3(v), v); }
+
+// The direction from q to p, as a unit vector (any one if p is q).
+function directionFrom(q, p) {
+  const v = sub3(p, q), size = length3(v);
+  return size > 0 ? scale3(1 / size, v) : [1, 0, 0];
+}
+
+// Where two spheres of radius R around a and b meet: a circle, with its
+// middle, its axis (the direction from a to b) and its radius (0 if they
+// just touch); null if they don't meet.
+function spheresMeet(a, b, R) {
+  const v = sub3(b, a), d = length3(v);
+  if (d === 0 || d > 2 * R) return null;
+  return { middle: scale3(0.5, add3(a, b)), axis: scale3(1 / d, v), radius: Math.sqrt(Math.max(0, R * R - d * d / 4)) };
+}
+
+// The point of such a circle nearest p (any point of it, if p is on its axis).
+function nearestOnCircle(p, circle) {
+  const off = sub3(p, circle.middle), flat = sub3(off, scale3(dot3(off, circle.axis), circle.axis)), size = length3(flat);
+  const toward = size > 1e-12 * circle.radius ? scale3(1 / size, flat) : perpendicularPair(circle.axis)[0];
+  return add3(circle.middle, scale3(circle.radius, toward));
+}
+
+// The points where three spheres of radius R around a, b and c meet (0,
+// 1 or 2 of them): on the line square to the plane of a, b and c through
+// the center o of the circle through them, at height t above and below
+// it with t^2 + |o - a|^2 = R^2. (With u = b - a and v = c - a,
+// o - a = (|u|^2 v - |v|^2 u) x (u x v) / (2 |u x v|^2).)
+function threeSpheresMeet(a, b, c, R) {
+  const u = sub3(b, a), v = sub3(c, a), n = cross3(u, v), nn = dot3(n, n);
+  if (nn <= 1e-24 * dot3(u, u) * dot3(v, v)) return [];       // the centers on one line: no common point
+  const o = add3(a, scale3(1 / (2 * nn), cross3(sub3(scale3(dot3(u, u), v), scale3(dot3(v, v), u)), n)));
+  const tt = R * R - dot3(sub3(o, a), sub3(o, a));
+  if (tt < 0) return [];
+  const up = scale3(Math.sqrt(tt / nn), n);
+  return [add3(o, up), sub3(o, up)];
+}
+
+// CONVEX, IN THE PLANE: D is a convex polygon (differencePolygon).
+function polygonCover(D) {
+  const N = D.x.length, tree = edgeTree(D.x, D.y, N), { nx, ny, h } = edgeLines(D);
+  let reach = 0;
+  for (let k = 0; k < N; k++) reach = Math.max(reach, Math.hypot(D.x[k], D.y[k]));
+  const stack = [];   // (for the searches of the tree)
+
+  // How far (vx, vy) is from edge k.
+  function toEdge(k, vx, vy) {
+    const j = (k + 1) % N, ex = D.x[j] - D.x[k], ey = D.y[j] - D.y[k];
+    let t = ((vx - D.x[k]) * ex + (vy - D.y[k]) * ey) / (ex * ex + ey * ey || 1);
+    t = t < 0 ? 0 : t > 1 ? 1 : t;
+    return Math.hypot(D.x[k] + t * ex - vx, D.y[k] + t * ey - vy);
+  }
+  // A part of the tree is at least this far from (vx, vy).
+  function toPart(part, vx, vy) { return Math.hypot(tree.x[part] - vx, tree.y[part] - vy) - tree.r[part]; }
+
+  // The distance from (vx, vy) to D's nearest edge: a search of the tree
+  // that skips every part farther than the nearest edge so far.
+  function edgeDistance(vx, vy) {
+    let best = Infinity;
+    stack.length = 0;
+    stack.push(0);
+    while (stack.length > 0) {
+      const part = stack.pop();
+      if (toPart(part, vx, vy) >= best) continue;
+      const left = tree.left[part], right = tree.right[part];
+      if (left >= 0) {
+        // the nearer half is looked at first
+        if (toPart(left, vx, vy) < toPart(right, vx, vy)) stack.push(right, left); else stack.push(left, right);
+        continue;
+      }
+      for (let k = tree.lo[part]; k < tree.hi[part]; k++) best = Math.min(best, toEdge(k, vx, vy));
+    }
+    return best;
+  }
+
+  // The edges within "within" of (vx, vy), by number.
+  function edgesWithin(vx, vy, within) {
+    const found = [];
+    stack.length = 0;
+    stack.push(0);
+    while (stack.length > 0) {
+      const part = stack.pop();
+      if (toPart(part, vx, vy) > within) continue;
+      if (tree.left[part] >= 0) { stack.push(tree.left[part], tree.right[part]); continue; }
+      for (let k = tree.lo[part]; k < tree.hi[part]; k++) if (toEdge(k, vx, vy) <= within) found.push(k);
+    }
+    return found;
+  }
+
+  // Inside D (the side of the edge the ray from 0 crosses that 0 is on),
+  // how far the edge is.
+  function depth(place, q) {
+    const vx = place[0] - q[0], vy = place[1] - q[1], k = rayEdge(D, vx, vy);
+    if (nx[k] * vx + ny[k] * vy - h[k] >= 0) return 0;
+    return edgeDistance(vx, vy);
+  }
+
+  function candidates(x, delta, near) {
+    const found = [], lists = [];
+    for (const q of near) {
+      const edges = edgesWithin(x[0] - q[0], x[1] - q[1], delta);
+      if (edges.length === 0) continue;
+      for (const k of edges) {
+        const j = (k + 1) % N, p = nearestOnSegment(x[0], x[1], D.x[k] + q[0], D.y[k] + q[1], D.x[j] + q[0], D.y[j] + q[1]);
+        found.push(p);
+      }
+      lists.push({ q: q, edges: edges });
+    }
+    for (let a = 0; a < lists.length; a++) {
+      for (let b = a + 1; b < lists.length; b++) {
+        const [qa, qb] = [lists[a].q, lists[b].q];
+        for (const k of lists[a].edges) {
+          const k2 = (k + 1) % N;
+          for (const m of lists[b].edges) {
+            const m2 = (m + 1) % N;
+            const cross = segmentsCross(D.x[k] + qa[0], D.y[k] + qa[1], D.x[k2] + qa[0], D.y[k2] + qa[1],
+                                        D.x[m] + qb[0], D.y[m] + qb[1], D.x[m2] + qb[0], D.y[m2] + qb[1]);
+            if (cross) found.push(cross);
+          }
+        }
+      }
+    }
+    return found;
+  }
+
+  return { reach: reach, depth: depth, candidates: candidates };
+}
+
+// Where the segments a-b and c-d cross, [x, y], or null if they don't
+// (or are parallel: then where their common part ends is a corner,
+// which is a candidate anyway).
+function segmentsCross(ax, ay, bx, by, cx, cy, dx, dy) {
+  const rx = bx - ax, ry = by - ay, sx = dx - cx, sy = dy - cy, den = rx * sy - ry * sx;
+  if (Math.abs(den) <= 1e-15 * Math.hypot(rx, ry) * Math.hypot(sx, sy)) return null;
+  const t = ((cx - ax) * sy - (cy - ay) * sx) / den, u = ((cx - ax) * ry - (cy - ay) * rx) / den;
+  return t >= 0 && t <= 1 && u >= 0 && u <= 1 ? [ax + t * rx, ay + t * ry] : null;
+}
+
+// A BOX, IN SPACE: D is the box with these half-widths along x, y and z
+// (it works in the plane too).
+function boxCover(half) {
+  const dims = half.length;
+
+  function depth(place, q) {
+    let inside = true, deepest = Infinity, out = 0;
+    for (let d = 0; d < dims; d++) {
+      const beyond = Math.abs(place[d] - q[d]) - half[d];
+      if (beyond >= 0) { inside = false; out += beyond * beyond; } else deepest = Math.min(deepest, -beyond);
+    }
+    return inside ? deepest : -Math.sqrt(out);
+  }
+
+  // Each coordinate: x's own, or a face's within delta of it; every way
+  // of choosing them.
+  function candidates(x, delta, near) {
+    let found = [[]];
+    for (let d = 0; d < dims; d++) {
+      const values = [x[d]];
+      for (const q of near) {
+        for (const v of [q[d] - half[d], q[d] + half[d]]) if (Math.abs(v - x[d]) <= delta && values.indexOf(v) < 0) values.push(v);
+      }
+      found = [].concat(...found.map(function (p) { return values.map(function (v) { return p.concat(v); }); }));
+    }
+    return found;
+  }
+
+  return { reach: Math.hypot(...half), depth: depth, candidates: candidates };
+}
+
+
+/* =====================================================================
    FOR A SECOND THREAD: everything above, to hand to runInWorker
    (js/sim-page.js) as helpers.
    ===================================================================== */
 function tileShapeHelpers() {
-  return [readShape, insideCurve, tilePolygon, reachOf, tileOutline, cubeGrid, tilePolyhedron,
-          copyGap, roundGap, differencePolygon, convexGap, nearestOnSegment, edgeByEdgeGap, edgeTree, segmentsApart, endToSegment,
+  return [readShape, insideCurve, tilePolygon, tileFromOptions, reachOf, tileOutline, cubeGrid, tilePolyhedron,
+          boxOf, copyGap, roundGap, differencePolygon, convexGap, edgeLines, rayEdge, nearestOnSegment, edgeByEdgeGap, edgeTree,
+          segmentsApart, endToSegment,
           polyhedronGap, squareToSimplex, nearestOnSimplex, nearestOnEdge, nearestOnTriangle, nearestOnTetrahedron, nearestOfAll,
+          copyCover, roundCover, inSpace, unit3, directionFrom, spheresMeet, nearestOnCircle, threeSpheresMeet, polygonCover,
+          segmentsCross, boxCover,
           { TILE_CORNERS: TILE_CORNERS, DRAWN_CORNERS: DRAWN_CORNERS, RUN_EDGES: RUN_EDGES, BIG_RUN: BIG_RUN, STRAIGHT_ON: STRAIGHT_ON,
             LEAF_EDGES: LEAF_EDGES, APART: APART, FACE_CELLS: FACE_CELLS, DRAWN_FACE_CELLS: DRAWN_FACE_CELLS, GROUP_CELLS: GROUP_CELLS,
-            START_CELLS: START_CELLS, GJK_CLOSE: GJK_CLOSE, GJK_STEPS: GJK_STEPS, FLAT: FLAT }];
+            START_CELLS: START_CELLS, GJK_CLOSE: GJK_CLOSE, GJK_STEPS: GJK_STEPS, FLAT: FLAT, FREE_SLACK: FREE_SLACK }];
 }

@@ -20,6 +20,9 @@
                                      short time (the check pages follow
                                      it in small steps, against the
                                      exact jumps)
+   and two numbers the continuous DLA sims share: DEFAULT_EPSILON, where
+   their walk on spheres stops, and SMALL_STEP_SHARE, for the check
+   pages' small steps.
    "draw" is a function giving uniform numbers in [0, 1).
    The source for all of it: P. Morters and Y. Peres, "Brownian Motion",
    Cambridge University Press, 2010, Chapter 3 (the Poisson kernel,
@@ -28,6 +31,21 @@
    Load it after js/sim-honeycombs.js (its 3D vectors dot3, cross3,
    length3).
    ===================================================================== */
+
+// The continuous DLA sims' particle stops within this much of where it
+// would stop, in tile radii (the walk on spheres never quite gets
+// there), unless the page says otherwise.
+const DEFAULT_EPSILON = 1e-4;
+
+// With the option smallSteps (for the check pages), a particle moves in
+// small steps of Brownian motion instead of jumping across each circle
+// of radius r: the steps have standard deviation r / SMALL_STEP_SHARE in
+// each direction, so a step reaches past the circle only with a chance
+// of about 1 in 270,000 (past the sphere, in space, about 1 in 65,000:
+// a step's length over its standard deviation has the chi law with 2,
+// or 3, degrees of freedom), and past where the particle would stop,
+// which is farther, even less often.
+const SMALL_STEP_SHARE = 5;
 
 // A point taken uniformly on the circle (dims = 2) or sphere (3) of
 // radius R around the origin, from uniform numbers draw().
@@ -108,4 +126,7 @@ function brownianStep(dims, sd, draw) {
    FOR A SECOND THREAD: everything above, to hand to runInWorker
    (js/sim-page.js) as helpers.
    ===================================================================== */
-function continuumHelpers() { return [pointOnSphere, brownianReturn, returnPoint2D, returnPoint3D, perpendicularPair, brownianStep]; }
+function continuumHelpers() {
+  return [pointOnSphere, brownianReturn, returnPoint2D, returnPoint3D, perpendicularPair, brownianStep,
+          { DEFAULT_EPSILON: DEFAULT_EPSILON, SMALL_STEP_SHARE: SMALL_STEP_SHARE }];
+}
