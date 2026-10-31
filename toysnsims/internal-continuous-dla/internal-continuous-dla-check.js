@@ -20,7 +20,9 @@
      5. Jumps against small steps, epsilon, a big cluster recounted,
         and coupling: the tests External Continuous DLA's check page
         runs too (js/check-page.js).
-     6. The tiles it can't do yet say so.
+     6. D's outline for tiles with dents (differenceOutline), against
+        the gap between two copies found another way.
+     7. The 3D tiles it can't do yet say so.
    ===================================================================== */
 
 // The tiles tested: tilePolygon (in the plane) or tilePolyhedron (in
@@ -46,9 +48,13 @@
 //     where every |n · v| <= 3; and the tile at d has a point of ruler
 //     value λ in the tile at 0 when d is in λT - T, where every
 //     n · d <= λ + 2 and -n · d <= 2λ + 1.
+//   - Your star, sqrt(x^2 + y^2) <= 1 + 0.5 cos(5 atan2(y, x)), has
+//     dents. Its ruler comes from D's outline (differenceOutline,
+//     outlineRuler), which section 6 tests against the gap between two
+//     copies found another way; deepest is deepestCorner.
 function testTiles(dims) {
   if (dims === 2) {
-    const ellipse = tilePolygon(function (x, y) { return x * x + y * y / 0.36 <= 1; });
+    const ellipse = tilePolygon(function (x, y) { return x * x + y * y / 0.36 <= 1; }), star = starTile(0.5, 5);
     const sides = [[1, 3], [1, -3], [-2, 0]], along = function (n, v) { return n[0] * v[0] + n[1] * v[1]; };
     return [
       { name: "Disks", dims: 2, shape: tilePolygon(function (x, y) { return x * x + y * y <= 1; }), ruler: ballRuler, deepest: ballDeepest },
@@ -62,6 +68,8 @@ function testTiles(dims) {
         deepest: function (d) {
           return Math.max(0, ...sides.map(function (n) { return Math.max(along(n, d) - 2, (-along(n, d) - 1) / 2); }));
         } },
+      { name: "Your star", dims: 2, shape: star, ruler: outlineRuler(differenceOutline(star)),
+        deepest: function (d) { return deepestCorner(star, d[0], d[1]); } },
     ];
   }
   return [
@@ -72,6 +80,22 @@ function testTiles(dims) {
 }
 function ballRuler(v) { return Math.hypot(...v) / 2; }
 function boxRuler(v) { return Math.max(...v.map(Math.abs)) / 2; }
+
+// The star of the sim's preset, with its arms cut s deep, and h arms.
+function starTile(s, h) { return tilePolygon(function (x, y) { return Math.hypot(x, y) <= 1 + s * Math.cos(h * Math.atan2(y, x)); }); }
+
+// The ruler of a polygon D star-shaped around 0 (differenceOutline): at
+// v, |v| over how far the ray from 0 through v goes before it leaves D,
+// through the edge rayEdge finds. (Along the line of that edge: D can
+// have edges as short as 1e-12, which rounding can make the ray just
+// miss.)
+function outlineRuler(D) {
+  const N = D.x.length;
+  return function (v) {
+    const k = rayEdge(D, v[0], v[1]), j = (k + 1) % N, ex = D.x[j] - D.x[k], ey = D.y[j] - D.y[k];
+    return (v[0] * ey - v[1] * ex) / (D.x[k] * ey - D.y[k] * ex);
+  };
+}
 
 // The smallest ruler value of y - q over the tiles' centers q, plainly
 // (each tile looked at; one farther than 2 rhoMax along an axis can't
@@ -300,7 +324,42 @@ function checkInnerBall(t, sizes, points) {
 
 
 /* =====================================================================
-   6. THE TILES IT CAN'T DO YET
+   6. D'S OUTLINE, FOR TILES WITH DENTS
+   ---------------------------------------------------------------------
+   differenceOutline (js/sim-tile-shape.js) makes D = T - T's outline
+   from the reduced convolution. It is tested against the gap between
+   two copies of T found another way, edge by edge (copyGap, which
+   External Continuous DLA's check page tests against a plain answer).
+   At every corner of the outline, and at a point of each of its edges,
+   two copies that far apart must touch (gap 0, up to rounding), and
+   moved a hair farther apart (by 1e-9 of that, along the ray from 0)
+   they must not (gap above 0): so the outline is D's edge. Also D = -D,
+   so each corner's mirror must be on the outline, and the corners must
+   go round 0 in order of angle (D is star-shaped around 0). For three
+   stars: the preset, one whose dents reach the center (s = 1), and one
+   with 12 arms.
+   ===================================================================== */
+function checkOutline(s, h) {
+  const T = starTile(s, h), D = differenceOutline(T), gaps = copyGap(T), ruler = outlineRuler(D), N = D.x.length;
+  let worstGap = 0, apart = 0, worstMirror = 0, inOrder = true;
+  for (let k = 0; k < N; k++) {
+    const j = (k + 1) % N, u = (0.5 + 0.618 * k) % 1;   // the point of edge k this far along it
+    for (const p of [[D.x[k], D.y[k]], [D.x[k] + u * (D.x[j] - D.x[k]), D.y[k] + u * (D.y[j] - D.y[k])]]) {
+      worstGap = Math.max(worstGap, gaps.gap(p, [0, 0], Infinity));
+      if (gaps.gap([p[0] * (1 + 1e-9), p[1] * (1 + 1e-9)], [0, 0], Infinity) > 0) apart++;
+    }
+    worstMirror = Math.max(worstMirror, Math.abs(ruler([-D.x[k], -D.y[k]]) - 1));
+    if (k > 0 && !(D.angle[k] > D.angle[k - 1])) inOrder = false;
+  }
+  addRow("D's outline, the star with s = " + s + " and h = " + h, worstGap < 1e-12 && apart === 2 * N && worstMirror < 1e-12 && inOrder,
+         N + " corners, " + (inOrder ? "in order of angle" : "NOT in order of angle") + "; at them and at a point of each edge, the " +
+         "gap between the copies at most " + fourDigits(worstGap) + ", and moved a hair apart, " + apart + " of " + 2 * N +
+         " apart; the corners' mirrors at most " + fourDigits(worstMirror) + " off the outline (in ruler values)");
+}
+
+
+/* =====================================================================
+   7. THE 3D TILES IT CAN'T DO YET
    ---------------------------------------------------------------------
    copyCover must refuse them, with a message that says why, and never
    run them as a tile it can do (a polyhedron that is nearly a box is
@@ -308,7 +367,6 @@ function checkInnerBall(t, sizes, points) {
    ===================================================================== */
 function checkCantYet() {
   const tries = [
-    { name: "your star", shape: tilePolygon(function (x, y) { return Math.hypot(x, y) <= 1 + 0.5 * Math.cos(5 * Math.atan2(y, x)); }), says: "dent" },
     { name: "an ellipsoid", shape: tilePolyhedron(function (x, y, z) { return x * x + y * y / 0.36 + z * z / 0.1225 <= 1; }), says: "cube" },
     { name: "a box 1 by 0.6 by 0.35",
       shape: tilePolyhedron(function (x, y, z) { return Math.max(Math.abs(x), Math.abs(y) / 0.6, Math.abs(z) / 0.35) <= 1; }), says: "cube" },
@@ -317,7 +375,7 @@ function checkCantYet() {
     try { copyCover(x.shape); } catch (e) { return { pass: e.message.indexOf(x.says) >= 0, text: x.name + ": \"" + e.message + "\"" }; }
     return { pass: false, text: x.name + ": NOT refused" };
   });
-  addRow("The tiles it can't do yet say so", results.every(function (r) { return r.pass; }),
+  addRow("The 3D tiles it can't do yet say so", results.every(function (r) { return r.pass; }),
          results.map(function (r) { return r.text; }).join("; "));
 }
 
@@ -326,10 +384,11 @@ function allTests() {
   const make = newInternalContinuousDLA, flat = testTiles(2), space = testTiles(3), all = flat.concat(space);
   const [disks, squares] = flat, [balls, cubes] = space;
   // How many particles each tile's landings use, and its big cluster.
-  const runs = { "Disks": 20000, "Squares": 20000, "Ellipses": 5000, "Triangles": 20000, "Balls": 10000, "Cubes": 10000 };
-  const big = { "Disks": 3000, "Squares": 3000, "Ellipses": 1000, "Triangles": 3000, "Balls": 2000, "Cubes": 1000 };
+  const runs = { "Disks": 20000, "Squares": 20000, "Ellipses": 5000, "Triangles": 20000, "Your star": 2000, "Balls": 10000, "Cubes": 10000 };
+  const big = { "Disks": 3000, "Squares": 3000, "Ellipses": 1000, "Triangles": 3000, "Your star": 1000, "Balls": 2000, "Cubes": 1000 };
   return [disks, balls].map(function (t) { return function () { checkPoissonExit(t, 50000); }; }).concat(
     [squares, cubes].map(function (t) { return function () { checkSquareExit(t, 50000); }; }),
+    [[0.5, 5], [1, 5], [0.5, 12]].map(function ([s, h]) { return function () { checkOutline(s, h); }; }),
     all.map(function (t) { return function () { checkDepth(t, 5000, 16); }; }),
     all.map(function (t) { return function () { checkNearestFree(t, 300, 2000, 32); }; }),
     all.map(function (t) { return function () { checkInnerBall(t, [100, 500, big[t.name]], 10000); }; }),

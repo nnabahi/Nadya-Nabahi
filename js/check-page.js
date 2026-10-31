@@ -32,6 +32,7 @@
    js/sim-tile-shape.js and js/sim-cluster.js, and pass the growth's
    maker, "make"):
      ballDeepest(d), boxDeepest(d)       how deep two disks (balls) or squares (cubes) go into each other
+     deepestCorner(s, dx, dy)            ... and two copies of a tile with dents, corner by corner
      grownTiles(make, t, seed, n, more)  a growth of a test tile, grown to n particles
      centersOf(growth)                   its tiles' centers
      landingsOn(make, t, tiles, seed, runs, more), sameLandings(a, b, dims)
@@ -384,6 +385,20 @@ function checkReturn(dims, q, runs) {
 // half-width 1, centered d apart go into each other (deepest, above).
 function ballDeepest(d) { return Math.max(0, Math.hypot(...d) - 1); }
 function boxDeepest(d) { return Math.max(...d.map(function (x) { return Math.max(0, Math.abs(x) - 1); })); }
+
+// For a tile with dents (a polygon s, tilePolygon): the smallest ruler
+// value of a corner of the tile at (dx, dy) inside the tile at 0, and of
+// a corner of the tile at 0 inside the one at (dx, dy). Below 1, the
+// tiles overlap. (Two that overlap with no corner of one inside the
+// other overlap only in slivers whose sides are each a piece of one
+// edge, and the polygon has 4096 corners.)
+function deepestCorner(s, dx, dy) {
+  let least = Infinity;
+  for (let i = 0; i < s.M; i++) {
+    least = Math.min(least, s.gauge(dx + s.px[i], dy + s.py[i]), s.gauge(s.px[i] - dx, s.py[i] - dy));
+  }
+  return least;
+}
 
 // A growth of the tile t with this seed (and any more options), grown
 // to n particles.

@@ -91,9 +91,8 @@
                         point is inside the union U of the copies q + D,
                         and the point outside every copy (where a tile
                         fits) nearest a point, found exactly (see that
-                        section). For now T must be a disk or a convex
-                        polygon in the plane, and a ball or a box in
-                        space.
+                        section). In space, for now, T must be a ball
+                        or a cube.
 
    In space it uses the 3D vectors of js/sim-honeycombs.js (add3, sub3,
    scale3, dot3, cross3), so a page with 3D tiles loads that file too;
@@ -700,8 +699,7 @@ function roundGap(radius) {
 // starting from the one at the smallest angle (from -π). For a
 // symmetric T it is simply 2T.
 function differencePolygon(shape) {
-  const M = shape.M, px = shape.px, py = shape.py;
-  let x = [], y = [];
+  const M = shape.M, px = shape.px, py = shape.py, x = [], y = [];
   if (shape.symmetric) {
     for (let k = 0; k < M; k++) { x.push(2 * px[k]); y.push(2 * py[k]); }
   } else {
@@ -726,9 +724,15 @@ function differencePolygon(shape) {
       if (cross <= 0 && j < M) j++;
     }
   }
-  // Corners where the polygon goes straight on (the many corners along
-  // a square's side, say) are dropped: there the edges all have the same
-  // normal, so the search in convexGap couldn't tell them apart.
+  return outlineFrom(x, y);
+}
+
+// The polygon D with these corners (counterclockwise round 0), as
+// differencePolygon gives it. Corners where it goes straight on (the
+// many corners along a square's side, say) are dropped: there the edges
+// all have the same normal, so the search in convexGap couldn't tell
+// them apart.
+function outlineFrom(x, y) {
   const kept = [];
   for (let k = 0; k < x.length; k++) {
     const a = kept.length > 0 ? kept[kept.length - 1] : x.length - 1, b = (k + 1) % x.length;
@@ -796,9 +800,10 @@ function edgeLines(D) {
   return { nx: nx, ny: ny, h: h };
 }
 
-// The edge of D (differencePolygon, with 0 inside it) that the ray from 0
-// through (dx, dy) crosses: the last corner at a smaller angle (a binary
-// search; before the first, the edge round from the last corner).
+// The edge of D (differencePolygon or differenceOutline: star-shaped
+// round 0) that the ray from 0 through (dx, dy) crosses: the last corner
+// at a smaller angle (a binary search; before the first, the edge round
+// from the last corner).
 function rayEdge(D, dx, dy) {
   const N = D.x.length, angle = Math.atan2(dy, dx);
   if (angle < D.angle[0]) return N - 1;
@@ -1175,9 +1180,13 @@ function nearestOfAll(p, answers) {
    The kinds of tile it can do, for now:
      ROUND (a disk or ball of radius ρ): D is the disk (ball) of radius
        2ρ, and the candidates are as above.
-     CONVEX, IN THE PLANE: D is the convex polygon of copyGap's CONVEX
-       way. Its edges near a point are found through the tree of
-       circles of the edge-by-edge gap (edgeTree).
+     ANY TILE IN THE PLANE: D is a polygon, star-shaped around 0: for a
+       convex tile, the polygon of copyGap's CONVEX way, and for one
+       with dents, its outline (differenceOutline, below). Its edges near
+       a point are found through the tree of circles of the edge-by-edge
+       gap (edgeTree). Where D has dents, the pieces of the edge of U
+       also end at D's own corners, but those are edge points nearest x
+       already when they are the nearest free point.
      A BOX, IN SPACE (a cube, say: boxOf): D is the box twice as wide,
        and the candidates are fewer still. A point is free when it is
        beyond some face of every box, so the free points make up pieces,
@@ -1186,7 +1195,7 @@ function nearestOfAll(p, answers) {
        onto those planes. So each coordinate of p is x's own, or a
        face's within δ of x's: only a few points to try.
    Any other tile throws an Error saying so (in space, a tile that is
-   neither a ball nor a box; in the plane, a tile that isn't convex).
+   neither a ball nor a box).
    In practice the boxes are cubes: a box of other proportions usually
    comes out of tilePolyhedron with its corners cut off a little, so
    boxOf doesn't count it as a box.
@@ -1205,10 +1214,7 @@ function copyCover(shape) {
   else if (dims === 3) {
     if (!shape.box) throw new Error("For now a 3D tile must be a ball or a cube (with its sides along x, y and z).");
     kit = boxCover(shape.box.map(function (w) { return 2 * w; }));
-  } else {
-    if (!shape.convex) throw new Error("For now the tile must be convex, and this one has a dent. Tiles with dents come next.");
-    kit = polygonCover(differencePolygon(shape));
-  }
+  } else kit = polygonCover(differenceOutline(shape));
   const slack = FREE_SLACK * shape.rhoMax;
 
   function isFree(p, near) {
@@ -1304,7 +1310,8 @@ function threeSpheresMeet(a, b, c, R) {
   return [add3(o, up), sub3(o, up)];
 }
 
-// CONVEX, IN THE PLANE: D is a convex polygon (differencePolygon).
+// IN THE PLANE: D is a polygon star-shaped around 0, its corners
+// counterclockwise in order of angle (differenceOutline).
 function polygonCover(D) {
   const N = D.x.length, tree = edgeTree(D.x, D.y, N), { nx, ny, h } = edgeLines(D);
   let reach = 0;
@@ -1404,6 +1411,166 @@ function segmentsCross(ax, ay, bx, by, cx, cy, dx, dy) {
   return t >= 0 && t <= 1 && u >= 0 && u <= 1 ? [ax + t * rx, ay + t * ry] : null;
 }
 
+
+/* ---------------------------------------------------------------------
+   THE OUTLINE OF D FOR A TILE WITH DENTS (in the plane)
+   ---------------------------------------------------------------------
+   D = T - T is STAR-SHAPED around 0 whenever T is (as tilePolygon
+   needs): if v = s - t with s and t in T, then for 0 <= λ <= 1,
+   λv = λs - λt, with λs and λt in T. So each ray from 0 leaves D once,
+   and D's outline is, ray by ray, the farthest point of D on it.
+   D's edge is made of points s - t with s on T's edge and t on T's
+   edge, and in fact only of the REDUCED CONVOLUTION of T and -T: each
+   edge of one polygon moved by each corner of the other that sticks out
+   (turns left) and whose two edges' directions have the edge's
+   direction between them (C. Behar and J.-M. Lien, "Fast and robust 2D
+   Minkowski sum using reduced convolution", IEEE/RSJ IROS 2011,
+   1573-1578; the convolution is from L. Guibas, L. Ramshaw and
+   J. Stolfi, "A kinetic framework for computational geometry", Proc.
+   24th IEEE FOCS (1983) 100-111). Every point of those segments is in D,
+   so on each ray D's outline is the farthest of them: their outer
+   envelope. It is found in OUTLINE_BINS thin wedges of angle: in each,
+   the segments that reach into it, the angles where one of them ends or
+   two cross, and between those angles the farthest segment, found on
+   the middle ray. The outline's corners are where the farthest segment
+   changes: on the ray there, the farthest point of the wedge's segments
+   (many segments can end at the same angle, at other distances, and the
+   two farthest ones can just miss it). For a convex T this is the merge
+   of differencePolygon, which is used then.
+   Rounding: two segments that meet end to end can leave a crack of
+   about 1e-16 between them, so a segment counts as met a hair
+   (RAY_SLACK of its length) past its ends, and angles closer than
+   SAME_ANGLE are one (also where one is the edge between two wedges,
+   so no two corners are at the same angle).
+   --------------------------------------------------------------------- */
+const OUTLINE_BINS = 16384, CONE_BINS = 4096, RAY_SLACK = 1e-9, SAME_ANGLE = 1e-12;
+
+// D's outline as differencePolygon gives it ({ x, y, angle }), for any
+// star-shaped T in the plane.
+function differenceOutline(shape) {
+  if (shape.convex) return differencePolygon(shape);
+  const P = distinctCorners(shape.px, shape.py);
+  const Q = { x: P.x.map(function (v) { return -v; }), y: P.y.map(function (v) { return -v; }) };
+  return outerEnvelope(reducedConvolution(P, Q).concat(reducedConvolution(Q, P)));
+}
+
+// A polygon's corners { x, y }, leaving out any that repeats the one
+// before (where T reaches 0 in a few directions, say).
+function distinctCorners(px, py) {
+  const x = [], y = [], M = px.length;
+  for (let k = 0; k < M; k++) {
+    const j = (k + M - 1) % M;
+    if (px[k] !== px[j] || py[k] !== py[j]) { x.push(px[k]); y.push(py[k]); }
+  }
+  return { x: x, y: y };
+}
+
+// The edges of polygon A moved by the corners of polygon B that stick
+// out, where the edge's direction is between the directions of the
+// corner's two edges (both polygons counterclockwise): segments
+// [ax, ay, bx, by]. B's corners are filed in CONE_BINS directions by
+// the directions between their two edges, so each edge of A looks only
+// at the few in its own direction.
+function reducedConvolution(A, B) {
+  const M = B.x.length, cones = [], bins = [], found = [];
+  for (let b = 0; b < CONE_BINS; b++) bins.push([]);
+  const binOf = function (x, y) { return Math.min(CONE_BINS - 1, Math.floor((Math.atan2(y, x) + Math.PI) / (2 * Math.PI) * CONE_BINS)); };
+  for (let k = 0; k < M; k++) {
+    const a = (k + M - 1) % M, b = (k + 1) % M;
+    const ix = B.x[k] - B.x[a], iy = B.y[k] - B.y[a], ox = B.x[b] - B.x[k], oy = B.y[b] - B.y[k];
+    if (ix * oy - iy * ox <= 0) continue;
+    const last = binOf(ox, oy);
+    for (let bin = binOf(ix, iy); ; bin = (bin + 1) % CONE_BINS) {
+      bins[bin].push(cones.length);
+      if (bin === last) break;
+    }
+    cones.push([k, ix, iy, ox, oy]);
+  }
+  for (let i = 0; i < A.x.length; i++) {
+    const j = (i + 1) % A.x.length, ex = A.x[j] - A.x[i], ey = A.y[j] - A.y[i];
+    for (const c of bins[binOf(ex, ey)]) {
+      const [k, ix, iy, ox, oy] = cones[c];
+      if (ix * ey - iy * ex >= 0 && ex * oy - ey * ox >= 0) {
+        found.push([A.x[i] + B.x[k], A.y[i] + B.y[k], A.x[j] + B.x[k], A.y[j] + B.y[k]]);
+      }
+    }
+  }
+  return found;
+}
+
+// How far along the ray from 0 in the direction (cx, cy) (a unit
+// vector) it meets the segment [ax, ay, bx, by], or -1 if it doesn't.
+function rayHit(s, cx, cy) {
+  const ex = s[2] - s[0], ey = s[3] - s[1], den = cx * ey - cy * ex;
+  if (den === 0) return -1;
+  const t = (s[0] * ey - s[1] * ex) / den, u = (s[0] * cy - s[1] * cx) / den;
+  return u >= -RAY_SLACK && u <= 1 + RAY_SLACK && t > 0 ? t : -1;
+}
+
+// Of the segments numbered in "list", the one the ray in the direction
+// (cx, cy) meets farthest out.
+function farthestOn(segments, list, cx, cy) {
+  let best = -1, far = -1;
+  for (const n of list) {
+    const t = rayHit(segments[n], cx, cy);
+    if (t > far) { far = t; best = n; }
+  }
+  if (best < 0) throw new Error("The outline of T - T could not be found for this tile.");
+  return best;
+}
+
+// The outer envelope of segments that surround 0 (see above), as
+// differencePolygon's polygons are.
+function outerEnvelope(segments) {
+  const width = 2 * Math.PI / OUTLINE_BINS, bins = [];
+  for (let b = 0; b < OUTLINE_BINS; b++) bins.push([]);
+  const binOf = function (x, y) { return Math.min(OUTLINE_BINS - 1, Math.floor((Math.atan2(y, x) + Math.PI) / width)); };
+  // Each segment in the wedges it reaches into, going counterclockwise
+  // round 0 from one end to the other (less than a half turn). One on a
+  // line through 0 is met by one ray at most, and left out.
+  segments.forEach(function (s, n) {
+    const turn = s[0] * s[3] - s[1] * s[2];
+    if (turn === 0) return;
+    const first = turn > 0 ? binOf(s[0], s[1]) : binOf(s[2], s[3]), last = turn > 0 ? binOf(s[2], s[3]) : binOf(s[0], s[1]);
+    for (let b = first; ; b = (b + 1) % OUTLINE_BINS) {
+      bins[b].push(n);
+      if (b === last) break;
+    }
+  });
+  // The pieces of angle with one farthest segment each: [the angle it
+  // starts at, that segment, its wedge].
+  const pieces = [];
+  for (let b = 0; b < OUTLINE_BINS; b++) {
+    const low = -Math.PI + b * width, high = low + width, list = bins[b], marks = [];
+    const mark = function (x, y) { const a = Math.atan2(y, x); if (a > low && a < high - SAME_ANGLE) marks.push(a); };
+    for (const n of list) { const s = segments[n]; mark(s[0], s[1]); mark(s[2], s[3]); }
+    for (let i = 0; i < list.length; i++) {
+      for (let j = i + 1; j < list.length; j++) {
+        const s = segments[list[i]], r = segments[list[j]], cross = segmentsCross(s[0], s[1], s[2], s[3], r[0], r[1], r[2], r[3]);
+        if (cross) mark(cross[0], cross[1]);
+      }
+    }
+    marks.sort(function (u, v) { return u - v; });
+    const cuts = [low];
+    for (const a of marks) if (a - cuts[cuts.length - 1] > SAME_ANGLE) cuts.push(a);
+    for (let k = 0; k < cuts.length; k++) {
+      const middle = (cuts[k] + (k + 1 < cuts.length ? cuts[k + 1] : high)) / 2;
+      pieces.push([cuts[k], farthestOn(segments, list, Math.cos(middle), Math.sin(middle)), b]);
+    }
+  }
+  // The corners: where the farthest segment changes, on the ray there
+  // the farthest point of the wedge's segments.
+  const x = [], y = [];
+  pieces.forEach(function (piece, k) {
+    const before = pieces[(k + pieces.length - 1) % pieces.length];
+    if (before[1] === piece[1]) return;
+    const cx = Math.cos(piece[0]), cy = Math.sin(piece[0]);
+    const t = rayHit(segments[farthestOn(segments, bins[piece[2]], cx, cy)], cx, cy);
+    x.push(t * cx); y.push(t * cy);
+  });
+  return outlineFrom(x, y);
+}
+
 // A BOX, IN SPACE: D is the box with these half-widths along x, y and z
 // (it works in the plane too).
 function boxCover(half) {
@@ -1446,8 +1613,10 @@ function tileShapeHelpers() {
           segmentsApart, endToSegment,
           polyhedronGap, squareToSimplex, nearestOnSimplex, nearestOnEdge, nearestOnTriangle, nearestOnTetrahedron, nearestOfAll,
           copyCover, roundCover, inSpace, unit3, directionFrom, spheresMeet, nearestOnCircle, threeSpheresMeet, polygonCover,
-          segmentsCross, boxCover,
+          segmentsCross, differenceOutline, distinctCorners, reducedConvolution, rayHit, farthestOn, outerEnvelope, outlineFrom,
+          boxCover,
           { TILE_CORNERS: TILE_CORNERS, DRAWN_CORNERS: DRAWN_CORNERS, RUN_EDGES: RUN_EDGES, BIG_RUN: BIG_RUN, STRAIGHT_ON: STRAIGHT_ON,
             LEAF_EDGES: LEAF_EDGES, APART: APART, FACE_CELLS: FACE_CELLS, DRAWN_FACE_CELLS: DRAWN_FACE_CELLS, GROUP_CELLS: GROUP_CELLS,
-            START_CELLS: START_CELLS, GJK_CLOSE: GJK_CLOSE, GJK_STEPS: GJK_STEPS, FLAT: FLAT, FREE_SLACK: FREE_SLACK }];
+            START_CELLS: START_CELLS, GJK_CLOSE: GJK_CLOSE, GJK_STEPS: GJK_STEPS, FLAT: FLAT, FREE_SLACK: FREE_SLACK,
+            OUTLINE_BINS: OUTLINE_BINS, CONE_BINS: CONE_BINS, RAY_SLACK: RAY_SLACK, SAME_ANGLE: SAME_ANGLE }];
 }
