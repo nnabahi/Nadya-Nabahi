@@ -215,7 +215,8 @@ function checkBallAway(t, runs) {
      - the star: the smallest distance from a corner of one polygon to
        an edge of the other, both ways, over all of them (two polygons
        that don't overlap are that far apart), and 0 when a corner of
-       one is inside the other (polygonGap);
+       one is inside the other (polygonGap, with deepestCorner of
+       js/check-page.js);
      - the octahedron and the tetrahedron: the distance to D = T - T,
        the hull of the differences of their corners, triangle by
        triangle (hullGap).
@@ -248,17 +249,6 @@ function polygonGap(s, [dx, dy]) {
     }
   }
   return Math.sqrt(best);
-}
-
-// The smallest ruler value of a corner of the tile at (dx, dy) inside
-// the tile at 0, and of a corner of the tile at 0 inside the one at
-// (dx, dy): below 1, the tiles overlap.
-function deepestCorner(s, dx, dy) {
-  let least = Infinity;
-  for (let i = 0; i < s.M; i++) {
-    least = Math.min(least, s.gauge(dx + s.px[i], dy + s.py[i]), s.gauge(s.px[i] - dx, s.py[i] - dy));
-  }
-  return least;
 }
 
 // The plain gap of a tile with these corners (in space): the distance

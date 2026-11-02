@@ -84,9 +84,10 @@
         <div id="sliders"></div>
         <p class="muted small" id="formula-message"></p>
         <p class="muted small">Each ray from the center should leave
-          <span class="tex">T</span> only once (a star-shaped tile), and for now the tile must
-          be convex<span data-dim="3" hidden>: a ball, or a cube with its sides along x, y and
-          z</span>. The tiles are copies of <span class="tex">T</span>, moved but
+          <span class="tex">T</span> only once (a star-shaped tile)<span data-dim="3" hidden>,
+          and for now the tile must be a ball, or a cube with its sides along x, y and
+          z</span>. A tile with dents, like the star, is slower. The tiles are copies of
+          <span class="tex">T</span>, moved but
           never turned. Each particle carries a tile out from the source, the first tile's
           center, by Brownian motion, and stops the moment its tile overlaps no tile of the
           cluster; that tile joins the cluster. The first particle stops at once.</p>
@@ -202,7 +203,15 @@
           <span class="tex">T</span> in its direction); for a convex tile,
           <span class="tex">D</span> is the polygon made by merging the edges of
           <span class="tex">T</span> and <span class="tex">-T</span> in order of angle
-          [6, Section 13.3]. A disk, and in space a ball, are used exactly. In space a cube is
+          [6, Section 13.3]. For a tile with dents, <span class="tex">D</span> is still
+          star-shaped around <span class="tex">0</span> (if <span class="tex">s - t</span> is in
+          it, so is <span class="tex">\lambda s - \lambda t</span> for
+          <span class="tex">0 \le \lambda \le 1</span>), and its edge is made of pieces of the
+          reduced convolution of <span class="tex">T</span> and <span class="tex">-T</span>: the
+          edges of each moved by the corners of the other that stick out, where the edge's
+          direction is between those of the corner's two edges [7, 8]. So on each ray from
+          <span class="tex">0</span>, <span class="tex">D</span>'s outline is the farthest of
+          those segments. A disk, and in space a ball, are used exactly. In space a cube is
           recognized from its polyhedron (its corners all on the cube's faces, and the cube's 8
           corners among them).
         </p>
@@ -284,6 +293,12 @@
           <li>M. de Berg, O. Cheong, M. van Kreveld and M. Overmars,
             <em>Computational Geometry: Algorithms and Applications</em>, 3rd ed.,
             Springer, 2008.</li>
+          <li>C. Behar and J.-M. Lien, &ldquo;Fast and robust 2D Minkowski sum using reduced
+            convolution&rdquo;, <em>IEEE/RSJ International Conference on Intelligent Robots and
+            Systems</em> (2011), 1573&ndash;1578.</li>
+          <li>L. Guibas, L. Ramshaw and J. Stolfi, &ldquo;A kinetic framework for computational
+            geometry&rdquo;, <em>Proc. 24th IEEE Symposium on Foundations of Computer
+            Science</em> (1983), 100&ndash;111.</li>
         </ol>
         </div>
       </section>

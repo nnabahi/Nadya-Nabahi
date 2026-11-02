@@ -51,10 +51,13 @@ const DEFAULT_GOTO = 10000;           // the Go to box's first number (the most 
 
 // The starting tiles (presets) in each dimension, the first one the
 // default. Each fills in the formula and, if it has any, its sliders.
+// The star: s is how deep its arms are cut, h how many arms it has.
 const PRESETS = {
   2: {
     disk:   { label: "Disks", T: "x^2 + y^2 <= 1" },
     square: { label: "Squares", T: "max(abs(x), abs(y)) <= 1" },
+    star:   { label: "Your star (slower: not convex)", T: "sqrt(x^2 + y^2) <= 1 + s cos(h atan2(y, x))",
+              sliders: { s: { value: 0.5, min: 0, max: 1, step: 0.01 }, h: { value: 5, min: 0, max: 12, step: 1 } } },
   },
   3: {
     ball: { label: "Balls", T: "x^2 + y^2 + z^2 <= 1" },
@@ -102,7 +105,7 @@ function haveCluster() { return Boolean(latest && latest.traceParticles && lates
    worker turns the formula into the tile's polygon or polyhedron
    (tilePolygon, tilePolyhedron, js/sim-tile-shape.js), which needs T
    to be star-shaped around the origin: each ray from it leaves T once.
-   For now the growth takes a convex tile in 2D, and a ball or a cube in
+   The growth takes any such tile in 2D, and for now a ball or a cube in
    3D (copyCover, js/sim-tile-shape.js); any other says so under the
    formula.
    ===================================================================== */
