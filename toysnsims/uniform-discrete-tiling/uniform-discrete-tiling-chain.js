@@ -1050,6 +1050,90 @@ function tilePacking() {
     return { count: count, cells: cells, empty: emptyCount };
   }
 
+  // SUB-RECTANGLES (nadya, 2026-10-31; square cells only). An m x n
+  // sub-rectangle is a block of cells, m wide and n tall, inside the
+  // domain and tiled exactly by two or more tiles of the packing: every
+  // cell in it is covered and no tile sticks out of it. A single tile
+  // doesn't count (the "Each tile" table has those), and m x n and n x m
+  // are counted apart. On a torus a block is smaller than the torus, so
+  // it has four real sides.
+  //
+  // Returns { width, height, counts }: counts[(n - 1) * width + (m - 1)]
+  // is the number of m x n sub-rectangles, for m up to "width" and n up
+  // to "height" (the domain's size, one less on a torus). Returns null
+  // when that would take more than SUB_WORK steps (a big domain made
+  // mostly of 1x1 squares, where nearly every block counts).
+  //
+  // How: a block must start at its lower-left cell v, with no tile
+  // crossing its left side or its bottom there. From v it is grown one
+  // column wider at a time, and for each width one row taller at a
+  // time, until a tile would cross its left or right side or a cell is
+  // not covered (then any taller block fails too). Each height is
+  // counted if no tile crosses its top. passRuns (below) makes each
+  // step one lookup: it says how many cells in a row, from v to the
+  // right, pass a test.
+  const SUB_WORK = 5000000;
+  function subRectangles() {
+    const width = wrapW ? wrapW - 1 : boxWidth, height = wrapH ? wrapH - 1 : boxHeight;
+    const counts = new Float64Array(width * height);
+    // The placement at (dx, dy) from cell v (-1: empty or outside).
+    const ownerAt = function (v, dx, dy) {
+      const c = cellAt(domain, X[v] + dx, Y[v] + dy);
+      return c < 0 ? -1 : owner[c];
+    };
+    // For each cell: the cell to its right and the one above it (-1:
+    // none), and whether it is covered by a tile that stops at its left
+    // (right) side. Worked out first, so the search below only looks up.
+    const right = new Int32Array(n), up = new Int32Array(n);
+    const leftSide = new Uint8Array(n), rightSide = new Uint8Array(n);
+    for (let v = 0; v < n; v++) {
+      right[v] = cellAt(domain, X[v] + 1, Y[v]);
+      up[v] = cellAt(domain, X[v], Y[v] + 1);
+      leftSide[v] = owner[v] >= 0 && ownerAt(v, -1, 0) !== owner[v] ? 1 : 0;
+      rightSide[v] = owner[v] >= 0 && ownerAt(v, 1, 0) !== owner[v] ? 1 : 0;
+    }
+    const covered = passRuns(function (v) { return owner[v] >= 0; });
+    const bottom = passRuns(function (v) { return owner[v] >= 0 && ownerAt(v, 0, -1) !== owner[v]; });
+    const top = passRuns(function (v) { return owner[v] >= 0 && ownerAt(v, 0, 1) !== owner[v]; });
+
+    let work = 0;
+    for (let v = 0; v < n; v++) {
+      if (!leftSide[v]) continue;
+      // The block that is v's own tile alone doesn't count.
+      const p = owner[v], own = plAnchor[p] === v, ownW = orientW[plOrient[p]], ownH = orientH[plOrient[p]];
+      // m wide: the bottom row's m cells must all have a tile's bottom
+      // side under them. "corner" is the block's lower-right cell.
+      for (let m = 1, corner = v; m <= Math.min(bottom[v], width); m++, corner = right[corner]) {
+        // Row k of the block: "first" is its left cell, "last" its right one.
+        for (let k = 0, first = v, last = corner; k < height && first >= 0; k++, first = up[first], last = up[last]) {
+          if (++work > SUB_WORK) return null;
+          if (covered[first] < m || !leftSide[first] || !rightSide[last]) break;
+          if (top[first] >= m && !(own && m === ownW && k + 1 === ownH)) counts[k * width + m - 1]++;
+        }
+      }
+    }
+    return { width: width, height: height, counts: counts };
+  }
+
+  // passRuns(test)[v]: how many cells in a row, from v to the right,
+  // pass "test" (0 if v fails it), at most the torus's width. Each row is
+  // read from right to left; on a torus twice, so a run can go round the
+  // edge. (Not to be mixed up with runs() in section 4, for the start.)
+  function passRuns(test) {
+    const run = new Int32Array(n);
+    for (let pass = 0; pass < (wrapW ? 2 : 1); pass++) {
+      for (let y = ymin; y < ymin + boxHeight; y++) {
+        for (let x = xmin + boxWidth - 1; x >= xmin; x--) {
+          const v = cellAt(domain, x, y);
+          if (v < 0) continue;
+          const next = cellAt(domain, x + 1, y);
+          run[v] = test(v) ? Math.min(1 + (next < 0 ? 0 : run[next]), wrapW || Infinity) : 0;
+        }
+      }
+    }
+    return run;
+  }
+
 
   /* ===================================================================
      6. MESSAGES FROM THE PAGE, AND THE RUN LOOP
@@ -1058,7 +1142,7 @@ function tilePacking() {
   const api = {
     setup: setup, oneMove: oneMove, checkPacking: checkPacking, packingKey: packingKey,
     allPackings: allPackings, countPackings: countPackings, refillUniform: refillUniform,
-    heat: heat, resetHeat: resetHeat, stats: stats,
+    heat: heat, resetHeat: resetHeat, stats: stats, subRectangles: subRectangles,
     owner: function () { return owner; },
     placements: function () {
       return { count: P, start: plStart, cell: plCell, orient: plOrient, anchor: plAnchor, tileClass: plClass,
@@ -1072,6 +1156,8 @@ function tilePacking() {
   let newRun = false;        // has the page still to get this run's placements?
   let trace = null;          // the run so far, for the charts (keepSample, js/sim-worker.js)
   const COLOR_BY = ["tile", "direction", "checker"];   // the "Color by" choices (section 7)
+  let subCountedAt = -1;     // the "changed" count when the sub-rectangles were last counted (-1: not yet this run)
+  let subTook = 0, subEnded = 0;   // how long that count took, and when it ended (milliseconds)
 
   // A sample for the charts, after each move: the share of the cells
   // each tile covers, and the empty cells' share; and the clusters of
@@ -1105,11 +1191,12 @@ function tilePacking() {
   //   weights    new weights, without restarting
   //   heat       on: true or false, whether to send the heat map
   //   resetHeat  start the heat map's averages again
-  serveRun({
+  const loop = serveRun({
     setup: function (message) {
       sendHeat = message.heat;
       error = setup(message);
       newRun = true;
+      subCountedAt = -1;
       trace = newTrace();
       takeSample();
     },
@@ -1128,7 +1215,10 @@ function tilePacking() {
 
   // Send the packing (who covers each cell), the numbers and the run so
   // far to the page, and in a run's first report its placements and the
-  // setup's message.
+  // setup's message. The sub-rectangles (square cells only) are counted
+  // again only when the packing has changed, and while it plays only if
+  // the last count took less than a tenth of the time since, so counting
+  // never slows the run much; the page keeps the last count it got.
   function report(send) {
     const copy = owner.slice();
     const message = { owner: copy, stats: stats(), traceTimes: Float64Array.from(trace.times),
@@ -1141,6 +1231,15 @@ function tilePacking() {
       newRun = false;
     }
     if (sendHeat) { message.heat = heat(); handOver.push(message.heat.buffer); }
+    const waitMore = loop.playing && performance.now() - subEnded < 10 * subTook;
+    if (!onTiling && subCountedAt !== changed && !waitMore) {
+      const start = performance.now();
+      message.subRectangles = subRectangles() || { tooMany: true };
+      if (message.subRectangles.counts) handOver.push(message.subRectangles.counts.buffer);
+      subEnded = performance.now();
+      subTook = subEnded - start;
+      subCountedAt = changed;
+    }
     send(message, handOver);
   }
 }
