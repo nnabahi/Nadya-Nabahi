@@ -77,6 +77,8 @@ let tiles = [];                 // the tiles: [{ w, h, weight }, ...]
 
 let placements = null;          // the chain's list of tile positions (section 1 of the chain)
 let latest = null;              // the latest packing, numbers and run so far from the chain
+let subCount = null;            // the chain's last count of sub-rectangles (section 7)
+let subShown = { w: 1, h: 1 };  // the biggest sub-rectangle seen this run (the chart's size)
 const highlight = newHighlight();   // the clicked cell, whose cluster is highlighted (js/sim-highlight.js)
 
 // A small helper for this page: is "Average over time" ticked? (checked
@@ -103,6 +105,7 @@ const sim = runInWorker(tilePacking, [wrap, cellAt, blockStart, middleAt, corner
     placements = message.placements;
     showMessage(message.error);
   }
+  if (message.subRectangles) subCount = message.subRectangles;   // (not every report has a new count)
   latest = message;
   drawSoon();
 });
@@ -112,6 +115,8 @@ const sim = runInWorker(tilePacking, [wrap, cellAt, blockStart, middleAt, corner
 function restart() {
   latest = null;
   placements = null;
+  subCount = null;
+  subShown = { w: 1, h: 1 };
   showMessage("");
   sim.setup({
     domain: domain, tiles: tiles,
@@ -373,6 +378,7 @@ function showStats() {
   byId("tile-stats").innerHTML = rows;
   drawCoverChart();
   drawClustersChart();
+  drawSubChart();
 }
 
 // The number of clusters of each color (in the "Color by" choice picked)
@@ -383,6 +389,42 @@ function drawClustersChart() {
   byId("stat-clusters").textContent = now.reduce(function (a, b) { return a + b; }, 0).toLocaleString();
   regionsChart(byId("clusters-chart"), latest.traceTimes, clusters, scheme.count,
                function (k) { return defaultColor(k, scheme.count); }, "moves");
+}
+
+// The sub-rectangles of the packing now (square cells only), counted by
+// subRectangles in the chain file: an m x n block tiled exactly by two
+// or more tiles. A heat map with the width m across and the height n
+// up, each square colored by how many there are on a log scale
+// (heatColor, js/sim-colors.js: dark blue for 1, red for the most), and
+// blank where there are none. It shows the sizes up to the biggest block
+// seen in this run, so it doesn't jump about as the packing changes.
+function drawSubChart() {
+  byId("sub-box").hidden = lattice !== "square";
+  if (lattice !== "square" || !subCount) return;
+  const canvas = byId("sub-chart"), info = byId("sub-info");
+  if (subCount.tooMany) {
+    chartPen(canvas);   // (a blank chart)
+    info.textContent = "Too many blocks to count in this packing: almost every block counts when it is mostly 1×1 squares.";
+    return;
+  }
+  const counts = subCount.counts, width = subCount.width;
+  let most = 0;
+  for (let k = 0; k < counts.length; k++) {
+    if (counts[k] === 0) continue;
+    most = Math.max(most, counts[k]);
+    subShown.w = Math.max(subShown.w, k % width + 1);
+    subShown.h = Math.max(subShown.h, Math.floor(k / width) + 1);
+  }
+  const columns = subShown.w, rows = subShown.h;
+  heatChart(canvas, columns, rows, function (m, n) {   // (m, n counted from 0 here)
+    const count = m < width && n < subCount.height ? counts[n * width + m] : 0;
+    return count === 0 ? null : heatColor(most > 1 ? Math.log(count) / Math.log(most) : 1);
+  }, { from: 0.5, to: columns + 0.5, whole: true, word: "width m" },
+     { from: 0.5, to: rows + 0.5, whole: true, word: "height n" });
+  info.textContent = most === 0
+    ? "No block is tiled exactly by two or more tiles right now."
+    : "Color: how many m×n blocks are tiled exactly by two or more tiles (no gaps, no tile sticking out), " +
+      "on a log scale from dark blue (1) to red (" + most.toLocaleString() + ", the most). Blank: none.";
 }
 
 // One line per tile (in its color) and a gray one for gaps: the share of
