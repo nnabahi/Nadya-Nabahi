@@ -47,6 +47,8 @@
      farthestFrom(d, starts)  the cell farthest from some cells
      spreadOut(d, count, first)   cells spread out over the domain
      countPieces(d, colorOf, count)   the connected pieces of each color
+     outsideEdges(d)          each cell's edges out of the domain, into the
+                              rest of the plane
      findRegions(d, colors)   the same pieces, each with its area and perimeter
      regionOf(d, colors, s)   the piece holding cell s (to highlight it)
      spreadRegion(...)        the search that finds a piece (both use it)
@@ -271,6 +273,23 @@ function spreadOut(d, count, first) {
   const picked = [first];
   while (picked.length < count) picked.push(farthestFrom(d, picked));
   return picked;
+}
+
+// How many edges each cell has out of the domain: its neighbors in the
+// whole plane (or tiling, or hyperbolic plane or tree) that the domain
+// leaves out, as a list, one number per cell. A square has 4 neighbors
+// in the plane; a cell of a tiling, one across each side (sides, -1 when
+// the domain hasn't it); a ball, those makeBall counted
+// (js/sim-hyperbolic.js). A torus has no edge, so none.
+function outsideEdges(d) {
+  if (d.outside) return d.outside;
+  const out = new Int32Array(d.n);
+  if (d.wrap) return out;
+  for (let v = 0; v < d.n; v++) {
+    out[v] = d.sides ? d.sides[v].filter(function (w) { return w === -1; }).length
+                     : 4 - (d.first[v + 1] - d.first[v]);
+  }
+  return out;
 }
 
 // How many connected pieces each color has: pieces[c] for the colors
