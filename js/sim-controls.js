@@ -69,6 +69,14 @@
                         size, and nothing else. A page with both (Eden
                         Growth's Dimension option) switches its options
                         with domains.setDim, which sets data-dim.
+     data-kinds         only these of the usual kinds, e.g. "box custom"
+                        (every one, when left out)
+     data-own           the page's own kinds, first in the row, as
+                        kind:Name pairs split by commas, e.g.
+                        "polyomino:Uniform polyomino" (page.kinds in
+                        connectDomains says what each does)
+     data-squares       (no value) on square cells only: no Lattice
+                        options
    Uniform Discrete Tiling writes its own options, with the same ids: its
    Cells menu has just squares, triangles and hexagons, and it has kinds
    of its own (the Aztec diamond, the hexagon of triangles).
@@ -127,25 +135,31 @@ fillBlocks(".domain-options", domainOptionsHTML);
 fillBlocks(".lattice-options", latticeOptionsHTML);
 
 // The Domain options, as HTML, from the placeholder's settings (above):
-// the kinds and the size, and in 2D the Lattice options, the custom
-// domain's row, and the hyperbolic plane or tree's rows.
+// the kinds and the size, and in 2D the Lattice options, and the rows of
+// the custom domain and of the hyperbolic plane or tree if offered.
 function domainOptionsHTML(settings) {
   const oneD = (settings.dim === "1"), whole = ("whole" in settings);
-  const rows = [kindsHTML(settings.ticked, oneD, whole), sizeRowHTML(settings.least || 2, oneD)];
+  const offered = settings.kinds ? settings.kinds.split(" ") : DOMAIN_KINDS.map(function (row) { return row[0]; });
+  const own = settings.own ? settings.own.split(",").map(function (pair) { return pair.split(":"); }) : [];
+  const rows = [kindsHTML(settings.ticked, oneD, whole, offered, own), sizeRowHTML(settings.least || 2, oneD)];
   if (oneD) return rows.join("");
-  rows.push(latticeRowsHTML());
-  rows.push(customRowHTML(), graphRowsHTML(whole && settings.whole !== "flat"));
+  if (!("squares" in settings)) rows.push(latticeRowsHTML());
+  if (offered.includes("custom")) rows.push(customRowHTML());
+  if (offered.includes("graph")) rows.push(graphRowsHTML(whole && settings.whole !== "flat"));
   return rows.join("");
 }
 
-// The kinds offered (with "ticked" ticked), each name in a <span> so it
-// can change with the dimension (showKinds, in connectDomains).
-function kindsHTML(ticked, oneD, whole) {
-  const labels = DOMAIN_KINDS.map(function ([kind, lineName, planeName]) {
-    const name = oneD ? lineName : planeName;
+// The kinds offered (with "ticked" ticked): the page's own kinds "own"
+// ([kind, name] pairs), then those of the usual ones in "offered". Each
+// name is in a <span>, so it can change with the dimension (showKinds,
+// in connectDomains).
+function kindsHTML(ticked, oneD, whole, offered, own) {
+  const usual = DOMAIN_KINDS.filter(function ([kind]) { return offered.includes(kind); })
+    .map(function ([kind, lineName, planeName]) { return [kind, oneD ? lineName : planeName]; });
+  const labels = own.concat(usual).map(function ([kind, name]) {
     if (!name || (kind === "whole" && !whole)) return "";
     return '<label><input type="radio" name="domain" value="' + kind + '"' + (kind === ticked ? " checked" : "") +
-      "> <span>" + name + "</span></label>";
+      "> <span>" + name.trim() + "</span></label>";
   });
   return '<div class="option-row">' + labels.join("") + "</div>";
 }
