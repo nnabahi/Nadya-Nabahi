@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Uniform Polyomino — Check Page</title>
+  <link rel="stylesheet" href="../../css/style.css">
+</head>
+<body>
+
+  <!-- A test page for the chain behind the Uniform Polyomino sim
+       (js/sim-polyomino.js). It opens from the sim's "model check" button. -->
+  <main class="page">
+    <p><a href="uniform-polyomino.html">&larr; Back to the sim</a></p>
+    <h1>Uniform Polyomino: Check Page</h1>
+    <p>
+      These tests check the chain in <code>js/sim-polyomino.js</code>, the math
+      behind the sim: every polyomino with 4, 5 or 6 cells is listed plainly, and
+      the chain must visit each one equally often (or, with the sliders on, in
+      proportion to its weight); without the touch rule it must not; and the
+      numbers it keeps (perimeters, cycles, holes) must match a plain count.
+      Press the button; it takes about 10 seconds. The tests use fixed seeds, so
+      they do the same thing every time.
+    </p>
+
+    <p><button id="run-checks">Run the checks</button></p>
+
+    <table class="check-table">
+      <tbody id="results"></tbody>
+    </table>
+  </main>
+
+  <!-- jStat (chi-square p-values). The version is fixed so an update can
+       never change the tests. -->
+  <script src="https://cdn.jsdelivr.net/npm/jstat@1.9.6/dist/jstat.min.js"></script>
+  <!-- byId(), the results table shared by the check pages, the random
+       numbers, the box around some cells, Euler's formula, then the chain
+       being tested, then the tests. -->
+  <script src="../../js/site.js"></script>
+  <script src="../../js/sim-page.js"></script>
+  <script src="../../js/check-page.js"></script>
+  <script src="../../js/sim-worker.js"></script>
+  <script src="../../js/sim-domains.js"></script>
+  <script src="../../js/sim-shape.js"></script>
+  <script src="../../js/sim-polyomino.js"></script>
+  <script src="uniform-polyomino-check.js"></script>
+</body>
+</html>
