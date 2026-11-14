@@ -412,6 +412,27 @@ From nadya's Lyons and Peres figures (plan:
   since the holes counter in js/sim-shape.js follows one growing set
   rather than measuring a fixed picture.
 
+## Uniform Polyomino
+
+- **The disk move** (Claude's plan, 2026-11-14, thread "Build sequential
+  discrete packing sim"; dropped for nadya's one batch move): pick a cell
+  c of the polyomino P uniformly and a radius from an exponential law with
+  a small mean (a slider), let B be the cells within that radius of c, and
+  redraw P inside B: a uniform pick among the sets S of cells of B with
+  as many cells as P has in B, holding c, such that (P outside B) and S
+  make one piece. It is a uniform pick within one class, so it keeps the
+  uniform law (Levin, Peres and Wilmer, "Markov Chains and Mixing Times",
+  2nd ed., Prop. 1.20), and it can make big changes in one move. Plan:
+  /mnt/project-files/sequential-discrete-tiling/plan.md.
+
+## Sequential Discrete Tiling and Sequential Continuous Tiling
+
+- **Size first** (nadya, 2026-11-14): "first picked a size at random and
+  then uniform from all the places a tile of that size could fit". On the
+  grid: draw a side k, then place a k x k square uniformly among all the
+  places it fits in the uncovered cells; in the plane the same with a
+  scale r. The law of the size is hers to choose.
+
 ## Forest fires (queued)
 
 - **Planar lattices do not recover** (talk: I. Manolescu): on a planar
