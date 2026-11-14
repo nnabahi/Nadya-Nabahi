@@ -60,6 +60,7 @@
      cellSize(view)              how big a cell is on the screen, with the zoom
      cellsShown(view, d)         which cell is on each square that shows
      squareLeft, squareTop       where the sides of the squares are
+     squareRect(...)             where a block of squares is on the canvas
      paintCells(...)             paint every square that shows, fast
      shadeSquares(...)           paint some squares on top (e.g. holes)
      drawBorders(...)            the lines between squares of different colors
@@ -295,18 +296,21 @@ function paintCells(view, pen, d, groupOf, rgbOf, outsideRGB) {
   return shown;
 }
 
-// Paint some squares of domain d on top of the picture, in "color",
-// after paintCells (which works out where the squares go). "cells" are
-// their places, as x0, y0, x1, y1, ... (Eden Growth and Random Walk
-// shade their holes this way.)
-function shadeSquares(view, pen, d, cells, color) {
+// Where the block of squares of domain d from (x, y) to (x + across - 1,
+// y + up - 1) is on the canvas, after paintCells (which works out where
+// the squares go): [left, top, width, height], in screen pixels.
+function squareRect(view, d, x, y, across, up) {
   const [x0, y0] = topLeftSquare(d);
+  const left = squareLeft(view, x - x0), top = squareTop(view, y0 - (y + up - 1));
+  return [left, top, squareLeft(view, x + across - x0) - left, squareTop(view, y0 - y + 1) - top];
+}
+
+// Paint some squares of domain d on top of the picture, in "color",
+// after paintCells. "cells" are their places, as x0, y0, x1, y1, ...
+// (Eden Growth and Random Walk shade their holes this way.)
+function shadeSquares(view, pen, d, cells, color) {
   pen.fillStyle = color;
-  for (let k = 0; k < cells.length; k += 2) {
-    const i = cells[k] - x0, row = y0 - cells[k + 1];
-    const left = squareLeft(view, i), top = squareTop(view, row);
-    pen.fillRect(left, top, squareLeft(view, i + 1) - left, squareTop(view, row + 1) - top);
-  }
+  for (let k = 0; k < cells.length; k += 2) pen.fillRect(...squareRect(view, d, cells[k], cells[k + 1], 1, 1));
 }
 
 // The border lines, all collected into one path and drawn at once: a
