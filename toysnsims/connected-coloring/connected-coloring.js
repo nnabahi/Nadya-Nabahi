@@ -559,40 +559,62 @@ function colorSizes() {
   return sizes;
 }
 
-// The colors from the largest to the smallest (ties: the lower color
-// number first). This is the order of the bars in the chart.
-function largestFirst(sizes) {
-  const order = sizes.map(function (size, c) { return c; });
-  order.sort(function (a, b) { return sizes[b] - sizes[a] || a - b; });
+// The edge boundary of each color: the edges from a cell of color c to
+// a cell of another color, and, with "Count edges out of the domain"
+// ticked, also those to the plane outside the domain (outsideEdges,
+// js/sim-domains.js; none on a torus).
+let outside = null;        // outside[v]: cell v's edges out of the domain (set with the domain, section 7)
+
+function colorBoundaries() {
+  const counts = new Array(N).fill(0), withOutside = byId("count-outside").checked;
+  for (let v = 0; v < colors.length; v++) {
+    for (let e = domain.first[v]; e < domain.first[v + 1]; e++) if (colors[domain.nbr[e]] !== colors[v]) counts[colors[v]]++;
+    if (withOutside) counts[colors[v]] += outside[v];
+  }
+  return counts;
+}
+
+// The colors from the largest to the smallest of "values" (ties: the
+// lower color number first). This is the order of the bars in a chart.
+function largestFirst(values) {
+  const order = values.map(function (value, c) { return c; });
+  order.sort(function (a, b) { return values[b] - values[a] || a - b; });
   return order;
 }
 
-// One bar per color, as tall as its number of cells, largest first,
-// on a log scale (every color has at least 1 cell, at the bottom), so
-// tiny colors still show beside huge ones.
-// The bars go from the largest on the left to the smallest on the
-// right; each keeps its own color, so you can follow a color as it
-// grows and shrinks. A highlighted color's bar stays bright.
-let sizesFrame = null;     // where the bars are drawn, for clicks
+// The two charts of one bar per color: its number of cells, and its
+// edge boundary (above). The bars go from the largest on the left to
+// the smallest on the right, on a log scale (every color has at least 1
+// cell, and at least 1 boundary edge), so tiny colors still show beside
+// huge ones. Each bar keeps its own color, so you can follow a color as
+// it grows and shrinks; a highlighted color's bar stays bright, and
+// clicking a bar highlights its color (section 5b).
+const colorCharts = [
+  { canvas: byId("sizes-chart"), values: colorSizes, word: "cells", frame: null },
+  { canvas: byId("edges-chart"), values: colorBoundaries, word: "edges", frame: null },
+];
 
 function drawSizes() {
-  const sizes = colorSizes();
-  const bars = largestFirst(sizes).map(function (c, place) {
-    return { from: place + 0.5, to: place + 1.5, value: sizes[c], color: shade(c) };
-  });
-  sizesFrame = barChart(byId("sizes-chart"), bars,
-    { from: 0.5, to: N + 0.5, whole: true, word: "largest first" },
-    { from: 1, to: Math.max(...sizes), scale: "log", round: true, whole: true, word: "cells" });
+  for (const chart of colorCharts) {
+    const values = chart.values();
+    const bars = largestFirst(values).map(function (c, place) {
+      return { from: place + 0.5, to: place + 1.5, value: values[c], color: shade(c) };
+    });
+    chart.frame = barChart(chart.canvas, bars,
+      { from: 0.5, to: N + 0.5, whole: true, word: "largest first" },
+      { from: 1, to: Math.max(...values), scale: "log", round: true, whole: true, word: chart.word });
+  }
 }
 
-// Clicking a bar highlights its color (section 5b).
-byId("sizes-chart").addEventListener("click", function (event) {
-  if (!colors || !sizesFrame) return;
-  const x = event.clientX - this.getBoundingClientRect().left;
-  const place = Math.floor((x - sizesFrame.left) / ((sizesFrame.right - sizesFrame.left) / N));
-  const order = largestFirst(colorSizes());
-  if (place >= 0 && place < N) highlight(order[place]);
-});
+for (const chart of colorCharts) {
+  chart.canvas.addEventListener("click", function (event) {
+    if (!colors || !chart.frame) return;
+    const x = event.clientX - this.getBoundingClientRect().left;
+    const place = Math.floor((x - chart.frame.left) / ((chart.frame.right - chart.frame.left) / N));
+    if (place >= 0 && place < N) highlight(largestFirst(chart.values())[place]);
+  });
+}
+byId("count-outside").addEventListener("change", drawSizes);
 
 // The number of boundary edges after each step (sweeps of flips and
 // moves alike), against the step number, as on the Speed slider. It
@@ -699,6 +721,7 @@ const domains = connectDomains({
   // A new domain d, and your own coloring of it ("start") or none.
   use: function (d, start) {
     domain = d;
+    outside = outsideEdges(d);
     if (domains.kind === "graph" && watching) setWatching(false);   // not on a hyperbolic tiling or tree (section 5c)
     byId("watch").disabled = domains.kind === "graph";
     startFrom(start);

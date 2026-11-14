@@ -754,6 +754,8 @@ function moveBetween(from, to) {
      cell     cell[i] = the graph's own number for cell i
      place    cell i's place (its motion, for drawOnDisk) is
               place[4i .. 4i+3]
+     outside  outside[i] = how many of cell i's neighbors are outside
+              the ball (outsideEdges, js/sim-domains.js)
      depth, angle   on a tree, where cell i goes in the spread-out
               picture (spreadPlace, js/sim-graphs.js)
      side     which side of each cell each edge crosses, once
@@ -779,17 +781,19 @@ function makeBall(graph, R, most) {
   const n = cells.length;
   const first = new Int32Array(n + 1), nbr = [];
   const place = new Float64Array(4 * n);
+  const outside = new Int32Array(n);   // each cell's neighbors outside the ball (outsideEdges, js/sim-domains.js)
   for (let i = 0; i < n; i++) {
     first[i] = nbr.length;
     for (const w of graph.neighbors(cells[i])) {
       if (number.has(w)) nbr.push(number.get(w));
+      else outside[i]++;
     }
     place.set(graph.place(cells[i]), 4 * i);
   }
   first[n] = nbr.length;
 
   const ball = { n: n, first: first, nbr: Int32Array.from(nbr), R: used, cell: cells,
-                 place: place, depth: null, angle: null, side: null };
+                 place: place, outside: outside, depth: null, angle: null, side: null };
   if (graph.shape && isTree(graph.shape) && graph.parent) {
     ball.depth = new Float64Array(n);
     ball.angle = new Float64Array(n);

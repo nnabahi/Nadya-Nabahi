@@ -98,6 +98,12 @@
             <h3 class="option-heading">Size of each color, largest first (log scale)</h3>
             <canvas class="chart clickable" id="sizes-chart"></canvas>
           </div>
+          <div class="stat">
+            <h3 class="option-heading">Edge boundary of each color, largest first (log scale)</h3>
+            <canvas class="chart clickable" id="edges-chart"></canvas>
+            <label class="muted small" title="Edges from the color's cells to the plane outside the domain (none on a torus)">
+              <input type="checkbox" id="count-outside" checked> Count edges out of the domain</label>
+          </div>
         </div>
       </section>
 
