@@ -183,7 +183,6 @@ function clusterStopped(message, most, edge) {
 // particles.
 const FIT_SPAN = 10;
 const FIT_FROM = 100;
-const GYRATION_LINE = "#b9c8dc";  // the radius of gyration on the charts (the farthest piece is CHART_LINE)
 
 // The numbers both external DLA pages show, in the boxes with these
 // ids: n, the radius (the farthest piece), the radius of gyration, the
@@ -231,7 +230,7 @@ function drawRadiusCharts(s, fit) {
 function drawRadiusChart(s) {
   const lists = s.traceLists;
   plotOverTime(byId("radius-chart"), s.traceParticles,
-               [{ values: lists.gyration, color: GYRATION_LINE }, { values: lists.radius, color: CHART_LINE }], "particles");
+               [{ values: lists.gyration, color: CHART_LIGHT }, { values: lists.radius, color: CHART_LINE }], "particles");
 }
 
 

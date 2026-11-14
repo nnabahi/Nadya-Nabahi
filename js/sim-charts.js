@@ -7,7 +7,8 @@
 
    Contents:
      1. Colors and the pen
-          CHART_TEXT, CHART_LINE     the colors of the charts
+          CHART_TEXT, CHART_LINE,    the colors of the charts
+          CHART_LIGHT
           chartPen(canvas)           get a chart ready to draw on
      2. Axes: the numbers along a chart's sides
           chartFrame(canvas, x, y)   a chart with two numbered axes
@@ -52,6 +53,7 @@ const siteColors = getComputedStyle(document.documentElement);
 const CHART_TEXT = siteColors.getPropertyValue("--color-text-muted").trim();   // numbers and labels
 const CHART_LINE = siteColors.getPropertyValue("--color-accent").trim();       // lines and bars
 const CHART_GRID = siteColors.getPropertyValue("--color-grid").trim();         // the light lines across
+const CHART_LIGHT = "#b9c8dc";   // a second line, lighter than CHART_LINE, on the same chart
 
 // Get a chart canvas ready (sharpPen, js/sim-page.js) and return its
 // "pen" (what draws on it), set up for small gray text.

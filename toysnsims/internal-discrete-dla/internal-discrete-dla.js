@@ -40,7 +40,6 @@ const DEFAULT_SEED = "1";
 const PICTURE_HEIGHT = 480;
 const BACKGROUND = "#ffffff";     // cells not in the cluster
 const ORIGIN = "#222222";         // the origin's outline (2D)
-const INNER_LINE = "#b9c8dc";     // the inner radius and error on the charts (the outer ones are CHART_LINE)
 
 // The colors come in this many steps: "when it joined" in COLOR_STEPS
 // steps from blue to red, "early or late" in 2 * COLOR_STEPS + 1 from
@@ -336,12 +335,12 @@ function errorGuide(times) {
 function drawCharts(s) {
   const times = s.traceParticles;
   const lists = s.traceLists;
-  const radii = [{ values: lists.inner, color: INNER_LINE }, { values: lists.outer, color: CHART_LINE }];
+  const radii = [{ values: lists.inner, color: CHART_LIGHT }, { values: lists.outer, color: CHART_LINE }];
   if (s.grid) radii.push({ values: Float64Array.from(times, function (n) { return ballRadius(dim, n); }), color: CHART_TEXT, dashed: true });
   plotOverTime(byId("radius-chart"), times, radii, "particles");
   if (!s.grid) return;
   plotOverTime(byId("error-chart"), times, [
-    { values: lists.innerError, color: INNER_LINE },
+    { values: lists.innerError, color: CHART_LIGHT },
     { values: lists.outerError, color: CHART_LINE },
     { values: errorGuide(times), color: CHART_TEXT, dashed: true },
   ], "particles");
