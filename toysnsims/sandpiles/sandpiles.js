@@ -638,9 +638,9 @@ function drawHeightsChart() {
     if (sinks.includes(v)) continue;
     counts[Math.min(latest.heights[v], lastBar)]++;
   }
-  const bars = counts.map(function (count, b) {
-    return { from: b - 0.5, to: b + 0.5, value: count, border: CHART_TEXT,
-             color: sameThreshold === null ? CHART_LINE : rgbToHex(colorOfHeight(b, sameThreshold)) };
+  const bars = wholeBars(counts).map(function (bar, b) {
+    return Object.assign(bar, { border: CHART_TEXT,
+                                color: sameThreshold === null ? CHART_LINE : rgbToHex(colorOfHeight(b, sameThreshold)) });
   });
   const frame = barChart(byId("heights-chart"), bars,
     { from: -0.5, to: lastBar + 0.5, whole: true, word: "height",

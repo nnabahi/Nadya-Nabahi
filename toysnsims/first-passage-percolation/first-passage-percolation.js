@@ -899,7 +899,7 @@ function pairsCharts() {
     while (counts.length <= on.length) counts.push(0);
     counts[on.length]++;
   }
-  const bars = counts.map(function (count, k) { return { from: k - 0.5, to: k + 0.5, value: count }; }).slice(1);
+  const bars = wholeBars(counts).slice(1);
   const log = byId("usage-log").checked;
   barChart(byId("usage-chart"), bars, { from: 0.5, to: Math.max(1, counts.length - 1) + 0.5, whole: true, word: "k geodesics" },
            { from: 0, to: Math.max(1, ...counts), scale: log ? "log+1" : "linear", round: !log, whole: true, word: "edges" });

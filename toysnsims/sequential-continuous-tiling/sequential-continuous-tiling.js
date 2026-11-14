@@ -423,7 +423,7 @@ function showStats() {
   // How many tiles have 0, 1, 2, ... children (the last bar: that many or more).
   const most = 20, bars = new Array(most + 1).fill(0);
   for (let k = 0; k < shown; k++) bars[Math.min(most, children[k])]++;
-  barChart(byId("children-chart"), bars.map(function (count, i) { return { from: i - 0.5, to: i + 0.5, value: count }; }),
+  barChart(byId("children-chart"), wholeBars(bars),
     { from: -0.5, to: most + 0.5, whole: true, word: "children",
       text: function (i) { return i < most ? String(i) : most + "+"; } },
     { from: 0, to: Math.max(1, ...bars), round: true, whole: true, word: "tiles" });
