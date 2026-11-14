@@ -3,13 +3,14 @@
    its holes
    ---------------------------------------------------------------------
    Shared by Eden Growth (the shape and holes of its base), Random Walk
-   (the hull and holes of the cells the walker has visited) and First
-   Passage Percolation (the shape and holes of the ball), and by their
-   check pages. A sim's second thread (a "Web Worker") can't
-   see the page's scripts, so a sim hands these functions to runInWorker
-   (js/sim-page.js) in its list of helpers, which copies them in:
-   shapeHelpers() lists them, with the two of js/sim-domains.js they
-   use.
+   (the hull and holes of the cells the walker has visited), First
+   Passage Percolation (the shape and holes of the ball), Uniform
+   Polyomino and Sequential Discrete Tiling (their holes, by Euler's
+   formula), and by their check pages. A sim's second thread (a "Web
+   Worker") can't see the page's scripts, so a sim hands these
+   functions to runInWorker (js/sim-page.js) in its list of helpers,
+   which copies them in: shapeHelpers() lists them, with the two of
+   js/sim-domains.js they use.
 
    Contents:
      convexHull(points)        the corners of the smallest convex polygon
@@ -27,6 +28,8 @@
                                look at (squareWindow, tilingWindow,
                                finiteWindow)
      bettiOverTime(holes, times)   the number of holes at given steps
+     squareEuler()             the Euler characteristic of a set of
+                               squares (so its holes)
      holeReporter()            the holes for a sim's reports, kept up
                                to date without slowing a run down
      newRefresher()            an answer kept up to date that way
@@ -427,6 +430,45 @@ function finiteWindow(set, inside) {
   };
 }
 
+// Euler's formula for a set K of square cells, given cell by cell:
+// euler.add(x, y) puts the closed unit square around (x, y) in K
+// (each square once), and euler.chi() is K's Euler characteristic
+// V - E + F, where K has F squares, E sides and V corners (each counted
+// once, however many squares share it). For any finite union of closed
+// squares in the plane,
+//     chi = beta_0 - beta_1,
+// its number of connected pieces minus its number of holes (A.
+// Hatcher, "Algebraic Topology", Cambridge University Press, 2002:
+// Theorem 2.44 for chi = beta_0 - beta_1, and Alexander duality,
+// Theorem 3.44, for beta_1 = the number of holes). Closed squares that
+// touch only at a corner are joined, so a hole is a group of empty
+// squares joined side to side that can't reach far away, as in
+// holeHistory. (Uniform Polyomino: one piece, so holes = 1 - chi.
+// Sequential Discrete Tiling counts the pieces too, so holes = pieces -
+// chi.) Corners and sides are named by their place in doubled
+// coordinates (square (x, y) has its middle at (2x, 2y), its corners at
+// (2x +- 1, 2y +- 1), the middles of its sides at (2x +- 1, 2y) and
+// (2x, 2y +- 1)), as one whole number each. (eulerCounter, in
+// js/check-page.js, does the same for the cells of any tiling, more
+// slowly, for the check pages.)
+function squareEuler() {
+  const corners = new Set(), sides = new Set();
+  let squares = 0;
+  // One whole number for the place (a, b), |a| and |b| below 2^22.
+  function name(a, b) { return (a + 4194304) * 8388608 + (b + 4194304); }
+  return {
+    add: function (x, y) {
+      const a = 2 * x, b = 2 * y;
+      corners.add(name(a + 1, b + 1)); corners.add(name(a + 1, b - 1));
+      corners.add(name(a - 1, b + 1)); corners.add(name(a - 1, b - 1));
+      sides.add(name(a + 1, b)); sides.add(name(a - 1, b));
+      sides.add(name(a, b + 1)); sides.add(name(a, b - 1));
+      squares++;
+    },
+    chi: function () { return corners.size - sides.size + squares; },
+  };
+}
+
 // beta_1, the number of holes, at each of the steps "times" (in order),
 // from the births and deaths found by holeHistory: the holes born up to
 // step t, minus those that died up to step t.
@@ -493,5 +535,6 @@ function newRefresher() {
 // (js/sim-domains.js).
 function shapeHelpers() {
   return [convexHull, growingHull, polygonArea, polygonPerimeter, newShape, holeHistory, bettiOverTime, holeReporter,
-          newRefresher, frontierLength, cellWindow, squareWindow, tilingWindow, finiteWindow, signedArea, boxAround];
+          newRefresher, frontierLength, cellWindow, squareWindow, tilingWindow, finiteWindow, squareEuler, signedArea,
+          boxAround];
 }
