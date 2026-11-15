@@ -7,7 +7,8 @@
 
    Contents:
      1. Colors and the pen
-          CHART_TEXT, CHART_LINE     the colors of the charts
+          CHART_TEXT, CHART_LINE,    the colors of the charts
+          CHART_LIGHT
           chartPen(canvas)           get a chart ready to draw on
      2. Axes: the numbers along a chart's sides
           chartFrame(canvas, x, y)   a chart with two numbered axes
@@ -25,6 +26,7 @@
           colorLines(...)            one line per color, from a trace, for plotOverTime
           regionsChart(...)          the number of regions of each color over time
           histogram(...)             a histogram of some numbers
+          wholeBars(counts)          one bar for each whole number, for barChart
           powerOfTwoBins(sizes)      sizes grouped by powers of 2 ...
           powerOfTwoBars(...)        ... drawn as bars
           stackedSizeBars(...)       region sizes, one bar per size, stacked by color, log-log
@@ -52,6 +54,7 @@ const siteColors = getComputedStyle(document.documentElement);
 const CHART_TEXT = siteColors.getPropertyValue("--color-text-muted").trim();   // numbers and labels
 const CHART_LINE = siteColors.getPropertyValue("--color-accent").trim();       // lines and bars
 const CHART_GRID = siteColors.getPropertyValue("--color-grid").trim();         // the light lines across
+const CHART_LIGHT = "#b9c8dc";   // a second line, lighter than CHART_LINE, on the same chart
 
 // Get a chart canvas ready (sharpPen, js/sim-page.js) and return its
 // "pen" (what draws on it), set up for small gray text.
@@ -553,6 +556,13 @@ function histogram(canvas, values, trimmed, log) {
                   { from: 0, to: Math.max(...counts), round: true, whole: true });
 }
 
+// One bar for each whole number k = 0, 1, 2, ..., counts[k] tall, for
+// barChart: from k - 1/2 to k + 1/2, so each bar sits over its tick and
+// no two numbers ever share a bar.
+function wholeBars(counts) {
+  return Array.from(counts, function (count, k) { return { from: k - 0.5, to: k + 0.5, value: count }; });
+}
+
 // How many of "sizes" (whole numbers, at least 1) there are of each
 // size, grouped by powers of 2: bins[b] counts the sizes from 2^b to
 // 2^(b+1) - 1, so 1, 2-3, 4-7, 8-15, ... (Sizes go from 1 to many
@@ -574,8 +584,7 @@ function powerOfTwoBins(sizes) {
 // falling evenly.
 function powerOfTwoBars(canvas, bins, word, logScale) {
   if (bins.length === 0) { chartPen(canvas); return; }
-  const bars = bins.map(function (count, b) { return { from: b - 0.5, to: b + 0.5, value: count }; });
-  return barChart(canvas, bars,
+  return barChart(canvas, wholeBars(bins),
     { from: -0.5, to: bins.length - 0.5, whole: true, word: "size", text: function (b) { return shortLabel(Math.pow(2, b), Math.pow(2, b)); } },
     { from: 0, to: Math.max(...bins), scale: logScale ? "log+1" : "linear", round: !logScale, whole: true, word: word });
 }

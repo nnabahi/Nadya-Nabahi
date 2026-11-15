@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sequential Discrete Tiling — Toys n' Sims</title>
+  <link rel="stylesheet" href="../../css/style.css">
+  <!-- KaTeX's styles, for the typeset formulas in About the model. -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/katex.min.css">
+</head>
+<body>
+
+  <header class="topbar" data-active="toysnsims.html"></header>
+  <script src="../../js/site.js"></script>
+
+  <main class="page">
+    <p><a href="../../toysnsims.html">&larr; All sims</a></p>
+    <h1>Sequential Discrete Tiling</h1>
+
+    <!-- The boxes, as on every sim page (their layout is in
+         section 6 of css/style.css). All the behavior lives in
+         sequential-discrete-tiling.js; the ids below (id="...") are how
+         that script finds each button and box. -->
+    <div class="sim-layout">
+
+      <!-- TOP LEFT: the packing. -->
+      <section class="panel panel-sim">
+        <h2>Simulation</h2>
+
+        <!-- The picture, with the zoom buttons in its top right corner
+             (js/sim-view.js). -->
+        <div class="sim-picture">
+          <canvas id="sim-canvas"></canvas>
+        </div>
+
+        <p class="muted small">The last tile is outlined, with a dot on its cell U. Click an
+          uncovered cell to place the next tile around it.</p>
+        <p class="muted" id="sim-message"></p>
+      </section>
+
+      <!-- TOP RIGHT: settings. -->
+      <section class="panel panel-controls">
+        <!-- The heading, with a small "model check" button on the right
+             that opens the page testing this sim's math. -->
+        <h2 class="heading-with-button">Options
+          <a class="tool-button model-check" href="sequential-discrete-tiling-check.html">model check</a></h2>
+
+        <!-- The kinds of domain and the box's size, written in by
+             js/sim-controls.js (data-own: this page's own kind, the
+             uniform polyomino; data-kinds: the usual kinds it offers;
+             data-squares: square cells only). The polyomino's own rows
+             come after them. -->
+        <h3 class="option-heading">Domain D</h3>
+        <div class="domain-options" data-ticked="polyomino" data-own="polyomino:Uniform polyomino"
+             data-kinds="box custom" data-squares data-least="1">
+          <div id="polyomino-rows" hidden>
+            <div class="option-row">
+              N = <input type="number" id="polyomino-cells" min="1" step="1"> cells, after
+              <input type="number" id="polyomino-moves" min="0" step="1" style="width: 8em"> moves
+            </div>
+            <p class="muted small">A polyomino with N cells, every one equally likely, made by
+              the chain of the <a href="../uniform-polyomino/uniform-polyomino.html">Uniform
+              Polyomino</a> sim (one cell per move, both heats 0) from a straight line. The same
+              seed gives the same polyomino.</p>
+          </div>
+        </div>
+
+        <h3 class="option-heading">Run</h3>
+        <div class="option-row play-row" data-step="One more tile" data-restart="Back to no tiles, same seed"></div>
+        <div class="option-row speed-row"></div>
+        <div class="option-row seed-row"></div>
+        <p class="muted small">The same seed always gives the same packing. Restart goes back to
+          no tiles on the same domain; a new seed also makes a new polyomino.</p>
+
+        <h3 class="option-heading">Colors</h3>
+        <div class="option-row">
+          Color tiles by
+          <select id="color-by">
+            <option value="size">size</option>
+            <option value="order">order placed</option>
+          </select>
+        </div>
+        <p class="muted small">From dark blue (1 &times; 1, or first) to red (the biggest so
+          far, or last). Uncovered cells are white.</p>
+      </section>
+
+      <!-- UNDER THE PICTURE: numbers about this run. -->
+      <section class="panel panel-stats">
+        <h2>Statistics</h2>
+        <div class="stat-grid">
+          <div class="stat">
+            <table class="stats-table">
+              <tr><td>Cells in D</td><td id="stat-cells"></td></tr>
+              <tr><td>Tiles placed n</td><td id="stat-placed"></td></tr>
+              <tr><td>Cells covered</td><td id="stat-covered"></td></tr>
+              <tr><td>Pieces &beta;<sub>0</sub> of the covered set</td><td id="stat-pieces"></td></tr>
+              <tr><td>Holes &beta;<sub>1</sub> of the covered set</td><td id="stat-holes"></td></tr>
+              <tr><td>Biggest tile</td><td id="stat-largest"></td></tr>
+              <tr><td>Last tile</td><td id="stat-last"></td></tr>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- THE FULL WIDTH: the charts. -->
+      <section class="panel panel-charts">
+        <div class="stat-grid">
+          <div class="stat">
+            <h3 class="option-heading">Betti numbers of the covered set</h3>
+            <canvas class="chart" id="betti-chart"></canvas>
+            <p class="muted small">Dark: the pieces &beta;<sub>0</sub>. Light: the holes &beta;<sub>1</sub>.</p>
+          </div>
+          <div class="stat">
+            <h3 class="option-heading">Share of D covered (%)</h3>
+            <canvas class="chart" id="covered-chart"></canvas>
+          </div>
+          <div class="stat">
+            <h3 class="option-heading">Side k<sub>n</sub> of each tile n</h3>
+            <canvas class="chart" id="size-chart"></canvas>
+          </div>
+          <div class="stat">
+            <h3 class="option-heading">Number of tiles of each side</h3>
+            <canvas class="chart" id="sides-chart"></canvas>
+          </div>
+        </div>
+      </section>
+
+      <!-- BOTTOM, the full width: about the model, in two tabs (js/sim-page.js
+           switches them). Text in class="tex" is typeset by KaTeX. -->
+      <section class="panel panel-about">
+        <h2>About the model</h2>
+        <nav class="about-tabs">
+          <button class="about-tab selected" data-tab="simple">Simple</button>
+          <button class="about-tab" data-tab="details">All the details</button>
+        </nav>
+
+        <div data-panel="simple">
+        <p class="muted">(The simple explanation is coming.)</p>
+        </div>
+
+        <div data-panel="details" hidden>
+        <p>
+          <strong>The model.</strong> The domain <span class="tex">D</span> is a
+          finite set of cells of the square grid <span class="tex">\mathbb{Z}^2</span>,
+          and the tiles are <span class="tex">k \times k</span> squares of cells.
+          For <span class="tex">n = 1, 2, 3, \dots</span>, while some cell of
+          <span class="tex">D</span> is uncovered:
+        </p>
+        <ol>
+          <li><span class="tex">U_n</span> is an uncovered cell, all of them
+            equally likely;</li>
+          <li><span class="tex">k_n</span> is the largest
+            <span class="tex">k</span> such that some
+            <span class="tex">k \times k</span> square of uncovered cells of
+            <span class="tex">D</span> contains <span class="tex">U_n</span>;</li>
+          <li>tile <span class="tex">n</span> is one of the
+            <span class="tex">k_n \times k_n</span> squares of uncovered cells
+            that contain <span class="tex">U_n</span>, all of them equally
+            likely.</li>
+        </ol>
+        <p>
+          The <span class="tex">1 \times 1</span> square
+          <span class="tex">\{U_n\}</span> always fits, so every step places a
+          tile, and after at most <span class="tex">|D|</span> steps
+          <span class="tex">D</span> is covered. It is the grid's version of the
+          <a href="../sequential-continuous-tiling/sequential-continuous-tiling.html">Sequential
+          Continuous Tiling</a>, where a uniform point grows the biggest tile it
+          can. Clicking an uncovered cell makes it the next
+          <span class="tex">U_n</span>.
+        </p>
+        <p>
+          <strong>The domain.</strong> By default <span class="tex">D</span> is a
+          uniform polyomino with <span class="tex">N</span> cells, from the chain
+          of the <a href="../uniform-polyomino/uniform-polyomino.html">Uniform
+          Polyomino</a> sim (see its All the details): after enough moves, every
+          polyomino with <span class="tex">N</span> cells is close to equally
+          likely. It can also be a box, or any region drawn in the graph tool
+          (in one piece or several, but not on a torus).
+        </p>
+        <p>
+          <strong>Finding the squares.</strong> A square of uncovered cells that
+          contains <span class="tex">U</span> contains the cells of
+          <span class="tex">U</span>'s row inside it, so its side is at most the
+          length <span class="tex">r</span> of the run of uncovered cells through
+          <span class="tex">U</span> along its row, and likewise along its column.
+          Let <span class="tex">K</span> be the smaller of the two. Every square
+          that matters then lies within <span class="tex">K - 1</span> cells of
+          <span class="tex">U</span> in each direction, and in that window the
+          page works out, for every cell <span class="tex">(a, b)</span>, the side
+          <span class="tex">L(a, b)</span> of the biggest square of uncovered
+          cells with <span class="tex">(a, b)</span> as its lowest, leftmost
+          cell:
+        </p>
+        <div class="tex">L(a, b) = 1 + \min\big(L(a + 1, b),\ L(a, b + 1),\ L(a + 1, b + 1)\big)</div>
+        <p>
+          on an uncovered cell, and 0 on a covered one or outside
+          <span class="tex">D</span>: the square of side
+          <span class="tex">\ell</span> at <span class="tex">(a, b)</span> is
+          free exactly when <span class="tex">(a, b)</span> is, and so are the
+          three squares of side <span class="tex">\ell - 1</span> at
+          <span class="tex">(a + 1, b)</span>, <span class="tex">(a, b + 1)</span>
+          and <span class="tex">(a + 1, b + 1)</span>, which together cover the
+          rest of it. The square of side
+          <span class="tex">k</span> at <span class="tex">(a, b)</span> contains
+          <span class="tex">U = (u, v)</span> exactly when
+          <span class="tex">a \le u</span>, <span class="tex">b \le v</span> and
+          <span class="tex">k \ge \max(u - a, v - b) + 1</span>, and is free
+          exactly when <span class="tex">k \le L(a, b)</span>. So
+          <span class="tex">k_n</span> and its squares are read off the window
+          directly, in about <span class="tex">4K^2</span> steps. The model check
+          compares this with trying every square.
+        </p>
+        <p>
+          <strong>Betti numbers.</strong> Think of each tile as a closed square,
+          so two tiles that touch only at a corner are joined there. The covered
+          set <span class="tex">C</span> then has two Betti numbers:
+          <span class="tex">\beta_0</span>, its number of connected pieces, and
+          <span class="tex">\beta_1</span>, its number of holes, the groups of
+          uncovered cells (or cells outside <span class="tex">D</span>), joined
+          across sides, that <span class="tex">C</span> cuts off from far away
+          [1, Theorem 3.44]. The page keeps <span class="tex">\beta_0</span> by
+          joining each new tile to the tiles in the ring of cells around it
+          (union-find [2]), and gets <span class="tex">\beta_1</span> from the
+          Euler characteristic,
+        </p>
+        <div class="tex">\beta_0 - \beta_1 = \chi(C) = (\text{corners}) - (\text{sides}) + (\text{cells})</div>
+        <p>
+          [1, Theorem 2.44], counting each corner and each side of the covered
+          cells once. As tiles are placed, pieces are born and merge, and holes
+          open (when tiles close a ring around uncovered cells) and later fill
+          in. When <span class="tex">D</span> is fully covered,
+          <span class="tex">C = D</span>, so the run ends at
+          <span class="tex">D</span>'s own Betti numbers.
+        </p>
+        <p>
+          <strong>Random numbers.</strong> Tile <span class="tex">n</span> draws
+          <span class="tex">U_n</span> and its square from two numbers of its own,
+          made from the seed and <span class="tex">n</span>, so the same seed
+          gives the same packing. The polyomino draws its numbers from the seed
+          too, but on their own, so the domain and its packing are independent.
+        </p>
+        <p><strong>References</strong></p>
+        <ol class="references">
+          <li>A. Hatcher, <em>Algebraic Topology</em>, Cambridge University Press,
+            2002.</li>
+          <li>R. E. Tarjan, &ldquo;Efficiency of a good but not linear set union
+            algorithm&rdquo;, <em>J. ACM</em> 22 (1975), 215&ndash;225.</li>
+        </ol>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <!-- KaTeX (https://katex.org) typesets the formulas. The version number
+       is fixed so an update can never change the site by surprise. -->
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/katex.min.js"></script>
+
+  <!-- The code the sims share (in js/, see the README): page helpers
+       (they also typeset the formulas, so they come after KaTeX), the
+       second thread's run loop, charts, colors, domains, the picture's
+       view, the options and controls of the domain, the shapes (for the
+       holes) and the polyomino chain (for the domain). Then the packing
+       (it runs in a second thread), then this page's code. -->
+  <script src="../../js/sim-page.js"></script>
+  <script src="../../js/sim-worker.js"></script>
+  <script src="../../js/sim-charts.js"></script>
+  <script src="../../js/sim-colors.js"></script>
+  <script src="../../js/sim-domains.js"></script>
+  <script src="../../js/sim-view.js"></script>
+  <script src="../../js/sim-controls.js"></script>
+  <script src="../../js/sim-shape.js"></script>
+  <script src="../../js/sim-polyomino.js"></script>
+  <script src="sequential-discrete-tiling-packing.js"></script>
+  <script src="sequential-discrete-tiling.js"></script>
+
+</body>
+</html>

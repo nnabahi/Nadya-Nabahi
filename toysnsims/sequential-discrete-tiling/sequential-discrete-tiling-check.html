@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sequential Discrete Tiling — Check Page</title>
+  <link rel="stylesheet" href="../../css/style.css">
+</head>
+<body>
+
+  <!-- A test page for the packing behind the Sequential Discrete Tiling
+       sim (sequential-discrete-tiling-packing.js). It opens from the
+       sim's "model check" button. -->
+  <main class="page">
+    <p><a href="sequential-discrete-tiling.html">&larr; Back to the sim</a></p>
+    <h1>Sequential Discrete Tiling: Check Page</h1>
+    <p>
+      These tests check the packing in
+      <code>sequential-discrete-tiling-packing.js</code>, the math behind the sim:
+      its quick search for the biggest squares around U must agree with trying
+      every square; every tile must follow the rule; on small domains, every
+      possible packing is listed with its exact chance, and many runs must match;
+      and the Betti numbers it keeps must match a plain count. Press the button;
+      it takes a few seconds. The tests use fixed seeds, so they do the same thing
+      every time.
+    </p>
+
+    <p><button id="run-checks">Run the checks</button></p>
+
+    <table class="check-table">
+      <tbody id="results"></tbody>
+    </table>
+  </main>
+
+  <!-- jStat (chi-square p-values). The version is fixed so an update can
+       never change the tests. -->
+  <script src="https://cdn.jsdelivr.net/npm/jstat@1.9.6/dist/jstat.min.js"></script>
+  <!-- byId(), the results table shared by the check pages, the random
+       numbers, the box around some cells, Euler's formula, the polyomino
+       chain (for the domains), then the packing being tested, then the
+       tests. -->
+  <script src="../../js/site.js"></script>
+  <script src="../../js/sim-page.js"></script>
+  <script src="../../js/check-page.js"></script>
+  <script src="../../js/sim-worker.js"></script>
+  <script src="../../js/sim-domains.js"></script>
+  <script src="../../js/sim-shape.js"></script>
+  <script src="../../js/sim-polyomino.js"></script>
+  <script src="sequential-discrete-tiling-packing.js"></script>
+  <script src="sequential-discrete-tiling-check.js"></script>
+</body>
+</html>

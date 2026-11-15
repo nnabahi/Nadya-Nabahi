@@ -49,7 +49,6 @@ const HOLE = "#a9cbe8";           // the holes, with "Shade the holes" on
 const HOLE_GROUP = 64;            // (on another tiling, the holes' cells are painted as this group)
 const WALKER = "#222222";         // the walker (and the origin's outline)
 const HULL = "#444444";           // the convex hull's outline (2D) or solid (3D)
-const NOW_LINE = "#b9c8dc";       // the "distance now" line on the distance chart
 
 // The speeds on the Speed slider, in steps per second. Infinity means
 // "as fast as the computer can". The default is slow, so you can watch
@@ -553,7 +552,7 @@ function positionNow(s) {
 function drawCharts(s) {
   const times = s.traceSteps;
   plotOverTime(byId("distance-chart"), times, withGuide([
-    { values: s.traceDistance, color: NOW_LINE },
+    { values: s.traceDistance, color: CHART_LIGHT },
     { values: s.traceMaxDistance, color: CHART_LINE },
   ], theory("distance", times)), "step");
   plotOverTime(byId("range-chart"), times, withGuide([{ values: s.traceRange, color: CHART_LINE }], theory("range", times)), "step");

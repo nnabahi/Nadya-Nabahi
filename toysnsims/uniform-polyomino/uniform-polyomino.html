@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Uniform Polyomino — Toys n' Sims</title>
+  <link rel="stylesheet" href="../../css/style.css">
+  <!-- KaTeX's styles, for the typeset formulas in About the model. -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/katex.min.css">
+</head>
+<body>
+
+  <header class="topbar" data-active="toysnsims.html"></header>
+  <script src="../../js/site.js"></script>
+
+  <main class="page">
+    <p><a href="../../toysnsims.html">&larr; All sims</a></p>
+    <h1>Uniform Polyomino</h1>
+
+    <!-- The boxes, as on every sim page (their layout is in
+         section 6 of css/style.css). All the behavior lives in
+         uniform-polyomino.js; the ids below (id="...") are how that
+         script finds each button and box. -->
+    <div class="sim-layout">
+
+      <!-- TOP LEFT: the polyomino. -->
+      <section class="panel panel-sim">
+        <h2>Simulation</h2>
+
+        <!-- The picture, with the zoom buttons in its top right corner
+             (js/sim-view.js). -->
+        <div class="sim-picture">
+          <canvas id="sim-canvas"></canvas>
+        </div>
+
+        <p class="muted" id="sim-message"></p>
+      </section>
+
+      <!-- TOP RIGHT: settings. -->
+      <section class="panel panel-controls">
+        <!-- The heading, with a small "model check" button on the right
+             that opens the page testing this sim's math. -->
+        <h2 class="heading-with-button">Options
+          <a class="tool-button model-check" href="uniform-polyomino-check.html">model check</a></h2>
+
+        <h3 class="option-heading">Cells N</h3>
+        <div class="option-row">
+          N = <input type="number" id="cells-box" min="1" step="1">
+          <input type="range" class="wide-range" id="cells-slider" min="1" max="1000" step="1">
+        </div>
+
+        <h3 class="option-heading">Cells moved at once, up to K</h3>
+        <div class="option-row">
+          K = <input type="number" id="most-box" min="1" step="1">
+          <input type="range" class="wide-range" id="most-slider" min="1" step="1">
+        </div>
+        <p class="muted small">Each move takes out n cells, n anywhere from 1 to K, and puts
+          n back. K = 1 is Rold&aacute;n's chain.</p>
+
+        <h3 class="option-heading">Edge perimeter heat b</h3>
+        <div class="option-row">
+          b = <input type="number" id="edge-box" step="0.01">
+          <input type="range" class="wide-range" id="edge-slider" step="0.01">
+        </div>
+        <p class="muted small">b &gt; 0 favors a long edge perimeter (stringy), b &lt; 0 a
+          short one (round, with many cycles).</p>
+
+        <h3 class="option-heading">Site perimeter heat s</h3>
+        <div class="option-row">
+          s = <input type="number" id="site-box" step="0.01">
+          <input type="range" class="wide-range" id="site-slider" step="0.01">
+        </div>
+        <div class="option-row">
+          <button class="tool-button" id="site-critical" title="Set s to the critical point of site percolation">p = p<sub>c</sub></button>
+          <span class="muted small" id="site-p"></span>
+        </div>
+        <p class="muted small">Both heats at 0: every polyomino with N cells is equally likely.</p>
+
+        <h3 class="option-heading">Run</h3>
+        <div class="option-row play-row" data-step="One move" data-restart="Back to the straight line, same seed"></div>
+        <div class="option-row speed-row"></div>
+        <div class="option-row goto-row"></div>
+        <div class="option-row seed-row"></div>
+        <p class="muted small">Moving K, b or s changes the chain as it runs. A new N, a new
+          seed or Restart goes back to the start: the straight line of N cells. The same
+          seed always gives the same run.</p>
+      </section>
+
+      <!-- UNDER THE PICTURE: numbers about this run. -->
+      <section class="panel panel-stats">
+        <h2>Statistics</h2>
+        <div class="stat-grid">
+          <div class="stat">
+            <table class="stats-table">
+              <tr><td>Cells N</td><td id="stat-cells"></td></tr>
+              <tr><td>Moves</td><td id="stat-moves"></td></tr>
+              <tr><td>Moves that changed it</td><td id="stat-changed"></td></tr>
+              <tr><td>Edge perimeter L</td><td id="stat-edge"></td></tr>
+              <tr><td>Cycles N + 1 &minus; L/2</td><td id="stat-cycles"></td></tr>
+              <tr><td>Site perimeter T</td><td id="stat-site"></td></tr>
+              <tr><td>Holes &beta;<sub>1</sub></td><td id="stat-holes"></td></tr>
+              <tr><td>Width &times; height</td><td id="stat-box"></td></tr>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- THE FULL WIDTH: the charts. -->
+      <section class="panel panel-charts">
+        <div class="stat-grid">
+          <div class="stat">
+            <h3 class="option-heading">Edge and site perimeter</h3>
+            <canvas class="chart" id="perimeter-chart"></canvas>
+            <p class="muted small">Dark: the edge perimeter L. Light: the site perimeter T.</p>
+          </div>
+          <div class="stat">
+            <h3 class="option-heading">Cycles and holes</h3>
+            <canvas class="chart" id="cycles-chart"></canvas>
+            <p class="muted small">Dark: the cycles. Light: the holes.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- BOTTOM, the full width: about the model, in two tabs (js/sim-page.js
+           switches them). Text in class="tex" is typeset by KaTeX. -->
+      <section class="panel panel-about">
+        <h2>About the model</h2>
+        <nav class="about-tabs">
+          <button class="about-tab selected" data-tab="simple">Simple</button>
+          <button class="about-tab" data-tab="details">All the details</button>
+        </nav>
+
+        <div data-panel="simple">
+        <p class="muted">(The simple explanation is coming.)</p>
+        </div>
+
+        <div data-panel="details" hidden>
+        <p>
+          <strong>Polyominoes.</strong> A polyomino with
+          <span class="tex">N</span> cells is a set of
+          <span class="tex">N</span> squares of the grid
+          <span class="tex">\mathbb{Z}^2</span>, joined across shared sides
+          [1]. Two are the same when one is a shift of the other; a turn or a
+          flip gives a different one (&ldquo;fixed&rdquo; polyominoes), and holes
+          are allowed. There are 1, 2, 6, 19, 63, 216, 760, 2725, &hellip; of them
+          with <span class="tex">N = 1, 2, 3, \dots</span> cells [2, 3]; no formula
+          is known, and the count grows like
+          <span class="tex">\lambda^N</span> with
+          <span class="tex">\lambda \approx 4.06</span> [4].
+        </p>
+        <p>
+          <strong>The two perimeters.</strong> For a polyomino
+          <span class="tex">P</span>, the <em>edge perimeter</em>
+          <span class="tex">L(P)</span> is the number of sides between a cell of
+          <span class="tex">P</span> and a cell outside it, and the <em>site
+          perimeter</em> <span class="tex">T(P)</span> is the number of cells
+          outside <span class="tex">P</span> that share a side with it. The page
+          aims at the law
+        </p>
+        <div class="tex">\pi(P) = \frac{1}{Z} \exp\big( b\, L(P) + s\, T(P) \big),</div>
+        <p>
+          with <span class="tex">Z</span> the sum of the same over all
+          polyominoes with <span class="tex">N</span> cells. At
+          <span class="tex">b = s = 0</span> it is uniform.
+        </p>
+        <p>
+          <strong>Cycles.</strong> Join two cells of
+          <span class="tex">P</span> when they share a side. Each cell has 4
+          sides, each shared side is counted by both its cells, and the rest make
+          up the edge perimeter, so <span class="tex">4N = 2E + L</span> where
+          <span class="tex">E</span> is the number of shared sides. The graph is
+          connected, so its number of independent cycles (its cycle rank) is
+          <span class="tex">E - N + 1 = N + 1 - L/2</span> [5, Section 1.9]. So
+          the heat <span class="tex">b</span> on the edge perimeter is the same as
+          the heat <span class="tex">-2b</span> on the cycles: a short perimeter
+          means many cycles. A cycle need not go around a hole: every
+          <span class="tex">2 \times 2</span> block of cells is one.
+        </p>
+        <p>
+          <strong>Holes.</strong> A hole is a group of empty cells, joined
+          across sides, that <span class="tex">P</span> cuts off from the
+          outside. Think of each cell as a closed square, so two cells that touch
+          only at a corner are joined there; then the number of holes is the
+          first Betti number <span class="tex">\beta_1</span> of the union of the
+          squares [6, Theorem 3.44], and since the union is one piece,
+          <span class="tex">\beta_1 = 1 - \chi</span>, where the Euler
+          characteristic <span class="tex">\chi</span> is the number of corners
+          minus the number of sides plus the number of squares [6, Theorem 2.44].
+          That is how the page counts them. For the uniform polyomino, the
+          expected number of holes grows in proportion to
+          <span class="tex">N</span>: it lies between
+          <span class="tex">C_1 N</span> and <span class="tex">C_2 N</span> for
+          all large <span class="tex">N</span> [7, Theorem 3].
+        </p>
+        <p>
+          <strong>Percolation.</strong> In site percolation each cell of
+          <span class="tex">\mathbb{Z}^2</span> is full with chance
+          <span class="tex">p</span>, independently. The chance that the full
+          cells joined to the origin make a shift of
+          <span class="tex">P</span> is
+          <span class="tex">N p^N (1-p)^{T(P)}</span>: the origin is one of its
+          <span class="tex">N</span> cells, its cells are full, and its site
+          perimeter is empty. So given that this cluster has
+          <span class="tex">N</span> cells, it is a polyomino drawn from
+          <span class="tex">\pi</span> with <span class="tex">b = 0</span> and
+          <span class="tex">s = \log(1 - p)</span> [7, Section 3.4]. The page shows
+          the <span class="tex">p</span> that <span class="tex">s</span> stands for,
+          and the button sets <span class="tex">p</span> to the critical point
+          <span class="tex">p_c \approx 0.59274621</span>, known only from
+          simulations [8], where a cluster first can be infinite.
+        </p>
+        <p>
+          <strong>The move.</strong> One move, from the polyomino
+          <span class="tex">P</span>:
+        </p>
+        <ol>
+          <li>Draw <span class="tex">n</span> uniformly from
+            <span class="tex">1, \dots, K</span> (at most
+            <span class="tex">N - 1</span>).</li>
+          <li>Take out <span class="tex">n</span> cells
+            <span class="tex">X</span> of <span class="tex">P</span>, all choices
+            equally likely, leaving <span class="tex">R = P \setminus X</span>.</li>
+          <li><em>The touch rule:</em> if some cell of
+            <span class="tex">X</span> shares no side with
+            <span class="tex">R</span>, stop (nothing changes).</li>
+          <li>Put back <span class="tex">n</span> cells
+            <span class="tex">Y</span> of the site perimeter
+            <span class="tex">\partial R</span> of
+            <span class="tex">R</span> (the empty cells next to it, which by the
+            touch rule include every cell of <span class="tex">X</span>), all
+            choices equally likely. Call the result
+            <span class="tex">Q = R \cup Y</span>.</li>
+          <li>If <span class="tex">Q</span> is not one piece, stop. Otherwise
+            move to <span class="tex">Q</span> with chance
+            <span class="tex">\min\big(1, e^{b (L(Q) - L(P)) + s (T(Q) - T(P))}\big)</span>.</li>
+        </ol>
+        <p>
+          With <span class="tex">n = 1</span> the touch rule always holds (a
+          polyomino with at least 2 cells has no cell on its own), and this is
+          Rold&aacute;n's chain [7, Appendix A.1]; with
+          <span class="tex">b = 0</span> it is his percolation chain.
+        </p>
+        <p>
+          <strong>Why it is right.</strong> Given <span class="tex">n</span>, the
+          move goes from <span class="tex">P</span> to
+          <span class="tex">Q</span> through one leftover
+          <span class="tex">R</span> with chance
+          <span class="tex">1 \big/ \big(\binom{N}{n} \binom{|\partial R|}{n}\big)</span>,
+          and it can go through <span class="tex">R</span> exactly when
+          <span class="tex">R</span> has <span class="tex">N - n</span> cells and
+          both <span class="tex">P \setminus R</span> and
+          <span class="tex">Q \setminus R</span> lie in
+          <span class="tex">\partial R</span>. Neither the chance nor the
+          condition changes when <span class="tex">P</span> and
+          <span class="tex">Q</span> swap, so summing over
+          <span class="tex">n</span> and <span class="tex">R</span>, the chance of
+          proposing <span class="tex">Q</span> from
+          <span class="tex">P</span> equals that of proposing
+          <span class="tex">P</span> from <span class="tex">Q</span>. With a
+          symmetric proposal, the Metropolis rule in step 5 keeps
+          <span class="tex">\pi</span> [9, 10; 11, Section 3.2]. Without the touch
+          rule this fails: a cell of <span class="tex">X</span> away from
+          <span class="tex">R</span> can be taken out, but never put back through
+          the same <span class="tex">R</span>, since it is not in
+          <span class="tex">\partial R</span>; the model check shows the bias
+          this makes. Moves with <span class="tex">n = 1</span> alone can reach
+          every polyomino from every other [7, Theorem 8], and some moves change
+          nothing, so the chain forgets where it started and its law tends to
+          <span class="tex">\pi</span> [11, Theorem 4.9].
+        </p>
+        <p>
+          <strong>How fast.</strong> For a close cousin of the
+          <span class="tex">n = 1</span> move, from Stauffer [12] (move to a
+          uniform pick among the polyominoes one cell swap away, with a
+          Metropolis&ndash;Hastings correction), Coupier, Gheysens and Wicker
+          prove that, from any start, the chain is within
+          <span class="tex">\epsilon</span> of uniform after
+        </p>
+        <div class="tex">14\, N^{4 \lceil \alpha \ln N \rceil + 12} \big(\ln a_N + \ln \epsilon^{-1}\big)</div>
+        <p>
+          moves, where <span class="tex">\alpha \approx 3.1028</span> and
+          <span class="tex">a_N</span> is the number of polyominoes with
+          <span class="tex">N</span> cells [13, Proposition 2]. That bound is for
+          their move, not this page's, and it is far bigger than what runs show:
+          with <span class="tex">N = 200</span>, the numbers on the charts stop
+          drifting away from the straight line after a few hundred thousand
+          moves. Larger <span class="tex">K</span> makes bigger changes per move,
+          but more of its moves are turned down.
+        </p>
+        <p>
+          <strong>How the page runs it.</strong> The chain runs in a second
+          thread. The cells sit on a grid with some room around them, made again
+          whenever the polyomino drifts near its edge; the grid keeps, for every
+          square, how many cells it touches, so the two perimeters change by a
+          few additions per cell moved. Whether <span class="tex">Q</span> is one
+          piece is checked from the cells next to <span class="tex">X</span>:
+          first inside a small box around <span class="tex">X</span>, then, only
+          if needed, through the whole polyomino, with one search from each of
+          those cells at a time, stopping as soon as all have met or one is
+          stuck. Every random number comes from the seed and the move's number,
+          so the same seed gives the same run.
+        </p>
+        <p><strong>References</strong></p>
+        <ol class="references">
+          <li>S. W. Golomb, &ldquo;Checker boards and polyominoes&rdquo;,
+            <em>Amer. Math. Monthly</em> 61 (1954), 675&ndash;682.</li>
+          <li>D. H. Redelmeier, &ldquo;Counting polyominoes: yet another
+            attack&rdquo;, <em>Discrete Math.</em> 36 (1981), 191&ndash;203.</li>
+          <li>OEIS Foundation, &ldquo;A001168: Number of fixed polyominoes with
+            n cells&rdquo;, <a href="https://oeis.org/A001168">oeis.org/A001168</a>.</li>
+          <li>D. A. Klarner, &ldquo;Cell growth problems&rdquo;, <em>Canad. J.
+            Math.</em> 19 (1967), 851&ndash;863; the value of
+            <span class="tex">\lambda</span>: I. Jensen, &ldquo;Counting
+            polyominoes: a parallel implementation for cluster computing&rdquo;,
+            <em>Lecture Notes in Computer Science</em> 2659 (2003),
+            203&ndash;212.</li>
+          <li>R. Diestel, <em>Graph Theory</em>, 5th ed., Springer, 2017.</li>
+          <li>A. Hatcher, <em>Algebraic Topology</em>, Cambridge University Press,
+            2002.</li>
+          <li>&Eacute;. B. Rold&aacute;n Roa, <em>Topological, geometric and
+            combinatorial properties of random polyominoes</em>, doctoral thesis,
+            Centro de Investigaci&oacute;n en Matem&aacute;ticas (CIMAT), 2018.</li>
+          <li>M. E. J. Newman, R. M. Ziff, &ldquo;Efficient Monte Carlo algorithm
+            and high-precision results for percolation&rdquo;, <em>Phys. Rev.
+            Lett.</em> 85 (2000), 4104&ndash;4107.</li>
+          <li>N. Metropolis, A. W. Rosenbluth, M. N. Rosenbluth, A. H. Teller,
+            E. Teller, &ldquo;Equation of state calculations by fast computing
+            machines&rdquo;, <em>J. Chem. Phys.</em> 21 (1953),
+            1087&ndash;1092.</li>
+          <li>W. K. Hastings, &ldquo;Monte Carlo sampling methods using Markov
+            chains and their applications&rdquo;, <em>Biometrika</em> 57 (1970),
+            97&ndash;109.</li>
+          <li>D. A. Levin, Y. Peres, E. L. Wilmer, <em>Markov Chains and Mixing
+            Times</em>, 2nd ed., American Mathematical Society, 2017.</li>
+          <li>D. Stauffer, &ldquo;Monte Carlo study of density profile, radius,
+            and perimeter for percolation clusters and lattice animals&rdquo;,
+            <em>Phys. Rev. Lett.</em> 41 (1978), 1333&ndash;1336.</li>
+          <li>D. Coupier, J. Gheysens, N. Wicker, &ldquo;Uniform sampling of
+            fixed size polyominoes&rdquo;, <em>Methodol. Comput. Appl.
+            Probab.</em> 28 (2026), paper 2.</li>
+        </ol>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <!-- KaTeX (https://katex.org) typesets the formulas. The version number
+       is fixed so an update can never change the site by surprise. -->
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/katex.min.js"></script>
+
+  <!-- The code the sims share (in js/, see the README): page helpers
+       (they also typeset the formulas, so they come after KaTeX), the
+       second thread's run loop, charts, colors, domains, the picture's
+       view (moving and zooming it), the shapes (for the holes) and the
+       polyomino chain. Then the second thread, then this page's code. -->
+  <script src="../../js/sim-page.js"></script>
+  <script src="../../js/sim-worker.js"></script>
+  <script src="../../js/sim-charts.js"></script>
+  <script src="../../js/sim-colors.js"></script>
+  <script src="../../js/sim-domains.js"></script>
+  <script src="../../js/sim-view.js"></script>
+  <script src="../../js/sim-shape.js"></script>
+  <script src="../../js/sim-polyomino.js"></script>
+  <script src="uniform-polyomino-chain.js"></script>
+  <script src="uniform-polyomino.js"></script>
+
+</body>
+</html>
