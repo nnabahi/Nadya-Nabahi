@@ -486,24 +486,24 @@ const SITE_PC = 0.59274621;
 fillBlocks(".polyomino-options", polyominoOptionsHTML);
 
 // The options, as HTML, with a heading for each (settings.headings,
-// from data-headings) or a name at the start of its row.
+// from data-headings) or else a label at the start of its row.
 function polyominoOptionsHTML(settings) {
-  function slider(heading, name, id, min, max, step) {
+  function slider(heading, label, name, id, min, max, step) {
     const box = '<input type="number" id="' + id + '-box" step="' + step + '"' +
       (id === "most" ? ' min="1" max="' + max + '"' : "") + '>';
     const range = '<input type="range" class="wide-range" id="' + id + '-slider" min="' + min + '" max="' + max +
       '" step="' + step + '">';
     return "headings" in settings
       ? '<h3 class="option-heading">' + heading + '</h3><div class="option-row">' + name + " = " + box + " " + range + "</div>"
-      : '<div class="option-row">' + heading + ": " + name + " = " + box + " " + range + "</div>";
+      : '<div class="option-row">' + label + ": " + name + " = " + box + " " + range + "</div>";
   }
-  return slider("Cells moved at once, up to K", "K", "most", 1, POLYOMINO_MOST, 1) +
+  return slider("Cells moved at once, up to K", "Cells moved at once", "K", "most", 1, POLYOMINO_MOST, 1) +
     '<p class="muted small">Each move takes out n cells, n anywhere from 1 to K, and puts n back. ' +
       "K = 1 is Rold&aacute;n's chain.</p>" +
-    slider("Edge perimeter heat", "b", "edge", POLYOMINO_HEAT.edge[0], POLYOMINO_HEAT.edge[1], 0.01) +
+    slider("Edge perimeter heat b", "Edge perimeter heat", "b", "edge", POLYOMINO_HEAT.edge[0], POLYOMINO_HEAT.edge[1], 0.01) +
     '<p class="muted small">b &gt; 0 favors a long edge perimeter (stringy), b &lt; 0 a short one ' +
       "(round, with many cycles).</p>" +
-    slider("Site perimeter heat", "s", "site", POLYOMINO_HEAT.site[0], POLYOMINO_HEAT.site[1], 0.01) +
+    slider("Site perimeter heat s", "Site perimeter heat", "s", "site", POLYOMINO_HEAT.site[0], POLYOMINO_HEAT.site[1], 0.01) +
     '<div class="option-row"><button class="tool-button" id="site-critical" ' +
       'title="Set s to the critical point of site percolation">p = p<sub>c</sub></button> ' +
       '<span class="muted small" id="site-p"></span></div>' +
