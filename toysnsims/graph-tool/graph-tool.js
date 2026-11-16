@@ -663,12 +663,36 @@ cy.on("tapstart", function (event) {
 });
 
 // Pointer moves: keep painting if a stroke is going.
-cy.on("tapdrag", function (event) {
+// On a big grid each repaint takes a while, and the browser only tells
+// us where the pointer is once the last repaint is done. Joining those
+// few positions with straight lines would make a curve come out jagged.
+// So we also ask for every position it noticed in between
+// (getCoalescedEvents) and paint along all of them, so the stroke
+// follows the hand. (Browsers without it, like Safari, give one
+// position per move, as before.) This listens on the whole window, like
+// "pointerup" below, so a stroke that leaves the drawing keeps going.
+window.addEventListener("pointermove", function (event) {
   if (!stroke) return;
-  cy.batch(function () { paintAlong(lastPoint, event.position); });
-  lastPoint = event.position;
+  const moves = event.getCoalescedEvents ? event.getCoalescedEvents() : [];
+  if (moves.length === 0) moves.push(event);
+  cy.batch(function () {
+    for (const move of moves) {
+      const point = drawingPointAt(move);
+      paintAlong(lastPoint, point);
+      lastPoint = point;
+    }
+  });
   redrawCopies();
 });
+
+// Where a mouse or finger is on the drawing, in Cytoscape units (the
+// same units as event.position in Cytoscape's own events): undo the
+// drawing's pan (in pixels) and zoom.
+function drawingPointAt(event) {
+  const box = cy.container().getBoundingClientRect();
+  const pan = cy.pan(), zoom = cy.zoom();
+  return { x: (event.clientX - box.left - pan.x) / zoom, y: (event.clientY - box.top - pan.y) / zoom };
+}
 
 // Pointer comes up (on or off the drawing): the stroke is finished.
 cy.on("tapend", finishStroke);
