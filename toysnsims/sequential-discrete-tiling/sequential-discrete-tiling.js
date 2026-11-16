@@ -116,6 +116,7 @@ const domains = connectDomains({
   },
   kinds: { polyomino: makePolyomino },
   use: function (d) {
+    if (domains.kind !== "polyomino") stopMaker();   // (a polyomino still being made would replace d)
     domain = d;
     restart();
   },
@@ -136,19 +137,26 @@ function polyominoMaker() {
 }
 let maker = null;     // the one at work (null when none is)
 
+// Stop the second thread making a polyomino, if one is at work: a newer
+// polyomino, or another kind of domain, takes its place.
+function stopMaker() {
+  if (!maker) return;
+  maker.terminate();
+  maker = null;
+  showMessage("");
+}
+
 // A new polyomino, from the N and moves boxes, the chain's options and
 // the seed. One still at work on older settings is stopped.
 function makePolyomino() {
-  if (maker) maker.terminate();
+  stopMaker();
   const cells = readWhole("polyomino-cells", 1, MAX_CELLS, DEFAULTS.cells);
   const moves = readWhole("polyomino-moves", 0, MAX_MOVES, DEFAULTS.moves);
-  showMessage("Making a uniform polyomino with " + cells.toLocaleString() + " cells (" +
+  showMessage("Making a polyomino with " + cells.toLocaleString() + " cells (" +
               moves.toLocaleString() + " moves of its chain)...");
   maker = startWorker(polyominoMaker, polyominoHelpers());
   maker.onmessage = function (event) {
-    maker.terminate();
-    maker = null;
-    showMessage("");
+    stopMaker();
     domains.use("polyomino", polyominoDomain(event.data));
   };
   maker.postMessage(Object.assign({ cells: cells, moves: moves, seed: "domain " + byId("seed").value }, chainSettings));
