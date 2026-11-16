@@ -10,7 +10,7 @@
        draws every polyomino it sends back, with the statistics.
      - Moving K, b or s changes the chain as it runs, like a Desmos
        slider: the polyomino carries on from where it is. A new N, a new
-       seed or Restart goes back to the start (the straight line of N
+       seed or Restart goes back to the start (the round blob of N
        cells), paused.
    The picture is the polyomino alone, as big as fits: it drifts as it
    changes, so the picture follows it. It can be moved and zoomed like
@@ -68,8 +68,8 @@ const sim = runInWorker(polyominoWorker, polyominoHelpers().concat([newTrace, ke
   drawSoon();
 });
 
-// A new run from the straight line of N cells (paused), with the
-// current K, b and s (chainSettings, section 6) and seed.
+// A new run from the round blob of N cells (paused), with the current
+// K, b and s (chainSettings, section 6) and seed.
 function restart() {
   latest = null;
   sim.setup(Object.assign({ cells: cells, seed: byId("seed").value }, chainSettings));

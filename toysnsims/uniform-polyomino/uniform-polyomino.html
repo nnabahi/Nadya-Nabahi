@@ -55,13 +55,13 @@
         <div class="polyomino-options" data-headings></div>
 
         <h3 class="option-heading">Run</h3>
-        <div class="option-row play-row" data-step="One move" data-restart="Back to the straight line, same seed"></div>
+        <div class="option-row play-row" data-step="One move" data-restart="Back to the round blob, same seed"></div>
         <div class="option-row speed-row"></div>
         <div class="option-row goto-row"></div>
         <div class="option-row seed-row"></div>
         <p class="muted small">Moving K, b or s changes the chain as it runs. A new N, a new
-          seed or Restart goes back to the start: the straight line of N cells. The same
-          seed always gives the same run.</p>
+          seed or Restart goes back to the start: the round blob of the N cells nearest the
+          middle. The same seed always gives the same run.</p>
       </section>
 
       <!-- UNDER THE PICTURE: numbers about this run. -->
@@ -260,10 +260,13 @@
           <span class="tex">a_N</span> is the number of polyominoes with
           <span class="tex">N</span> cells [13, Proposition 2]. That bound is for
           their move, not this page's, and it is far bigger than what runs show:
-          with <span class="tex">N = 200</span>, the numbers on the charts stop
-          drifting away from the straight line after a few hundred thousand
-          moves. Larger <span class="tex">K</span> makes bigger changes per move,
-          but more of its moves are turned down.
+          with <span class="tex">N = 200</span>, both heats 0 and
+          <span class="tex">K = 1</span>, the slowest number we watched (how
+          spread out the cells are) stopped drifting after about 100,000 to
+          150,000 moves from the round blob, two to three times sooner than from
+          a straight line, where only the two end cells can move at first.
+          Larger <span class="tex">K</span> makes bigger changes per move, but
+          more of its moves are turned down.
         </p>
         <p>
           <strong>How the page runs it.</strong> The chain runs in a second

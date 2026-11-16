@@ -32,8 +32,9 @@
    ===================================================================== */
 
 // The default domain (a uniform polyomino with 200 cells, after 300,000
-// moves of its chain, about enough for 200 cells to forget the
-// straight line it starts from), the box's default size, and the seed.
+// moves of its chain: from the round blob it starts from, the shape
+// settles in about 100,000 to 150,000 moves at 200 cells, so this is
+// two or three times that), the box's default size, and the seed.
 const DEFAULTS = { cells: 200, moves: 300000, width: 30, height: 20, seed: "1" };
 
 const MAX_CELLS = 5000;           // the polyomino's most cells

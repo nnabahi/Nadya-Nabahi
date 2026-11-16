@@ -56,7 +56,10 @@
    With n = 1 the touch rule always holds, and the move is Roldán's
    chain (her thesis, Appendix A.1.1; she proves it irreducible and
    aperiodic, Theorem 8, and starts it from the straight line of N
-   cells, as here). Since n = 1 can always be drawn, every K gives an
+   cells). Here it starts from a round blob instead (nadya's choice):
+   from a line only its two end cells can move, while from a blob most
+   cells can, and in our runs with N = 200 the blob's shape settled two
+   to three times sooner. Since n = 1 can always be drawn, every K gives an
    irreducible, aperiodic chain, so it converges to pi. How fast is not
    known in general; for a close cousin of n = 1 (Stauffer's move, with
    a Metropolis ratio) D. Coupier, J. Gheysens and N. Wicker, "Uniform
@@ -99,7 +102,8 @@
    ===================================================================== */
 
 
-// A new chain, started from the straight line of N cells. "options":
+// A new chain, started from the round blob of the N cells nearest (0,
+// 0). "options":
 //   cells        N, the number of cells (at least 1)
 //   most         K: each move takes out n cells, n uniform from 1 to K
 //   edgeHeat     b, the weight of the edge perimeter (0 if left out)
@@ -225,8 +229,16 @@ function newPolyomino(options) {
     }
   }
 
-  // The straight line of N cells, around (0, 0).
-  for (let i = 0; i < N; i++) { chain.x[i] = i - Math.floor(N / 2); chain.y[i] = 0; }
+  // The start: the N cells nearest (0, 0), a round blob (cells as far
+  // from (0, 0) as each other go in order of angle). It is one piece
+  // with no holes, since every cell but (0, 0) has a side-neighbor
+  // nearer (0, 0). The cells within "reach" of (0, 0) are more than N:
+  // their squares cover the disk of radius reach - 1/sqrt(2), of area
+  // more than N.
+  const reach = Math.ceil(Math.sqrt(N / Math.PI)) + 1, near = [];
+  for (let y = -reach; y <= reach; y++) for (let x = -reach; x <= reach; x++) near.push([x, y]);
+  near.sort(function ([a, b], [c, d]) { return (a * a + b * b) - (c * c + d * d) || Math.atan2(b, a) - Math.atan2(d, c); });
+  for (let i = 0; i < N; i++) { chain.x[i] = near[i][0]; chain.y[i] = near[i][1]; }
   size = N;
   makeGrid();
   for (let i = 0; i < N; i++) shared += touch[spotOf(chain.x[i], chain.y[i])];
