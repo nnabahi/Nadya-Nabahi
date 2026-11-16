@@ -32,8 +32,9 @@
    ===================================================================== */
 
 // The default domain (a uniform polyomino with 200 cells, after 300,000
-// moves of its chain, about enough for 200 cells to forget the
-// straight line it starts from), the box's default size, and the seed.
+// moves of its chain: from the round blob it starts from, the shape
+// settles in about 100,000 to 150,000 moves at 200 cells, so this is
+// two or three times that), the box's default size, and the seed.
 const DEFAULTS = { cells: 200, moves: 300000, width: 30, height: 20, seed: "1" };
 
 const MAX_CELLS = 5000;           // the polyomino's most cells
@@ -88,9 +89,12 @@ const player = connectPlay(sim, SPEEDS, DEFAULT_SPEED, "tile", "tiles", restart)
    Uniform polyomino / Box / Custom, and their options (connectDomains,
    js/sim-controls.js). The polyomino is made in a second thread of its
    own (it takes a moment), with its own random numbers from the seed:
-   the same seed gives the same polyomino. Custom swaps the picture for
-   the graph tool, where any region will do (it may be in several
-   pieces), but not on a torus: D must be a finite part of the plane.
+   the same seed gives the same polyomino. Its chain has the Uniform
+   Polyomino sim's options K, b and s (connectPolyominoOptions,
+   js/sim-polyomino.js), and a change to any of them makes a new one.
+   Custom swaps the picture for the graph tool, where any region will do
+   (it may be in several pieces), but not on a torus: D must be a finite
+   part of the plane.
    The picture's view (section 5) is made first: the graph tool goes
    right under it.
    ===================================================================== */
@@ -112,6 +116,7 @@ const domains = connectDomains({
   },
   kinds: { polyomino: makePolyomino },
   use: function (d) {
+    if (domains.kind !== "polyomino") stopMaker();   // (a polyomino still being made would replace d)
     domain = d;
     restart();
   },
@@ -132,23 +137,33 @@ function polyominoMaker() {
 }
 let maker = null;     // the one at work (null when none is)
 
-// A new uniform polyomino, from the N and moves boxes and the seed. One
-// still at work on older settings is stopped.
+// Stop the second thread making a polyomino, if one is at work: a newer
+// polyomino, or another kind of domain, takes its place.
+function stopMaker() {
+  if (!maker) return;
+  maker.terminate();
+  maker = null;
+  showMessage("");
+}
+
+// A new polyomino, from the N and moves boxes, the chain's options and
+// the seed. One still at work on older settings is stopped.
 function makePolyomino() {
-  if (maker) maker.terminate();
+  stopMaker();
   const cells = readWhole("polyomino-cells", 1, MAX_CELLS, DEFAULTS.cells);
   const moves = readWhole("polyomino-moves", 0, MAX_MOVES, DEFAULTS.moves);
-  showMessage("Making a uniform polyomino with " + cells.toLocaleString() + " cells (" +
+  showMessage("Making a polyomino with " + cells.toLocaleString() + " cells (" +
               moves.toLocaleString() + " moves of its chain)...");
   maker = startWorker(polyominoMaker, polyominoHelpers());
   maker.onmessage = function (event) {
-    maker.terminate();
-    maker = null;
-    showMessage("");
+    stopMaker();
     domains.use("polyomino", polyominoDomain(event.data));
   };
-  maker.postMessage({ cells: cells, most: 1, moves: moves, seed: "domain " + byId("seed").value });
+  maker.postMessage(Object.assign({ cells: cells, moves: moves, seed: "domain " + byId("seed").value }, chainSettings));
 }
+
+// The chain's K, b and s: { most, edgeHeat, siteHeat }, kept up to date.
+const chainSettings = connectPolyominoOptions(function () { if (domains.kind === "polyomino") makePolyomino(); });
 
 
 /* =====================================================================
