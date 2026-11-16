@@ -58,10 +58,14 @@
               N = <input type="number" id="polyomino-cells" min="1" step="1"> cells, after
               <input type="number" id="polyomino-moves" min="0" step="1" style="width: 8em"> moves
             </div>
-            <p class="muted small">A polyomino with N cells, every one equally likely, made by
-              the chain of the <a href="../uniform-polyomino/uniform-polyomino.html">Uniform
-              Polyomino</a> sim (one cell per move, both heats 0) from a straight line. The same
-              seed gives the same polyomino.</p>
+            <p class="muted small">A polyomino with N cells, made by the chain of the
+              <a href="../uniform-polyomino/uniform-polyomino.html">Uniform Polyomino</a> sim
+              from a straight line, with that sim's options below. The same seed gives the same
+              polyomino.</p>
+            <!-- The chain's options K, b and s, as on the Uniform Polyomino
+                 page, written in by js/sim-polyomino.js. A change makes a
+                 new polyomino. -->
+            <div class="polyomino-options"></div>
           </div>
         </div>
 
@@ -170,12 +174,19 @@
         </p>
         <p>
           <strong>The domain.</strong> By default <span class="tex">D</span> is a
-          uniform polyomino with <span class="tex">N</span> cells, from the chain
-          of the <a href="../uniform-polyomino/uniform-polyomino.html">Uniform
-          Polyomino</a> sim (see its All the details): after enough moves, every
-          polyomino with <span class="tex">N</span> cells is close to equally
-          likely. It can also be a box, or any region drawn in the graph tool
-          (in one piece or several, but not on a torus).
+          polyomino with <span class="tex">N</span> cells, from the chain of the
+          <a href="../uniform-polyomino/uniform-polyomino.html">Uniform
+          Polyomino</a> sim (see its All the details), started from a straight
+          line and with that sim's options: up to <span class="tex">K</span> cells
+          moved at once, and the heats <span class="tex">b</span> and
+          <span class="tex">s</span>, which tilt the odds of a polyomino
+          <span class="tex">P</span> by <span class="tex">e^{b L(P) + s T(P)}</span>,
+          with <span class="tex">L(P)</span> its edge perimeter and
+          <span class="tex">T(P)</span> its site perimeter. With both heats 0,
+          after enough moves every polyomino with <span class="tex">N</span>
+          cells is close to equally likely. It can also be a box, or any region
+          drawn in the graph tool (in one piece or several, but not on a
+          torus).
         </p>
         <p>
           <strong>Finding the squares.</strong> A square of uncovered cells that

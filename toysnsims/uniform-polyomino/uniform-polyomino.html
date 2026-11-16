@@ -49,32 +49,10 @@
           <input type="range" class="wide-range" id="cells-slider" min="1" max="1000" step="1">
         </div>
 
-        <h3 class="option-heading">Cells moved at once, up to K</h3>
-        <div class="option-row">
-          K = <input type="number" id="most-box" min="1" step="1">
-          <input type="range" class="wide-range" id="most-slider" min="1" step="1">
-        </div>
-        <p class="muted small">Each move takes out n cells, n anywhere from 1 to K, and puts
-          n back. K = 1 is Rold&aacute;n's chain.</p>
-
-        <h3 class="option-heading">Edge perimeter heat b</h3>
-        <div class="option-row">
-          b = <input type="number" id="edge-box" step="0.01">
-          <input type="range" class="wide-range" id="edge-slider" step="0.01">
-        </div>
-        <p class="muted small">b &gt; 0 favors a long edge perimeter (stringy), b &lt; 0 a
-          short one (round, with many cycles).</p>
-
-        <h3 class="option-heading">Site perimeter heat s</h3>
-        <div class="option-row">
-          s = <input type="number" id="site-box" step="0.01">
-          <input type="range" class="wide-range" id="site-slider" step="0.01">
-        </div>
-        <div class="option-row">
-          <button class="tool-button" id="site-critical" title="Set s to the critical point of site percolation">p = p<sub>c</sub></button>
-          <span class="muted small" id="site-p"></span>
-        </div>
-        <p class="muted small">Both heats at 0: every polyomino with N cells is equally likely.</p>
+        <!-- K, b and s, and the p that s stands for: written in by
+             js/sim-polyomino.js (Sequential Discrete Tiling has the
+             same). -->
+        <div class="polyomino-options" data-headings></div>
 
         <h3 class="option-heading">Run</h3>
         <div class="option-row play-row" data-step="One move" data-restart="Back to the straight line, same seed"></div>

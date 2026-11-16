@@ -93,6 +93,9 @@
      polyominoHelpers()       what a second thread needs for these
      polyominoDomain(cells)   some cells as a domain (js/sim-domains.js),
                               to draw them or run a sim on them
+     The options on a page (K, b and s, written once into a page's
+     placeholder, for Uniform Polyomino and Sequential Discrete Tiling):
+     polyominoOptionsHTML(), connectPolyominoOptions(onChange)
    ===================================================================== */
 
 
@@ -439,4 +442,99 @@ function polyominoDomain(cells) {
     }
   }
   return makeDomain(Array.from(cells.x), Array.from(cells.y), edges, null, null);
+}
+
+
+/* =====================================================================
+   THE OPTIONS ON A PAGE
+   ---------------------------------------------------------------------
+   The chain's K, b and s, each a slider with a box, and the p that s
+   stands for, with a "p = p_c" button. A page holds an empty box for
+   them,
+     <div class="polyomino-options" data-headings></div>
+   which is filled in as the page loads (polyominoOptionsHTML), and
+   connectPolyominoOptions makes them work. With data-headings each
+   option gets a heading of its own (Uniform Polyomino, where they are
+   the main options); without, each is one named row (Sequential
+   Discrete Tiling, where they sit under the Domain heading).
+   ===================================================================== */
+
+// K, b and s at the start (b = s = 0: uniform), and the sliders' ends
+// (the boxes take any number; K at most POLYOMINO_MOST).
+const POLYOMINO_DEFAULTS = { most: 1, edgeHeat: 0, siteHeat: 0 };
+const POLYOMINO_MOST = 10;
+const POLYOMINO_HEAT = { edge: [-2, 2], site: [-5, 2] };
+
+// The critical point of Bernoulli site percolation on the square grid,
+// p_c = 0.59274621(13), known only numerically (M. E. J. Newman and R.
+// M. Ziff, "Efficient Monte Carlo algorithm and high-precision results
+// for percolation", Phys. Rev. Lett. 85 (2000) 4104-4107).
+const SITE_PC = 0.59274621;
+
+fillBlocks(".polyomino-options", polyominoOptionsHTML);
+
+// The options, as HTML, with a heading for each (settings.headings,
+// from data-headings) or a name at the start of its row.
+function polyominoOptionsHTML(settings) {
+  function slider(heading, name, id, min, max, step) {
+    const box = '<input type="number" id="' + id + '-box" step="' + step + '"' +
+      (id === "most" ? ' min="1" max="' + max + '"' : "") + '>';
+    const range = '<input type="range" class="wide-range" id="' + id + '-slider" min="' + min + '" max="' + max +
+      '" step="' + step + '">';
+    return "headings" in settings
+      ? '<h3 class="option-heading">' + heading + '</h3><div class="option-row">' + name + " = " + box + " " + range + "</div>"
+      : '<div class="option-row">' + heading + ": " + name + " = " + box + " " + range + "</div>";
+  }
+  return slider("Cells moved at once, up to K", "K", "most", 1, POLYOMINO_MOST, 1) +
+    '<p class="muted small">Each move takes out n cells, n anywhere from 1 to K, and puts n back. ' +
+      "K = 1 is Rold&aacute;n's chain.</p>" +
+    slider("Edge perimeter heat", "b", "edge", POLYOMINO_HEAT.edge[0], POLYOMINO_HEAT.edge[1], 0.01) +
+    '<p class="muted small">b &gt; 0 favors a long edge perimeter (stringy), b &lt; 0 a short one ' +
+      "(round, with many cycles).</p>" +
+    slider("Site perimeter heat", "s", "site", POLYOMINO_HEAT.site[0], POLYOMINO_HEAT.site[1], 0.01) +
+    '<div class="option-row"><button class="tool-button" id="site-critical" ' +
+      'title="Set s to the critical point of site percolation">p = p<sub>c</sub></button> ' +
+      '<span class="muted small" id="site-p"></span></div>' +
+    '<p class="muted small">Both heats at 0: every polyomino with N cells is equally likely.</p>';
+}
+
+// Make the options work (each slider and its box move together:
+// connectSliderAndBox, js/sim-page.js), starting from
+// POLYOMINO_DEFAULTS. Every change calls onChange(). Returns the values
+// now, kept up to date: { most, edgeHeat, siteHeat }, as newPolyomino
+// takes them.
+function connectPolyominoOptions(onChange) {
+  const values = Object.assign({}, POLYOMINO_DEFAULTS);
+  const showMost = connectSliderAndBox("most-slider", "most-box", function (value) {
+    values.most = showMost(value);
+    onChange();
+  });
+  const showEdgeHeat = connectSliderAndBox("edge-slider", "edge-box", function (value) {
+    values.edgeHeat = showEdgeHeat(value);
+    onChange();
+  });
+  const showSiteHeat = connectSliderAndBox("site-slider", "site-box", function (value) {
+    setSiteHeat(value);
+    onChange();
+  });
+
+  // A new s, and the percolation p it stands for when s < 0: s = log(1 - p).
+  function setSiteHeat(value) {
+    values.siteHeat = showSiteHeat(value);
+    byId("site-p").textContent = values.siteHeat < 0
+      ? "With b = 0, this is site percolation with p = 1 − e^s = " + (1 - Math.exp(values.siteHeat)).toFixed(4) + "."
+      : values.siteHeat === 0 ? "s = 0: no tilt (percolation as p goes to 0)."
+      : "s > 0 favors a long site perimeter: no percolation p does that.";
+  }
+
+  // The button that sets p = p_c, s = log(1 - p_c).
+  byId("site-critical").addEventListener("click", function () {
+    setSiteHeat(Math.log(1 - SITE_PC));
+    onChange();
+  });
+
+  showMost(values.most);
+  showEdgeHeat(values.edgeHeat);
+  setSiteHeat(values.siteHeat);
+  return values;
 }

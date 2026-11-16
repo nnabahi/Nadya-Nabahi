@@ -31,21 +31,15 @@
    ===================================================================== */
 
 // The default number of cells (Coupier, Gheysens and Wicker's figure of
-// a uniform polyomino has 200), K, b, s and seed.
-const DEFAULTS = { cells: 200, most: 1, edgeHeat: 0, siteHeat: 0, seed: "1" };
+// a uniform polyomino has 200) and seed. (K, b and s, their defaults and
+// their sliders are in js/sim-polyomino.js, shared with Sequential
+// Discrete Tiling.)
+const DEFAULTS = { cells: 200, seed: "1" };
 
 const MAX_CELLS = 5000;           // the most cells
-const MAX_MOST = 10;              // K at most this
-const HEAT = { edge: [-2, 2], site: [-5, 2] };   // the heat sliders' ends (the boxes take any number)
 const MAX_PICTURE_HEIGHT = 500;   // in screen pixels
 const CELL_COLOR = defaultColor(4, 6);   // the cells' color (a placeholder; js/sim-colors.js)
 const MOST_MOVES = 1e9;           // the Go to step box goes up to this
-
-// The critical point of Bernoulli site percolation on the square grid,
-// p_c = 0.59274621(13), known only numerically (M. E. J. Newman and R.
-// M. Ziff, "Efficient Monte Carlo algorithm and high-precision results
-// for percolation", Phys. Rev. Lett. 85 (2000) 4104-4107).
-const SITE_PC = 0.59274621;
 
 // The speeds on the Speed slider, in moves per second. Infinity means
 // "as fast as the computer can". The default is slow, so you can watch
@@ -59,9 +53,6 @@ const DEFAULT_SPEED = 10;
    ===================================================================== */
 
 let cells = DEFAULTS.cells;        // N
-let mostMoved = DEFAULTS.most;     // K
-let edgeHeat = DEFAULTS.edgeHeat;  // b
-let siteHeat = DEFAULTS.siteHeat;  // s
 let latest = null;                 // the chain's latest report (uniform-polyomino-chain.js)
 
 
@@ -78,15 +69,15 @@ const sim = runInWorker(polyominoWorker, polyominoHelpers().concat([newTrace, ke
 });
 
 // A new run from the straight line of N cells (paused), with the
-// current settings and seed.
+// current K, b and s (chainSettings, section 6) and seed.
 function restart() {
   latest = null;
-  sim.setup({ cells: cells, most: mostMoved, edgeHeat: edgeHeat, siteHeat: siteHeat, seed: byId("seed").value });
+  sim.setup(Object.assign({ cells: cells, seed: byId("seed").value }, chainSettings));
 }
 
 // New K, b or s: the chain carries on with them.
 function sendSettings() {
-  sim.send({ type: "settings", most: mostMoved, edgeHeat: edgeHeat, siteHeat: siteHeat });
+  sim.send(Object.assign({ type: "settings" }, chainSettings));
 }
 
 // Play / Pause, Step, Restart and the Speed slider (connectPlay,
@@ -157,35 +148,15 @@ function showStats() {
    6. CONNECTING THE BUTTONS ON THE PAGE
    ---------------------------------------------------------------------
    N, K, b and s: each slider and its box move together
-   (connectSliderAndBox, js/sim-page.js). N restarts; K, b and s change
-   the chain as it runs.
+   (connectSliderAndBox, js/sim-page.js; K, b and s with
+   connectPolyominoOptions, js/sim-polyomino.js). N restarts; K, b and s
+   change the chain as it runs.
    ===================================================================== */
 const showCells = connectSliderAndBox("cells-slider", "cells-box", function (value) {
   cells = showCells(value);
   restart();
 });
-const showMost = connectSliderAndBox("most-slider", "most-box", function (value) {
-  mostMoved = showMost(value);
-  sendSettings();
-});
-const showEdgeHeat = connectSliderAndBox("edge-slider", "edge-box", function (value) {
-  edgeHeat = showEdgeHeat(value);
-  sendSettings();
-});
-const showSiteHeat = connectSliderAndBox("site-slider", "site-box", setSiteHeat);
-
-// A new s, and the percolation p it stands for when s < 0: s = log(1 - p).
-function setSiteHeat(value) {
-  siteHeat = showSiteHeat(value);
-  byId("site-p").textContent = siteHeat < 0
-    ? "With b = 0, this is site percolation with p = 1 − e^s = " + (1 - Math.exp(siteHeat)).toFixed(4) + "."
-    : siteHeat === 0 ? "s = 0: no tilt (percolation as p goes to 0)."
-    : "s > 0 favors a long site perimeter: no percolation p does that.";
-  sendSettings();
-}
-
-// The button that sets p = p_c, s = log(1 - p_c).
-byId("site-critical").addEventListener("click", function () { setSiteHeat(Math.log(1 - SITE_PC)); });
+const chainSettings = connectPolyominoOptions(sendSettings);   // { most, edgeHeat, siteHeat }
 
 // Seed: the same seed gives the same run every time.
 connectSeed(restart);
@@ -193,14 +164,6 @@ connectSeed(restart);
 
 // --- Start ------------------------------------------------------------
 byId("cells-box").max = MAX_CELLS;
-byId("most-box").max = byId("most-slider").max = MAX_MOST;
-byId("edge-slider").min = HEAT.edge[0];
-byId("edge-slider").max = HEAT.edge[1];
-byId("site-slider").min = HEAT.site[0];
-byId("site-slider").max = HEAT.site[1];
 byId("seed").value = DEFAULTS.seed;
 showCells(cells);
-showMost(mostMoved);
-showEdgeHeat(edgeHeat);
-setSiteHeat(siteHeat);
 restart();

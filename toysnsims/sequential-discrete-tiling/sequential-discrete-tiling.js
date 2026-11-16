@@ -88,9 +88,12 @@ const player = connectPlay(sim, SPEEDS, DEFAULT_SPEED, "tile", "tiles", restart)
    Uniform polyomino / Box / Custom, and their options (connectDomains,
    js/sim-controls.js). The polyomino is made in a second thread of its
    own (it takes a moment), with its own random numbers from the seed:
-   the same seed gives the same polyomino. Custom swaps the picture for
-   the graph tool, where any region will do (it may be in several
-   pieces), but not on a torus: D must be a finite part of the plane.
+   the same seed gives the same polyomino. Its chain has the Uniform
+   Polyomino sim's options K, b and s (connectPolyominoOptions,
+   js/sim-polyomino.js), and a change to any of them makes a new one.
+   Custom swaps the picture for the graph tool, where any region will do
+   (it may be in several pieces), but not on a torus: D must be a finite
+   part of the plane.
    The picture's view (section 5) is made first: the graph tool goes
    right under it.
    ===================================================================== */
@@ -132,8 +135,8 @@ function polyominoMaker() {
 }
 let maker = null;     // the one at work (null when none is)
 
-// A new uniform polyomino, from the N and moves boxes and the seed. One
-// still at work on older settings is stopped.
+// A new polyomino, from the N and moves boxes, the chain's options and
+// the seed. One still at work on older settings is stopped.
 function makePolyomino() {
   if (maker) maker.terminate();
   const cells = readWhole("polyomino-cells", 1, MAX_CELLS, DEFAULTS.cells);
@@ -147,8 +150,11 @@ function makePolyomino() {
     showMessage("");
     domains.use("polyomino", polyominoDomain(event.data));
   };
-  maker.postMessage({ cells: cells, most: 1, moves: moves, seed: "domain " + byId("seed").value });
+  maker.postMessage(Object.assign({ cells: cells, moves: moves, seed: "domain " + byId("seed").value }, chainSettings));
 }
+
+// The chain's K, b and s: { most, edgeHeat, siteHeat }, kept up to date.
+const chainSettings = connectPolyominoOptions(function () { if (domains.kind === "polyomino") makePolyomino(); });
 
 
 /* =====================================================================
