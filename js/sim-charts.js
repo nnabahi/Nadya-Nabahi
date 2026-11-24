@@ -37,6 +37,7 @@
                                      (Eden Growth, First Passage Percolation)
           logLogChart(...)           numbers against numbers, log-log,
                                        with a guide line of a given slope
+          logLogSlope(...)           the slope of such a line, fitted
      5. Zooming in time
           chartZoom(canvas, redraw), shownTimes(zoom, first, last)
      6. Numbers
@@ -756,6 +757,23 @@ function logLogChart(canvas, series, xWord, yWord, slope) {
   if (slope) positive.unshift(guideLine(positive[0].points, slope, x0));
   return lineChart(canvas, positive, { from: x0, to: x1, scale: "log", word: xWord },
                    { from: y0, to: y1, scale: "log", round: true, word: yWord });
+}
+
+// The slope of log(values) against log(times), fitted by least squares
+// over the samples from time n / span to time n (and values above 0):
+// if the values grow like times^a there, it is about a. null with fewer
+// than 3 such samples. (For a trace: times = trace.times.)
+function logLogSlope(times, values, n, span) {
+  const xs = [], ys = [];
+  times.forEach(function (t, i) {
+    if (t >= n / span && t > 0 && values[i] > 0) { xs.push(Math.log(t)); ys.push(Math.log(values[i])); }
+  });
+  if (xs.length < 3) return null;
+  const mx = xs.reduce(function (a, b) { return a + b; }, 0) / xs.length;
+  const my = ys.reduce(function (a, b) { return a + b; }, 0) / ys.length;
+  let sxy = 0, sxx = 0;
+  xs.forEach(function (x, i) { sxy += (x - mx) * (ys[i] - my); sxx += (x - mx) * (x - mx); });
+  return sxx > 0 ? sxy / sxx : null;
 }
 
 // The line y = c x^slope through the last of "points", from x = "from"

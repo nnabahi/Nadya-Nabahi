@@ -731,6 +731,7 @@ export function drawSurface(view3d, surface) {
 //   sphere      (optional) [x, y, z, r]: a see-through ball of radius r
 //   reach       (optional) fit the picture to the ball of this radius
 //               around (0, 0, 0), instead of to the cells
+//   box         (optional) or to this box: { low: [x, y, z], high: [x, y, z] }
 //   seeThrough  (optional) true: the cells are see-through (SEE_THROUGH),
 //               so a walker among them shows
 //   hull        (optional) the points to take the convex hull of, as
@@ -785,6 +786,11 @@ export function drawCells(view3d, cells) {
   drawSpaceLines(view3d, cells.lines || NO_LINES, cells.lineColor);
   drawSphere(view3d, cells.sphere || null);
   if (cells.reach) { low = [-cells.reach, -cells.reach, -cells.reach]; high = [cells.reach, cells.reach, cells.reach]; }
+  if (cells.box) {
+    const b = cells.box;
+    low = [b.low[0], b.low[2], -b.high[1]];
+    high = [b.high[0], b.high[2], -b.low[1]];
+  }
 
   // The hull: its measures, and a see-through solid.
   const measures = { area: 0, volume: 0 };

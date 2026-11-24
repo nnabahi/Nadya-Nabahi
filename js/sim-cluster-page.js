@@ -1,6 +1,7 @@
 /* =====================================================================
    sim-cluster-page.js  —  what the pages of the sims that grow a
-                           cluster share (the DLA sims)
+                           cluster share (the DLA and ballistic
+                           deposition sims)
    ---------------------------------------------------------------------
    Their growth runs in a second thread (serveGrowth, js/sim-cluster.js)
    and sends the cluster's pieces a few at a time.
@@ -42,8 +43,18 @@
                                 sims draw it too)
    These need js/sim-page.js and js/sim-charts.js.
 
+   THE SURFACE. The ballistic deposition sims (discrete and continuous)
+   show the same numbers and charts, and the latest particle's fall:
+     showDepositStats(message)  the numbers both show, and the charts
+     newFallShow()              the latest particle's fall, shown as it
+                                happens
+     fallHeight(show, top, to)  how high it is now
+     drawFallLine(pen, sx, sy, x, top, to)   its dashed line, in 2D
+   These need js/sim-page.js and js/sim-charts.js.
+
    TILES. The continuous DLA sims read their tile, and draw the tiles
-   and the latest particle's walk, the same way:
+   and the latest particle's walk, the same way (Continuous Ballistic
+   Deposition reads and draws its tiles so too):
      newTileBox(presets, changed)   the Tile box: the Start from menu,
                                 the formula and its sliders
      epsilonInBox()             the stop, from the box id="set-epsilon"
@@ -51,7 +62,8 @@
                                 when it joined
      newWalkShow()              the latest particle's walk, shown as it
                                 happens
-     drawTilesFlat(plane, pen, tiles, outline, n)   the tiles in 2D
+     drawTilesFlat(plane, pen, tiles, outline, n, shifts)   the tiles in
+                                2D (tilePath: one tile's outline)
      drawWalkFlat(plane, pen, path, share)   the walk in 2D
      walkIn3D(cells, path, share, reach, rhoMax)   the walk in 3D
    These need js/sim-page.js, js/sim-view.js, js/sim-colors.js,
@@ -204,18 +216,9 @@ function showExternalStats(s) {
 // least squares, over the samples from n / FIT_SPAN to n: { slope }, or
 // null before FIT_FROM particles.
 function dimensionFit(s) {
-  const times = s.traceParticles, radii = s.traceLists.gyration, n = s.particles;
-  if (n < FIT_FROM) return null;
-  const xs = [], ys = [];
-  times.forEach(function (t, i) {
-    if (t >= n / FIT_SPAN && radii[i] > 0) { xs.push(Math.log(t)); ys.push(Math.log(radii[i])); }
-  });
-  if (xs.length < 3) return null;
-  const mx = xs.reduce(function (a, b) { return a + b; }, 0) / xs.length;
-  const my = ys.reduce(function (a, b) { return a + b; }, 0) / ys.length;
-  let sxy = 0, sxx = 0;
-  xs.forEach(function (x, i) { sxy += (x - mx) * (ys[i] - my); sxx += (x - mx) * (x - mx); });
-  return sxx > 0 ? { slope: sxy / sxx } : null;
+  if (s.particles < FIT_FROM) return null;
+  const slope = logLogSlope(s.traceParticles, s.traceLists.gyration, s.particles, FIT_SPAN);   // (js/sim-charts.js)
+  return slope === null ? null : { slope: slope };
 }
 
 // The charts (canvases id="radius-chart" and id="dimension-chart"): the
@@ -257,6 +260,8 @@ const WALKER_RADIUS = 3;
 const WALKER_SHARE_3D = 1 / 60;
 const WALKER_RGB = [30, 30, 30];
 const PATH_RGB = [90, 90, 90];
+// The line a deposition sim's latest particle falls along (dashed).
+const FALL_LINE = "rgba(30, 30, 30, 0.35)";
 
 // While playing, each particle's walk is shown over the time until the
 // next one comes (at most MOST_WALK_SECONDS); after One particle, over
@@ -375,24 +380,32 @@ function newWalkShow() {
     walk.path = message.path;
     walk.tile = message.particles - 1;
     walk.start = performance.now();
-    walk.seconds = message.sitesFrom === 0 ? 0
-      : player.playing ? Math.min(1 / player.speed(), MOST_WALK_SECONDS) : STEP_WALK_SECONDS;
+    walk.seconds = showSeconds(message, player);
   }
-  function share() {
-    return walk.seconds > 0 ? Math.min(1, (performance.now() - walk.start) / (1000 * walk.seconds)) : 1;
-  }
+  function share() { return shownShare(walk.start, walk.seconds); }
   return walk;
+}
+
+// How long the latest particle's walk (or fall) takes to show, from the
+// growth's message: no time when the run started afresh (it shows
+// done); while playing, the time until the next particle comes (at
+// most MOST_WALK_SECONDS); after One particle, STEP_WALK_SECONDS. And
+// how far it has got, from 0 to 1, if it started on the screen at
+// "start" (performance.now(), in milliseconds).
+function showSeconds(message, player) {
+  return message.sitesFrom === 0 ? 0 : player.playing ? Math.min(1 / player.speed(), MOST_WALK_SECONDS) : STEP_WALK_SECONDS;
+}
+function shownShare(start, seconds) {
+  return seconds > 0 ? Math.min(1, (performance.now() - start) / (1000 * seconds)) : 1;
 }
 
 // 2D: tiles 0 to n - 1, centered at tiles.x[i], tiles.y[i], each the
 // tile's outline (tileOutline, js/sim-tile-shape.js), one color at a
 // time (each color is one run of tiles, since they are colored in the
-// order they joined).
-function drawTilesFlat(plane, pen, tiles, outline, n) {
-  const ux = plane.ux, uy = plane.uy, reach = outline.rhoMax * Math.max(ux, uy);   // in screen pixels
-  const small = 2 * reach < SMALL_TILE, side = Math.max(1, Math.sqrt(outline.area * ux * uy));
-  // On a small tile, fewer corners are enough (about one per pixel of its edge).
-  const skip = Math.max(1, Math.floor(outline.x.length / Math.max(8, 2 * Math.PI * reach)));
+// order they joined). "shifts" (optional: [0] if left out): each tile
+// is drawn moved across by each of these (a periodic strip's copies).
+function drawTilesFlat(plane, pen, tiles, outline, n, shifts) {
+  const add = tilePath(plane, outline), across = shifts || [0];
   let group = -1;
   for (let i = 0; i < n; i++) {
     const g = arrivalGroup(i, n);
@@ -402,8 +415,23 @@ function drawTilesFlat(plane, pen, tiles, outline, n) {
       pen.fillStyle = arrivalColor(i, n, true);
       pen.beginPath();
     }
-    const x = pixelX(plane, tiles.x[i]), y = pixelY(plane, tiles.y[i]);
-    if (x + reach < 0 || x - reach > plane.width || y + reach < 0 || y - reach > plane.height) continue;   // off the picture
+    for (const dx of across) add(pen, tiles.x[i] + dx, tiles.y[i]);
+  }
+  if (group >= 0) pen.fill();
+}
+
+// A function add(pen, x, y) that adds the tile's outline, centered at
+// the point (x, y) of the plane, to the pen's path, at the plane's zoom
+// now (nothing if it is off the picture). A tile less than SMALL_TILE
+// pixels across is a small square of the same area, and a small tile
+// gets fewer corners (about one per pixel of its edge).
+function tilePath(plane, outline) {
+  const ux = plane.ux, uy = plane.uy, reach = outline.rhoMax * Math.max(ux, uy);   // in screen pixels
+  const small = 2 * reach < SMALL_TILE, side = Math.max(1, Math.sqrt(outline.area * ux * uy));
+  const skip = Math.max(1, Math.floor(outline.x.length / Math.max(8, 2 * Math.PI * reach)));
+  return function (pen, px, py) {
+    const x = pixelX(plane, px), y = pixelY(plane, py);
+    if (x + reach < 0 || x - reach > plane.width || y + reach < 0 || y - reach > plane.height) return;   // off the picture
     if (small) pen.rect(x - side / 2, y - side / 2, side, side);
     else if (outline.round) { pen.moveTo(x + reach, y); pen.arc(x, y, reach, 0, 2 * Math.PI); }
     else {
@@ -411,8 +439,7 @@ function drawTilesFlat(plane, pen, tiles, outline, n) {
       for (let k = skip; k < outline.x.length; k += skip) pen.lineTo(x + outline.x[k] * ux, y - outline.y[k] * uy);
       pen.closePath();
     }
-  }
-  if (group >= 0) pen.fill();
+  };
 }
 
 // 2D: the latest particle's walk, as far as "share" of it: the circles it
@@ -467,4 +494,76 @@ function walkIn3D(cells, path, share, reach, rhoMax) {
     cells.atSize = Math.max(2 * rhoMax, 2 * reach * WALKER_SHARE_3D);
     if (here[3] > 0) cells.sphere = here;
   }
+}
+
+
+/* =====================================================================
+   THE SURFACE (the ballistic deposition sims)
+   ---------------------------------------------------------------------
+   The worker sends the deposit's numbers (depositNumbers,
+   js/sim-deposit.js) and a sample of the mean height and the width every
+   so often (serveGrowth, js/sim-cluster.js). The growth exponent is
+   fitted to the width's samples, as the fractal dimension is to the
+   radius's: if the width grows like n^beta, the slope of log(width)
+   against log(n) is beta.
+   ===================================================================== */
+
+// The numbers both deposition pages show, in the boxes with these ids:
+// n, the mean height, the highest point, the width, the fitted growth
+// exponent and the share of the room under the surface that is filled.
+// Then the charts (canvases id="height-chart" and id="width-chart"):
+// the mean height over time, and the width against n, log-log, with the
+// fitted slope as a dashed line.
+function showDepositStats(s) {
+  const fit = s.particles >= FIT_FROM ? logLogSlope(s.traceParticles, s.traceLists.width, s.particles, FIT_SPAN) : null;
+  byId("stat-particles").textContent = s.particles.toLocaleString();
+  byId("stat-height").textContent = niceNumber(s.height);
+  byId("stat-highest").textContent = niceNumber(s.highest);
+  byId("stat-width").textContent = niceNumber(s.width);
+  byId("stat-growth").textContent = fit === null ? "(from " + FIT_FROM + " particles)" : niceNumber(fit);
+  byId("stat-filled").textContent = isFinite(s.filledShare) ? niceNumber(100 * s.filledShare) + "%" : "";
+  plotOverTime(byId("height-chart"), s.traceParticles, [{ values: s.traceLists.height, color: CHART_LINE }], "particles");
+  logLogChart(byId("width-chart"), [{ points: pointsOverTime(s.traceParticles, s.traceLists.width) }],
+              "particles", "interface width (log-log)", fit);
+}
+
+// The latest particle's fall, shown as it happens: the growth's "fall"
+// ({ point, top }: the line it fell along and how high it stopped),
+// which particle it is (its number from 0), when the fall started on
+// the screen (performance.now(), in milliseconds) and how long it takes
+// to show (as long as a walk on the continuous DLA pages).
+//   show.follow(message, player)   take the fall from a growth's message
+//                   when the run went on (shown as it happens), or
+//                   started afresh (shown done); "player" is the page's
+//                   Play button (connectPlay, js/sim-page.js)
+//   show.share()    how far it has got: from 0 (just started) to 1 (landed)
+function newFallShow() {
+  const show = { fall: null, particle: -1, start: 0, seconds: 0, follow: follow, share: share };
+  function follow(message, player) {
+    if (message.sitesFrom !== 0 && message.particles - 1 === show.particle) return;   // no new particle
+    show.fall = message.fall;
+    show.particle = message.particles - 1;
+    show.start = performance.now();
+    show.seconds = showSeconds(message, player);
+  }
+  function share() { return shownShare(show.start, show.seconds); }
+  return show;
+}
+
+// How high the falling particle is now: from "top" (the top of the
+// picture) down to "to" (where it stops), at a steady speed.
+function fallHeight(show, top, to) { return top + show.share() * (to - top); }
+
+// 2D: the dashed line the latest particle falls along, at x from height
+// "top" down to height "to", with sx and sy taking a point of the plane
+// to the screen.
+function drawFallLine(pen, sx, sy, x, top, to) {
+  pen.strokeStyle = FALL_LINE;
+  pen.lineWidth = 1;
+  pen.setLineDash([4, 4]);
+  pen.beginPath();
+  pen.moveTo(sx(x), sy(top));
+  pen.lineTo(sx(x), sy(to));
+  pen.stroke();
+  pen.setLineDash([]);
 }
