@@ -26,126 +26,127 @@
          (class="card pinned") stays first in its group. -->
 
     <!-- MODEL FAMILIES
-         A row of family cards. Clicking one opens its panel underneath
-         (only one at a time) and fills the card with the family color.
-         The panel holds a "Simple" arrow that opens the family's shared
-         Simple text (js/toysnsims.js adds the arrow), and the family's
-         sim cards.
-         To add a family, copy a <div class="family"> block. To add a sim
-         to a family, paste its card into that family's card-grid. Family
-         cards have no genre labels: the genre buttons are for the
-         sporadic models only.
+         A stack of bars, one per family, that open and close like the
+         Writing posts: each is a <details>, which the browser opens when
+         you click its <summary> (the family's name and one line). Several
+         can be open at once. Inside: a "Simple" arrow that opens the
+         family's shared Simple text (js/toysnsims.js adds the arrow), and
+         the family's sim cards.
+         To add a family, copy a <details class="card family"> block. To
+         add a sim to a family, paste its card into that family's
+         card-grid. Family cards have no genre labels: the genre buttons
+         are for the sporadic models only.
          A sim that isn't built yet gets a "soon" card: a <div> with no
          link and a "Coming soon" line. When the sim exists, turn the
          <div class="card soon"> into <a class="card" href="..."> like the
          others and drop the "Coming soon" line. -->
     <h2>Model families</h2>
-    <div class="card-grid family-list">
+    <div class="family-list">
 
-      <div class="family">
-        <!-- Temporary family text by Claude; nadya will rewrite it. -->
-        <div class="card family-card">
-          <h3>Diffusion-Limited Aggregation</h3>
-          <p class="muted">Random walkers wander until they stick to a growing cluster, from far away or from inside it, on a lattice or in the plane.</p>
-        </div>
-        <div class="family-panel">
-          <!-- The shared Simple text, opened by the "Simple" arrow. -->
-          <details class="family-text">
-            <p>Simple text coming soon.</p>
-          </details>
-          <div class="card-grid">
-
-            <!-- Temporary card text by Claude; nadya will rewrite it. -->
-            <a class="card" href="toysnsims/external-discrete-dla/external-discrete-dla.html">
-              <h3>External Discrete DLA</h3>
-              <p class="muted">Walkers come in from far away on a lattice and stick to the first cell of the cluster they touch.</p>
-            </a>
-
-            <!-- Temporary card text by Claude; nadya will rewrite it. -->
-            <a class="card" href="toysnsims/external-continuous-dla/external-continuous-dla.html">
-              <h3>External Continuous DLA</h3>
-              <p class="muted">Brownian tiles come in from infinity and stop the first time they touch the cluster.</p>
-            </a>
-
-            <!-- Temporary card text by Claude; nadya will rewrite it. -->
-            <a class="card" href="toysnsims/internal-discrete-dla/internal-discrete-dla.html">
-              <h3>Internal Discrete DLA</h3>
-              <p class="muted">Walkers start at the source on a lattice and stop at the first cell outside the cluster.</p>
-            </a>
-
-            <!-- Temporary card text by Claude; nadya will rewrite it. -->
-            <a class="card" href="toysnsims/internal-continuous-dla/internal-continuous-dla.html">
-              <h3>Internal Continuous DLA</h3>
-              <p class="muted">Brownian tiles start at the source and stop the first time they are fully outside the cluster.</p>
-            </a>
-
+      <!-- Temporary family text by Claude; nadya will rewrite it. -->
+      <details class="card family">
+        <summary>
+          <div>
+            <h3>Diffusion-Limited Aggregation</h3>
+            <p class="muted">Random walkers wander until they stick to a growing cluster, from far away or from inside it, on a lattice or in the plane.</p>
           </div>
+        </summary>
+        <!-- The shared Simple text, opened by the "Simple" arrow. -->
+        <details class="family-text">
+          <p>Simple text coming soon.</p>
+        </details>
+        <div class="card-grid">
+
+          <!-- Temporary card text by Claude; nadya will rewrite it. -->
+          <a class="card" href="toysnsims/external-discrete-dla/external-discrete-dla.html">
+            <h3>External Discrete DLA</h3>
+            <p class="muted">Walkers come in from far away on a lattice and stick to the first cell of the cluster they touch.</p>
+          </a>
+
+          <!-- Temporary card text by Claude; nadya will rewrite it. -->
+          <a class="card" href="toysnsims/external-continuous-dla/external-continuous-dla.html">
+            <h3>External Continuous DLA</h3>
+            <p class="muted">Brownian tiles come in from infinity and stop the first time they touch the cluster.</p>
+          </a>
+
+          <!-- Temporary card text by Claude; nadya will rewrite it. -->
+          <a class="card" href="toysnsims/internal-discrete-dla/internal-discrete-dla.html">
+            <h3>Internal Discrete DLA</h3>
+            <p class="muted">Walkers start at the source on a lattice and stop at the first cell outside the cluster.</p>
+          </a>
+
+          <!-- Temporary card text by Claude; nadya will rewrite it. -->
+          <a class="card" href="toysnsims/internal-continuous-dla/internal-continuous-dla.html">
+            <h3>Internal Continuous DLA</h3>
+            <p class="muted">Brownian tiles start at the source and stop the first time they are fully outside the cluster.</p>
+          </a>
+
         </div>
-      </div>
+      </details>
 
-      <div class="family">
-        <!-- Temporary family text by Claude; nadya will rewrite it. -->
-        <div class="card family-card">
-          <h3>Percolation</h3>
-          <p class="muted">Open each cell or edge with probability p and watch clusters join into one giant cluster at the critical point.</p>
-        </div>
-        <div class="family-panel">
-          <!-- The shared Simple text, opened by the "Simple" arrow. -->
-          <details class="family-text">
-            <p>Simple text coming soon.</p>
-          </details>
-          <div class="card-grid">
-
-            <!-- Temporary card text by Claude; nadya will rewrite it. -->
-            <a class="card" href="toysnsims/percolation/site-percolation.html">
-              <h3>Bernoulli Site Percolation</h3>
-              <p class="muted">Each cell is open with probability p; slide p and watch the open clusters join into one giant cluster at the critical point.</p>
-            </a>
-
-            <!-- Temporary card text by Claude; nadya will rewrite it. -->
-            <a class="card" href="toysnsims/percolation/bond-percolation.html">
-              <h3>Bernoulli Bond Percolation</h3>
-              <p class="muted">Each edge of the grid is open with probability p; on the square grid the giant cluster appears at exactly p = 1/2.</p>
-            </a>
-
+      <!-- Temporary family text by Claude; nadya will rewrite it. -->
+      <details class="card family">
+        <summary>
+          <div>
+            <h3>Percolation</h3>
+            <p class="muted">Open each cell or edge with probability p and watch clusters join into one giant cluster at the critical point.</p>
           </div>
+        </summary>
+        <!-- The shared Simple text, opened by the "Simple" arrow. -->
+        <details class="family-text">
+          <p>Simple text coming soon.</p>
+        </details>
+        <div class="card-grid">
+
+          <!-- Temporary card text by Claude; nadya will rewrite it. -->
+          <a class="card" href="toysnsims/percolation/site-percolation.html">
+            <h3>Bernoulli Site Percolation</h3>
+            <p class="muted">Each cell is open with probability p; slide p and watch the open clusters join into one giant cluster at the critical point.</p>
+          </a>
+
+          <!-- Temporary card text by Claude; nadya will rewrite it. -->
+          <a class="card" href="toysnsims/percolation/bond-percolation.html">
+            <h3>Bernoulli Bond Percolation</h3>
+            <p class="muted">Each edge of the grid is open with probability p; on the square grid the giant cluster appears at exactly p = 1/2.</p>
+          </a>
+
         </div>
-      </div>
+      </details>
 
-      <div class="family">
-        <!-- Temporary family text by Claude; nadya will rewrite it. -->
-        <div class="card family-card">
-          <h3>Tiling</h3>
-          <p class="muted">Fill a domain with tiles, every packing equally likely or one tile at a time, on a lattice or in the plane.</p>
-        </div>
-        <div class="family-panel">
-          <!-- The shared Simple text, opened by the "Simple" arrow. -->
-          <details class="family-text">
-            <p>Simple text coming soon.</p>
-          </details>
-          <div class="card-grid">
-
-            <!-- Temporary card text by Claude; nadya will rewrite it. -->
-            <a class="card" href="toysnsims/uniform-discrete-tiling/uniform-discrete-tiling.html">
-              <h3>Uniform Discrete Tiling</h3>
-              <p class="muted">A uniformly random packing of rectangles, with or without gaps, in a box, a torus or a region you draw, mixed one small disk at a time.</p>
-            </a>
-
-            <!-- Temporary card text by Claude; nadya will rewrite it. -->
-            <a class="card" href="toysnsims/sequential-discrete-tiling/sequential-discrete-tiling.html">
-              <h3>Sequential Discrete Tiling</h3>
-              <p class="muted">A random uncovered cell gets the biggest square of free cells around it, one tile at a time, until a uniform polyomino, a box or a region you draw is covered, with the Betti numbers of what is covered so far.</p>
-            </a>
-
-            <!-- Temporary card text by Claude; nadya will rewrite it. -->
-            <a class="card" href="toysnsims/sequential-continuous-tiling/sequential-continuous-tiling.html">
-              <h3>Sequential Continuous Tiling</h3>
-              <p class="muted">Random points land in a domain one at a time, and each one grows a tile as big as it can until it touches the edge or an earlier tile, like a random Apollonian gasket, with any domain, tile and density you type.</p>
-            </a>
-
+      <!-- Temporary family text by Claude; nadya will rewrite it. -->
+      <details class="card family">
+        <summary>
+          <div>
+            <h3>Tiling</h3>
+            <p class="muted">Fill a domain with tiles, every packing equally likely or one tile at a time, on a lattice or in the plane.</p>
           </div>
+        </summary>
+        <!-- The shared Simple text, opened by the "Simple" arrow. -->
+        <details class="family-text">
+          <p>Simple text coming soon.</p>
+        </details>
+        <div class="card-grid">
+
+          <!-- Temporary card text by Claude; nadya will rewrite it. -->
+          <a class="card" href="toysnsims/uniform-discrete-tiling/uniform-discrete-tiling.html">
+            <h3>Uniform Discrete Tiling</h3>
+            <p class="muted">A uniformly random packing of rectangles, with or without gaps, in a box, a torus or a region you draw, mixed one small disk at a time.</p>
+          </a>
+
+          <!-- Temporary card text by Claude; nadya will rewrite it. -->
+          <a class="card" href="toysnsims/sequential-discrete-tiling/sequential-discrete-tiling.html">
+            <h3>Sequential Discrete Tiling</h3>
+            <p class="muted">A random uncovered cell gets the biggest square of free cells around it, one tile at a time, until a uniform polyomino, a box or a region you draw is covered, with the Betti numbers of what is covered so far.</p>
+          </a>
+
+          <!-- Temporary card text by Claude; nadya will rewrite it. -->
+          <a class="card" href="toysnsims/sequential-continuous-tiling/sequential-continuous-tiling.html">
+            <h3>Sequential Continuous Tiling</h3>
+            <p class="muted">Random points land in a domain one at a time, and each one grows a tile as big as it can until it touches the edge or an earlier tile, like a random Apollonian gasket, with any domain, tile and density you type.</p>
+          </a>
+
         </div>
-      </div>
+      </details>
 
     </div>
 

@@ -7,8 +7,8 @@
         (class="card pinned", the Graph & Domain Tool) goes first in its
         own group.
      2. Families: put a "Simple" arrow on top of each family's Simple
-        text, and open one panel at a time when its family card is
-        clicked.
+        text. (The family bars open and close by themselves: they are
+        <details>, like the Writing posts.)
      3. Genre buttons: make one button per genre written on the
         sporadic models' cards, and hide the cards that don't match.
 
@@ -16,7 +16,7 @@
    Just add the card, family block or genre <li> in toysnsims.html.
 
    If this script is ever missing or broken, the page still works:
-   every family panel and every card just stays visible.
+   the family bars still open, and every card stays visible.
 
    A few JavaScript words used below:
      - "const x = ..."   gives a name (x) to a value.
@@ -58,42 +58,8 @@ function addSimpleArrow(family) {
   family.querySelector(".family-text").prepend(arrow);
 }
 
-// Open one family's panel and close all the others.
-// chosen = null closes them all.
-function showFamily(families, chosen) {
-  for (const family of families) {
-    const isOpen = family === chosen;
-    family.querySelector(".family-panel").hidden = !isOpen;
-    family.querySelector(".family-card").classList.toggle("open", isOpen);
-    family.querySelector(".family-card").setAttribute("aria-expanded", isOpen);
-  }
-}
-
-// Make a family card act like a button: a click (or Enter or Space,
-// for the keyboard) opens its panel, or closes it if it's open.
-function makeFamilyCardClickable(families, family) {
-  const card = family.querySelector(".family-card");
-  card.setAttribute("role", "button");
-  card.tabIndex = 0;   // lets the Tab key reach it
-  function toggle() {
-    const isOpen = !family.querySelector(".family-panel").hidden;
-    showFamily(families, isOpen ? null : family);
-  }
-  card.addEventListener("click", toggle);
-  card.addEventListener("keydown", function (event) {
-    if (event.key !== "Enter" && event.key !== " ") return;
-    event.preventDefault();   // Space would otherwise scroll the page
-    toggle();
-  });
-}
-
 function setUpFamilies() {
-  const families = Array.from(document.querySelectorAll(".family"));
-  for (const family of families) {
-    addSimpleArrow(family);
-    makeFamilyCardClickable(families, family);
-  }
-  showFamily(families, null);   // all closed to start
+  for (const family of document.querySelectorAll(".family")) addSimpleArrow(family);
 }
 
 
@@ -158,6 +124,6 @@ function setUpGenreButtons() {
 /* ---------------------------------------------------------------------
    Run the three steps.
    --------------------------------------------------------------------- */
-for (const grid of document.querySelectorAll(".card-grid")) sortGrid(grid);
+for (const grid of document.querySelectorAll(".family-list, .card-grid")) sortGrid(grid);
 setUpFamilies();
 setUpGenreButtons();

@@ -397,74 +397,34 @@ a.card:hover {
 /* ---------------------------------------------------------------------
    Model families (toysnsims.html)
    ---------------------------------------------------------------------
-   HTML shape of one family (js/toysnsims.js adds the "Simple" arrow and
-   opens one panel at a time):
-     <div class="family">
-       <div class="card family-card"> name, one line </div>
-       <div class="family-panel">
-         <details class="family-text"> Simple text </details>
-         <div class="card-grid"> the family's sim cards </div>
-       </div>
-     </div>
-   The family blocks sit in <div class="card-grid family-list">. The open
-   panel takes a whole row of that grid, right under its family card's
-   row, and the open card reaches down to join it.
+   A stack of bars that open like the Writing posts (see below). HTML
+   shape of one family (js/toysnsims.js adds the "Simple" arrow):
+     <details class="card family">
+       <summary> <div> name, one line </div> </summary>
+       <details class="family-text"> Simple text </details>
+       <div class="card-grid"> the family's sim cards </div>
+     </details>
    --------------------------------------------------------------------- */
 
-/* "display: contents" lets a family's card and panel sit in the grid as
-   if the <div class="family"> around them weren't there. "dense" lets the
-   cards after an open panel fill the rest of the open card's row, so the
-   panel lands right under that row. */
-.family-list {
-  grid-auto-flow: row dense;
-}
-
+/* A family bar: a card with a stripe in the family color on its left. */
 .family {
-  display: contents;
+  border-left: 6px solid var(--color-family);
 }
 
-/* A family card: a card with a colored stripe on top. */
-.family-card {
-  border-top: 6px solid var(--color-family);
-  cursor: pointer;
+.family > summary h3 {
+  margin: 0;
 }
 
-.family-card:hover {
-  border-color: var(--color-family);
+.family > summary .muted {
+  margin: 4px 0 0;
 }
 
-/* The open family card: filled with the family color, with no bottom
-   line and a negative bottom margin, so it reaches over the grid's gap
-   (20px) and the panel's top line (2px) and the two look like one shape. */
-.family-card.open {
-  background: var(--color-family);
-  color: var(--color-surface);
-  border: 2px solid var(--color-family);
-  border-top-width: 6px;
-  border-bottom-color: var(--color-surface);
-  border-radius: var(--corner-radius) var(--corner-radius) 0 0;
-  margin-bottom: -22px;
-  position: relative;        /* with z-index, drawn over the panel's line */
-  z-index: 1;
+/* Inside an open family: the "Simple" arrow, lined up under the title. */
+.family-text {
+  margin-top: 16px;
+  padding-left: 24px;
 }
 
-/* Its one line turns light too, to read on the color. */
-.family-card.open .muted {
-  color: inherit;
-}
-
-/* The panel under the open card: a whole row wide. */
-.family-panel {
-  grid-column: 1 / -1;
-  background: var(--color-surface);
-  border: 2px solid var(--color-family);
-  border-radius: var(--corner-radius);
-  padding: 20px;
-  margin-bottom: 20px;
-}
-
-/* The "Simple" arrow that opens the Simple text (it opens like the
-   Writing posts, see below). */
 .family-arrow {
   font-family: var(--font-heading);
 }
@@ -475,7 +435,7 @@ a.card:hover {
 }
 
 /* The family's sim cards, under the Simple text. */
-.family-panel .card-grid {
+.family .card-grid {
   margin-top: 20px;
 }
 
@@ -505,8 +465,9 @@ a.card:hover {
 }
 
 /* The clickable top of a post: triangle, title and line, date on the right.
-   A family's "Simple" arrow on toysnsims.html opens the same way. */
+   A family bar on toysnsims.html, and its "Simple" arrow, open the same way. */
 .post summary,
+.family > summary,
 .family-arrow {
   display: flex;
   align-items: baseline;
@@ -516,12 +477,14 @@ a.card:hover {
 }
 
 .post summary::-webkit-details-marker,
+.family > summary::-webkit-details-marker,
 .family-arrow::-webkit-details-marker {
   display: none;             /* ... (Safari needs this line too) */
 }
 
 /* Our triangle: points right while closed, turns down when open. */
 .post summary::before,
+.family > summary::before,
 .family-arrow::before {
   content: "\25B6";          /* the character ▶ */
   font-size: 0.8em;
@@ -530,12 +493,14 @@ a.card:hover {
 }
 
 .post[open] summary::before,
+.family[open] > summary::before,
 .family-text[open] .family-arrow::before {
   transform: rotate(90deg);
 }
 
 /* Title and one line take the middle; the date sits at the right. */
-.post summary div {
+.post summary div,
+.family > summary div {
   flex: 1;
 }
 
