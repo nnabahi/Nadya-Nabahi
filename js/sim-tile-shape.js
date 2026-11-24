@@ -1423,7 +1423,7 @@ function segmentsCross(ax, ay, bx, by, cx, cy, dx, dy) {
    edge, and in fact only of the REDUCED CONVOLUTION of T and -T: each
    edge of one polygon moved by each corner of the other that sticks out
    (turns left) and whose two edges' directions have the edge's
-   direction between them (C. Behar and J.-M. Lien, "Fast and robust 2D
+   direction between them (E. Behar and J.-M. Lien, "Fast and robust 2D
    Minkowski sum using reduced convolution", IEEE/RSJ IROS 2011,
    1573-1578; the convolution is from L. Guibas, L. Ramshaw and
    J. Stolfi, "A kinetic framework for computational geometry", Proc.
