@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Continuous Ballistic Deposition — Toys n' Sims</title>
+  <link rel="stylesheet" href="../../css/style.css">
+  <!-- KaTeX's styles, for the typeset formulas. -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/katex.min.css">
+  <!-- Where the 3D library three.js lives on the internet, for the 3D
+       picture (js/sim-3d.js). It is only loaded when you switch to 3D.
+       The version number is fixed so an update can never change the
+       site by surprise. -->
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.186.1/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+
+  <header class="topbar" data-active="toysnsims.html"></header>
+  <script src="../../js/site.js"></script>
+
+  <main class="page">
+    <p><a href="../../toysnsims.html">&larr; All sims</a></p>
+    <h1>Continuous Ballistic Deposition</h1>
+
+    <!-- The boxes, as on every sim page (their layout is in
+         section 6 of css/style.css). All the behavior lives in
+         continuous-ballistic-deposition.js; the ids below (id="...") are
+         how that script finds each button and box. -->
+    <div class="sim-layout">
+
+      <!-- TOP LEFT: the deposit. -->
+      <section class="panel panel-sim">
+        <h2>Simulation</h2>
+
+        <!-- The picture. continuous-ballistic-deposition.js sets its
+             height. In 2D the zoom buttons sit in its top right corner;
+             the full screen button (added by js/sim-page.js) in its top
+             left corner. In 3D, js/sim-page.js puts the 3D view in its
+             place. -->
+        <div class="sim-picture">
+          <canvas id="sim-canvas"></canvas>
+        </div>
+
+        <p class="muted" id="sim-message"></p>
+      </section>
+
+      <!-- TOP RIGHT: settings. -->
+      <section class="panel panel-controls">
+        <h2 class="heading-with-button">Options
+          <a class="tool-button model-check" href="continuous-ballistic-deposition-check.html">model check</a></h2>
+
+        
+        <h3 class="option-heading">Dimension</h3>
+        <div class="option-row">
+          <label><input type="radio" name="dimension" value="2" checked> 2D</label>
+          <label><input type="radio" name="dimension" value="3"> 3D</label>
+        </div>
+
+        <h3 class="option-heading">Tile</h3>
+        <!-- The menu's choices are this dimension's presets
+             (continuous-ballistic-deposition.js, section 1). -->
+        <div class="option-row">
+          Start from <select id="preset"></select>
+        </div>
+        <!-- The tile can be a condition (x^2 + y^2 <= 1), the curve
+             around it (x^2 + y^2 = 1), or in 2D a curve in t
+             ((cos(t), sin(t)), t from 0 to 2π): newTileBox, in
+             js/sim-cluster-page.js. Any other letter gets a slider
+             below. The words with data-dim show only in that dimension. -->
+        <p class="small" data-dim="2">Tile <span class="tex">T</span>, centered at <span class="tex">(0, 0)</span>: the
+          points <span class="tex">(x, y)</span> with a condition, inside a curve
+          <span class="tex">F(x, y) = G(x, y)</span>, or inside a curve
+          <span class="tex">(x(t), y(t))</span>, <span class="tex">0 \le t \le 2\pi</span></p>
+        <p class="small" data-dim="3" hidden>Tile <span class="tex">T</span>, centered at
+          <span class="tex">(0, 0, 0)</span>: the points <span class="tex">(x, y, z)</span> with a
+          condition, or inside a surface <span class="tex">F(x, y, z) = G(x, y, z)</span></p>
+        <input type="text" class="formula-input" id="formula-T" spellcheck="false">
+        <div class="formula-preview" id="preview-T"></div>
+        <div id="sliders"></div>
+        <p class="muted small" id="formula-message"></p>
+        <p class="muted small">Each ray from the center should leave
+          <span class="tex">T</span> only once (a star-shaped tile)<span data-dim="3" hidden>, and for
+          now a 3D tile must be a ball or a box with its sides along x, y and z</span>. The tiles
+          are copies of <span class="tex">T</span>, moved but never turned.</p>
+
+        <h3 class="option-heading">Floor</h3>
+        <div class="option-row">
+          Width <span class="tex">W</span> = <input type="number" id="set-width" min="0.1" step="any" style="width: 6em">
+          <span class="muted small">(in 3D, each way)</span>
+        </div>
+        <div class="option-row">
+          Sides
+          <label><input type="radio" name="sides" value="periodic" checked> periodic</label>
+          <label><input type="radio" name="sides" value="walls"> walls</label>
+        </div>
+        <p class="muted small">The floor is the line <span class="tex">y = 0</span> (in 3D, the
+          plane <span class="tex">z = 0</span>), <span class="tex">W</span> wide, in the formula's
+          units (the disk has radius 1). Each particle carries a tile straight down, its center
+          at a uniformly random place across, and stops the first time the tile touches the
+          floor or a tile already there; it stays there. With periodic sides the floor's right
+          edge is glued to its left (in 3D, its back to its front too), and
+          <span class="tex">W</span> must be at least twice the tile's width; with walls the tile
+          stays between them.</p>
+
+        <h3 class="option-heading">View</h3>
+        <div class="option-row">
+          <label><input type="checkbox" id="show-fall" checked> Show each particle's fall</label>
+        </div>
+        <p class="muted small">Each tile is colored by when it landed: from blue (first) to red
+          (just now). At a slow speed you can watch the latest tile fall, dark, down its dashed
+          line; it takes its color when it lands.</p>
+        <p class="muted small help-3d" id="view3d-help" hidden></p>
+
+        <h3 class="option-heading">Run</h3>
+        <div class="option-row play-row" data-step="One particle" data-restart="Start again, same seed"></div>
+        <div class="option-row speed-row"></div>
+        <div class="option-row goto-row"></div>
+        <div class="option-row seed-row"></div>
+        <p class="muted small">The same seed always gives the same deposit, and more particles
+          only add tiles: particle p falls at a place made from its own random numbers.</p>
+      </section>
+
+      <!-- UNDER THE PICTURE: numbers about this run. -->
+      <section class="panel panel-stats">
+        <h2>Statistics</h2>
+        <div class="stat-grid">
+          <div class="stat">
+            <table class="stats-table">
+              <tr><td>Particles n (tiles in the deposit)</td><td id="stat-particles"></td></tr>
+              <tr><td>Mean height h</td><td id="stat-height"></td></tr>
+              <tr><td>Highest point</td><td id="stat-highest"></td></tr>
+              <tr><td>Interface width w</td><td id="stat-width"></td></tr>
+              <tr><td>Growth exponent &beta;, fitted</td><td id="stat-growth"></td></tr>
+              <tr><td>Filled, under the mean height</td><td id="stat-filled"></td></tr>
+            </table>
+            <p class="muted small">The surface's height at a point is the top of the highest
+              tile above it, measured at 8 evenly spaced points across each tile's width (in 3D,
+              3 by 3), over the places a tile's center can be, in the formula's units. The width
+              is the standard deviation of those heights. "Filled" is the area (in 3D, volume) of
+              the tiles over the floor's area times h: the rest is holes.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- THE FULL WIDTH: the charts (drawn by js/sim-cluster-page.js). -->
+      <section class="panel panel-charts">
+        <div class="stat-grid">
+          <div class="stat">
+            <h3 class="option-heading">Mean height</h3>
+            <canvas class="chart" id="height-chart"></canvas>
+            <p class="muted small">The mean height h against the number of particles n.</p>
+          </div>
+          <div class="stat">
+            <h3 class="option-heading">Interface width</h3>
+            <canvas class="chart" id="width-chart"></canvas>
+            <p class="muted small">The width w against n, log-log. If it grows like
+              n<sup>&beta;</sup>, its slope is &beta;. Dashed: the slope fitted over the last
+              tenfold of n (from n/10 to n). Once the width has grown as wide as the floor lets
+              it, it stops growing, and the slope goes to 0.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- BOTTOM, the full width: about the model, in two tabs (js/sim-page.js
+           switches them). Text in class="tex" is typeset by KaTeX. -->
+      <section class="panel panel-about">
+        <h2>About the model</h2>
+        <nav class="about-tabs">
+          <button class="about-tab selected" data-tab="simple">Simple</button>
+          <button class="about-tab" data-tab="details">All the details</button>
+        </nav>
+
+        <div data-panel="simple">
+        <p class="muted">(The simple explanation is coming.)</p>
+        </div>
+
+        <div data-panel="details" hidden>
+        <p>
+          <strong>The model.</strong> Fix a tile <span class="tex">T</span>, a
+          compact set in the plane (or in space) around <span class="tex">0</span>; the
+          tiles are its copies <span class="tex">q + T</span>. The floor is the segment
+          <span class="tex">0 \le x \le W</span> of the line <span class="tex">y = 0</span>
+          (in space, the square <span class="tex">[0, W]^2</span> of the plane
+          <span class="tex">z = 0</span>). Particles come one at a time. Each carries a
+          tile straight down from high above, its center on the vertical line through a
+          uniformly random place across, and stops the first time its tile touches the
+          floor or a tile already there. It stays there. So a tile that brushes the side
+          of another sticks to it, as on the Discrete Ballistic Deposition page, and the
+          deposit has holes under its surface. With periodic sides the place is uniform
+          on <span class="tex">0 \le x &lt; W</span> and the floor's ends are glued
+          together; with walls it is uniform on the places where the tile fits between
+          them. For disks this is ballistic deposition off the lattice.
+        </p>
+        <p>
+          <strong>Where it stops, exactly.</strong> With its center at
+          <span class="tex">c</span>, the tile <span class="tex">c + T</span> touches or
+          overlaps <span class="tex">q + T</span> exactly when
+          <span class="tex">c</span> is in <span class="tex">q + D</span>, with the
+          difference set <span class="tex">D = T - T = \{s - t : s, t \in T\}</span>.
+          Coming down from high above, the center first reaches
+          <span class="tex">q + D</span> at its top above the line, and the tile first
+          reaches the floor when its lowest point does. So the tile falling at
+          <span class="tex">x</span> stops at the height
+          <span class="tex">\max\bigl(-\min_{t \in T} t_y,\ \max_q\, (q_y + \operatorname{top}_D(x - q_x))\bigr)</span>,
+          where <span class="tex">\operatorname{top}_D(u)</span> is the highest point of
+          <span class="tex">D</span> above <span class="tex">u</span>. For a disk of
+          radius <span class="tex">r</span>, <span class="tex">D</span> is the disk of
+          radius <span class="tex">2r</span>, so
+          <span class="tex">\operatorname{top}_D(u) = \sqrt{4r^2 - u^2}</span>. Otherwise
+          the page works with <span class="tex">T</span> as a polygon with 4096 corners
+          (each the farthest point of <span class="tex">T</span> in its direction), and
+          <span class="tex">D</span> as the polygon its edges and those of
+          <span class="tex">-T</span> make (for a convex tile, merged in order of angle
+          [5, Section 13.3]; otherwise the outer envelope of their reduced convolution
+          [6]). Its top above each point is then exact. In space a ball of radius
+          <span class="tex">r</span> has <span class="tex">D</span> the ball of radius
+          <span class="tex">2r</span>, and a box the box twice as wide each way, both
+          exact. Only tiles whose <span class="tex">D</span> reaches the line can
+          matter, so the page files the tiles in columns at least as wide as
+          <span class="tex">D</span>, each column by height, and stops looking down a
+          column once its tiles are too low to reach above the best stop so far.
+        </p>
+        <p>
+          <strong>What it is about.</strong> As on the Discrete page: the surface
+          roughens, and its interface width <span class="tex">w</span> is expected to grow
+          like <span class="tex">t^{\beta}</span>, with <span class="tex">t</span> the
+          number of layers, until it saturates at a size that grows like
+          <span class="tex">W^{\alpha}</span> (the Family&ndash;Vicsek scaling [2, 3]).
+          Ballistic deposition is believed to be in the Kardar&ndash;Parisi&ndash;Zhang
+          class [3, 4]: in 2D <span class="tex">\beta = 1/3</span> and
+          <span class="tex">\alpha = 1/2</span>, and simulations in 3D give about
+          <span class="tex">\beta = 1/4</span> and <span class="tex">\alpha = 1/3</span> [1].
+          That comes from simulations and from the KPZ equation, not from a proof. The
+          class is expected not to depend on details like the lattice or the tile's
+          shape, so the same exponents should show here, and this page lets you test
+          that. The theorems on the Discrete page are for the lattice; I don't know of
+          any for this model.
+        </p>
+        <p>
+          <strong>The numbers.</strong> The height of the surface at a point is the
+          top of the highest tile above it, measured at 8 evenly spaced points across
+          each tile's width (in 3D, 3 by 3), over the places where a tile's center can
+          be (with walls, not right next to them, where a round tile seldom reaches
+          down). The mean height and the width are from those. The growth exponent is
+          fitted as the slope of <span class="tex">\log w</span> against
+          <span class="tex">\log n</span> by least squares, from
+          <span class="tex">n/10</span> to <span class="tex">n</span>.
+        </p>
+        <p>
+          <strong>Random numbers.</strong> Particle <span class="tex">p</span> falls at a
+          place made from the seed and <span class="tex">p</span>. So it falls in the same
+          place however many come after it, and going from <span class="tex">n</span> to
+          <span class="tex">n + 1</span> particles only adds a tile.
+        </p>
+        <p><strong>References</strong></p>
+        <ol class="small">
+          <li>P. Meakin, P. Ramanlal, L. M. Sander and R. C. Ball, &ldquo;Ballistic
+            deposition on surfaces&rdquo;, <em>Phys. Rev. A</em> 34 (1986),
+            5091&ndash;5103.</li>
+          <li>F. Family and T. Vicsek, &ldquo;Scaling of the active zone in the Eden process
+            on percolation networks and the ballistic deposition model&rdquo;, <em>J. Phys.
+            A</em> 18 (1985).</li>
+          <li>A.-L. Barab&aacute;si and H. E. Stanley, <em>Fractal Concepts in Surface
+            Growth</em>, Cambridge University Press, 1995.</li>
+          <li>M. Kardar, G. Parisi and Y.-C. Zhang, &ldquo;Dynamic scaling of growing
+            interfaces&rdquo;, <em>Phys. Rev. Lett.</em> 56 (1986), 889&ndash;892.</li>
+          <li>M. de Berg, O. Cheong, M. van Kreveld and M. Overmars,
+            <em>Computational Geometry: Algorithms and Applications</em>, 3rd ed.,
+            Springer, 2008.</li>
+          <li>E. Behar and J.-M. Lien, &ldquo;Fast and robust 2D Minkowski sum using
+            reduced convolution&rdquo;, IEEE/RSJ IROS 2011, 1573&ndash;1578.</li>
+        </ol>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <!-- math.js (https://mathjs.org) reads the typed formula, and KaTeX
+       (https://katex.org) typesets it. Version numbers are fixed so an
+       update can never change the site by surprise. -->
+  <script src="https://cdn.jsdelivr.net/npm/mathjs@15.2.0/lib/browser/math.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/katex.min.js"></script>
+
+  <!-- The code the sims share (in js/, see the README): page helpers
+       (they also typeset the formulas, so they come after KaTeX), the
+       second thread's run loop and random numbers, charts, colors, the
+       picture's view, reading formulas with sliders, the 3D vectors
+       (sim-honeycombs.js), the tile shape, the cluster's second thread,
+       the falling tile and the surface, and the Tile box, the tiles'
+       drawing and the statistics the deposition pages share. Then the
+       growth (it runs in a second thread), then this page's code. -->
+  <script src="../../js/sim-page.js"></script>
+  <script src="../../js/sim-worker.js"></script>
+  <script src="../../js/sim-charts.js"></script>
+  <script src="../../js/sim-colors.js"></script>
+  <script src="../../js/sim-view.js"></script>
+  <script src="../../js/formulas.js"></script>
+  <script src="../../js/sim-honeycombs.js"></script>
+  <script src="../../js/sim-tile-shape.js"></script>
+  <script src="../../js/sim-cluster.js"></script>
+  <script src="../../js/sim-deposit.js"></script>
+  <script src="../../js/sim-cluster-page.js"></script>
+  <script src="continuous-ballistic-deposition-growth.js"></script>
+  <script src="continuous-ballistic-deposition.js"></script>
+</body>
+</html>
