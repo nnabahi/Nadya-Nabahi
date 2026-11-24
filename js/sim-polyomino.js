@@ -56,7 +56,10 @@
    With n = 1 the touch rule always holds, and the move is Roldán's
    chain (her thesis, Appendix A.1.1; she proves it irreducible and
    aperiodic, Theorem 8, and starts it from the straight line of N
-   cells, as here). Since n = 1 can always be drawn, every K gives an
+   cells). Here it starts from a round blob instead (nadya's choice):
+   from a line only its two end cells can move, while from a blob most
+   cells can, and in our runs with N = 200 the blob's shape settled two
+   to three times sooner. Since n = 1 can always be drawn, every K gives an
    irreducible, aperiodic chain, so it converges to pi. How fast is not
    known in general; for a close cousin of n = 1 (Stauffer's move, with
    a Metropolis ratio) D. Coupier, J. Gheysens and N. Wicker, "Uniform
@@ -93,10 +96,14 @@
      polyominoHelpers()       what a second thread needs for these
      polyominoDomain(cells)   some cells as a domain (js/sim-domains.js),
                               to draw them or run a sim on them
+     The options on a page (K, b and s, written once into a page's
+     placeholder, for Uniform Polyomino and Sequential Discrete Tiling):
+     polyominoOptionsHTML(), connectPolyominoOptions(onChange)
    ===================================================================== */
 
 
-// A new chain, started from the straight line of N cells. "options":
+// A new chain, started from the round blob of the N cells nearest (0,
+// 0). "options":
 //   cells        N, the number of cells (at least 1)
 //   most         K: each move takes out n cells, n uniform from 1 to K
 //   edgeHeat     b, the weight of the edge perimeter (0 if left out)
@@ -222,8 +229,16 @@ function newPolyomino(options) {
     }
   }
 
-  // The straight line of N cells, around (0, 0).
-  for (let i = 0; i < N; i++) { chain.x[i] = i - Math.floor(N / 2); chain.y[i] = 0; }
+  // The start: the N cells nearest (0, 0), a round blob (cells as far
+  // from (0, 0) as each other go in order of angle). It is one piece
+  // with no holes, since every cell but (0, 0) has a side-neighbor
+  // nearer (0, 0). The cells within "reach" of (0, 0) are more than N:
+  // their squares cover the disk of radius reach - 1/sqrt(2), of area
+  // more than N.
+  const reach = Math.ceil(Math.sqrt(N / Math.PI)) + 1, near = [];
+  for (let y = -reach; y <= reach; y++) for (let x = -reach; x <= reach; x++) near.push([x, y]);
+  near.sort(function ([a, b], [c, d]) { return (a * a + b * b) - (c * c + d * d) || Math.atan2(b, a) - Math.atan2(d, c); });
+  for (let i = 0; i < N; i++) { chain.x[i] = near[i][0]; chain.y[i] = near[i][1]; }
   size = N;
   makeGrid();
   for (let i = 0; i < N; i++) shared += touch[spotOf(chain.x[i], chain.y[i])];
@@ -439,4 +454,99 @@ function polyominoDomain(cells) {
     }
   }
   return makeDomain(Array.from(cells.x), Array.from(cells.y), edges, null, null);
+}
+
+
+/* =====================================================================
+   THE OPTIONS ON A PAGE
+   ---------------------------------------------------------------------
+   The chain's K, b and s, each a slider with a box, and the p that s
+   stands for, with a "p = p_c" button. A page holds an empty box for
+   them,
+     <div class="polyomino-options" data-headings></div>
+   which is filled in as the page loads (polyominoOptionsHTML), and
+   connectPolyominoOptions makes them work. With data-headings each
+   option gets a heading of its own (Uniform Polyomino, where they are
+   the main options); without, each is one named row (Sequential
+   Discrete Tiling, where they sit under the Domain heading).
+   ===================================================================== */
+
+// K, b and s at the start (b = s = 0: uniform), and the sliders' ends
+// (the boxes take any number; K at most POLYOMINO_MOST).
+const POLYOMINO_DEFAULTS = { most: 1, edgeHeat: 0, siteHeat: 0 };
+const POLYOMINO_MOST = 10;
+const POLYOMINO_HEAT = { edge: [-2, 2], site: [-5, 2] };
+
+// The critical point of Bernoulli site percolation on the square grid,
+// p_c = 0.59274621(13), known only numerically (M. E. J. Newman and R.
+// M. Ziff, "Efficient Monte Carlo algorithm and high-precision results
+// for percolation", Phys. Rev. Lett. 85 (2000) 4104-4107).
+const SITE_PC = 0.59274621;
+
+fillBlocks(".polyomino-options", polyominoOptionsHTML);
+
+// The options, as HTML, with a heading for each (settings.headings,
+// from data-headings) or else a label at the start of its row.
+function polyominoOptionsHTML(settings) {
+  function slider(heading, label, name, id, min, max, step) {
+    const box = '<input type="number" id="' + id + '-box" step="' + step + '"' +
+      (id === "most" ? ' min="1" max="' + max + '"' : "") + '>';
+    const range = '<input type="range" class="wide-range" id="' + id + '-slider" min="' + min + '" max="' + max +
+      '" step="' + step + '">';
+    return "headings" in settings
+      ? '<h3 class="option-heading">' + heading + '</h3><div class="option-row">' + name + " = " + box + " " + range + "</div>"
+      : '<div class="option-row">' + label + ": " + name + " = " + box + " " + range + "</div>";
+  }
+  return slider("Cells moved at once, up to K", "Cells moved at once", "K", "most", 1, POLYOMINO_MOST, 1) +
+    '<p class="muted small">Each move takes out n cells, n anywhere from 1 to K, and puts n back. ' +
+      "K = 1 is Rold&aacute;n's chain.</p>" +
+    slider("Edge perimeter heat b", "Edge perimeter heat", "b", "edge", POLYOMINO_HEAT.edge[0], POLYOMINO_HEAT.edge[1], 0.01) +
+    '<p class="muted small">b &gt; 0 favors a long edge perimeter (stringy), b &lt; 0 a short one ' +
+      "(round, with many cycles).</p>" +
+    slider("Site perimeter heat s", "Site perimeter heat", "s", "site", POLYOMINO_HEAT.site[0], POLYOMINO_HEAT.site[1], 0.01) +
+    '<div class="option-row"><button class="tool-button" id="site-critical" ' +
+      'title="Set s to the critical point of site percolation">p = p<sub>c</sub></button> ' +
+      '<span class="muted small" id="site-p"></span></div>' +
+    '<p class="muted small">Both heats at 0: every polyomino with N cells is equally likely.</p>';
+}
+
+// Make the options work (each slider and its box move together:
+// connectSliderAndBox, js/sim-page.js), starting from
+// POLYOMINO_DEFAULTS. Every change calls onChange(). Returns the values
+// now, kept up to date: { most, edgeHeat, siteHeat }, as newPolyomino
+// takes them.
+function connectPolyominoOptions(onChange) {
+  const values = Object.assign({}, POLYOMINO_DEFAULTS);
+  const showMost = connectSliderAndBox("most-slider", "most-box", function (value) {
+    values.most = showMost(value);
+    onChange();
+  });
+  const showEdgeHeat = connectSliderAndBox("edge-slider", "edge-box", function (value) {
+    values.edgeHeat = showEdgeHeat(value);
+    onChange();
+  });
+  const showSiteHeat = connectSliderAndBox("site-slider", "site-box", function (value) {
+    setSiteHeat(value);
+    onChange();
+  });
+
+  // A new s, and the percolation p it stands for when s < 0: s = log(1 - p).
+  function setSiteHeat(value) {
+    values.siteHeat = showSiteHeat(value);
+    byId("site-p").textContent = values.siteHeat < 0
+      ? "With b = 0, this is site percolation with p = 1 − e^s = " + (1 - Math.exp(values.siteHeat)).toFixed(4) + "."
+      : values.siteHeat === 0 ? "s = 0: no tilt (percolation as p goes to 0)."
+      : "s > 0 favors a long site perimeter: no percolation p does that.";
+  }
+
+  // The button that sets p = p_c, s = log(1 - p_c).
+  byId("site-critical").addEventListener("click", function () {
+    setSiteHeat(Math.log(1 - SITE_PC));
+    onChange();
+  });
+
+  showMost(values.most);
+  showEdgeHeat(values.edgeHeat);
+  setSiteHeat(values.siteHeat);
+  return values;
 }
