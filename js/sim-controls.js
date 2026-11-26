@@ -34,7 +34,7 @@
           cornersCanBeCells()               can its corners be the cells?
           readTiling()                      the tiling the Lattice options say
         and the tilings of space (3D), on pages that have them:
-          connectSpaceTilings(onChange)     fill in and connect their menus
+          connectSpaceTilings(onChange, kinds)   fill in and connect their menus
           spaceBlockInUse()                 the tiling of space they say
           showLatticeRowsFor(dim)           the Lattice options in 2D, these in 3D
      2. The graph tool inside a sim page
@@ -525,11 +525,15 @@ function readTiling() {
 }
 
 // The tilings of space's menus: every tiling of space (the cubes,
-// whose polyhedra are Z^3, first and ticked) and every kind of cell.
+// whose polyhedra are Z^3, first and ticked) and every kind of cell (or
+// only the kinds in the list "kinds", if given: a sim that needs cells
+// with an inside offers just "polyhedra" and "vertices").
 // They call onChange when either changes.
-function connectSpaceTilings(onChange) {
+function connectSpaceTilings(onChange, kinds) {
   addHoneycombOptions(byId("set-honeycomb"));    // (js/sim-honeycombs.js)
-  for (const { kind, name } of CELL_KINDS) byId("set-cell-kind").appendChild(new Option(name, kind));
+  for (const { kind, name } of CELL_KINDS) {
+    if (!kinds || kinds.indexOf(kind) >= 0) byId("set-cell-kind").appendChild(new Option(name, kind));
+  }
   for (const id of ["set-honeycomb", "set-cell-kind"]) byId(id).addEventListener("change", onChange);
 }
 

@@ -12,6 +12,7 @@
      swatch(color)                    a small square of a color, as HTML
      colorRow(color, label, cells)    a row of a statistics table, with a swatch
      colorShareRows(names, ...)       a coloring's table: cells, share, regions
+     readNumber(id, lo, hi, fallback, whole)   a number typed in a box
      readWhole(id, lo, hi, fallback)  a whole number typed in a box
      startWorker(fn, helpers)         run a function in a second thread
      keepAlong(kept, more, at)        add numbers a second thread sent to a list
@@ -89,16 +90,18 @@ function colorShareRows(names, first, counts, total, regions) {
   return rows;
 }
 
-// A whole number from a box, kept between lo and hi (else "fallback").
-// The box is updated to show the number actually used.
-function readWhole(id, lo, hi, fallback) {
+// A number from a box, kept between lo and hi (else "fallback"), and
+// with "whole", rounded to a whole number. The box is updated to show
+// the number actually used.
+function readNumber(id, lo, hi, fallback, whole) {
   const box = byId(id);
-  let v = Math.round(Number(box.value));
+  let v = whole ? Math.round(Number(box.value)) : Number(box.value);
   if (!isFinite(v) || box.value === "") v = fallback;
   v = Math.min(Math.max(v, lo), hi);
   box.value = v;
   return v;
 }
+function readWhole(id, lo, hi, fallback) { return readNumber(id, lo, hi, fallback, true); }
 
 // Run the function "fn" in a second thread (a "Web Worker"), so the
 // page never freezes while it works. A worker is normally made from a

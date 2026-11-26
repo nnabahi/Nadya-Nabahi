@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Discrete Ballistic Deposition — Toys n' Sims</title>
+  <link rel="stylesheet" href="../../css/style.css">
+  <!-- KaTeX's styles, for the typeset formulas. -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/katex.min.css">
+  <!-- Where the 3D library three.js lives on the internet, for the 3D
+       picture (js/sim-3d.js). It is only loaded when you switch to 3D.
+       The version number is fixed so an update can never change the
+       site by surprise. -->
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.186.1/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+
+  <header class="topbar" data-active="toysnsims.html"></header>
+  <script src="../../js/site.js"></script>
+
+  <main class="page">
+    <p><a href="../../toysnsims.html">&larr; All sims</a></p>
+    <h1>Discrete Ballistic Deposition</h1>
+
+    <!-- The boxes, as on every sim page (their layout is in
+         section 6 of css/style.css). All the behavior lives in
+         discrete-ballistic-deposition.js; the ids below (id="...") are
+         how that script finds each button and box. -->
+    <div class="sim-layout">
+
+      <!-- TOP LEFT: the deposit. -->
+      <section class="panel panel-sim">
+        <h2>Simulation</h2>
+
+        <!-- The picture. discrete-ballistic-deposition.js sets its
+             height. In 2D the zoom buttons sit in its top right corner;
+             the full screen button (added by js/sim-page.js) in its top
+             left corner. In 3D, js/sim-page.js puts the 3D view in its
+             place. -->
+        <div class="sim-picture">
+          <canvas id="sim-canvas"></canvas>
+        </div>
+
+        <p class="muted" id="sim-message"></p>
+      </section>
+
+      <!-- TOP RIGHT: settings. -->
+      <section class="panel panel-controls">
+        <h2 class="heading-with-button">Options
+          <a class="tool-button model-check" href="discrete-ballistic-deposition-check.html">model check</a></h2>
+
+        <h3 class="option-heading">Dimension</h3>
+        <div class="option-row">
+          <label><input type="radio" name="dimension" value="2" checked> 2D</label>
+          <label><input type="radio" name="dimension" value="3"> 3D</label>
+        </div>
+
+        <!-- 2D only: the lattice, the square grid or any tiling by regular
+             polygons, from the menu or typed as a code (GomJau-Hogg
+             notation), with its tiles or its corners as the cells. (A
+             Penrose tiling never repeats, so it has no strip of blocks:
+             this page doesn't offer it.) 3D only: one of the 28 uniform
+             tilings of space (js/sim-honeycombs.js), with its polyhedra
+             or its vertices as the cells (a line can pass through
+             those). js/sim-controls.js fills them in. -->
+        <div class="lattice-options" data-space></div>
+
+        <h3 class="option-heading">Floor</h3>
+        <div class="option-row">
+          Width <input type="number" id="set-width" min="2" step="1"> blocks
+          <span class="muted small">(in 3D, each way)</span>
+        </div>
+        <div class="option-row">
+          Sides
+          <label><input type="radio" name="sides" value="periodic" checked> periodic</label>
+          <label><input type="radio" name="sides" value="walls"> walls</label>
+        </div>
+        <p class="muted small" id="walls-message" hidden>This lattice's blocks cut through
+          cells at their sides, so walls wouldn't be straight: here the sides are periodic.</p>
+        <p class="muted small">Every cell below height 0 is the floor (the gray layer is its
+          top). Each particle falls straight down, at a uniformly random place across, and
+          stops in the first cell it passes through that is next to the deposit or the
+          floor; that cell joins the deposit. With periodic sides the strip's right edge is
+          glued to its left (in 3D, its back to its front too). On the square grid a block
+          is one cell.</p>
+
+        <h3 class="option-heading">View</h3>
+        <div class="option-row">
+          <label><input type="checkbox" id="show-fall" checked> Show each particle's fall</label>
+        </div>
+        <p class="muted small">Each cell is colored by when it joined: from blue (first) to red
+          (just now). At a slow speed you can watch the latest particle fall down its dashed
+          line; its cell shows when it lands.</p>
+        <p class="muted small help-3d" id="view3d-help" hidden></p>
+
+        <h3 class="option-heading">Run</h3>
+        <div class="option-row play-row" data-step="One particle" data-restart="Start again, same seed"></div>
+        <div class="option-row speed-row"></div>
+        <div class="option-row goto-row"></div>
+        <div class="option-row seed-row"></div>
+        <p class="muted small">The same seed always gives the same deposit, and more particles
+          only add cells: particle p falls at a place made from its own random numbers.</p>
+      </section>
+
+      <!-- UNDER THE PICTURE: numbers about this run. -->
+      <section class="panel panel-stats">
+        <h2>Statistics</h2>
+        <div class="stat-grid">
+          <div class="stat">
+            <table class="stats-table">
+              <tr><td>Particles n (cells in the deposit)</td><td id="stat-particles"></td></tr>
+              <tr><td>Mean height h</td><td id="stat-height"></td></tr>
+              <tr><td>Highest point</td><td id="stat-highest"></td></tr>
+              <tr><td>Interface width w</td><td id="stat-width"></td></tr>
+              <tr><td>Growth exponent &beta;, fitted</td><td id="stat-growth"></td></tr>
+              <tr><td>Filled, under the mean height</td><td id="stat-filled"></td></tr>
+            </table>
+            <p class="muted small">The surface's height at a point is the top of the highest
+              cell above it, measured at 8 evenly spaced points across each block (in 3D, 3 by
+              3), from the floor's mean level, in side lengths. The width is the standard
+              deviation of those heights. "Filled" is the area (in 3D, volume) of the deposit's
+              cells over the floor's area times h: the rest is holes.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- THE FULL WIDTH: the charts (drawn by js/sim-cluster-page.js). -->
+      <section class="panel panel-charts">
+        <div class="stat-grid">
+          <div class="stat">
+            <h3 class="option-heading">Mean height</h3>
+            <canvas class="chart" id="height-chart"></canvas>
+            <p class="muted small">The mean height h against the number of particles n.</p>
+          </div>
+          <div class="stat">
+            <h3 class="option-heading">Interface width</h3>
+            <canvas class="chart" id="width-chart"></canvas>
+            <p class="muted small">The width w against n, log-log. If it grows like
+              n<sup>&beta;</sup>, its slope is &beta;. Dashed: the slope fitted over the last
+              tenfold of n (from n/10 to n). Once the width has grown as wide as the strip lets
+              it, it stops growing, and the slope goes to 0.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- BOTTOM, the full width: about the model, in two tabs (js/sim-page.js
+           switches them). Text in class="tex" is typeset by KaTeX. -->
+      <section class="panel panel-about">
+        <h2>About the model</h2>
+        <nav class="about-tabs">
+          <button class="about-tab selected" data-tab="simple">Simple</button>
+          <button class="about-tab" data-tab="details">All the details</button>
+        </nav>
+
+        <div data-panel="simple">
+        <p class="muted">(The simple explanation is coming.)</p>
+        </div>
+
+        <div data-panel="details" hidden>
+        <p>
+          <strong>The model</strong> [1]. On the square grid: a row of
+          <span class="tex">L</span> columns, all of height
+          <span class="tex">h(i) = 0</span>. Each particle picks a column
+          <span class="tex">i</span> uniformly at random and falls straight down it,
+          sticking to the first cell it touches, from above or from the side. So
+          <span class="tex">h(i)</span> becomes
+          <span class="tex">\max\bigl(h(i - 1),\ h(i) + 1,\ h(i + 1)\bigr)</span>,
+          with <span class="tex">i \pm 1</span> taken around the strip (periodic sides)
+          or left out past a wall. A particle that sticks to the side of a taller column
+          leaves holes under it.
+        </p>
+        <p>
+          <strong>On any lattice.</strong> The same, with "falls down a column" made
+          precise. A strip of the lattice, <span class="tex">L</span> repeating blocks
+          wide (in 3D, <span class="tex">L \times L</span>), has a floor: every cell whose
+          middle is below height 0. A particle falls down the vertical line through a
+          uniformly random point across the strip, and stops in the first cell the line
+          passes through that is next to the deposit or the floor (its neighbor: across
+          a side, in 3D a face). On the square grid this is exactly the rule above. On
+          other lattices wider cells are hit more often, in proportion to their width,
+          which is what a uniform place means. Going down the line, the first such cell
+          is always above every cell of the deposit on the line (the cell just above the
+          deposit's highest one shares a side with it), so the page finds it as the
+          highest empty cell on the line next to the deposit, exactly: each cell's
+          pieces of the line come from its polygon (in 3D, its faces).
+        </p>
+        <p>
+          <strong>What it is about.</strong> The surface roughens. Its interface
+          width <span class="tex">w</span> (the standard deviation of the heights)
+          is expected to grow like <span class="tex">t^{\beta}</span>, with
+          <span class="tex">t</span> the number of layers
+          (<span class="tex">n / L</span>), until it saturates at a size that grows like
+          <span class="tex">L^{\alpha}</span>, after a time like
+          <span class="tex">L^{z}</span> (the Family&ndash;Vicsek scaling [1, 2]). In 2D
+          ballistic deposition is believed to be in the Kardar&ndash;Parisi&ndash;Zhang
+          (KPZ) class [3], with <span class="tex">\beta = 1/3</span>,
+          <span class="tex">\alpha = 1/2</span> and <span class="tex">z = 3/2</span>; in
+          3D simulations give about <span class="tex">\beta = 1/4</span> and
+          <span class="tex">\alpha = 1/3</span> [8]. That comes from simulations and from
+          the KPZ equation, not from a proof for this model. Early on, before neighboring columns matter, the width grows like
+          <span class="tex">t^{1/2}</span>, as for columns that grow on their own [2], so the
+          fitted slope comes down toward 1/3 as the run goes on.
+        </p>
+        <p>
+          <strong>What is proved</strong> (on <span class="tex">\mathbb{Z}^d</span>,
+          with a clock at each column instead of one particle at a time, which builds the
+          same deposit). The height grows linearly, with a limit shape and a
+          hydrodynamic limit [4]. In 2D the width grows at least like
+          <span class="tex">\log t</span> [5]. The height's variance is at most
+          <span class="tex">C t</span> in every dimension [6]. The surface seen from one
+          column has a stationary law on the infinite lattice [7]. So the
+          <span class="tex">t^{1/3}</span> law is still open.
+        </p>
+        <p>
+          <strong>The numbers.</strong> The height of the surface at a point is the
+          top of the highest cell above it, measured at 8 evenly spaced points across
+          each block (in 3D, 3 by 3); on the square grid that is the classic
+          <span class="tex">h(i)</span>. The mean height and the width are from those,
+          the mean from the floor's own mean level. The growth exponent is fitted as the
+          slope of <span class="tex">\log w</span> against <span class="tex">\log n</span>
+          by least squares, from <span class="tex">n/10</span> to <span class="tex">n</span>.
+        </p>
+        <p>
+          <strong>Random numbers.</strong> Particle <span class="tex">p</span> falls at a
+          place made from the seed and <span class="tex">p</span>. So it falls in the same
+          place however many come after it, and going from <span class="tex">n</span> to
+          <span class="tex">n + 1</span> particles only adds a cell.
+        </p>
+        <p><strong>References</strong></p>
+        <ol class="small">
+          <li>F. Family and T. Vicsek, &ldquo;Scaling of the active zone in the Eden process
+            on percolation networks and the ballistic deposition model&rdquo;, <em>J. Phys.
+            A</em> 18 (1985).</li>
+          <li>A.-L. Barab&aacute;si and H. E. Stanley, <em>Fractal Concepts in Surface
+            Growth</em>, Cambridge University Press, 1995.</li>
+          <li>M. Kardar, G. Parisi and Y.-C. Zhang, &ldquo;Dynamic scaling of growing
+            interfaces&rdquo;, <em>Phys. Rev. Lett.</em> 56 (1986), 889&ndash;892.</li>
+          <li>T. Sepp&auml;l&auml;inen, &ldquo;Strong law of large numbers for the
+            interface in ballistic deposition&rdquo;, <em>Ann. Inst. H. Poincar&eacute;
+            Probab. Statist.</em> 36 (2000), 691.</li>
+          <li>M. D. Penrose, &ldquo;Growth and roughness of the interface for ballistic
+            deposition&rdquo;, <em>J. Stat. Phys.</em> 131 (2008).</li>
+          <li>T. Sudijono, &ldquo;A linear variance bound for ballistic deposition&rdquo;,
+            arXiv:2609.24056 (2026).</li>
+          <li>S. Chatterjee, &ldquo;Existence of stationary ballistic deposition on the
+            infinite lattice&rdquo;, arXiv:2110.10294 (2021).</li>
+          <li>P. Meakin, P. Ramanlal, L. M. Sander and R. C. Ball, &ldquo;Ballistic
+            deposition on surfaces&rdquo;, <em>Phys. Rev. A</em> 34 (1986),
+            5091&ndash;5103.</li>
+        </ol>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <!-- KaTeX (https://katex.org) typesets the formulas. The version
+       number is fixed so an update can never change the site by surprise. -->
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/katex.min.js"></script>
+
+  <!-- The code the sims share (in js/, see the README): page helpers
+       (they also typeset the formulas, so they come after KaTeX), the
+       second thread's run loop and random numbers, charts, colors,
+       domains, the picture's view, the tilings of the plane and of
+       space, the Lattice options, the lattices, the cluster sims' second
+       thread, the strip and its surface, and the page's copy of the
+       cells, its statistics and the fall. Then the growth (it runs in a
+       second thread), then this page's code. -->
+  <script src="../../js/sim-page.js"></script>
+  <script src="../../js/sim-worker.js"></script>
+  <script src="../../js/sim-charts.js"></script>
+  <script src="../../js/sim-colors.js"></script>
+  <script src="../../js/sim-domains.js"></script>
+  <script src="../../js/sim-view.js"></script>
+  <script src="../../js/sim-tilings.js"></script>
+  <script src="../../js/sim-honeycombs.js"></script>
+  <script src="../../js/sim-controls.js"></script>
+  <script src="../../js/sim-walk.js"></script>
+  <script src="../../js/sim-cluster.js"></script>
+  <script src="../../js/sim-deposit.js"></script>
+  <script src="../../js/sim-sites.js"></script>
+  <script src="../../js/sim-cluster-page.js"></script>
+  <script src="discrete-ballistic-deposition-growth.js"></script>
+  <script src="discrete-ballistic-deposition.js"></script>
+</body>
+</html>
