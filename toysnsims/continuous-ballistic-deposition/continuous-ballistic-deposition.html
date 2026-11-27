@@ -115,7 +115,8 @@
         </div>
         <p class="muted small">Each tile is colored by when it landed: from blue (first) to red
           (just now). At a slow speed you can watch the latest tile fall, dark, down its dashed
-          line; it takes its color when it lands.</p>
+          line; it takes its color when it lands. In 2D, click the picture to drop a tile
+          there yourself (with walls, only where it fits).</p>
         <p class="muted small help-3d" id="view3d-help" hidden></p>
 
         <h3 class="option-heading">Run</h3>
@@ -124,7 +125,9 @@
         <div class="option-row goto-row"></div>
         <div class="option-row seed-row"></div>
         <p class="muted small">The same seed always gives the same deposit, and more particles
-          only add tiles: particle p falls at a place made from its own random numbers.</p>
+          only add tiles: particle p falls at a place made from its own random numbers.
+          Clicked tiles stay in the run (Go to, the seed and the tile keep them) and don't
+          use up the random particles' numbers.</p>
       </section>
 
       <!-- UNDER THE PICTURE: numbers about this run. -->
@@ -257,7 +260,11 @@
           <strong>Random numbers.</strong> Particle <span class="tex">p</span> falls at a
           place made from the seed and <span class="tex">p</span>. So it falls in the same
           place however many come after it, and going from <span class="tex">n</span> to
-          <span class="tex">n + 1</span> particles only adds a tile.
+          <span class="tex">n + 1</span> particles only adds a tile. A tile you drop with
+          a click doesn't count in <span class="tex">p</span>: the random particles after
+          it fall where they would have anyway (onto a different deposit). The run keeps
+          the clicks, at the moment each was made, so going back and forth with Go to, or
+          changing the seed or the tile, drops them again.
         </p>
         <p><strong>References</strong></p>
         <ol class="small">

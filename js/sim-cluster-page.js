@@ -48,8 +48,12 @@
      showDepositStats(message)  the numbers both show, and the charts
      newFallShow()              the latest particle's fall, shown as it
                                 happens
-     fallHeight(show, top, to)  how high it is now
-     drawFallLine(pen, sx, sy, x, top, to)   its dashed line, in 2D
+     fallPoints(fall, top)      the points it passes, from height "top"
+     fallAt(show, points)       where it is now, along them
+     drawFallPath(pen, sx, sy, points)   its dashed path, in 2D
+     fallSegments(points)       its path in 3D, as drawCells's lines
+     connectDropClicks(view, sim, xAt)   clicks on the 2D picture drop a
+                                particle where they are
    These need js/sim-page.js and js/sim-charts.js.
 
    TILES. The continuous DLA sims read their tile, and draw the tiles
@@ -528,7 +532,7 @@ function showDepositStats(s) {
 }
 
 // The latest particle's fall, shown as it happens: the growth's "fall"
-// ({ point, top }: the line it fell along and how high it stopped),
+// ({ path }: the points it passed, the last where it stopped),
 // which particle it is (its number from 0), when the fall started on
 // the screen (performance.now(), in milliseconds) and how long it takes
 // to show (as long as a walk on the continuous DLA pages).
@@ -550,20 +554,65 @@ function newFallShow() {
   return show;
 }
 
-// How high the falling particle is now: from "top" (the top of the
-// picture) down to "to" (where it stops), at a steady speed.
-function fallHeight(show, top, to) { return top + show.share() * (to - top); }
+// The points a fall passes: straight down its first point's line from
+// height "top" (the top of the picture) to it, then along its path.
+function fallPoints(fall, top) {
+  const first = fall.path[0].slice();
+  first[first.length - 1] = top;
+  return [first].concat(fall.path);
+}
 
-// 2D: the dashed line the latest particle falls along, at x from height
-// "top" down to height "to", with sx and sy taking a point of the plane
-// to the screen.
-function drawFallLine(pen, sx, sy, x, top, to) {
+// Where the falling particle is now: show.share() of the way along the
+// points, at a steady speed.
+function fallAt(show, points) {
+  const lengths = [];
+  let total = 0;
+  for (let k = 1; k < points.length; k++) {
+    const step = Math.hypot(...points[k].map(function (x, d) { return x - points[k - 1][d]; }));
+    lengths.push(step);
+    total += step;
+  }
+  let left = show.share() * total;
+  for (let k = 1; k < points.length; k++) {
+    if (left <= lengths[k - 1] || k === points.length - 1) {
+      const t = lengths[k - 1] > 0 ? Math.min(1, left / lengths[k - 1]) : 1;
+      return points[k].map(function (x, d) { return points[k - 1][d] + t * (x - points[k - 1][d]); });
+    }
+    left -= lengths[k - 1];
+  }
+  return points[0];
+}
+
+// 2D: the dashed path the latest particle falls along, with sx and sy
+// taking a point of the plane to the screen.
+function drawFallPath(pen, sx, sy, points) {
   pen.strokeStyle = FALL_LINE;
   pen.lineWidth = 1;
   pen.setLineDash([4, 4]);
   pen.beginPath();
-  pen.moveTo(sx(x), sy(top));
-  pen.lineTo(sx(x), sy(to));
+  points.forEach(function (p, k) { if (k === 0) pen.moveTo(sx(p[0]), sy(p[1])); else pen.lineTo(sx(p[0]), sy(p[1])); });
   pen.stroke();
   pen.setLineDash([]);
+}
+
+// 3D: the path as drawCells's lines (js/sim-3d.js): x1, y1, z1, x2, ...
+// for each piece.
+function fallSegments(points) {
+  const lines = [];
+  for (let k = 1; k < points.length; k++) lines.push(...points[k - 1], ...points[k]);
+  return lines;
+}
+
+// Clicks on a deposition page's 2D picture (connectPicture, js/sim-view.js):
+// each drops one particle straight down at the x clicked (the growth's
+// "drop" message, serveGrowth in js/sim-cluster.js). xAt(px) is the x in
+// the picture at px screen pixels from the canvas's left side, or null
+// for none (in 3D, or off the floor).
+function connectDropClicks(view, sim, xAt) {
+  connectPicture(view, {
+    onClick: function (event) {
+      const x = xAt(pointerSpot(view, event).x);
+      if (x !== null) sim.send({ type: "drop", place: [x] });
+    },
+  });
 }

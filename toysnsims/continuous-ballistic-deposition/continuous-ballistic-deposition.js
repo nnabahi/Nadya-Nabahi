@@ -161,12 +161,14 @@ function showGrowth(message) {
 function widthNow() { return readNumber("set-width", LEAST_WIDTH, MOST_WIDTH[dim], DEFAULT_WIDTH[dim]); }
 
 // Start the growth again, paused. keepCount: grow to the number of
-// particles we are at (so changing the tile or the floor keeps it).
+// particles we are at, with the clicked tiles (so changing the tile or
+// the floor keeps them).
 function restart(keepCount) {
   if (!tileBox.formula) return;
+  const keep = keepCount && haveDeposit();
   sim.setup({
     dim: dim, tileFormula: tileBox.formula, values: tileBox.values(), width: widthNow(), sides: checked("sides"),
-    seed: byId("seed").value, particles: (keepCount && haveDeposit()) ? latest.particles : 1,
+    seed: byId("seed").value, particles: keep ? latest.particles : 1, drops: keep ? latest.drops : [],
   });
 }
 
@@ -206,7 +208,13 @@ const plane = makePlaneView(simCanvas, drawSoon, {
   onMove: function () { following = false; },
   resetTitle: "Fit the picture to the floor and the deposit, and keep following it as it grows", resetWord: "Fit",
 });
-connectPicture(plane);   // drag and pinch the picture (js/sim-view.js)
+// Drag and pinch the picture (js/sim-view.js), and in 2D a click on the
+// floor's width drops a tile down the line there (connectDropClicks,
+// js/sim-cluster-page.js).
+connectDropClicks(plane, sim, function (px) {
+  const x = pointX(plane, px);
+  return dim === 2 && haveDeposit() && x >= 0 && x < floorWidth() ? x : null;
+});
 window.addEventListener("resize", drawSoon);
 
 // 3D: loaded the first time it is needed (make3D, js/sim-page.js).
@@ -250,10 +258,10 @@ function draw2D(watching, share) {
   const shifts = wraps() ? [0, W, -W] : [0], n = share < 1 ? fall.particle : tiles.x.length;
   drawTilesFlat(plane, pen, tiles, outline, n, shifts);    // (js/sim-cluster-page.js)
   if (watching && latest.fall) {
-    const x = latest.fall.point[0], to = latest.fall.top;
-    drawFallLine(pen, function (u) { return pixelX(plane, u); }, function (v) { return pixelY(plane, v); }, x, top, to);
+    const points = fallPoints(latest.fall, top);
+    drawFallPath(pen, function (u) { return pixelX(plane, u); }, function (v) { return pixelY(plane, v); }, points);
     if (share < 1) {
-      const add = tilePath(plane, outline), y = fallHeight(fall, top, to);
+      const add = tilePath(plane, outline), [x, y] = fallAt(fall, points);
       pen.fillStyle = WALKER;
       pen.beginPath();
       for (const dx of shifts) add(pen, x + dx, y);
@@ -277,9 +285,9 @@ function draw3D(watching, share) {
     box: { low: [0, 0, -outline.rhoMax], high: [W, W, top] },
   };
   if (watching && latest.fall) {
-    const [x, y] = latest.fall.point, to = latest.fall.top;
-    cells.lines.push(x, y, top, x, y, to);
-    if (share < 1) { cells.x.push(x); cells.y.push(y); cells.z.push(fallHeight(fall, top, to)); }
+    const points = fallPoints(latest.fall, top);
+    cells.lines.push(...fallSegments(points));
+    if (share < 1) { const [x, y, z] = fallAt(fall, points); cells.x.push(x); cells.y.push(y); cells.z.push(z); }
   }
   three.code.drawCells(three.view, cells);
 }

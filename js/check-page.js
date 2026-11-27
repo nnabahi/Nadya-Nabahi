@@ -501,6 +501,44 @@ function checkTileCoupling(make, t, n, more) {
 }
 
 
+// Clicks on a ballistic deposition sim (the growth's addParticle(place)):
+//   - the particles before a click are as without it, and the clicked
+//     one falls down the line at the place clicked;
+//   - the random particles after it fall down the same lines as the
+//     random particles of a run without the click (it doesn't use up
+//     their numbers);
+//   - periodic: a place a whole width over (each way) is the same click;
+//     walls: a place outside them is refused, and nothing is added.
+// make() gives a fresh growth, key(growth, i) one value for its cell or
+// tile i, "place" ([x], or [x, y] in space) is inside the floor, and
+// "widths" the floor's widths ([W], or [W, W'] in space).
+function checkClicks(name, make, key, n, more, place, widths, walls) {
+  const linePoint = function (g) { const p = g.lastFall.path[0]; return p.slice(0, p.length - 1); };
+  const grow = function (g, count, lines) {
+    while (g.cluster.count < count) { g.addParticle(); if (lines) lines.push(linePoint(g)); }
+  };
+  const same = function (a, b) { return a.every(function (x, d) { return Math.abs(x - b[d]) < 1e-12; }); };
+  const plain = make(), clicked = make(), plainLines = [], clickedLines = [];
+  grow(plain, n + more, plainLines);
+  grow(clicked, n);
+  const added = clicked.addParticle(place), at = linePoint(clicked);
+  grow(clicked, n + 1 + more, clickedLines);
+  let before = true, afterSame = true;
+  for (let i = 0; i < n; i++) if (key(plain, i) !== key(clicked, i)) before = false;
+  for (let k = 0; k < more; k++) if (!same(clickedLines[k], plainLines[n + k])) afterSame = false;
+  const other = make();
+  grow(other, n);
+  const moved = place.map(function (x, d) { return walls ? -widths[d] : x + widths[d]; }), otherAdded = other.addParticle(moved);
+  const sides = walls ? !otherAdded && other.cluster.count === n : otherAdded && key(other, n) === key(clicked, n);
+  addRow(name + ": a click drops a particle there, and leaves the random particles alone",
+         added && before && same(at, place) && afterSame && sides,
+         "after " + n + " particles, a click at " + place.map(fourDigits).join(", ") + " " + (added ? "fell down the line at " +
+         at.map(fourDigits).join(", ") : "was REFUSED") + "; the " + n + " before it are " + (before ? "the same" : "NOT the same") +
+         " as without it; the " + more + " random ones after it fall down " + (afterSame ? "the same lines" : "OTHER lines") +
+         " as without it; " + (walls ? "a click outside the walls " + (sides ? "is refused" : "was NOT refused")
+                                    : "a click a whole width over " + (sides ? "is the same click" : "is NOT the same click")));
+}
+
 /* ---------------------------------------------------------------------
    Growing clusters (the DLA sims)
    ---------------------------------------------------------------------

@@ -128,12 +128,14 @@ function showGrowth(message) {
 function widthNow() { return readWhole("set-width", 2, MOST_WIDTH[dim], DEFAULT_WIDTH[dim]); }
 
 // Start the growth again, paused. keepCount: grow to the number of
-// particles we are at (so changing the lattice keeps it).
+// particles we are at, with the clicked particles (so changing the
+// lattice keeps them).
 function restart(keepCount) {
   width = widthNow();
+  const keep = keepCount && haveDeposit();
   const options = Object.assign(cluster.forSetup(), {
-    dim: dim, width: width, sides: sidesNow(), seed: byId("seed").value,
-    particles: (keepCount && haveDeposit()) ? latest.particles : 1,
+    dim: dim, width: width, sides: sidesNow(), rule: checked("rule"), seed: byId("seed").value,
+    particles: keep ? latest.particles : 1, drops: keep ? latest.drops : [],
   });
   floor = null;
   sim.setup(options);
@@ -167,7 +169,12 @@ const drawSoon = oncePerFrame(function () { drawDeposit(); showStats(); });
 const fallOn = oncePerFrame(drawDeposit);
 
 const view = makeView(simCanvas, drawSoon);      // where the picture goes, and the 2D picture's zoom (js/sim-view.js)
-connectPicture(view);   // drag and pinch the 2D picture (js/sim-view.js)
+// Drag and pinch the 2D picture (js/sim-view.js), and a click drops a
+// particle down the line there (connectDropClicks, js/sim-cluster-page.js).
+// pictureXAt(px) is the x in the plane at screen pixel px, as the 2D
+// picture was last drawn, or null off the strip.
+let pictureXAt = null;
+connectDropClicks(view, sim, function (px) { return dim === 2 && haveDeposit() && pictureXAt ? pictureXAt(px) : null; });
 window.addEventListener("resize", drawSoon);
 
 // 3D: loaded the first time it is needed (make3D, js/sim-page.js).
@@ -209,6 +216,10 @@ function drawSquares(n, watching) {
     },
   };
   const pen = fitPicture(view, d, PICTURE_HEIGHT, true);
+  pictureXAt = function (px) {
+    const x = (px - view.left) / view.cell - view.scroll.x + d.xmin - 0.5;   // (sx below, backwards)
+    return x >= d.xmin - 0.5 && x < d.xmax + 0.5 ? x : null;
+  };
   paintCells(view, pen, d, function (v) { return v === FLOOR_CELL ? FLOOR_GROUP : arrivalGroupOf(v, n); }, colorOf, hexToRGB(BACKGROUND));
   if (watching && latest.fall) {
     // A height y on the grid is (ymax + 0.5 - y) squares from the top.
@@ -243,6 +254,10 @@ function drawPolygons(n, watching) {
   }
   shown.pictureBox = { left: 0, right: W, bottom: bottom, top: Math.max(TALL_SHARE * W, latest.highest + 2 * widestCell(tiling)) };
   const pen = fitPicture(view, shown, PICTURE_HEIGHT, true);
+  pictureXAt = function (px) {
+    const x = (px - view.left) / view.cell - view.scroll.x;    // (screenCopies, js/sim-view.js, backwards: the box starts at 0)
+    return x >= 0 && x < W ? x : null;
+  };
   paintDomain(view, pen, shown, function (v) { return groups[v]; }, colorOf, hexToRGB(BACKGROUND), null, 0);
   if (watching && latest.fall) {
     const { sx, sy } = screenCopies(view, shown)[0];
@@ -252,24 +267,25 @@ function drawPolygons(n, watching) {
 }
 
 // 2D: the latest particle's fall, with sx and sy taking a point of the
-// plane to the screen: its dashed line from the top of the picture down
-// to where it stops (drawFallLine, js/sim-cluster-page.js), and while it
-// falls, the particle as a dot.
+// plane to the screen: its dashed path from the top of the picture down
+// to where it stops (fallPoints and drawFallPath, js/sim-cluster-page.js),
+// and while it falls, the particle as a dot.
 function drawFall(pen, sx, sy, top) {
-  const x = latest.fall.point[0], to = latest.fall.top;
-  drawFallLine(pen, sx, sy, x, top, to);
+  const points = fallPoints(latest.fall, top);
+  drawFallPath(pen, sx, sy, points);
   if (fall.share() < 1) {
+    const [x, y] = fallAt(fall, points);
     pen.fillStyle = WALKER;
     pen.beginPath();
-    pen.arc(sx(x), sy(fallHeight(fall, top, to)), WALKER_RADIUS, 0, 2 * Math.PI);
+    pen.arc(sx(x), sy(y), WALKER_RADIUS, 0, 2 * Math.PI);
     pen.fill();
   }
 }
 
 // 3D (make3D, js/sim-page.js, loads it the first time it is needed):
 // the floor's top layer and cells 0 .. n - 1, each in its own shape
-// (drawCells, js/sim-3d.js); while the latest particle falls, its line
-// and the particle as a dark ball.
+// (drawCells, js/sim-3d.js); while the latest particle falls, its
+// path and the particle as a dark ball.
 function draw3D(n, watching, share) {
   if (!three.view) return;
   const f = floor.I.length, block = cluster.block;
@@ -279,11 +295,11 @@ function draw3D(n, watching, share) {
     color: function (i) { return colorOf(i < f ? FLOOR_GROUP : arrivalGroupOf(i - f, n)); },
   };
   if (watching && latest.fall) {
-    const [x, y] = latest.fall.point, to = latest.fall.top, top = latest.highest + 2 * block.c[2] + 2;
-    cells.lines = [x, y, top, x, y, to];
+    const points = fallPoints(latest.fall, latest.highest + 2 * block.c[2] + 2);
+    cells.lines = fallSegments(points);
     cells.lineColor = PATH_RGB;
     if (share < 1) {
-      cells.at = [x, y, fallHeight(fall, top, to)];
+      cells.at = fallAt(fall, points);
       cells.atColor = WALKER_RGB;
       cells.atSize = Math.max(0.5, width * block.a[0] * WALKER_SHARE_3D);
     }
@@ -336,7 +352,8 @@ for (const radio of document.querySelectorAll('input[name="dimension"]')) {
   radio.addEventListener("change", function () { setDimension(Number(radio.value)); });
 }
 
-// Lattice (2D) and the tiling of space (3D), the width and the sides:
+// Lattice (2D) and the tiling of space (3D), the width, the sides and
+// the falling rule:
 // the growth grows again to the number of particles it was at, with the
 // same seed.
 connectLattice(function () {
@@ -345,8 +362,10 @@ connectLattice(function () {
 });
 connectSpaceTilings(function () { restart(true); }, SOLID_KINDS);
 byId("set-width").addEventListener("change", function () { restart(true); });
-for (const radio of document.querySelectorAll('input[name="sides"]')) {
-  radio.addEventListener("change", function () { restart(true); });
+for (const name of ["sides", "rule"]) {
+  for (const radio of document.querySelectorAll('input[name="' + name + '"]')) {
+    radio.addEventListener("change", function () { restart(true); });
+  }
 }
 
 // Show each particle's fall, or not.

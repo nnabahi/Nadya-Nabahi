@@ -260,12 +260,22 @@ function forEachInRing(dims, m, visit) {
          the page already has the plane's cells up to cellsKnown.
      goto   { steps }     grow to that many particles (or start again and
                           grow to that many, if fewer)
+     drop   { place }     one particle at a place the page chose (a click
+                          on the ballistic deposition pages): the growth's
+                          addParticle(place). It is kept in the options'
+                          "drops" ({ at, place }: the particles there were
+                          before it), so growing again from the start
+                          (goto back, a new lattice or seed sent with the
+                          drops) drops it again at the same moment. A drop
+                          forgets the drops after it from an earlier time.
    Each report has the sim's numbers and
      problem              what went wrong making the growth ("" if nothing)
      dim, particles       the dimension, and the cells in the cluster
      atMax, atEdge        it stopped at how.most, or at a Penrose plane's edge
      traceParticles       the particles at each sample, and traceLists,
                           each sample's numbers, by name
+     drops                the drops so far (to send with a setup that
+                          keeps them)
      sitesFrom            the number of the first piece new since the
                           last report, and the new pieces: on a lattice,
      siteI, siteJ, siteK, sitePart, siteDistance
@@ -300,9 +310,23 @@ function serveGrowth(how) {
 
   function isDone() { return growth === null || growth.cluster.count >= how.most || growth.atEdge; }
 
+  // The next particle: the drop the page made at this moment, if there
+  // is one, otherwise a random one. (A drop that can't happen any more,
+  // say a place outside walls that came later, gives a random one.)
   function oneParticle() {
-    if (!growth.addParticle()) return;
-    keepSample(trace, growth.cluster.count, function () { return how.sample(growth, options); });
+    const n = growth.cluster.count, drop = (options.drops || []).find(function (d) { return d.at === n; });
+    if ((drop && growth.addParticle(drop.place)) || growth.addParticle()) kept();
+  }
+  function kept() { keepSample(trace, growth.cluster.count, function () { return how.sample(growth, options); }); }
+
+  // A drop at a place the page chose: kept only if a particle can fall
+  // there (so growing again never meets a drop that can't happen).
+  function dropAt(place) {
+    if (!growth || isDone()) return;
+    const n = growth.cluster.count;
+    if (!growth.addParticle(place)) return;
+    options.drops = (options.drops || []).filter(function (d) { return d.at < n; }).concat([{ at: n, place: place }]);
+    kept();
   }
 
   serveRun({
@@ -313,6 +337,7 @@ function serveGrowth(how) {
         if (growth && message.steps < growth.cluster.count) setup(message.steps);
         else while (!isDone() && growth.cluster.count < message.steps) oneParticle();
       },
+      drop: function (message) { dropAt(message.place); },
     },
   });
 
@@ -321,7 +346,7 @@ function serveGrowth(how) {
     const n = growth.cluster.count, traceLists = {};
     for (const name of how.names) traceLists[name] = Float64Array.from(trace.lists[name] || []);
     const message = Object.assign(how.numbers(growth, options), pieces(growth, sitesSent), {
-      problem: "", dim: options.dim, particles: n, atMax: n >= how.most, atEdge: growth.atEdge,
+      problem: "", dim: options.dim, particles: n, atMax: n >= how.most, atEdge: growth.atEdge, drops: options.drops || [],
       traceParticles: Float64Array.from(trace.times), traceLists: traceLists, sitesFrom: sitesSent,
     });
     sitesSent = n;

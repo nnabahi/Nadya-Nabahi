@@ -36,10 +36,12 @@
    width, so a tile meets another only once. Walls: the tile stays
    between them, so its center is uniform on the x where it fits.
 
-   Random numbers (coupling): particle p falls at the place made from
-   uniform numbers (p, 0) (and (p, 1) in space) of the seed
+   Random numbers (coupling): the p-th random particle (counting from 0,
+   and not counting the ones dropped by a click) falls at the place made
+   from uniform numbers (p, 0) (and (p, 1) in space) of the seed
    (seededUniform, js/sim-worker.js), so going from n to n + 1 particles
-   only adds one tile.
+   only adds one tile, and a click doesn't change where the random
+   particles fall.
 
    The file has these parts, with no drawing and no buttons:
      1. newContinuousDeposit(options): the growth itself. The check page
@@ -65,15 +67,20 @@ const SAMPLES_PER_TILE = { 2: 8, 3: 3 };
 //   sides      "periodic" or "walls"
 //   seed       the seed (any text)
 // It returns the growth:
-//   addParticle()   let one more particle fall (true)
-//   land(p)         where particle p's tile would stop, without adding
-//                   it: its center, [x, y] (in space [x, y, z])
+//   addParticle(place)   let one more particle fall (true): the next
+//                   random one, or with "place" ([x], or [x, y] in space),
+//                   one falling there (false if its tile doesn't fit
+//                   there between the walls)
+//   land(p, point)  where random particle p's tile would stop, without
+//                   adding it (or, with "point", a tile falling there):
+//                   its center, [x, y] (in space [x, y, z])
+//   dropped         how many particles fell at a chosen place
 //   cluster         the tiles' centers (newTileCluster, js/sim-cluster.js)
 //   surface         the surface (newSurface, js/sim-deposit.js)
 //   tile, fit       the tile's shape, and its fallingTile
 //   filled          the area (in space, volume) of the tiles
-//   lastFall        the latest particle's { point, top }: the line it
-//                   fell along (x, or [x, y]) and the height it stopped at
+//   lastFall        the latest particle's { path }: [its center where
+//                   it stopped] (the line it fell along goes through it)
 function newContinuousDeposit(options) {
   const shape = options.tile, dims = shape.dims === 3 ? 3 : 2, across = dims - 1;
   const fit = fallingTile(shape), W = options.width, walls = options.sides === "walls";
@@ -118,7 +125,7 @@ function newContinuousDeposit(options) {
 
   const g = {
     cluster: cluster, surface: surface, tile: shape, fit: fit, samples: samples,
-    filled: 0, lastFall: null, atEdge: false, addParticle: addParticle, land: land,
+    filled: 0, lastFall: null, atEdge: false, dropped: 0, addParticle: addParticle, land: land,
   };
 
   // Periodic: a place across moved by whole widths into 0 <= x < W, and
@@ -154,8 +161,8 @@ function newContinuousDeposit(options) {
     return near;
   }
 
-  function land(p) {
-    const point = dropPoint(p);
+  function land(p, chosen) {
+    const point = chosen || dropPoint(p);
     let best = -fit.low;          // on the floor
     for (const c of columnsNear(point)) {
       const column = columns[c];
@@ -170,8 +177,20 @@ function newContinuousDeposit(options) {
     return point.concat(best);
   }
 
-  function addParticle() {
-    const center = land(cluster.count), i = cluster.count;
+  // A place someone chose (a click) as the line a tile can fall along:
+  // periodic, moved by whole widths into 0 <= x < W; walls, null if the
+  // tile doesn't fit there between them.
+  function placeIn(place) {
+    const point = place.map(wrapped);
+    const fits = point.every(function (x, d) { return !walls || (x + fit.left[d] >= 0 && x + fit.right[d] <= W); });
+    return fits ? point : null;
+  }
+
+  function addParticle(place) {
+    const point = place ? placeIn(place) : null;
+    if (place && !point) return false;
+    if (point) g.dropped++;
+    const center = land(cluster.count - g.dropped, point), i = cluster.count;
     cluster.add(center);
     // Into its column, kept by height (a new tile is usually near the top).
     const column = columns[columnOf(center.slice(0, across))];
@@ -180,7 +199,7 @@ function newContinuousDeposit(options) {
     column.splice(n, 0, i);
     raiseSurface(center);
     g.filled += fit.size;
-    g.lastFall = { point: center.slice(0, across), top: center[across] };
+    g.lastFall = { path: [center] };
     return true;
   }
 

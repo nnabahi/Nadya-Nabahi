@@ -82,12 +82,20 @@
           <label><input type="radio" name="sides" value="periodic" checked> periodic</label>
           <label><input type="radio" name="sides" value="walls"> walls</label>
         </div>
+        <div class="option-row">
+          Falling rule
+          <label><input type="radio" name="rule" value="line" checked> straight down</label>
+          <label><input type="radio" name="rule" value="edges"> down the edges</label>
+        </div>
         <p class="muted small" id="walls-message" hidden>This lattice's blocks cut through
           cells at their sides, so walls wouldn't be straight: here the sides are periodic.</p>
         <p class="muted small">Every cell below height 0 is the floor (the gray layer is its
           top). Each particle falls straight down, at a uniformly random place across, and
           stops in the first cell it passes through that is next to the deposit or the
-          floor; that cell joins the deposit. With periodic sides the strip's right edge is
+          floor; that cell joins the deposit. Down the edges, it starts on that line just
+          above the deposit's reach, and steps from cell to cell, each time to a uniformly
+          random neighbor lower down, until it is next to the deposit. On the square grid
+          the two rules are the same. With periodic sides the strip's right edge is
           glued to its left (in 3D, its back to its front too). On the square grid a block
           is one cell.</p>
 
@@ -97,7 +105,8 @@
         </div>
         <p class="muted small">Each cell is colored by when it joined: from blue (first) to red
           (just now). At a slow speed you can watch the latest particle fall down its dashed
-          line; its cell shows when it lands.</p>
+          line; its cell shows when it lands. In 2D, click the picture to drop a particle
+          there yourself.</p>
         <p class="muted small help-3d" id="view3d-help" hidden></p>
 
         <h3 class="option-heading">Run</h3>
@@ -106,7 +115,9 @@
         <div class="option-row goto-row"></div>
         <div class="option-row seed-row"></div>
         <p class="muted small">The same seed always gives the same deposit, and more particles
-          only add cells: particle p falls at a place made from its own random numbers.</p>
+          only add cells: particle p falls at a place made from its own random numbers.
+          Clicked particles stay in the run (Go to, the seed and the lattice keep them)
+          and don't use up the random particles' numbers.</p>
       </section>
 
       <!-- UNDER THE PICTURE: numbers about this run. -->
@@ -192,6 +203,21 @@
           pieces of the line come from its polygon (in 3D, its faces).
         </p>
         <p>
+          <strong>Down the edges.</strong> Another way to say "falls down a column" on
+          any lattice: along the lattice's own edges. Each edge points from the middle of a
+          cell to the middle of a neighbor, and it points <em>down</em> when its angle is
+          strictly between <span class="tex">0</span> and <span class="tex">-\pi</span>,
+          that is, its dot product with <span class="tex">(0, -1)</span> is positive (in
+          3D, with <span class="tex">(0, 0, -1)</span>). The particle starts in the cell
+          the vertical line through its uniform point crosses lowest, in the first row of
+          blocks too high to be next to the deposit, then steps down a uniformly random
+          down edge, again and again, until its cell is next to the deposit or the floor,
+          and stops there (a cell with no down edge would stop it too). On the square
+          grid each cell has one down edge, to the cell below, so this is the rule above.
+          Elsewhere the path wanders sideways, so this is a different model; the
+          exponents above are not known for it.
+        </p>
+        <p>
           <strong>What it is about.</strong> The surface roughens. Its interface
           width <span class="tex">w</span> (the standard deviation of the heights)
           is expected to grow like <span class="tex">t^{\beta}</span>, with
@@ -229,9 +255,14 @@
         </p>
         <p>
           <strong>Random numbers.</strong> Particle <span class="tex">p</span> falls at a
-          place made from the seed and <span class="tex">p</span>. So it falls in the same
+          place made from the seed and <span class="tex">p</span> (and down the edges,
+          picks each step from them too). So it falls in the same
           place however many come after it, and going from <span class="tex">n</span> to
-          <span class="tex">n + 1</span> particles only adds a cell.
+          <span class="tex">n + 1</span> particles only adds a cell. A particle you drop
+          with a click doesn't count in <span class="tex">p</span>: the random particles
+          after it fall where they would have anyway (onto a different deposit). The run
+          keeps the clicks, at the moment each was made, so going back and forth with Go to,
+          or changing the seed or the lattice, drops them again.
         </p>
         <p><strong>References</strong></p>
         <ol class="small">
