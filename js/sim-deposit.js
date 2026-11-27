@@ -54,6 +54,9 @@
      dropPoint(u, v)      the point a particle falls along, from one or
                           two uniform numbers in (0, 1): uniform across
                           the strip
+     placeIn(point)       a point someone chose (a click) as one of the
+                          strip's: moved by whole widths into it (periodic
+                          sides), or null if it is outside (walls)
      samples              the points where the surface is measured: PER
                           evenly spaced across each block (each way)
      samplesUnder(s, visit)   visit(m, top) for each sample m whose line
@@ -299,7 +302,7 @@ function newFallingLattice(lattice, L, walls) {
     rowTop: function (V) { return V * rise + highest; },
     rowBottom: function (V) { return V * rise + lowest; },
     rowOf: rowOf, heightOf: heightOf, isFloor: isFloor, keyOf: keyOf, forEachNeighbor: forEachNeighbor,
-    crossed: crossed, dropPoint: dropPoint, samplesUnder: samplesUnder, floorTopAt: floorTopAt, floorTop: floorTop,
+    crossed: crossed, dropPoint: dropPoint, placeIn: placeIn, samplesUnder: samplesUnder, floorTopAt: floorTopAt, floorTop: floorTop,
     sizeOf: function (s) { return cells[s.k].size; },
   };
 
@@ -362,6 +365,11 @@ function newFallingLattice(lattice, L, walls) {
   // Uniform across the strip, from its left (and front) side.
   function dropPoint(u, v) {
     return dims === 2 ? [start[0] + u * W] : [start[0] + u * W, start[1] + v * widths[1]];
+  }
+
+  function placeIn(point) {
+    const moved = point.map(function (x, d) { return walls ? x : x - widths[d] * Math.floor((x - start[d]) / widths[d]); });
+    return moved.every(function (x, d) { return x >= start[d] && x < start[d] + widths[d]; }) ? moved : null;
   }
 
   // The sample points: PER across each block (each way), in the middle

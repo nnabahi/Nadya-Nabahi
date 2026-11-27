@@ -21,6 +21,7 @@
      5. Coupling: more particles only add tiles (checkTileCoupling,
         js/check-page.js).
      6. A floor too narrow for the tile is refused.
+     7. Clicks (checkClicks, js/check-page.js).
    ===================================================================== */
 
 // The tiles tested: tilePolygon (in the plane) or tilePolyhedron (in
@@ -281,6 +282,20 @@ function checkNarrow(t) {
 }
 
 
+/* =====================================================================
+   7. CLICKS
+   ---------------------------------------------------------------------
+   checkClicks (js/check-page.js), with a click 0.37 of the way across
+   the floor (and 0.61 of the way back, in space).
+   ===================================================================== */
+function checkTileClicks(t, sides, n) {
+  const make = function () { return makerFor(t, sides)({ dim: t.dims, tile: t.shape, seed: "clicks" }); };
+  const place = [0.37 * t.W].concat(t.dims === 3 ? [0.61 * t.W] : []);
+  const key = function (g, i) { return centerOf(g, i).map(function (x) { return x.toFixed(9); }).join(" "); };   // (to rounding: a place moved a width over and back)
+  checkClicks(t.name + ", " + sidesWords(sides), make, key, n, n, place, place.map(function () { return t.W; }), sides === "walls");
+}
+
+
 function allTests() {
   const tests = [];
   for (const t of testTiles()) {
@@ -293,6 +308,7 @@ function allTests() {
     }
     tests.push(function () { checkTileCoupling(makerFor(t, "periodic"), t, n / 2, n / 2); });
     tests.push(function () { checkNarrow(t); });
+    for (const sides of ["periodic", "walls"]) tests.push(function () { checkTileClicks(t, sides, n / 2); });
   }
   return tests;
 }

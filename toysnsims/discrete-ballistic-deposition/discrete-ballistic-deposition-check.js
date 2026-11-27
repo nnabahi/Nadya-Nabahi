@@ -24,6 +24,11 @@
         floor or an earlier cell, and the surface recounted from the
         cells.
      6. Coupling: more particles only add cells.
+     7. The edges rule on the square (cubic) grid is the line rule.
+     8. The edges rule, against a plain walk: where a particle starts,
+        and each step down a uniformly random down neighbor, until it
+        is next to the deposit; and every cell has a down neighbor.
+     9. Clicks (checkClicks, js/check-page.js), with both rules.
    ===================================================================== */
 
 // The lattices tested, as newDiscreteDeposit's options; "convex": its
@@ -41,10 +46,10 @@ function testLattices() {
   ];
 }
 
-// A growth on lattice t, L blocks wide, with these sides and seed, grown
-// to n particles.
-function grownDeposit(t, sides, L, seed, n) {
-  const growth = newDiscreteDeposit(Object.assign({ width: L, sides: sides, seed: seed }, t.options));
+// A growth on lattice t, L blocks wide, with these sides and seed (and
+// falling rule: "line" if none), grown to n particles.
+function grownDeposit(t, sides, L, seed, n, rule) {
+  const growth = newDiscreteDeposit(Object.assign({ width: L, sides: sides, seed: seed, rule: rule || "line" }, t.options));
   while (growth.cluster.count < n) growth.addParticle();
   return growth;
 }
@@ -96,7 +101,7 @@ function checkClassicRule(t, sides, L, n) {
   let wrong = 0;
   for (let p = 0; p < n; p++) {
     growth.addParticle();
-    const x = growth.lastFall.point, i = Math.floor(x[0] - m[0] + 0.5), j = space ? Math.floor(x[1] - m[1] + 0.5) : 0;
+    const x = growth.lastFall.path[0], i = Math.floor(x[0] - m[0] + 0.5), j = space ? Math.floor(x[1] - m[1] + 0.5) : 0;
     const height = space ? Math.max(heightAt(i, j) + 1, heightAt(i - 1, j), heightAt(i + 1, j), heightAt(i, j - 1), heightAt(i, j + 1))
                          : Math.max(heightAt(i, 0) + 1, heightAt(i - 1, 0), heightAt(i + 1, 0));
     const s = depositSite(growth, p);
@@ -246,14 +251,14 @@ function checkStop(t, sides, L, n, runs) {
   const nextTo = function (s) { let yes = false; f.forEachNeighbor(s, function (u) { if (isTaken(u)) yes = true; }); return yes; };
   let wrong = 0;
   for (let p = n; p < n + runs; p++) {
-    const landed = growth.land(p);
+    const landed = growth.land(p), end = landed.path[0], point = end.slice(0, end.length - 1);
     let best = -Infinity, site = null;
     for (let V = highRow + f.moveRows + 2; f.rowTop(V) >= 0; V--) {
-      f.crossed(landed.point, V, function (s, bottom, top) {
+      f.crossed(point, V, function (s, bottom, top) {
         if (top > best && !isTaken(s) && nextTo(s)) { best = top; site = s; }
       });
     }
-    if (!site || f.keyOf(site) !== f.keyOf(landed.site) || best !== landed.top) wrong++;
+    if (!site || f.keyOf(site) !== f.keyOf(landed.site) || best !== end[end.length - 1]) wrong++;
   }
   addRow(t.name + ", " + sidesWords(sides) + ": where a particle stops, against a plain search", wrong === 0,
          runs + " particles dropped on a deposit of " + n + ": " + wrong + " stopped elsewhere than the plain search says");
@@ -323,6 +328,94 @@ function checkCoupling(t, L, n, more) {
 }
 
 
+
+/* =====================================================================
+   7. THE EDGES RULE ON THE SQUARE (CUBIC) GRID
+   ---------------------------------------------------------------------
+   Each square's (cube's) one down neighbor is the one below it, so a
+   particle walks straight down its column and stops at the first cell
+   next to the deposit: the line rule. The two deposits, same seed,
+   should be the same.
+   ===================================================================== */
+function checkEdgesOnSquares(t, sides, L, n) {
+  const line = grownDeposit(t, sides, L, "edges = line", n, "line"), edges = grownDeposit(t, sides, L, "edges = line", n, "edges");
+  let differ = 0;
+  for (let i = 0; i < n; i++) if (line.fall.keyOf(depositSite(line, i)) !== edges.fall.keyOf(depositSite(edges, i))) differ++;
+  addRow(t.name + ", " + sidesWords(sides) + ": the edges rule is the line rule", differ === 0,
+         n + " particles: " + differ + " cells differ between the two rules");
+}
+
+
+/* =====================================================================
+   8. THE EDGES RULE, AGAINST A PLAIN WALK
+   ---------------------------------------------------------------------
+   Particles p = n, n + 1, ... are dropped on a deposit of n (land(p)),
+   none added, and each is walked again here from its definition: its
+   start is the cell whose piece of the line through its place is
+   lowest in row (in space, layer) R + (most rows apart two neighbors
+   can be) + 1, R the highest row of the floor's top or the deposit; at
+   step k it moves to the down neighbor (middle lower) numbered by
+   uniform number (p, 2 + k) of the seed, in forEachNeighbor's order,
+   until it is next to the floor or the deposit. The path's points
+   should go strictly down after its start, and end at the height of
+   the cell's middle. And every cell of a row of
+   blocks has a down neighbor (or a particle could stop in mid air).
+   ===================================================================== */
+function checkEdgesWalk(t, sides, L, n, runs) {
+  const seed = "walk", growth = grownDeposit(t, sides, L, seed, n, "edges"), f = growth.fall, taken = new Set();
+  const random = seededUniform(seed), across = f.dims - 1, place = function (s) { return growth.lattice.placeOf(s.I, s.J, s.K, s.k); };
+  let highRow = Math.max(...growth.floor.map(f.rowOf));
+  for (let i = 0; i < n; i++) {
+    const s = depositSite(growth, i);
+    taken.add(f.keyOf(s));
+    highRow = Math.max(highRow, f.rowOf(s));
+  }
+  const isTaken = function (s) { return f.isFloor(s) || taken.has(f.keyOf(s)); };
+  const nextTo = function (s) { let yes = false; f.forEachNeighbor(s, function (u) { if (isTaken(u)) yes = true; }); return yes; };
+  const downOf = function (s) { const down = []; f.forEachNeighbor(s, function (u) { if (f.heightOf(u) < f.heightOf(s)) down.push(u); }); return down; };
+  let wrong = 0, badPath = 0, steps = 0;
+  for (let p = n; p < n + runs; p++) {
+    const landed = growth.land(p), path = landed.path, point = path[0].slice(0, across);
+    let site = null, lowest = Infinity;
+    f.crossed(point, highRow + f.moveRows + 1, function (s, bottom) { if (bottom < lowest) { lowest = bottom; site = s; } });
+    for (let k = 0; !nextTo(site); k++) {
+      const down = downOf(site);
+      if (down.length === 0) break;
+      site = down[Math.floor(random.uniform(p, 2 + k) * down.length)];
+    }
+    if (f.keyOf(site) !== f.keyOf(landed.site)) wrong++;
+    steps += path.length - 2;
+    for (let k = 2; k < path.length; k++) if (!(path[k][across] < path[k - 1][across])) badPath++;
+    const end = path[path.length - 1], middle = place(landed.site);
+    if (Math.abs(end[across] - middle[across]) > 1e-9) badPath++;
+  }
+  let stuck = 0, cells = 0;
+  const block = t.options.dim === 3 ? t.options.block.cells.length : t.options.tiling ? t.options.tiling.cells.length : 1;
+  for (let k = 0; k < block; k++) {
+    const s = newSite(2, t.options.dim === 3 ? 2 : 5, t.options.dim === 3 ? 5 : 0, k);
+    cells++;
+    if (downOf(s).length === 0) stuck++;
+  }
+  addRow(t.name + ", " + sidesWords(sides) + ": the edges rule, against a plain walk", wrong === 0 && badPath === 0 && stuck === 0,
+         runs + " particles dropped on a deposit of " + n + " (" + steps + " steps in all): " + wrong + " stopped elsewhere than " +
+         "the plain walk says, " + badPath + " steps not going down (or paths not ending at the cell's middle); " + stuck + " of the block's " + cells +
+         " cells have no down neighbor");
+}
+
+
+/* =====================================================================
+   9. CLICKS
+   ---------------------------------------------------------------------
+   checkClicks (js/check-page.js), with a click 0.37 of the way across
+   the strip (and 0.61 of the way back, in space).
+   ===================================================================== */
+function checkDepositClicks(t, sides, L, n, rule) {
+  const make = function () { return newDiscreteDeposit(Object.assign({ width: L, sides: sides, seed: "clicks", rule: rule }, t.options)); };
+  const widths = make().fall.widths, place = [0.37 * widths[0]].concat(widths.length > 1 ? [0.61 * widths[1]] : []);
+  const key = function (g, i) { return g.fall.keyOf(depositSite(g, i)); };
+  checkClicks(t.name + ", " + sidesWords(sides) + ", the " + rule + " rule", make, key, n, n, place, widths, sides === "walls");
+}
+
 function allTests() {
   const lattices = testLattices(), squares = lattices[0], cubes = lattices[5];
   const tests = [
@@ -342,6 +435,11 @@ function allTests() {
       tests.push(function () { checkBigDeposit(t, side, L, n); });
     }
     tests.push(function () { checkCoupling(t, L, n / 2, n / 2); });
+    for (const side of sides) {
+      if (t.name === squares.name || t.name === cubes.name) tests.push(function () { checkEdgesOnSquares(t, side, L, n); });
+      tests.push(function () { checkEdgesWalk(t, side, L, n, 200); });
+      for (const rule of ["line", "edges"]) tests.push(function () { checkDepositClicks(t, side, L, n / 2, rule); });
+    }
   }
   return tests;
 }
